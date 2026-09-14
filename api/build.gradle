@@ -1,0 +1,19 @@
+plugins {
+	id 'org.springframework.boot'
+}
+
+dependencies {
+	implementation project(':core')
+	implementation project(':storage:db')
+
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+}
+
+// api만 실행 가능한 JAR로 패키징한다.
+tasks.named('jar') {
+	enabled = false
+}

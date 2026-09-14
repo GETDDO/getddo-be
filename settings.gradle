@@ -1,1 +1,3 @@
 rootProject.name = 'GETDDO-BE'
+
+include 'api', 'core', 'storage:db'

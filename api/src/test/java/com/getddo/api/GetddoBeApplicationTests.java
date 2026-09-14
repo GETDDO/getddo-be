@@ -1,4 +1,4 @@
-package com.getddo;
+package com.getddo.api;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
