@@ -8,7 +8,10 @@ AI가 실제 대화·코드 변경·검증 결과로 초안을 작성하고, 담
 docs/
 ├── README.md                    기록 작성 방법
 ├── 00-requirements/
-│   └── README.md
+│   ├── README.md
+│   ├── functional-requirements.md
+│   ├── scope.md
+│   └── pending-decisions.md
 ├── 01-conventions/
 │   ├── README.md
 │   ├── branch.md
@@ -17,7 +20,13 @@ docs/
 │   ├── pull-request.md
 │   └── code-style.md
 ├── 02-domain/
-│   └── README.md
+│   ├── README.md
+│   ├── glossary.md
+│   ├── event.md
+│   ├── ticket.md
+│   ├── entry.md
+│   ├── drawing.md
+│   └── notification.md
 ├── 03-api/
 │   └── README.md
 ├── 04-database/
@@ -25,7 +34,8 @@ docs/
 ├── 05-decisions/                중요한 설계 결정과 이유(ADR)
 │   └── README.md
 ├── 06-worklogs/                 작업 과정·선택 이유·검증 결과
-│   └── README.md
+│   ├── README.md
+│   └── 2026-09-17-requirements-refinement.md
 ├── 07-runbook/
 │   └── README.md
 └── templates/
