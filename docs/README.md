@@ -6,12 +6,31 @@ AI가 실제 대화·코드 변경·검증 결과로 초안을 작성하고, 담
 
 ```text
 docs/
-├── README.md          기록 작성 방법
-├── worklogs/          작업 과정·선택 이유·검증 결과
-├── decisions/         중요한 설계 결정과 이유(ADR)
+├── README.md                    기록 작성 방법
+├── 00-requirements/
+│   └── README.md
+├── 01-conventions/
+│   ├── README.md
+│   ├── branch.md
+│   ├── workflow.md
+│   ├── commit.md
+│   ├── pull-request.md
+│   └── code-style.md
+├── 02-domain/
+│   └── README.md
+├── 03-api/
+│   └── README.md
+├── 04-database/
+│   └── README.md
+├── 05-decisions/                중요한 설계 결정과 이유(ADR)
+│   └── README.md
+├── 06-worklogs/                 작업 과정·선택 이유·검증 결과
+│   └── README.md
+├── 07-runbook/
+│   └── README.md
 └── templates/
-    ├── worklog.md     작업 기록 양식
-    └── adr.md         설계 결정 양식
+    ├── worklog.md               작업 기록 양식
+    └── adr.md                   설계 결정 양식
 ```
 
 ## 무엇을 기록하나요?
@@ -19,14 +38,14 @@ docs/
 | 기록 | 작성 기준 | 파일명 예시 |
 | --- | --- | --- |
 | PR 설명 | 작은 수정의 목적·변경·검증 | 별도 파일 불필요 |
-| 작업 기록 | 해결 과정이나 검증 결과를 다음 작업에서 참고할 필요가 있을 때 | `worklogs/GT-21-response.md` |
-| ADR | 여러 작업에 영향을 주거나 바꾸기 어려운 설계 결정 | `decisions/0001-decision-title.md` |
+| 작업 기록 | 해결 과정이나 검증 결과를 다음 작업에서 참고할 필요가 있을 때 | `06-worklogs/GT-21-response.md` |
+| ADR | 여러 작업에 영향을 주거나 바꾸기 어려운 설계 결정 | `05-decisions/0001-decision-title.md` |
 
 작업 기록은 Jira 키 `GT-번호`와 짧은 영문 설명을 사용합니다. ADR 번호는 기존 파일을 확인해 다음 번호를 사용합니다. 위 파일명은 예시이며 실제 이슈나 결정이 아닙니다.
 
 ## 작성 순서
 
-1. [작업 기록 양식](templates/worklog.md)을 복사해 `worklogs/`에 초안을 작성합니다.
+1. [작업 기록 양식](templates/worklog.md)을 복사해 `06-worklogs/`에 초안을 작성합니다.
 2. 중요한 결정이 있으면 [ADR 양식](templates/adr.md)을 사용하고 작업 기록과 서로 연결합니다.
 3. 담당자가 선택 이유·실제 실행 결과·미확인 내용을 확인합니다. AI 초안은 검토 대기, ADR은 제안 상태로 시작합니다.
 4. 코드와 기록을 같은 브랜치·PR에 포함하고 PR 설명에 문서의 GitHub URL을 넣습니다. 로컬 경로는 사용하지 않습니다.
@@ -39,7 +58,7 @@ ADR을 대체할 때는 새 ADR을 작성하고 이전 ADR에 ‘대체됨’ �
 
 ```text
 이번 작업을 docs/templates/worklog.md 양식으로 정리해줘.
-초안은 docs/worklogs/GT-번호-작업명.md에 저장해줘.
+초안은 docs/06-worklogs/GT-번호-작업명.md에 저장해줘.
 대화, 실제 diff, 테스트 실행 결과를 근거로
 해결 과정·선택 이유·실제로 검토한 대안·검증 결과·남은 일을 적어줘.
 확인되지 않은 이유나 결과를 만들지 말고 미확인·미실행을 구분해줘.
