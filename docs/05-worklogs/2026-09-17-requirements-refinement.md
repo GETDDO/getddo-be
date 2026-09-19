@@ -64,7 +64,7 @@
 ## 검증과 남은 일
 
 - 요구사항에 `[재확인 필요]`와 `[추가 검토 필요]`로 표시된 정책은 확정하지 않았다.
-- 미결정 항목은 [미결정 사항](../00-requirements/pending-decisions.md)에 분리했다.
+- 미결정 항목은 [미결정 사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/pending-decisions.md)에 분리했다. 해당 문서는 이후 공용 명세 저장소로 이전했다.
 - 전달된 최종 본문에서 운영 및 시연 15절, 공통 추가 검토 16절, 비기능 요구사항은 확인되지 않았다.
 
 ## 관련 결정
