@@ -2,7 +2,7 @@
 
 - 작성자 / 날짜: Codex / 2026-09-21
 - 관련 이슈 / PR: [백엔드 #3](https://github.com/GETDDO/getddo-be/pull/3), [공용 명세 #3](https://github.com/GETDDO/getddo-spec/pull/3)
-- 변경 범위: 논리 DB 설계 문서
+- 변경 범위: 논리 DB 설계 문서 및 API 테스트 런타임 DB 의존성
 - 상태: 검토 대기
 - 담당자 검토: 사용자 정책 확정, 구현 설계 팀 검토 미확인
 
@@ -19,7 +19,9 @@ DB 연결 설정과 기존 사용자·응모권 테이블이 없어 DB 제품·�
 ## 검증과 남은 일
 
 - `git diff --check` 및 로컬 Markdown 파일·제목 링크 검사를 통과했다.
-- 문서 변경으로 로컬 애플리케이션·DB 실행 테스트는 수행하지 않았다. PR의 저장소 필수 CI는 별도로 확인한다.
+- 최초 문서 PR의 [CI 실행](https://github.com/GETDDO/getddo-be/actions/runs/35581075348)에서 12개 테스트 중 `contextLoads()`가 DB 드라이버 누락으로 실패했다. 운영 소스·빌드 설정은 이때 기준 브랜치와 동일했다.
+- `api/build.gradle`에 `testRuntimeOnly` H2 의존성 한 줄을 추가해 Spring Boot의 테스트용 임베디드 DB 구성을 사용한다. 테스트를 삭제하거나 DB 자동 구성을 제외하지 않는다. 운영 DB 선택이나 운영 런타임 의존성은 변경하지 않는다.
+- 수정 후 전체 `bash gradlew build --no-daemon --stacktrace`와 PR CI로 검증한다. H2 검증은 운영 DB 호환성 검증을 대신하지 않는다.
 - DB 제품·참조 키·문항 형식·게임별 데이터 형식과 동시성 제어를 구현 단계에서 설계해야 한다.
 
 ## 관련 결정
