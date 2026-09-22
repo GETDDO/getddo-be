@@ -1,3 +1,9 @@
 spring:
   application:
     name: GETDDO-BE
+
+springdoc:
+  packages-to-scan: com.getddo.api
+  swagger-ui:
+    tags-sorter: alpha
+    operations-sorter: alpha
