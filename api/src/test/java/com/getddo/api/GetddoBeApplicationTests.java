@@ -11,7 +11,7 @@ import com.getddo.db.common.config.JpaAuditingConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.flyway.enabled=false")
 class GetddoBeApplicationTests {
 
 	@Autowired
