@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
-import com.getddo.core.time.TimeProvider;
+import com.getddo.core.common.time.TimeProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

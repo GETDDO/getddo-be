@@ -1,4 +1,4 @@
-package com.getddo.core.time;
+package com.getddo.core.common.time;
 
 import java.time.Clock;
 import java.time.Instant;

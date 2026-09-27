@@ -5,7 +5,7 @@ import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.getddo.core.time.TimeProvider;
+import com.getddo.core.common.time.TimeProvider;
 
 /**
  * 공통 시계와 시간 처리 객체를 Spring Bean으로 등록한다.

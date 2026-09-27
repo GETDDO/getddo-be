@@ -1,4 +1,4 @@
-package com.getddo.core.exception;
+package com.getddo.core.common.exception;
 
 import java.util.Objects;
 

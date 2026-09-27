@@ -1,6 +1,6 @@
 package com.getddo.api.common.exception;
 
-import com.getddo.core.exception.ErrorCode;
+import com.getddo.core.common.exception.ErrorCode;
 
 /**
  * 요청 해석·검증 실패와 예상하지 못한 서버 오류처럼 특정 도메인에 속하지 않는 API 오류다.

@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.getddo.api.common.response.ResponseEnvelope;
-import com.getddo.core.exception.BusinessException;
-import com.getddo.core.exception.ErrorCode;
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.exception.ErrorCode;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;

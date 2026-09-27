@@ -1,4 +1,4 @@
-package com.getddo.core.exception;
+package com.getddo.core.common.exception;
 
 /**
  * 서로 다른 업무의 오류를 API 계층에서 같은 방식으로 처리하기 위한 공통 계약이다.

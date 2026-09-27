@@ -1,6 +1,6 @@
 package com.getddo.api.common.response;
 
-import com.getddo.core.exception.ErrorCode;
+import com.getddo.core.common.exception.ErrorCode;
 
 /**
  * JSON API의 성공·실패 응답을 동일한 최상위 구조로 감싼다.

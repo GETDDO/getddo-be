@@ -11,8 +11,8 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import com.getddo.api.common.response.ResponseEnvelope;
-import com.getddo.core.exception.BusinessException;
-import com.getddo.core.exception.ErrorCode;
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.exception.ErrorCode;
 
 /**
  * Spring MVC의 Controller 처리 과정에서 전달되는 예외를 공통 JSON 응답으로 변환한다.
