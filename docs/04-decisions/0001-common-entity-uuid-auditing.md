@@ -1,8 +1,8 @@
 # ADR-0001: 공통 Entity의 UUID와 시간 필드
 
-- 상태: 제안
-- 작성자 / 날짜: Codex / 2026-09-24 (담당자 확인 전)
-- 검토자: 미지정
+- 상태: 채택
+- 작성자 / 날짜: 이경주 / 2026-09-24
+- 검토자: 이경주
 - 관련 작업 기록 / PR: [GD-22](https://ureca4.atlassian.net/browse/GD-22), [UUID v7 선택과 성능 검증](https://github.com/GETDDO/getddo-be/wiki/MySQL-UUID-v4-v7)
 - 대체한 ADR / 대체된 ADR: 해당 없음
 
