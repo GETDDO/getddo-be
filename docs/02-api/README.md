@@ -2,6 +2,8 @@
 
 `api` 모듈의 springdoc-openapi가 Spring MVC Controller와 요청·응답 DTO를 분석해 OpenAPI 문서를 생성합니다.
 
+공용 요청·응답 초안은 [getddo-spec의 도메인별 API 문서](https://github.com/GETDDO/getddo-spec/tree/main/05-api)를 따릅니다. 백엔드 구현 검토는 [내부 처리 흐름](internal-flows.md), [검증 항목](verification.md), [API·DB 대응](../03-database/api-schema-mapping.md)에 기록합니다.
+
 ## 접속
 
 DB 연결 등 애플리케이션 실행 준비를 마친 뒤 `./gradlew :api:bootRun`으로 실행합니다.
