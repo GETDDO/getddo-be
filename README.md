@@ -98,6 +98,18 @@ Controller는 Service를 호출하고, Service는 `core`의 Repository 인터페
 
 ## 로컬 실행 및 검증
 
+### Docker Compose
+
+저장소 루트에서 `.env.example`을 `.env`로 복사하고 `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`에 각각 로컬 비밀번호를 입력합니다. DB 이름과 일반 계정은 예시의 `getddo`를 사용합니다. `.env`는 Git과 Docker 빌드 컨텍스트에서 제외됩니다.
+
+```bash
+docker compose up --build -d
+```
+
+앱은 `http://localhost:8080`, MySQL 8.4는 `localhost:3306`에서 접근할 수 있습니다. Compose는 `local` Spring 프로필을 활성화하고, `application-local.yaml`에 정의된 MySQL JDBC 연결에 DB 환경변수를 전달합니다. MySQL 데이터는 Compose 볼륨에 유지됩니다. 종료할 때는 `docker compose down`을 사용합니다.
+
+앱 시작 시 Flyway가 `storage:db`의 도메인별 SQL을 버전 순서대로 적용해 41개 테이블과 외래 키를 생성합니다. 현재 DBML 그대로 변환했으므로 출석 기준일·사용자별 하루 1회 UNIQUE 등 확정 출석 규칙과의 차이는 후속 마이그레이션이 필요합니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
+
 ### 터미널
 
 저장소 루트에서 실행합니다. 아래 명령은 DB 설정 등 실행 준비를 마친 뒤 사용합니다.
