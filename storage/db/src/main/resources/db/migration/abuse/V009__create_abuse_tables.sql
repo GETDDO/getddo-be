@@ -1,5 +1,5 @@
 -- Source: docs/03-database/schema.dbml
--- Tables owned by abuse. Foreign keys are added in V012.
+-- Initial tables and foreign keys owned by abuse.
 
 CREATE TABLE `abuse_cases` (
   `id` BINARY(16) NOT NULL,
@@ -15,14 +15,21 @@ CREATE TABLE `abuse_cases` (
   `detection_type` VARCHAR(50) NOT NULL,
   `detection_reason` TEXT NOT NULL,
   `evidence` JSON,
-  `occurred_at` DATETIME NOT NULL,
-  `detected_at` DATETIME NOT NULL,
+  `occurred_at` DATETIME(6) NOT NULL,
+  `detected_at` DATETIME(6) NOT NULL,
   `review_status` ENUM('PENDING', 'ALLOWED', 'CONFIRMED') NOT NULL,
-  `reviewed_at` DATETIME,
+  `reviewed_at` DATETIME(6),
   `review_reason` TEXT,
   CONSTRAINT `chk_abuse_one_source` CHECK ((event_entry_id IS NOT NULL) + (attendance_id IS NOT NULL) + (mission_submission_id IS NOT NULL) + (game_play_id IS NOT NULL) <= 1),
   CONSTRAINT `chk_abuse_source_evidence` CHECK ((event_entry_id IS NOT NULL OR attendance_id IS NOT NULL OR mission_submission_id IS NOT NULL OR game_play_id IS NOT NULL) OR (request_id IS NOT NULL AND evidence IS NOT NULL)),
   CONSTRAINT `chk_abuse_review_shape` CHECK ((review_status = 'PENDING' AND reviewed_by IS NULL AND reviewed_at IS NULL AND review_reason IS NULL) OR (review_status IN ('ALLOWED','CONFIRMED') AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND review_reason IS NOT NULL)),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_abuse_detection_key` (`detection_key`)
+  UNIQUE KEY `uq_abuse_detection_key` (`detection_key`),
+  CONSTRAINT `fk_abuse_cases_1` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`),
+  CONSTRAINT `fk_abuse_cases_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `fk_abuse_cases_3` FOREIGN KEY (`event_entry_id`) REFERENCES `event_entries` (`id`),
+  CONSTRAINT `fk_abuse_cases_4` FOREIGN KEY (`attendance_id`) REFERENCES `attendances` (`id`),
+  CONSTRAINT `fk_abuse_cases_5` FOREIGN KEY (`mission_submission_id`) REFERENCES `mission_submissions` (`id`),
+  CONSTRAINT `fk_abuse_cases_6` FOREIGN KEY (`game_play_id`) REFERENCES `game_plays` (`id`),
+  CONSTRAINT `fk_abuse_cases_7` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
