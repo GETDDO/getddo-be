@@ -1,8 +1,7 @@
-// B 영역 반영 사본 — 2026-09-26. 원본: getddo-final-20260924 (1).dbml. event_entries 멱등 키 범위는 D 확인 전이라 유지.
-// 원본 설명: GETDDO 전체 DBML — 2026-09-24 A/B/C/D 통합본.
-// 41개 테이블. C 영역 정책 연결·반환·알림·출석 정책 UNIQUE 반영.
-// 시각은 UTC 저장, 업무 날짜·월은 KST. 실제 DB 적용은 별도.
-// GENERATED·CHECK 주석은 MySQL DDL로 구현해야 하며 DBML export만으로 적용되지 않음.
+// GETDDO 초기 스키마 ERD — Flyway V001~V011 기준.
+// 41개 테이블. 실제 DB 적용 기준: storage/db/src/main/resources/db/migration.
+// 시각은 UTC 저장, 업무 날짜·월은 KST.
+// GENERATED·CHECK는 주석으로 설명하며 DBML export만으로 적용되지 않음.
 
 Enum recovery_target_status {
   ACTIVE
@@ -189,8 +188,8 @@ Table event_prizes {
   description text [note: '상세 설명']
   image_key varchar(500) [note: '이미지 저장소 경로']
   winner_count int [not null, note: '당첨 인원. 1 이상']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  updated_at datetime [not null, note: '수정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
 
   indexes {
     (event_id, prize_rank) [unique]
@@ -206,9 +205,9 @@ Table user_game_stats {
   best_score bigint [not null, default: 0, note: '개인 최고 점수']
   total_score bigint [not null, default: 0, note: '유효 플레이 누적 점수']
   valid_play_count bigint [not null, default: 0, note: '유효 플레이 누적 횟수']
-  updated_at datetime [not null, note: '수정 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
 
-  created_at datetime [not null, note: '사용자별 게임 통계 최초 생성 시각 UTC']
+  created_at datetime(6) [not null, note: '사용자별 게임 통계 최초 생성 시각 UTC']
   indexes {
     (user_id, game_id) [pk]
   }
@@ -222,6 +221,7 @@ Table ticket_ledger_allocations {
   source_credit_ledger_id binary(16) [not null, note: '수량 변동 대상 입금 GRANT 또는 REFUND 원장 ID']
   original_grant_id binary(16) [not null, note: '추적되는 최초 GRANT ID. 반환 재사용 후에도 유지']
   quantity bigint [not null, note: '출처별 수량 변동. 입금 잔여 계산 시 사용·만료·회수는 음수, 반환 입금은 양수']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (ledger_id, source_credit_ledger_id, original_grant_id) [pk]
   }
@@ -232,13 +232,13 @@ Table ticket_wallets {
   id binary(16) [pk, not null, note: '응모권 지갑 ID']
   user_id binary(16) [not null, note: '사용자 ID']
   expiry_month date [not null, note: '사용 가능한 마지막 KST 월의 1일. 지급월이 아니라 만료 묶음 구분값']
-  valid_from datetime [not null, note: '지갑 사용 가능 시작 시각 UTC. 반환분도 반환 즉시 사용 가능, 다음 달까지 잠금 금지']
-  expires_at datetime [not null, note: '만료일별 지갑의 공통 만료 시각 UTC. KST 만료 경계를 변환해 저장']
+  valid_from datetime(6) [not null, note: '지갑 사용 가능 시작 시각 UTC. 반환분도 반환 즉시 사용 가능, 다음 달까지 잠금 금지']
+  expires_at datetime(6) [not null, note: '만료일별 지갑의 공통 만료 시각 UTC. KST 만료 경계를 변환해 저장']
   balance bigint [not null, default: 0, note: '현재 잔액. 0 이상']
   status ticket_wallet_status [not null, note: 'ACTIVE=활성 / EXPIRED=만료']
   version bigint [not null, default: 0, note: '동시 변경 검증용 버전']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  updated_at datetime [not null, note: '수정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
 
   indexes {
     (user_id, expiry_month) [unique]
@@ -248,17 +248,19 @@ Table ticket_wallets {
   Note: '사용자별 만료일별 응모권 지갑. status는 만료 배치 결과 표시. 사용 가능 잔액은 expires_at > 현재 UTC 시각 AND balance > 0 기준'
 }
 
-Table mission_quizzes {
+Table mission_quiz_questions {
   id binary(16) [pk, not null, note: '퀴즈 문항 ID. 기존 임시 Key 교체']
   mission_id binary(16) [not null, note: '퀴즈 미션 ID. 한 미션에 여러 문항']
   question_type quiz_question_type [not null, note: 'OX / 단일 선택 / 단답형']
   question_text text [not null, note: '문제 내용']
   display_order int [not null, note: '문항 표시 순서']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   correct_answer text [note: '단답형 정답 하나. 단답형 필수, OX·단일 선택 NULL. 앞뒤 공백 제거·영문 대소문자 무시·내부 공백 유지']
   indexes {
     (mission_id, display_order) [unique]
+    (id, mission_id) [unique, name: 'uq_mission_quiz_questions_2']
   }
+  // CHECK chk_quiz_correct_answer: (question_type = 'SHORT_ANSWER' AND correct_answer IS NOT NULL) OR (question_type <> 'SHORT_ANSWER' AND correct_answer IS NULL)
   Note: '퀴즈 문항. 운영 중 문항 고정. 단답형은 correct_answer 하나, OX·선택형은 선택지 한 개가 정답. 전 문항 정답이면 미션 완료'
 }
 
@@ -272,8 +274,8 @@ Table game_plays {
   score bigint [note: '서버가 판정한 게임 점수']
   validation_data json [note: '판정 및 재검증 근거와 적용 규칙']
   result_hash varchar(64) [note: '같은 플레이에 다른 결과 제출을 방지하는 해시']
-  created_at datetime [not null, note: '플레이 시작·행 생성 시각 UTC']
-  completed_at datetime [note: '완료 시각 UTC']
+  created_at datetime(6) [not null, note: '플레이 시작·행 생성 시각 UTC']
+  completed_at datetime(6) [note: '완료 시각 UTC']
 
   indexes {
     play_token [unique]
@@ -287,10 +289,12 @@ Table attendance_streak_policies {
   policy_set_id binary(16) [not null, note: '소속 정책 묶음 ID. 적용월과 등록자는 묶음에서 관리']
   milestone_days int [not null, note: '연속 출석 기준 일수 1~28. 단계 수 고정 아님']
   reward_ticket_count int [not null, note: '단계 달성 시 지급 수량']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (policy_set_id, milestone_days) [unique, name: 'uq_streak_policy_milestone']
   }
+  // CHECK chk_streak_policy_milestone: milestone_days BETWEEN 1 AND 28
+  // CHECK chk_streak_policy_reward: reward_ticket_count >= 0
   Note: '연속 출석 단계별 보상. 적용한 정책은 수정하지 않고 새 묶음 등록'
 }
 
@@ -300,8 +304,8 @@ Table event_participants {
   user_id binary(16) [not null, note: '사용자 ID']
   eligibility_status participant_eligibility_status [not null, note: 'ELIGIBLE=제외되지 않음 / EXCLUDED=추첨 대상 제외']
   exclusion_reason text [note: '추첨 대상 제외 상세 사유']
-  excluded_at datetime [note: '추첨 대상 제외 시각 UTC']
-  created_at datetime [not null, note: '최초 응모 접수 완료·행 생성 시각 UTC']
+  excluded_at datetime(6) [note: '추첨 대상 제외 시각 UTC']
+  created_at datetime(6) [not null, note: '최초 응모 접수 완료·행 생성 시각 UTC']
 
   used_ticket_count bigint [not null, default: 0, note: '사용자별 이벤트 누적 차감 응모권 수. 조건부 UPDATE로 상한 원자적 검증']
   exclusion_reason_code participant_exclusion_reason [note: 'EXCLUDED에서 필수. ABUSE=부정 확인 / INELIGIBLE=자격 미달. 제외 사유와 관계없이 해당 이벤트 차감 응모권 반환; 부정 획득분은 반환·회수 동시 처리']
@@ -314,7 +318,7 @@ Table event_participants {
   Note: '이벤트별 사용자 참여 상태. used_ticket_count를 조건부 UPDATE로 증가시켜 동시 응모의 누적 상한을 검증'
 }
 
-Table reward_claims {
+Table mission_reward_claims {
   id binary(16) [pk, not null, note: '미션 보상 지급 ID']
   user_id binary(16) [not null, note: '보상 대상 사용자 ID']
   reward_policy_id binary(16) [not null, note: '적용 미션 보상 정책 ID']
@@ -322,7 +326,7 @@ Table reward_claims {
   mission_submission_id binary(16) [not null, note: '최종 완료 근거 제출 ID']
   source_key varchar(160) [not null, note: '사용자별 미션 보상 식별 키. 정책 변경으로 보상 재지급 안 함']
   ticket_count int [not null, note: '실제 지급 수량']
-  created_at datetime [not null, note: '보상 지급 이력 생성 시각 UTC']
+  created_at datetime(6) [not null, note: '보상 지급 이력 생성 시각 UTC']
   indexes {
     (user_id, mission_id) [unique]
   }
@@ -338,7 +342,7 @@ Table draw_results {
   selection_order int [note: '실제 당첨 선정 순서. 미선정은 NULL']
   result_type draw_result_type [not null, note: 'SELECTED=당첨자 / UNFILLED=빈 자리. 빈 자리도 행으로 기록']
   publication_status award_publication_status [note: 'SELECTED만 PENDING/PUBLISHED/EXCLUDED. EXCLUDED=선정 후 현재 유효 당첨에서 제외. UNFILLED는 NULL']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   // CHECK chk_draw_result_shape: (result_type = 'UNFILLED' AND candidate_id IS NULL AND selection_order IS NULL AND publication_status IS NULL) OR (result_type = 'SELECTED' AND candidate_id IS NOT NULL AND selection_order IS NOT NULL AND publication_status IS NOT NULL)
   indexes {
@@ -357,7 +361,7 @@ Table current_awards {
   event_prize_id binary(16) [not null, note: '이벤트 경품 ID']
   draw_result_id binary(16) [not null, note: '추첨 결과 ID']
   slot_number int [not null, note: '경품별 당첨 자리 번호']
-  assigned_at datetime [not null, note: '공개 명단 반영 시각 UTC']
+  assigned_at datetime(6) [not null, note: '공개 명단 반영 시각 UTC']
 
   indexes {
     (event_id, user_id) [unique]
@@ -376,8 +380,8 @@ Table games {
   rules json [not null, note: '게임 규칙']
   rule_version varchar(30) [not null, note: '적용 게임 규칙 버전']
   is_active boolean [not null, default: true, note: 'true=활성 / false=비활성']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  updated_at datetime [not null, note: '수정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
 
   indexes {
     code [unique]
@@ -391,9 +395,9 @@ Table reward_policies {
   reward_type reward_type [not null, note: 'ATTENDANCE=출석 / MISSION=미션 / GAME=게임']
   game_id binary(16) [note: 'GAME 정책일 때 필수. ATTENDANCE·MISSION은 NULL. 게임별 현재·예약 정책의 소유 게임']
   reward_ticket_count int [not null, note: '보상으로 지급할 응모권 수']
-  effective_from datetime [not null, note: '정책 적용 시작 시각 UTC']
-  effective_until datetime [note: '정책 적용 종료 시각 UTC']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  effective_from datetime(6) [not null, note: '정책 적용 시작 시각 UTC']
+  effective_until datetime(6) [note: '정책 적용 종료 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   open_guard binary(16) [note: 'MySQL VIRTUAL 생성 컬럼. 종료일 없는 ATTENDANCE는 16바이트 0, 종료일 없는 GAME은 game_id, 그 외 NULL. 앱 입력 금지. SQL 생성 시 생성식 적용 필수']
   indexes {
@@ -413,11 +417,11 @@ Table ticket_refund_jobs {
   reason_type ticket_refund_reason [not null, note: 'EVENT_CANCELED=이벤트 취소 / PARTICIPANT_EXCLUDED=추첨 대상 제외']
   reason text [not null, note: '처리 사유']
   status ticket_refund_status [not null, note: 'PENDING=대기 / PROCESSING=처리 중 / COMPLETED=완료 / FAILED=실패']
-  target_expires_at datetime [note: '실제 반환 성공 KST 월의 다다음 달 1일 00시를 UTC로 변환. 실패 후 다음 달 성공 시 재계산하며 완료된 반환의 재요청은 기존 값 유지']
+  target_expires_at datetime(6) [note: '실제 반환 성공 KST 월의 다다음 달 1일 00시를 UTC로 변환. 실패 후 다음 달 성공 시 재계산하며 완료된 반환의 재요청은 기존 값 유지']
   attempt_count int [not null, default: 0, note: '작업 실행 시도 횟수']
   last_error text [note: '마지막 작업 오류 내용']
-  created_at datetime [not null, note: '반환 요청·행 생성 시각 UTC']
-  completed_at datetime [note: '완료 시각 UTC']
+  created_at datetime(6) [not null, note: '반환 요청·행 생성 시각 UTC']
+  completed_at datetime(6) [note: '완료 시각 UTC']
 
   indexes {
     spend_ledger_id [unique]
@@ -433,7 +437,7 @@ Table draw_candidates {
   weight decimal(30,10) [not null, note: '적용 가중치. NO_TICKET 이벤트는 1']
   entry_snapshot json [not null, note: '응모 기록 스냅샷. 응모 ID·차감량·접수 시각 등']
   eligibility_snapshot json [not null, note: '당시 추첨 자격과 검토 결과 스냅샷']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   indexes {
     (draw_run_id, participant_id) [unique]
@@ -449,13 +453,14 @@ Table missions {
   title varchar(200) [not null, note: '미션 제목']
   description text [not null, note: '상세 설명']
   mission_type mission_type [not null, note: 'SURVEY=설문 / QUIZ=퀴즈']
-  starts_at datetime [not null, note: '미션 운영 시작 시각 UTC']
-  ends_at datetime [not null, note: '미션 운영 종료 시각 UTC']
+  starts_at datetime(6) [not null, note: '미션 운영 시작 시각 UTC']
+  ends_at datetime(6) [not null, note: '미션 운영 종료 시각 UTC']
   status mission_status [not null, note: 'DRAFT=작성 중 / ACTIVE=운영 중 / ENDED=종료']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  updated_at datetime [not null, note: '수정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
 
   image_key varchar(500) [note: '미션 설명 이미지 한 개의 저장소 경로']
+  // CHECK chk_mission_dates: ends_at > starts_at
   Note: '미션'
 }
 
@@ -465,17 +470,21 @@ Table banners {
   created_by binary(16) [not null, note: '등록 관리자 ID']
   image_key varchar(500) [not null, note: '이미지 저장소 경로']
   display_order int [not null, note: '서비스 전체 노출 순서 1~5. 최대 5개 보장은 추후 범위 및 중복 제약 함께 적용']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  updated_at datetime [not null, note: '수정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
 
   Note: '이벤트 배너'
 }
 
 Table attendances {
   id binary(16) [pk, not null, note: '출석 ID']
-  users_id binary(16) [not null, note: '사용자 ID. 가상 사용자도 고정 ID 사용']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  user_id binary(16) [not null, note: '사용자 ID. 가상 사용자도 고정 ID 사용']
+  attendance_date date [not null, note: '출석 기준 날짜 KST']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
+  indexes {
+    (user_id, attendance_date) [unique, name: 'uq_attendances_1']
+  }
   Note: '출석 기록'
 }
 
@@ -485,12 +494,13 @@ Table mission_submissions {
   user_id binary(16) [not null, note: '사용자 ID']
   reward_policy_id binary(16) [not null, note: '적용 보상 정책 ID']
   idempotency_key varchar(100) [not null, note: '동일 요청 중복 처리 방지 키']
-  received_at datetime [not null, note: '서버 수신 시각 UTC. 시작 이상 종료 미만 인정']
+  received_at datetime(6) [not null, note: '서버 수신 시각 UTC. 시작 이상 종료 미만 인정']
   is_completed boolean [not null, note: 'true=완료 / false=미완료']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   indexes {
     (user_id, mission_id, idempotency_key) [unique]
+    (id, mission_id) [unique, name: 'uq_mission_submissions_2']
   }
   Note: '미션 제출 요청. 퀴즈는 오답 및 부분 정답 시도도 보존, 전체 완료 여부와 보상은 미션당 1회. 수신이 기간 내면 검증이 종료 후 완료되어도 인정'
 }
@@ -501,7 +511,7 @@ Table award_cancellations {
   canceled_by binary(16) [not null, note: '당첨 취소 관리자 ID']
   replacement_draw_id binary(16) [not null, note: '취소 자리의 대체 재추첨 실행 ID']
   reason text [not null, note: '처리 사유']
-  canceled_at datetime [not null, note: '취소 시각 UTC. 원본 메모: created_at으로 수정 가능']
+  canceled_at datetime(6) [not null, note: '취소 시각 UTC. 원본 메모: created_at으로 수정 가능']
 
   indexes {
     draw_result_id [unique]
@@ -520,14 +530,14 @@ Table events {
   event_type event_type [not null, note: 'NO_TICKET=응모권 미사용 / TICKET=응모권 사용']
   weighting_enabled boolean [not null, default: false, note: '추첨 가중치 적용 여부']
   max_tickets_per_user int [note: '사용자별 이벤트 누적 상한. 일반 가중치 5, 미적용 1, 월말 소진용 NULL. 미사용 이벤트는 응모권 0장']
-  starts_at datetime [not null, note: '응모 시작 시각 UTC']
-  ends_at datetime [not null, note: '응모 마감 시각 UTC']
+  starts_at datetime(6) [not null, note: '응모 시작 시각 UTC']
+  ends_at datetime(6) [not null, note: '응모 마감 시각 UTC']
   status event_status [not null, note: '이벤트 상태']
   suspended_from_status event_suspended_from_status [note: '중단 직전 상태. SCHEDULED=예정 / OPEN=진행. 재개는 이 값을 복원하지 않고 현재 시각으로 판정. 마감 후 중단 요청은 즉시 취소']
-  suspended_at datetime [note: '일시 중단 시각 UTC']
-  canceled_at datetime [note: '취소 시각 UTC']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  updated_at datetime [not null, note: '수정 시각 UTC']
+  suspended_at datetime(6) [note: '일시 중단 시각 UTC']
+  canceled_at datetime(6) [note: '취소 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
   membership_rule membership_grade [not null, note: 'excellent=우수 / vip=VIP / vvip=VVIP']
 
   // CHECK chk_event_ticket_limit: max_tickets_per_user IS NULL OR max_tickets_per_user > 0
@@ -547,12 +557,12 @@ Table notification_jobs {
   status notification_job_status [not null, note: 'PENDING=대기 / PROCESSING=처리 중 / COMPLETED=완료 / FAILED=실패']
   last_processed_user_id binary(16) [note: '고정 대상 집합에서 UUID 바이트 순으로 마지막 처리한 사용자 ID']
   attempt_count int [not null, default: 0, note: '작업 실행 시도 횟수']
-  scheduled_at datetime [not null, note: '알림 생성 예정 시각 UTC']
-  next_attempt_at datetime [note: '다음 재시도 예정 시각 UTC']
-  lease_until datetime [note: '작업 처리권 임대 만료 시각 UTC']
+  scheduled_at datetime(6) [not null, note: '알림 생성 예정 시각 UTC']
+  next_attempt_at datetime(6) [note: '다음 재시도 예정 시각 UTC']
+  lease_until datetime(6) [note: '작업 처리권 임대 만료 시각 UTC']
   last_error text [note: '마지막 작업 오류 내용']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  completed_at datetime [note: '완료 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  completed_at datetime(6) [note: '완료 시각 UTC']
 
   indexes {
     occurrence_key [unique, name: 'uq_notification_job_occurrence']
@@ -568,12 +578,12 @@ Table notifications {
   title varchar(200) [not null, note: '알림 제목']
   body text [not null, note: '알림 본문']
   link_url varchar(500) [note: '알림 선택 시 이동 URL']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   is_read boolean [not null, default: false, note: '읽음 여부. 읽음 시각은 저장하지 않음']
   mock_delivery_status mock_delivery_status [not null, note: 'PENDING=발송 대기 / SENT=발송 완료 / FAILED=발송 실패']
-  mock_sent_at datetime [note: '모의 발송 완료 시각 UTC']
+  mock_sent_at datetime(6) [note: '모의 발송 완료 시각 UTC']
   delivery_attempt_count int [not null, default: 0, note: '모의 발송 시도 횟수']
-  next_delivery_attempt_at datetime [note: '다음 모의 발송 재시도 예정 시각 UTC']
+  next_delivery_attempt_at datetime(6) [note: '다음 모의 발송 재시도 예정 시각 UTC']
   last_delivery_error text [note: '마지막 모의 발송 오류 내용']
 
   indexes {
@@ -594,9 +604,9 @@ Table event_entries {
   rejection_code varchar(50) [note: 'REJECTED에서 필수. 전용 코드 없는 업무상 거절은 OTHER']
   rejection_reason varchar(500) [note: '거절 상세 사유. OTHER이면 구체적 사유 필수']
   single_entry_guard int [note: '1회 제한 이벤트의 성공 건만 1. 추가 응모 및 거절 건은 NULL']
-  requested_at datetime [not null, note: '서버 요청 수신 시각 UTC']
-  accepted_at datetime [note: '접수 완료 시각 UTC. 성공은 created_at과 동일, 거절은 NULL']
-  created_at datetime [not null, note: '응모 처리 결과 확정·행 생성 시각 UTC. 성공 시 accepted_at과 동일']
+  requested_at datetime(6) [not null, note: '서버 요청 수신 시각 UTC']
+  accepted_at datetime(6) [note: '접수 완료 시각 UTC. 성공은 created_at과 동일, 거절은 NULL']
+  created_at datetime(6) [not null, note: '응모 처리 결과 확정·행 생성 시각 UTC. 성공 시 accepted_at과 동일']
 
   indexes {
     (event_id, user_id, idempotency_key) [unique]
@@ -616,8 +626,8 @@ Table publications {
   published_by binary(16) [note: '최초 공개 처리자 ID. 시스템 자동 발표는 NULL']
   revision int [not null, default: 1, note: '공개 명단 버전. 최초 1, 관리자 확인 후 변경할 때 증가']
   updated_by binary(16) [note: '마지막 명단 갱신 관리자 ID']
-  updated_at datetime [not null, note: '마지막 공개 명단 반영 시각 UTC. 최초 공개 시 published_at과 동일']
-  published_at datetime [not null, note: '결과 발표 시각 UTC']
+  updated_at datetime(6) [not null, note: '마지막 공개 명단 반영 시각 UTC. 최초 공개 시 published_at과 동일']
+  published_at datetime(6) [not null, note: '결과 발표 시각 UTC']
 
   indexes {
     event_id [unique]
@@ -639,14 +649,14 @@ Table draw_runs {
   reason text [note: '새 재추첨의 업무상 사유. 시스템 실행 오류와 구분, 재추첨은 필수']
   algorithm_version varchar(100) [note: '추첨 알고리즘 버전']
   rules_snapshot json [note: '가중치·선정 순서·경품 자리·유지 당첨자·경품별 인원 등 실행 조건']
-  snapshot_fixed_at datetime [note: 'READY 진입 시 후보·조건 스냅샷 확정 시각 UTC. 동일 실행 재시도에서 불변']
-  started_at datetime [note: '실행 시작 시각 UTC']
-  confirmed_at datetime [note: '추첨 결과 확정 시각 UTC']
+  snapshot_fixed_at datetime(6) [note: 'READY 진입 시 후보·조건 스냅샷 확정 시각 UTC. 동일 실행 재시도에서 불변']
+  started_at datetime(6) [note: '실행 시작 시각 UTC']
+  confirmed_at datetime(6) [note: '추첨 결과 확정 시각 UTC']
   failure_count int [not null, default: 0, note: '동일 추첨 실행의 실패 횟수']
   last_failure_code varchar(50) [note: '마지막 실행 실패 코드. 성공 후에도 이전 실패 요약 유지']
   last_failure_reason text [note: '마지막 실행 실패 사유. 성공 후에도 이전 실패 요약 유지']
-  last_failed_at datetime [note: '마지막 실행 실패 시각 UTC. 성공 후에도 이전 실패 요약 유지']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  last_failed_at datetime(6) [note: '마지막 실행 실패 시각 UTC. 성공 후에도 이전 실패 요약 유지']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   indexes {
     (event_id, run_number) [unique]
@@ -670,10 +680,10 @@ Table abuse_cases {
   detection_type varchar(50) [not null, note: '탐지 유형 코드. 규칙과 코드 목록은 확정 필요']
   detection_reason text [not null, note: '탐지 사유']
   evidence json [note: '탐지 근거. 원본 기록 없는 거절 요청은 필수']
-  occurred_at datetime [not null, note: '탐지 대상 행위 발생 시각 UTC']
-  detected_at datetime [not null, note: '탐지 시각 UTC. 원본 메모: created_at으로 수정 가능']
+  occurred_at datetime(6) [not null, note: '탐지 대상 행위 발생 시각 UTC']
+  detected_at datetime(6) [not null, note: '탐지 시각 UTC. 원본 메모: created_at으로 수정 가능']
   review_status abuse_review_status [not null, note: 'PENDING=검토 전 / ALLOWED=허용 / CONFIRMED=부정행위 확인. 실제 추첨 제외는 event_participants']
-  reviewed_at datetime [note: 'ALLOWED·CONFIRMED에서 필수, PENDING에서는 NULL. UTC']
+  reviewed_at datetime(6) [note: 'ALLOWED·CONFIRMED에서 필수, PENDING에서는 NULL. UTC']
   review_reason text [note: 'ALLOWED·CONFIRMED에서 필수, PENDING에서는 NULL']
 
   indexes {
@@ -695,7 +705,7 @@ Table audit_logs {
   before_data json [note: '변경 전 데이터']
   after_data json [note: '변경 후 데이터']
   request_id varchar(100) [note: '관련 HTTP 요청 추적 ID']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   indexes {
     (target_type, target_id, created_at) [name: 'audit_target_time_idx']
@@ -708,18 +718,18 @@ Table ticket_ledger {
   wallet_id binary(16) [not null, note: '응모권 지갑 ID']
   actor_id binary(16) [note: '처리자 사용자 ID. 시스템 처리이면 NULL']
   event_entry_id binary(16) [note: '관련 개별 응모 ID']
-  reward_claim_id binary(16) [note: '미션 보상 지급 ID']
+  mission_reward_claim_id binary(16) [note: '미션 보상 지급 ID']
   attendance_reward_claim_id binary(16) [note: '출석 보상 지급 ID']
   game_reward_claim_id binary(16) [note: '게임 보상 지급 ID']
   recovery_target_id binary(16) [note: 'REVOKE에서 필수인 회수 결정 근거 ID. 같은 결정의 여러 입금·만료 지갑별 회수를 허용하므로 UNIQUE를 걸지 않음']
-  expires_at datetime [note: 'GRANT 및 REFUND 입금의 만료 시각 UTC. 그 외 NULL. 같은 지갑의 만료와 일치']
+  expires_at datetime(6) [note: 'GRANT 및 REFUND 입금의 만료 시각 UTC. 그 외 NULL. 같은 지갑의 만료와 일치']
   refund_of_id binary(16) [note: 'REFUND에서 필수인 원본 SPEND ID. 다른 유형은 NULL. 원본 차감 한 건은 전액 반환 원장 한 행으로 기록']
   related_ledger_id binary(16) [note: '회수 또는 정정 대상 원본 지급·거래 ID']
   transaction_type ticket_transaction_type [not null, note: '응모권 거래 유형']
   quantity bigint [not null, note: '증가는 양수, 감소는 음수. 0 금지']
   idempotency_key varchar(160) [not null, note: '서버가 생성하는 원장 행별 고정 키. 거래 유형·업무 건 ID·지갑 또는 원본 거래 ID를 포함. 한 API 요청의 여러 원장 행은 서로 다른 키, 같은 거래 재시도는 같은 키']
   reason text [not null, note: '처리 사유']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   balance_after bigint [not null, note: '이번 거래 직후 지갑 잔액. 0 이상']
   wallet_version bigint [not null, note: '원장 기록 시점 지갑 version. 행당 지갑 UPDATE 한 번']
@@ -745,10 +755,10 @@ Table users {
   membership membership_grade [note: 'excellent=우수 / vip=VIP / vvip=VVIP']
   phone_num varchar(11) [note: '핸드폰 번호']
   email varchar(255) [note: '이메일']
-  updated_at datetime [not null, note: '수정 시각 UTC']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '수정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
 
-  suspended_at datetime [note: '사용자 정지 시작 시각 UTC']
+  suspended_at datetime(6) [note: '사용자 정지 시작 시각 UTC']
   suspension_reason text [note: '사용자 정지 사유']
   indexes {
     email [unique]
@@ -759,16 +769,18 @@ Table users {
 
 Table attendance_streaks {
   id binary(16) [pk, not null, note: '월별 연속 출석 상태 ID']
-  users_id binary(16) [not null, note: '사용자 ID']
+  user_id binary(16) [not null, note: '사용자 ID']
   policy_set_id binary(16) [not null, note: '해당 월에 적용한 연속 출석 정책 묶음 ID']
   streak_month date [not null, note: 'KST 기준 출석 기준월의 1일']
   consecutive_days int [not null, note: '마지막 출석일까지 이어진 연속 출석 일수']
   last_attendance_date date [not null, note: '마지막 출석 인정 날짜 KST']
-  updated_at datetime [not null, note: '연속 출석 상태 갱신 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '연속 출석 상태 갱신 시각 UTC']
   indexes {
-    (users_id, streak_month) [unique]
+    (user_id, streak_month) [unique]
   }
 
+  // CHECK chk_streak_days: consecutive_days BETWEEN 0 AND 28
   Note: '월별 연속 출석 현황'
 }
 
@@ -778,8 +790,10 @@ Table quiz_question_options {
   option_text text [not null, note: '선택지 내용. OX는 O와 X 두 행']
   display_order int [not null, note: '선택지 순서']
   is_correct boolean [not null, note: '정답 여부. OX 및 단일 선택은 정답 한 개. 공개 API에서 제외']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (quiz_question_id, display_order) [unique]
+    (id, quiz_question_id) [unique, name: 'uq_quiz_question_options_2']
   }
   Note: '퀴즈 선택지. 단답형 문항은 사용하지 않음'
 }
@@ -787,14 +801,17 @@ Table quiz_question_options {
 Table quiz_answers {
   id binary(16) [pk, not null, note: '문항 답변 및 채점 기록 ID']
   submission_id binary(16) [not null, note: '제출 요청 ID. 서버 수신 시각과 멱등 키는 제출에 보존']
+  mission_id binary(16) [not null, note: '제출과 문항의 소속 미션']
   quiz_question_id binary(16) [not null, note: '응답 문항 ID']
   selected_option_id binary(16) [note: 'OX 및 단일 선택에서 필수, 단답형은 NULL']
   answer_text text [note: '단답형 입력, 선택형은 NULL']
   is_correct boolean [not null, note: '서버 채점 결과. 오답은 재도전 가능']
-  graded_at datetime [not null, note: '서버 채점 시각 UTC']
+  graded_at datetime(6) [not null, note: '서버 채점 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (submission_id, quiz_question_id) [unique]
   }
+  // CHECK chk_quiz_answer_shape: selected_option_id IS NOT NULL OR answer_text IS NOT NULL
   Note: '퀴즈 문항별 응답 기록. 검토용으로 채점 근거와 진행 상태를 분리'
 }
 
@@ -802,7 +819,8 @@ Table quiz_question_progress {
   user_id binary(16) [not null, note: '사용자 ID']
   quiz_question_id binary(16) [not null, note: '정답으로 완료한 퀴즈 문항 ID']
   correct_answer_id binary(16) [not null, note: '정답 판정의 근거 답변 ID']
-  completed_at datetime [not null, note: '문항 정답 확정 시각 UTC']
+  completed_at datetime(6) [not null, note: '문항 정답 확정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   id binary(16) [pk, not null, note: '문항 정답 진행 ID']
   indexes {
     (user_id, quiz_question_id) [unique]
@@ -817,10 +835,11 @@ Table survey_questions {
   question_text text [not null, note: '질문 내용']
   is_required boolean [not null, note: '필수 응답 여부']
   display_order int [not null, note: '문항 순서']
-  created_at datetime [not null, note: '생성 시각 UTC']
-  updated_at datetime [not null, note: '마지막 수정 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
+  updated_at datetime(6) [not null, note: '마지막 수정 시각 UTC']
   indexes {
     (mission_id, display_order) [unique]
+    (id, mission_id) [unique, name: 'uq_survey_questions_2']
   }
   Note: '설문 문항. 모든 필수 문항 응답 후 최종 제출하면 완료'
 }
@@ -830,8 +849,10 @@ Table survey_question_options {
   survey_question_id binary(16) [not null, note: '단일 선택 설문 문항 ID']
   option_text text [not null, note: '선택지 내용']
   display_order int [not null, note: '선택지 순서']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (survey_question_id, display_order) [unique]
+    (id, survey_question_id) [unique, name: 'uq_survey_question_options_2']
   }
   Note: '설문 단일 선택 보기. 정답 개념 없음'
 }
@@ -839,10 +860,11 @@ Table survey_question_options {
 Table survey_answers {
   id binary(16) [pk, not null, note: '설문 응답 ID']
   submission_id binary(16) [not null, note: '최종 제출 ID']
+  mission_id binary(16) [not null, note: '제출과 문항의 소속 미션']
   survey_question_id binary(16) [not null, note: '설문 문항 ID']
   selected_option_id binary(16) [note: '단일 선택 답변. 자유 입력이면 NULL']
   answer_text text [note: '자유 입력 답변. 단일 선택이면 NULL']
-  created_at datetime [not null, note: '응답 저장 시각 UTC']
+  created_at datetime(6) [not null, note: '응답 저장 시각 UTC']
   indexes {
     (submission_id, survey_question_id) [unique]
   }
@@ -853,7 +875,7 @@ Table attendance_streak_policy_sets {
   id binary(16) [pk, not null, note: '연속 출석 정책 묶음 ID']
   created_by binary(16) [not null, note: '등록 관리자 ID']
   effective_month date [not null, note: '적용 시작월의 1일 KST. 다음 정책 시작 전까지 유지']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     effective_month [unique, name: 'uq_streak_policy_effective_month']
   }
@@ -871,10 +893,12 @@ Table attendance_reward_claims {
   milestone_days int [note: '연속 출석 달성 단계 일수. 기본 출석은 NULL']
   source_key varchar(160) [not null, note: '기본: 날짜, 연속: KST 기준월과 단계. 사용자별 중복 방지 키']
   ticket_count int [not null, note: '실제 지급 수량']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (user_id, reward_type, source_key) [unique]
   }
+  // CHECK chk_attendance_claim_shape: (reward_type = 'DAILY' AND reward_policy_id IS NOT NULL AND attendance_streak_policy_id IS NULL AND milestone_days IS NULL) OR (reward_type = 'STREAK' AND attendance_streak_policy_id IS NOT NULL AND milestone_days IS NOT NULL AND reward_policy_id IS NULL)
+  // CHECK chk_attendance_claim_ticket: ticket_count >= 0
   Note: '출석 보상 지급 이력. 연속이 끊겨도 지급 기록 유지'
 }
 
@@ -887,7 +911,7 @@ Table game_reward_claims {
   reward_date date [not null, note: '게임별 일일 보상 기준 날짜 KST']
   source_key varchar(160) [not null, note: '게임과 KST 날짜로 식별. 정책 변경으로 초기화 안 함']
   ticket_count int [not null, note: '보상 수량. 현재 정책 1장']
-  created_at datetime [not null, note: '생성 시각 UTC']
+  created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (user_id, source_key) [unique]
   }
@@ -900,7 +924,7 @@ Table ticket_recovery_targets {
   original_grant_id binary(16) [not null, note: '최초 지급 GRANT ID']
   target_quantity bigint [not null, note: '회수 대상으로 결정한 수량. 실제 회수량과 다름']
   decided_by binary(16) [not null, note: '회수 결정 관리자 ID']
-  created_at datetime [not null, note: '관리자 회수 결정·행 생성 시각 UTC']
+  created_at datetime(6) [not null, note: '관리자 회수 결정·행 생성 시각 UTC']
   reason text [not null, note: '회수 결정 사유']
   status recovery_target_status [not null, note: 'ACTIVE=유효 결정 / SUPERSEDED=후속 결정으로 대체']
   supersedes_target_id binary(16) [note: '변경 전 회수 결정 ID. 기존 결정과 실제 원장은 보존']
@@ -920,16 +944,16 @@ Ref: ticket_ledger_allocations.ledger_id > ticket_ledger.id
 Ref: ticket_ledger_allocations.source_credit_ledger_id > ticket_ledger.id
 Ref: ticket_ledger_allocations.original_grant_id > ticket_ledger.id
 Ref: ticket_wallets.user_id > users.id
-Ref: mission_quizzes.mission_id > missions.id
+Ref: mission_quiz_questions.mission_id > missions.id
 Ref: game_plays.game_id > games.id
 Ref: game_plays.user_id > users.id
 Ref: attendance_streak_policies.policy_set_id > attendance_streak_policy_sets.id
 Ref: event_participants.event_id > events.id
 Ref: event_participants.user_id > users.id
-Ref: reward_claims.user_id > users.id
-Ref: reward_claims.reward_policy_id > reward_policies.id
-Ref: reward_claims.mission_id > missions.id
-Ref: reward_claims.mission_submission_id > mission_submissions.id
+Ref: mission_reward_claims.user_id > users.id
+Ref: mission_reward_claims.reward_policy_id > reward_policies.id
+Ref: mission_reward_claims.mission_id > missions.id
+Ref: mission_reward_claims.mission_submission_id > mission_submissions.id
 Ref: draw_results.draw_run_id > draw_runs.id
 Ref: draw_results.event_prize_id > event_prizes.id
 Ref: draw_results.candidate_id > draw_candidates.id
@@ -946,7 +970,7 @@ Ref: missions.reward_policy_id > reward_policies.id
 Ref: missions.created_by > users.id
 Ref: banners.event_id > events.id
 Ref: banners.created_by > users.id
-Ref: attendances.users_id > users.id
+Ref: attendances.user_id > users.id
 Ref: mission_submissions.mission_id > missions.id
 Ref: mission_submissions.user_id > users.id
 Ref: mission_submissions.reward_policy_id > reward_policies.id
@@ -981,26 +1005,26 @@ Ref: abuse_cases.reviewed_by > users.id
 Ref: audit_logs.actor_id > users.id
 Ref: ticket_ledger.actor_id > users.id
 Ref: ticket_ledger.event_entry_id > event_entries.id
-Ref: ticket_ledger.reward_claim_id > reward_claims.id
+Ref: ticket_ledger.mission_reward_claim_id > mission_reward_claims.id
 Ref: ticket_ledger.attendance_reward_claim_id > attendance_reward_claims.id
 Ref: ticket_ledger.game_reward_claim_id > game_reward_claims.id
 Ref: ticket_ledger.recovery_target_id > ticket_recovery_targets.id
 Ref: ticket_ledger.refund_of_id > ticket_ledger.id
 Ref: ticket_ledger.related_ledger_id > ticket_ledger.id
-Ref: attendance_streaks.users_id > users.id
+Ref: attendance_streaks.user_id > users.id
 Ref: attendance_streaks.policy_set_id > attendance_streak_policy_sets.id
-Ref: quiz_question_options.quiz_question_id > mission_quizzes.id
-Ref: quiz_answers.submission_id > mission_submissions.id
-Ref: quiz_answers.quiz_question_id > mission_quizzes.id
-Ref: quiz_answers.selected_option_id > quiz_question_options.id
+Ref: quiz_question_options.quiz_question_id > mission_quiz_questions.id
+Ref: quiz_answers.(submission_id, mission_id) > mission_submissions.(id, mission_id)
+Ref: quiz_answers.(quiz_question_id, mission_id) > mission_quiz_questions.(id, mission_id)
+Ref: quiz_answers.(selected_option_id, quiz_question_id) > quiz_question_options.(id, quiz_question_id)
 Ref: quiz_question_progress.user_id > users.id
-Ref: quiz_question_progress.quiz_question_id > mission_quizzes.id
+Ref: quiz_question_progress.quiz_question_id > mission_quiz_questions.id
 Ref: quiz_question_progress.correct_answer_id > quiz_answers.id
 Ref: survey_questions.mission_id > missions.id
 Ref: survey_question_options.survey_question_id > survey_questions.id
-Ref: survey_answers.submission_id > mission_submissions.id
-Ref: survey_answers.survey_question_id > survey_questions.id
-Ref: survey_answers.selected_option_id > survey_question_options.id
+Ref: survey_answers.(submission_id, mission_id) > mission_submissions.(id, mission_id)
+Ref: survey_answers.(survey_question_id, mission_id) > survey_questions.(id, mission_id)
+Ref: survey_answers.(selected_option_id, survey_question_id) > survey_question_options.(id, survey_question_id)
 Ref: attendance_streak_policy_sets.created_by > users.id
 Ref: attendance_reward_claims.user_id > users.id
 Ref: attendance_reward_claims.attendance_id > attendances.id
