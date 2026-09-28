@@ -25,7 +25,7 @@ CREATE TABLE `attendance_streaks` (
   `updated_at` DATETIME(6) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_attendance_streaks_1` (`user_id`, `streak_month`),
-  CONSTRAINT `chk_streak_days` CHECK (`consecutive_days` BETWEEN 0 AND 28),
+  CONSTRAINT `chk_streak_days` CHECK (`consecutive_days` BETWEEN 0 AND 31),
   CONSTRAINT `fk_attendance_streaks_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `fk_attendance_streaks_2` FOREIGN KEY (`policy_set_id`) REFERENCES `attendance_streak_policy_sets` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

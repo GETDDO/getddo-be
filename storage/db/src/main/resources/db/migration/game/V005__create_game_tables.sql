@@ -60,6 +60,7 @@ CREATE TABLE `game_reward_claims` (
   `created_at` DATETIME(6) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_game_reward_claims_1` (`user_id`, `source_key`),
+  UNIQUE KEY `uq_game_reward_claims_2` (`user_id`, `game_id`, `reward_date`),
   CONSTRAINT `fk_game_reward_claims_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `fk_game_reward_claims_2` FOREIGN KEY (`game_id`) REFERENCES `games` (`id`),
   CONSTRAINT `fk_game_reward_claims_3` FOREIGN KEY (`reward_policy_id`) REFERENCES `reward_policies` (`id`),
