@@ -33,6 +33,9 @@
 ## 5. Entity와 조회
 
 - JPA Entity는 필요한 범위의 `@Getter`와 JPA용 `protected` 기본 생성자를 두고, 범용 setter나 `@Data`로 모든 상태 변경을 열지 않는다. `updateTermsAgreed()`처럼 변경 목적이 드러나는 메서드에서 상태를 바꾼다. 공통 식별자·시각 필드는 `BaseEntity` 또는 `BaseUpdatableEntity`를 사용한다. 근거는 [ADR-0001](../04-decisions/0001-common-entity-uuid-auditing.md)을 따른다.
+- 관련 Entity를 함께 조회하거나 변경하는 흐름에는 JPA 연관관계를 매핑한다. DB에 외래 키가 있다는 이유만으로 모든 역방향 관계를 만들지 않고, 실제 탐색 방향에 필요한 관계만 둔다. 연관관계 매핑은 `storage:db`의 Entity에만 두며 `core` 도메인 객체에 JPA 어노테이션을 붙이지 않는다.
+- `@ManyToOne`·`@OneToOne`의 로딩 방식은 명시하고, 기본적으로 `FetchType.LAZY`를 사용한다. `@JoinColumn`의 컬럼명과 null 허용 여부는 기존 Flyway 스키마에 맞춘다. 필요한 연관 데이터는 조회 메서드에서 fetch join·EntityGraph·별도 조회 등으로 가져와 N+1을 확인한다.
+- 양방향 관계와 `@OneToMany` 컬렉션은 실제 사용처가 있을 때만 추가한다. `CascadeType.REMOVE`와 `orphanRemoval`은 자식의 생명주기와 삭제 정책을 확인한 뒤 사용한다. 연관 Entity를 API 응답으로 직접 반환하지 않는다.
 - 단건 조회에서 결과가 없을 수 있으면 Repository 인터페이스는 `Optional<T>`로 부재를 표현한다. 부재가 업무상 오류라면 Service에서 `orElseThrow()`로 도메인 오류를 결정한다. 부재가 정상 결과인 조회나 목록 조회에는 해당 계약에 맞는 반환형을 사용한다.
 - 중복 처리나 잔액·상태 불일치 위험은 DB 제약과 원자적 갱신까지 검토한다. 기존 Flyway 마이그레이션은 수정하지 않고 새 파일을 추가한다.
 
