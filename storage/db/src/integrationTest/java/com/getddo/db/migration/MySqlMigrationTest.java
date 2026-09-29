@@ -7,13 +7,15 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
+import com.getddo.db.support.MySqlTestContainers;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 class MySqlMigrationTest {
 
 	@Container
-	static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4");
+	static final MySQLContainer MYSQL = MySqlTestContainers.create();
 
 	@Test
 	@DisplayName("빈 MySQL에 초기 SQL을 적용하고 재실행해도 중복 적용하지 않는다")

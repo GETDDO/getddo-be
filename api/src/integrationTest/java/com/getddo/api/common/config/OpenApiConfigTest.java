@@ -3,26 +3,12 @@ package com.getddo.api.common.config;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestComponent;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mysql.MySQLContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import com.getddo.api.common.response.ResponseEnvelope;
+import com.getddo.api.support.ApiIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -32,23 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Spring 컨텍스트를 먼저 정리한 뒤 MySQL 컨테이너를 종료한다.
-@Testcontainers
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(OpenApiConfigTest.DocumentationController.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@ApiIntegrationTest
 class OpenApiConfigTest {
-
-	@Container
-	static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4");
-
-	@DynamicPropertySource
-	static void configureDatabase(DynamicPropertyRegistry registry) {
-		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
-		registry.add("spring.datasource.username", MYSQL::getUsername);
-		registry.add("spring.datasource.password", MYSQL::getPassword);
-	}
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -110,21 +81,4 @@ class OpenApiConfigTest {
 		assertThat(reference).startsWith("#/components/schemas/");
 		return document.at(reference.substring(1));
 	}
-
-	// 이 테스트에서만 등록하며, Swagger 어노테이션 없이 매핑과 타입으로 문서를 생성한다.
-	@TestComponent
-	@RestController
-	static class DocumentationController {
-
-		@PostMapping(value = "/test/openapi/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-		ResponseEnvelope<DocumentationResponse> create(
-				@PathVariable("id") long id, @RequestBody DocumentationRequest request
-		) {
-			return ResponseEnvelope.success(new DocumentationResponse(id, request.name()));
-		}
-	}
-
-	record DocumentationRequest(String name) {}
-
-	record DocumentationResponse(long id, String name) {}
 }

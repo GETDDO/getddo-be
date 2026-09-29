@@ -54,6 +54,7 @@ configure([project(':api'), project(':storage:db')]) {
 	}
 
 	dependencies {
+		integrationTestImplementation(testFixtures(project(':storage:db')))
 		integrationTestImplementation 'org.testcontainers:testcontainers-mysql'
 		integrationTestImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	}

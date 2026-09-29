@@ -14,41 +14,29 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mysql.MySQLContainer;
 
 import com.getddo.db.common.AuditingTestFixtures.CreatedRecord;
 import com.getddo.db.common.AuditingTestFixtures.MutableRecord;
+import com.getddo.db.support.MySqlTestConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-// Spring 컨텍스트를 먼저 정리한 뒤 MySQL 컨테이너를 종료한다.
-@Testcontainers
 @DataJpaTest(properties = {
 		"spring.jpa.hibernate.ddl-auto=create-drop",
 		"spring.flyway.enabled=false"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = AuditingTestFixtures.class)
+@ActiveProfiles("test")
+@Import(MySqlTestConfiguration.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class BaseEntityJpaTest {
-
-	@Container
-	static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4");
-
-	@DynamicPropertySource
-	static void configureDatabase(DynamicPropertyRegistry registry) {
-		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
-		registry.add("spring.datasource.username", MYSQL::getUsername);
-		registry.add("spring.datasource.password", MYSQL::getPassword);
-	}
 
 	private static final Instant CREATED = Instant.parse("2026-09-30T14:59:59Z");
 	private static final Instant UPDATED = Instant.parse("2026-09-30T15:00:01Z");
