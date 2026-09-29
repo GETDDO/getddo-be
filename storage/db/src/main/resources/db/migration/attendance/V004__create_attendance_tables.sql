@@ -49,7 +49,7 @@ CREATE TABLE `attendance_streak_policies` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_streak_policy_milestone` (`policy_set_id`, `milestone_days`),
   CONSTRAINT `chk_streak_policy_milestone` CHECK (`milestone_days` BETWEEN 1 AND 28),
-  CONSTRAINT `chk_streak_policy_reward` CHECK (`reward_ticket_count` >= 0),
+  CONSTRAINT `chk_streak_policy_reward` CHECK (`reward_ticket_count` >= 1),
   CONSTRAINT `fk_attendance_streak_policies_1` FOREIGN KEY (`policy_set_id`) REFERENCES `attendance_streak_policy_sets` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -78,7 +78,7 @@ CREATE TABLE `attendance_reward_claims` (
        AND `milestone_days` IS NOT NULL
        AND `reward_policy_id` IS NULL)
   ),
-  CONSTRAINT `chk_attendance_claim_ticket` CHECK (`ticket_count` >= 0),
+  CONSTRAINT `chk_attendance_claim_ticket` CHECK (`ticket_count` >= 1),
   CONSTRAINT `fk_attendance_reward_claims_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `fk_attendance_reward_claims_2` FOREIGN KEY (`attendance_id`) REFERENCES `attendances` (`id`),
   CONSTRAINT `fk_attendance_reward_claims_3` FOREIGN KEY (`reward_policy_id`) REFERENCES `reward_policies` (`id`),

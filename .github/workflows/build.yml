@@ -4,7 +4,7 @@ name: Build
 # job 이름 변경 시 Ruleset의 검사 이름도 함께 변경해야 한다.
 
 on:
-  # 모든 대상 브랜치의 PR 생성·수정 시 실행한다.
+  # 제목·본문 수정은 build 작업에서 제외하고, 병합 대상 브랜치 변경은 검증한다.
   pull_request:
     types: [opened, synchronize, edited, reopened, ready_for_review]
   # 브랜치 최초 push와 PR 병합을 포함한다.
@@ -14,16 +14,18 @@ on:
 permissions:
   contents: read
 
-# 같은 PR/브랜치에 변경이 연속으로 올라오면 이전 실행을 취소한다.
-concurrency:
-  group: build-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
-    name: 빌드·테스트
+    # 건너뛴 검사가 필수 "빌드·테스트" 결과를 대신하지 않도록 이름을 구분한다.
+    name: ${{ github.event.action == 'edited' && github.event.changes.base.ref == null && 'PR 설명 변경 (빌드 제외)' || '빌드·테스트' }}
+    if: github.event.action != 'edited' || github.event.changes.base.ref != null
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # 실제 빌드 작업끼리만 이전 실행을 취소한다. 제목·본문 수정은 영향을 주지 않는다.
+    concurrency:
+      group: build-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: 소스 코드 가져오기
@@ -39,11 +41,10 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      # Windows에서 작업해도 Linux 러너에서 Wrapper를 실행할 수 있도록 한다.
-      - name: Gradle 실행 권한 설정
-        run: chmod +x gradlew
+      - name: MySQL 통합 테스트용 Docker 확인
+        run: docker info
 
-      # build에 컴파일·테스트·패키징이 포함된다.
+      # build에 단위 테스트·MySQL 통합 테스트·패키징이 포함된다.
       - name: 빌드 및 테스트
         run: ./gradlew build --no-daemon --stacktrace
 

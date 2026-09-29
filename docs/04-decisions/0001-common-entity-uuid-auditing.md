@@ -48,5 +48,5 @@ UUID 사용을 전제로 v4와 v7을 비교했다.
 
 - UUID v7은 업무 처리 순서를 보장하지 않는다. 업무 시각은 별도의 `createdAt`·`updatedAt`으로 관리한다.
 - `BaseEntity` 상속만으로 수정·삭제가 금지되지는 않는다. 이력의 변경 제한은 각 도메인에서 처리한다. bulk JPQL·native SQL에는 자동 시간 기록이 적용되지 않는다.
-- JPA 영속화·Auditing 테스트는 H2 기반이다. 별도 MySQL JDBC 삽입 실험을 완료했지만, 애플리케이션의 실제 MySQL UUID/FK 매핑·시각 정밀도는 추가 검증이 필요하다.
+- 결정 당시 JPA 영속화·Auditing 테스트는 H2 기반이었다. 2026-09-29 초기 세팅 보완(`f48ecc9`)에서 H2 의존성을 제거하고 Testcontainers MySQL 8.4로 전환했다. 현재 공통 Entity 테스트는 UUID v7·`BINARY(16)` 저장과 생성·수정 시각 동작을 확인한다. 도메인별 FK 매핑과 시각 정밀도의 세부 검증은 해당 기능 구현 범위에서 다룬다.
 - MySQL 버전·연결 설정과 Flyway SQL은 이번 작업 범위에서 제외한다. DB 변경이나 저장 전 ID가 필요한 요구사항이 생기면 재검토한다.

@@ -42,7 +42,8 @@
 ## 6. Service와 트랜잭션
 
 - Service 메서드의 트랜잭션은 실제 업무 단위에 맞춰 정한다. 조회 트랜잭션에는 `@Transactional(readOnly = true)`, 변경 트랜잭션에는 `@Transactional`을 사용하는 방향으로 검토한다. 모든 메서드에 어노테이션을 기계적으로 붙이지 않는다.
-- 현재 `core`에는 Spring 트랜잭션 의존성이 없다. Service를 `core`에 두는 [패키지 기준](../../README.md#기능-추가-시-패키지-배치)을 유지하면서 어노테이션을 어디에 둘지는 별도 기술 결정이 필요하다. 이 결정 전에는 어노테이션이 없는 Service를 스타일 위반으로 지적하지 않는다.
+- Service는 `core`에 두고 `spring-context`의 `@Service`와 `spring-tx`의 `@Transactional`을 사용한다. 의존성 버전은 기존 Spring Boot BOM을 따른다. JPA Entity·Repository 구현은 계속 `storage:db`에 두며 `core`에 JPA 의존성을 추가하지 않는다.
+- 함께 성공하거나 실패해야 하는 저장 작업은 Service의 하나의 트랜잭션으로 묶는다. Spring Bean을 통해 호출되는 메서드에 적용하며, 같은 객체 안에서의 직접 호출에는 새 트랜잭션 설정이 적용되지 않음을 유의한다. 기본 롤백 대상은 `RuntimeException`과 `Error`이며 checked exception까지 롤백해야 하는 업무는 `rollbackFor`를 명시한다.
 
 ## 7. 오류와 API 응답
 

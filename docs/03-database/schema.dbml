@@ -472,6 +472,7 @@ Table banners {
   display_order int [not null, note: '서비스 전체 노출 순서 1~5. 최대 5개 보장은 추후 범위 및 중복 제약 함께 적용']
   created_at datetime(6) [not null, note: '생성 시각 UTC']
   updated_at datetime(6) [not null, note: '수정 시각 UTC']
+  deleted_at datetime(6) [note: '논리 삭제 시각 UTC. NULL이면 삭제되지 않은 배너']
 
   Note: '이벤트 배너'
 }
@@ -538,6 +539,7 @@ Table events {
   canceled_at datetime(6) [note: '취소 시각 UTC']
   created_at datetime(6) [not null, note: '생성 시각 UTC']
   updated_at datetime(6) [not null, note: '수정 시각 UTC']
+  deleted_at datetime(6) [note: '논리 삭제 시각 UTC. NULL이면 삭제되지 않은 이벤트']
   membership_rule membership_grade [not null, note: 'excellent=우수 / vip=VIP / vvip=VVIP']
 
   // CHECK chk_event_ticket_limit: max_tickets_per_user IS NULL OR max_tickets_per_user > 0
@@ -780,7 +782,7 @@ Table attendance_streaks {
     (user_id, streak_month) [unique]
   }
 
-  // CHECK chk_streak_days: consecutive_days BETWEEN 0 AND 28
+  // CHECK chk_streak_days: consecutive_days BETWEEN 0 AND 31
   Note: '월별 연속 출석 현황'
 }
 
@@ -914,6 +916,7 @@ Table game_reward_claims {
   created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
     (user_id, source_key) [unique]
+    (user_id, game_id, reward_date) [unique]
   }
   Note: '게임 보상 지급 이력. 사용자별 게임별 하루 1회'
 }

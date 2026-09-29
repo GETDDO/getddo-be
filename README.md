@@ -108,20 +108,58 @@ docker compose up --build -d
 
 앱은 `http://localhost:8080`, MySQL 8.4는 `localhost:3306`에서 접근할 수 있습니다. Compose는 `local` Spring 프로필을 활성화하고, `application-local.yaml`에 정의된 MySQL JDBC 연결에 DB 환경변수를 전달합니다. MySQL 데이터는 Compose 볼륨에 유지됩니다. 종료할 때는 `docker compose down`을 사용합니다.
 
-앱 시작 시 Flyway가 `storage:db`의 도메인별 SQL V001~V011을 버전 순서대로 적용해 41개 테이블을 생성합니다. 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
+앱 시작 시 Flyway가 `storage:db`의 도메인별 SQL V001~V012를 버전 순서대로 적용합니다. V001~V011은 41개 테이블을 생성하고, V012는 이벤트와 배너에 논리 삭제 시각을 추가합니다. 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
 
 ### 터미널
 
-저장소 루트에서 실행합니다. 아래 명령은 DB 설정 등 실행 준비를 마친 뒤 사용합니다.
+JDK 21을 준비하고 저장소 루트에서 실행합니다. 앱을 터미널에서 실행하려면 앞의 `.env` 준비 후 `docker compose up -d db`로 개발용 MySQL만 시작합니다. `bootRun`은 `.env`를 자동으로 읽지 않으므로 같은 DB 접속 정보를 환경변수로 지정합니다.
 
+macOS / Linux / WSL:
 
-| 작업        | macOS / Linux            | Windows PowerShell           |
-| --------- | ------------------------ | ---------------------------- |
-| 애플리케이션 실행 | `./gradlew :api:bootRun` | `.\gradlew.bat :api:bootRun` |
-| 전체 빌드·테스트 | `./gradlew build`        | `.\gradlew.bat build`        |
-| 전체 테스트    | `./gradlew test`         | `.\gradlew.bat test`         |
-| 특정 모듈 테스트 | `./gradlew :core:test`   | `.\gradlew.bat :core:test`   |
+```bash
+export SPRING_PROFILES_ACTIVE=local
+export DB_HOST=localhost DB_PORT=3306
+export DB_NAME=getddo DB_USERNAME=getddo
+export DB_PASSWORD='<.env에 설정한 DB_PASSWORD 값>'
+./gradlew :api:bootRun
+```
 
+Windows PowerShell:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = 'local'
+$env:DB_HOST = 'localhost'
+$env:DB_PORT = '3306'
+$env:DB_NAME = 'getddo'
+$env:DB_USERNAME = 'getddo'
+$env:DB_PASSWORD = '<.env에 설정한 DB_PASSWORD 값>'
+.\gradlew.bat :api:bootRun
+```
+
+DB 이름이나 계정을 바꿨다면 환경변수도 `.env`와 맞춥니다.
+
+### 테스트와 CI
+
+DB가 필요한 테스트는 Testcontainers가 실행하는 임시 MySQL 8.4를 사용합니다. 개발용 DB·`.env` 설정 없이 실행하며, 임의의 호스트 포트로 연결하고 테스트 종료 시 컨테이너를 정리합니다. H2는 사용하지 않습니다.
+
+공통 설정은 `storage/db/src/testFixtures/java/com/getddo/db/support`에 있습니다. `MySqlTestContainers`는 호출마다 새 컨테이너를 만들고, `MySqlTestConfiguration`은 `@ServiceConnection`으로 Spring의 JDBC·Flyway 연결을 자동 설정합니다. Spring 테스트는 `test` 프로필을 사용하며 컨테이너 시작·종료는 Spring이 관리합니다. 이 설정은 통합 테스트에서만 사용하고 운영 실행 JAR에는 포함하지 않습니다.
+
+API의 앱 기동·Swagger 테스트는 `api/src/integrationTest/java/com/getddo/api/support/ApiIntegrationTest.java`의 `@ApiIntegrationTest`를 사용해 동일한 Spring 컨텍스트와 MySQL 하나를 공유합니다. 공통 Entity 테스트는 테이블을 생성·삭제하는 별도 DB를 사용하고, 초기 SQL 테스트는 JUnit이 관리하는 별도 컨테이너의 빈 DB에서 실행합니다. 다른 모듈이나 서로 다른 Spring 컨텍스트까지 강제로 공유하지 않습니다.
+
+통합 테스트 전에 Docker Desktop의 Linux 컨테이너 엔진을 실행합니다. WSL에서는 Settings → Resources → WSL Integration에서 사용하는 배포판을 켜고, `docker version`에 Client와 Server가 모두 표시되는지 확인합니다. 첫 실행에는 MySQL 이미지 다운로드가 필요합니다.
+
+| 작업 | macOS / Linux / WSL | Windows PowerShell | Docker |
+| --- | --- | --- | --- |
+| DB 없는 테스트 | `./gradlew test` | `.\gradlew.bat test` | 불필요 |
+| MySQL 통합 테스트 | `./gradlew integrationTest` | `.\gradlew.bat integrationTest` | 필요 |
+| 초기 SQL·공통 Entity 검증 | `./gradlew :storage:db:integrationTest` | `.\gradlew.bat :storage:db:integrationTest` | 필요 |
+| 앱 기동·Swagger 검증 | `./gradlew :api:integrationTest` | `.\gradlew.bat :api:integrationTest` | 필요 |
+| 전체 빌드·테스트 | `./gradlew build` | `.\gradlew.bat build` | 필요 |
+| 실행 JAR 패키징 | `./gradlew :api:bootJar` | `.\gradlew.bat :api:bootJar` | 불필요 |
+
+초기 SQL 검증은 빈 MySQL에 Flyway 마이그레이션을 적용하고, 재실행 시 추가 적용이 없는지 확인합니다. Docker에 연결할 수 없으면 통합 테스트는 실패합니다.
+
+GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradlew build`를 실행합니다. 별도 DB 비밀값 설정은 필요하지 않습니다. 실패한 테스트 보고서는 `test-reports` 아티팩트에서 확인할 수 있습니다.
 
 ## 문서와 협업 규칙
 
