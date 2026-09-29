@@ -38,3 +38,36 @@ configure([project(':api'), project(':core'), project(':storage:db')]) {
 		useJUnitPlatform()
 	}
 }
+
+// DB 연결이 필요한 테스트만 실제 MySQL에서 실행한다.
+configure([project(':api'), project(':storage:db')]) {
+	sourceSets {
+		integrationTest {
+			compileClasspath += sourceSets.main.output
+			runtimeClasspath += sourceSets.main.output
+		}
+	}
+
+	configurations {
+		integrationTestImplementation.extendsFrom testImplementation
+		integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+	}
+
+	dependencies {
+		integrationTestImplementation 'org.testcontainers:testcontainers-mysql'
+		integrationTestImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	}
+
+	def integrationTest = tasks.register('integrationTest', Test) {
+		description = 'MySQL에서 DB 연결이 필요한 통합 테스트를 실행한다.'
+		group = 'verification'
+		testClassesDirs = sourceSets.integrationTest.output.classesDirs
+		classpath = sourceSets.integrationTest.runtimeClasspath
+		useJUnitPlatform()
+		shouldRunAfter tasks.named('test')
+	}
+
+	tasks.named('check') {
+		dependsOn integrationTest
+	}
+}

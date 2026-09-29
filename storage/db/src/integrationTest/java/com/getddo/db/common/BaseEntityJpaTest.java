@@ -7,37 +7,48 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Table;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.SpringBootConfiguration;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.mysql.MySQLContainer;
 
-import com.getddo.db.common.config.JpaAuditingConfig;
-import com.getddo.db.common.entity.BaseEntity;
-import com.getddo.db.common.entity.BaseUpdatableEntity;
+import com.getddo.db.common.AuditingTestFixtures.CreatedRecord;
+import com.getddo.db.common.AuditingTestFixtures.MutableRecord;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+// Spring 컨텍스트를 먼저 정리한 뒤 MySQL 컨테이너를 종료한다.
+@Testcontainers
 @DataJpaTest(properties = {
 		"spring.jpa.hibernate.ddl-auto=create-drop",
-		"spring.jpa.properties.hibernate.type.preferred_uuid_jdbc_type=BINARY",
 		"spring.flyway.enabled=false"
 })
-@ContextConfiguration(classes = BaseEntityJpaTest.JpaTestConfig.class)
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ContextConfiguration(classes = AuditingTestFixtures.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class BaseEntityJpaTest {
+
+	@Container
+	static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4");
+
+	@DynamicPropertySource
+	static void configureDatabase(DynamicPropertyRegistry registry) {
+		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+		registry.add("spring.datasource.username", MYSQL::getUsername);
+		registry.add("spring.datasource.password", MYSQL::getPassword);
+	}
 
 	private static final Instant CREATED = Instant.parse("2026-09-30T14:59:59Z");
 	private static final Instant UPDATED = Instant.parse("2026-09-30T15:00:01Z");
@@ -56,13 +67,17 @@ class BaseEntityJpaTest {
 	}
 
 	@Test
+	@DisplayName("UUID v7을 binary(16)으로 저장하고 동일한 ID와 생성 시각을 조회한다")
 	void storesUuidV7AsBinary16AndReloadsSameValue() {
+		// given
 		CreatedRecord first = new CreatedRecord();
 		CreatedRecord second = new CreatedRecord();
 		assertThat(first.getId()).isNull();
+		// when
 		entityManager.persist(first);
 		entityManager.persist(second);
 		entityManager.flush();
+		// then
 		UUID id = first.getId();
 		assertThat(id.version()).isEqualTo(7);
 		assertThat(second.getId().version()).isEqualTo(7);
@@ -78,15 +93,15 @@ class BaseEntityJpaTest {
 		assertThat(ids).anySatisfy(value -> assertThat(value).isEqualTo(expected));
 		assertThat(jdbc.queryForObject("""
 				select data_type from information_schema.columns
-				where table_schema = 'PUBLIC'
-				  and table_name = 'AUDITING_CREATED_RECORD'
-				  and column_name = 'ID'
-				""", String.class)).isEqualTo("BINARY");
+				where table_schema = database()
+				  and table_name = 'auditing_created_record'
+				  and column_name = 'id'
+				""", String.class)).isEqualTo("binary");
 		assertThat(jdbc.queryForObject("""
 				select character_maximum_length from information_schema.columns
-				where table_schema = 'PUBLIC'
-				  and table_name = 'AUDITING_CREATED_RECORD'
-				  and column_name = 'ID'
+				where table_schema = database()
+				  and table_name = 'auditing_created_record'
+				  and column_name = 'id'
 				""", Long.class)).isEqualTo(16L);
 
 		entityManager.clear();
@@ -96,7 +111,9 @@ class BaseEntityJpaTest {
 	}
 
 	@Test
+	@DisplayName("Clock이 진행된 뒤 Entity를 변경하면 수정 시각만 갱신한다")
 	void updatesOnlyModificationTimeUsingTheInjectedClock() {
+		// given
 		MutableRecord record = new MutableRecord("before");
 		entityManager.persist(record);
 		entityManager.flush();
@@ -106,10 +123,12 @@ class BaseEntityJpaTest {
 		assertThat(loaded.getCreatedAt()).isEqualTo(CREATED);
 		assertThat(loaded.getUpdatedAt()).isEqualTo(CREATED);
 
+		// when
 		when(clock.instant()).thenReturn(UPDATED);
 		loaded.changePayload("after");
 		entityManager.flush();
 		entityManager.clear();
+		// then
 		MutableRecord updated = entityManager.find(MutableRecord.class, id);
 		assertThat(updated.getId()).isEqualTo(id);
 		assertThat(updated.getCreatedAt()).isEqualTo(CREATED);
@@ -118,67 +137,41 @@ class BaseEntityJpaTest {
 	}
 
 	@Test
+	@DisplayName("Entity 변경이 없으면 Clock이 진행되어도 수정 시각을 유지한다")
 	void doesNotChangeModificationTimeWithoutAnEntityChange() {
+		// given
 		MutableRecord record = new MutableRecord("unchanged");
 		entityManager.persist(record);
 		entityManager.flush();
 		UUID id = record.getId();
 		entityManager.clear();
 		entityManager.find(MutableRecord.class, id);
+		// when
 		when(clock.instant()).thenReturn(UPDATED);
 		entityManager.flush();
 		entityManager.clear();
+		// then
 		assertThat(entityManager.find(MutableRecord.class, id).getUpdatedAt())
 				.isEqualTo(CREATED);
 	}
 
 	@Test
+	@DisplayName("생성 시각 전용 Entity는 수정 시각 컬럼 없이 저장된다")
 	void creationOnlyEntityDoesNotRequireModificationColumn() {
+		// given
 		CreatedRecord record = new CreatedRecord();
+		// when
 		entityManager.persist(record);
 		entityManager.flush();
 		UUID id = record.getId();
 		entityManager.clear();
+		// then
 		assertThat(entityManager.find(CreatedRecord.class, id).getCreatedAt())
 				.isEqualTo(CREATED);
 		assertThat(jdbc.queryForList("""
 				select column_name from information_schema.columns
-				where table_schema = 'PUBLIC'
-				  and table_name = 'AUDITING_CREATED_RECORD'
-				""", String.class)).containsExactlyInAnyOrder("ID", "CREATED_AT");
-	}
-
-	@SpringBootConfiguration
-	@EnableAutoConfiguration
-	@EntityScan(basePackageClasses = BaseEntityJpaTest.class)
-	@Import(JpaAuditingConfig.class)
-	static class JpaTestConfig {
-		@Bean
-		Clock auditingTestClock() {
-			return mock(Clock.class);
-		}
-	}
-
-	@Entity(name = "AuditingCreatedRecord")
-	@Table(name = "auditing_created_record")
-	public static class CreatedRecord extends BaseEntity {
-		protected CreatedRecord() { }
-	}
-
-	@Entity(name = "AuditingMutableRecord")
-	@Table(name = "auditing_mutable_record")
-	public static class MutableRecord extends BaseUpdatableEntity {
-		@Column(nullable = false)
-		private String payload;
-
-		protected MutableRecord() { }
-
-		MutableRecord(String payload) {
-			this.payload = payload;
-		}
-
-		void changePayload(String payload) {
-			this.payload = payload;
-		}
+				where table_schema = database()
+				  and table_name = 'auditing_created_record'
+				""", String.class)).containsExactlyInAnyOrder("id", "created_at");
 	}
 }

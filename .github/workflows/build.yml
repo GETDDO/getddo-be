@@ -39,11 +39,10 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      # Windows에서 작업해도 Linux 러너에서 Wrapper를 실행할 수 있도록 한다.
-      - name: Gradle 실행 권한 설정
-        run: chmod +x gradlew
+      - name: MySQL 통합 테스트용 Docker 확인
+        run: docker info
 
-      # build에 컴파일·테스트·패키징이 포함된다.
+      # build에 단위 테스트·MySQL 통합 테스트·패키징이 포함된다.
       - name: 빌드 및 테스트
         run: ./gradlew build --no-daemon --stacktrace
 
