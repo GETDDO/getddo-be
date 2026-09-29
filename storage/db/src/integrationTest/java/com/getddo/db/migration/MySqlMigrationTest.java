@@ -18,8 +18,8 @@ class MySqlMigrationTest {
 	static final MySQLContainer MYSQL = MySqlTestContainers.create();
 
 	@Test
-	@DisplayName("빈 MySQL에 초기 SQL을 적용하고 재실행해도 중복 적용하지 않는다")
-	void migratesInitialSchemaAndDoesNotReapplyIt() {
+	@DisplayName("빈 MySQL에 Flyway SQL을 적용하고 재실행해도 중복 적용하지 않는다")
+	void migratesSchemaAndDoesNotReapplyIt() {
 		// given
 		Flyway flyway = Flyway.configure()
 				.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
@@ -27,11 +27,11 @@ class MySqlMigrationTest {
 				.load();
 
 		// when
-		int initialMigrations = flyway.migrate().migrationsExecuted;
+		int appliedMigrations = flyway.migrate().migrationsExecuted;
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(initialMigrations).isEqualTo(11);
+		assertThat(appliedMigrations).isEqualTo(12);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		flyway.validate();

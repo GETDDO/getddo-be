@@ -108,7 +108,7 @@ docker compose up --build -d
 
 앱은 `http://localhost:8080`, MySQL 8.4는 `localhost:3306`에서 접근할 수 있습니다. Compose는 `local` Spring 프로필을 활성화하고, `application-local.yaml`에 정의된 MySQL JDBC 연결에 DB 환경변수를 전달합니다. MySQL 데이터는 Compose 볼륨에 유지됩니다. 종료할 때는 `docker compose down`을 사용합니다.
 
-앱 시작 시 Flyway가 `storage:db`의 도메인별 SQL V001~V011을 버전 순서대로 적용해 41개 테이블을 생성합니다. 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
+앱 시작 시 Flyway가 `storage:db`의 도메인별 SQL V001~V012를 버전 순서대로 적용합니다. V001~V011은 41개 테이블을 생성하고, V012는 이벤트와 배너에 논리 삭제 시각을 추가합니다. 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
 
 ### 터미널
 
