@@ -48,6 +48,7 @@ CREATE TABLE `mission_reward_claims` (
   `created_at` DATETIME(6) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_reward_claims_1` (`user_id`, `mission_id`),
+  CONSTRAINT `chk_mission_claim_ticket` CHECK (`ticket_count` >= 1),
   CONSTRAINT `fk_reward_claims_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `fk_reward_claims_2` FOREIGN KEY (`reward_policy_id`) REFERENCES `reward_policies` (`id`),
   CONSTRAINT `fk_reward_claims_3` FOREIGN KEY (`mission_id`) REFERENCES `missions` (`id`),
