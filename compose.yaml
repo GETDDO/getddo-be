@@ -10,6 +10,8 @@ services:
       DB_NAME: ${DB_NAME:?Set DB_NAME in .env}
       DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME in .env}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      # Compose가 읽은 값을 앱 컨테이너에 명시적으로 전달한다. 빈 값도 그대로 허용한다.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     depends_on:
       db:
         condition: service_healthy
