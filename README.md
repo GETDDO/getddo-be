@@ -89,6 +89,7 @@ storage:db → core
 | `core`       | `<도메인>/service`                     | 업무 흐름과 트랜잭션을 담당하는 Service     |
 | `core`       | `<도메인>/domain`                      | 상태와 비즈니스 규칙을 가진 도메인 객체        |
 | `core`       | `<도메인>/repository`                  | 조회·저장 인터페이스                   |
+| `core`       | `<도메인>/exception`                   | 도메인 오류 코드(`ErrorCode` 구현 enum)   |
 | `storage:db` | `<도메인>/entity`                      | JPA Entity                    |
 | `storage:db` | `<도메인>/repository`                  | JpaRepository, RepositoryImpl |
 | `storage:db` | `<도메인>/mapper`                      | Entity와 도메인 객체 변환             |

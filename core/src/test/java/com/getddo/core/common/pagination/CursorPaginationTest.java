@@ -17,9 +17,9 @@ class CursorPaginationTest {
 		CursorQuery first = new CursorQuery(null, 20);
 		CursorQuery following = new CursorQuery("saved-cursor", 20);
 
-		assertThat(first.cursor()).isNull();
-		assertThat(first.size()).isEqualTo(20);
-		assertThat(following.cursor()).isEqualTo("saved-cursor");
+		assertThat(first.getCursor()).isNull();
+		assertThat(first.getSize()).isEqualTo(20);
+		assertThat(following.getCursor()).isEqualTo("saved-cursor");
 	}
 
 	@Test
@@ -35,19 +35,19 @@ class CursorPaginationTest {
 		CursorResult<String> result = new CursorResult<>(source, "next-cursor", 83);
 
 		source.add("second");
-		assertThat(result.items()).containsExactly("first");
-		assertThat(result.nextCursor()).isEqualTo("next-cursor");
-		assertThat(result.totalElements()).isEqualTo(83);
+		assertThat(result.getItems()).containsExactly("first");
+		assertThat(result.getNextCursor()).isEqualTo("next-cursor");
+		assertThat(result.getTotalElements()).isEqualTo(83);
 		assertThat(result.hasNext()).isTrue();
 		assertThatExceptionOfType(UnsupportedOperationException.class)
-				.isThrownBy(() -> result.items().add("third"));
+				.isThrownBy(() -> result.getItems().add("third"));
 	}
 
 	@Test
 	void acceptsLastResultAndRejectsInvalidResult() {
 		CursorResult<String> last = new CursorResult<>(List.of(), null, 0);
 
-		assertThat(last.items()).isEmpty();
+		assertThat(last.getItems()).isEmpty();
 		assertThat(last.hasNext()).isFalse();
 		assertThatNullPointerException()
 				.isThrownBy(() -> new CursorResult<String>(null, null, 0));

@@ -21,9 +21,10 @@
 ## 3. DTO와 변환
 
 - JSON 요청·응답 DTO는 `record`를 기본으로 한다. 이름은 역할에 따라 `XxxRequest`, `XxxResponse`로 구분한다. 폼·쿼리 파라미터 바인딩 등에서 다른 형태가 필요하면 해당 DTO의 실제 바인딩 방식을 확인한다.
+- `record`는 JSON 요청·응답 DTO에만 사용한다. `core`의 도메인 객체·값 객체·서비스 입출력 값과 공통 페이징 모델은 `private final` 필드와 getter(`getXxx()`, boolean은 `isXxx()`)를 가진 불변 클래스로 작성하고, 값 비교가 필요하면 `equals`·`hashCode`를 함께 구현한다.
 - 단순 변환의 방향은 요청 DTO의 `toDomain()`, 응답 DTO의 `from(domain)`, `storage:db` Mapper의 `toDomain()`·`toEntity()`로 표현한다. 변환 중 업무 정책을 판정하거나 DB를 조회해야 하면 변환 메서드에 넣지 않고 Service·도메인에서 처리한다.
 - Entity와 도메인 사이의 단순 필드 변환은 `@Mapper(componentModel = "spring")`을 사용해 MapStruct로 생성하고 주입한다. Lombok과 함께 사용할 때는 `lombok-mapstruct-binding` annotation processor를 등록한다.
-- DTO, 도메인 객체, JPA Entity를 서로 직접 대체하지 않는다. 특히 Entity와 도메인 객체를 API에 그대로 노출하지 않는다. `record`에 가변 컬렉션이 있으면 필요한 경우 복사해 외부 변경으로부터 보호한다.
+- DTO, 도메인 객체, JPA Entity를 서로 직접 대체하지 않는다. 특히 Entity와 도메인 객체를 API에 그대로 노출하지 않는다. `record`나 불변 클래스에 가변 컬렉션이 있으면 필요한 경우 복사해 외부 변경으로부터 보호한다.
 
 ## 4. 입력 검증과 업무 검증
 
@@ -49,6 +50,7 @@
 ## 7. 오류와 API 응답
 
 - 도메인별 오류 코드는 `ErrorCode`를 구현한 enum으로 관리한다. 예상 가능한 업무 규칙 위반은 `BusinessException`으로 전달하고, `GlobalExceptionHandler`가 HTTP 응답으로 변환한다. `CommonErrorCode`에 도메인 전용 오류를 모으지 않는다.
+- 도메인 오류 코드 enum은 `core`의 `<도메인>/exception` 패키지에 둔다(예: `core/ticket/exception/TicketErrorCode`). 공통 계약인 `ErrorCode`·`BusinessException`은 `core/common/exception`에 둔다.
 - 사용자 오류는 `core/user/exception`의 `UserErrorCode`와 `BusinessException`을 상속한 `UserException`으로 묶는다. Service에서 `UserException`을 던지며 공통 예외 처리기를 그대로 사용한다.
 - 성공 JSON 응답은 `ResponseEnvelope.success(data)`를 사용한다. 데이터가 없는 JSON 응답은 `success(null)`을 사용하고, 본문이 없는 HTTP 204와 구분한다. 상태 코드와 공개 메시지는 오류 의미에 맞춘다.
 - 예외 원문, SQL, 비밀값, 개인정보를 공개 메시지나 로그에 넣지 않는다. API 필드·상태·오류 코드를 바꾸면 프론트엔드 계약과 호환성을 확인한다.
