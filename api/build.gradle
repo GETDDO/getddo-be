@@ -12,6 +12,7 @@ dependencies {
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	integrationTestImplementation 'org.springframework:spring-jdbc'
 }
 
 // api만 실행 가능한 JAR로 패키징한다.
