@@ -17,8 +17,8 @@ class PaginationTest {
 		PageQuery first = new PageQuery(1, 20);
 		PageQuery second = new PageQuery(2, 20);
 
-		assertThat(first.page()).isEqualTo(1);
-		assertThat(first.size()).isEqualTo(20);
+		assertThat(first.getPage()).isEqualTo(1);
+		assertThat(first.getSize()).isEqualTo(20);
 		assertThat(first.offset()).isZero();
 		assertThat(second.offset()).isEqualTo(20);
 		assertThat(new PageQuery(Integer.MAX_VALUE, Integer.MAX_VALUE).offset())
@@ -38,7 +38,7 @@ class PaginationTest {
 		PageResult<String> last = new PageResult<>(List.of("last"), 5, 20, 83);
 		PageResult<String> empty = new PageResult<>(List.of(), 1, 20, 0);
 
-		assertThat(first.totalElements()).isEqualTo(83);
+		assertThat(first.getTotalElements()).isEqualTo(83);
 		assertThat(first.totalPages()).isEqualTo(5);
 		assertThat(first.hasNext()).isTrue();
 		assertThat(last.hasNext()).isFalse();
@@ -52,9 +52,9 @@ class PaginationTest {
 		PageResult<String> result = new PageResult<>(source, 1, 20, 1);
 
 		source.add("second");
-		assertThat(result.items()).containsExactly("first");
+		assertThat(result.getItems()).containsExactly("first");
 		assertThatExceptionOfType(UnsupportedOperationException.class)
-				.isThrownBy(() -> result.items().add("third"));
+				.isThrownBy(() -> result.getItems().add("third"));
 	}
 
 	@Test

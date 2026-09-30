@@ -27,20 +27,20 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		// when
 		GrantResult result = grantNewMissionClaim(userId, 2);
 		// then
-		assertThat(result.replayed()).isFalse();
+		assertThat(result.isReplayed()).isFalse();
 		assertThat(walletCount(userId)).isEqualTo(1);
 		assertThat(ledgerCount(userId)).isEqualTo(1);
 		assertThat(allocationCount(userId)).isEqualTo(1);
 
-		Instant grantedAt = result.grantedAt();
-		assertThat(utc("select created_at from ticket_wallets where id = ?", bytes(result.walletId())))
+		Instant grantedAt = result.getGrantedAt();
+		assertThat(utc("select created_at from ticket_wallets where id = ?", bytes(result.getWalletId())))
 				.isEqualTo(grantedAt);
-		assertThat(utc("select valid_from from ticket_wallets where id = ?", bytes(result.walletId())))
+		assertThat(utc("select valid_from from ticket_wallets where id = ?", bytes(result.getWalletId())))
 				.isEqualTo(grantedAt);
-		assertThat(utc("select created_at from ticket_ledger where id = ?", bytes(result.ledgerId())))
+		assertThat(utc("select created_at from ticket_ledger where id = ?", bytes(result.getLedgerId())))
 				.isEqualTo(grantedAt);
 		assertThat(utc("select created_at from ticket_ledger_allocations where ledger_id = ?",
-				bytes(result.ledgerId()))).isEqualTo(grantedAt);
+				bytes(result.getLedgerId()))).isEqualTo(grantedAt);
 	}
 
 	@Test
@@ -50,17 +50,17 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		// when
 		GrantResult result = grantNewMissionClaim(userId, 3);
 		// then
-		byte[] ledgerId = bytes(result.ledgerId());
+		byte[] ledgerId = bytes(result.getLedgerId());
 		assertThat(count("select balance_after from ticket_ledger where id = ?", ledgerId))
-				.isEqualTo(walletBalance(result.walletId()))
-				.isEqualTo(result.balanceAfter())
+				.isEqualTo(walletBalance(result.getWalletId()))
+				.isEqualTo(result.getBalanceAfter())
 				.isEqualTo(3);
 		assertThat(count("select wallet_version from ticket_ledger where id = ?", ledgerId))
-				.isEqualTo(walletVersion(result.walletId()))
+				.isEqualTo(walletVersion(result.getWalletId()))
 				.isEqualTo(1);
 		assertThat(utc("select expires_at from ticket_ledger where id = ?", ledgerId))
-				.isEqualTo(utc("select expires_at from ticket_wallets where id = ?", bytes(result.walletId())))
-				.isEqualTo(result.expiresAt());
+				.isEqualTo(utc("select expires_at from ticket_wallets where id = ?", bytes(result.getWalletId())))
+				.isEqualTo(result.getExpiresAt());
 		assertThat(count("""
 				select count(*) from ticket_ledger_allocations
 				where ledger_id = ? and source_credit_ledger_id = ? and original_grant_id = ? and quantity = 3
@@ -80,19 +80,19 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		// when
 		GrantResult second = grantNewMissionClaim(userId, 3);
 		// then
-		assertThat(second.walletId()).isEqualTo(first.walletId());
+		assertThat(second.getWalletId()).isEqualTo(first.getWalletId());
 		assertThat(walletCount(userId)).isEqualTo(1);
 		assertThat(ledgerVersions(userId)).containsExactly(1L, 2L);
 		assertThat(ledgerBalances(userId)).containsExactly(2L, 5L);
-		assertThat(walletBalance(first.walletId())).isEqualTo(5);
-		assertThat(walletVersion(first.walletId())).isEqualTo(2);
+		assertThat(walletBalance(first.getWalletId())).isEqualTo(5);
+		assertThat(walletVersion(first.getWalletId())).isEqualTo(2);
 		// 첫 입금 시각은 유지되고 수정 시각만 두 번째 지급 시점으로 바뀐다
-		assertThat(utc("select valid_from from ticket_wallets where id = ?", bytes(first.walletId())))
-				.isEqualTo(first.grantedAt());
-		assertThat(utc("select created_at from ticket_wallets where id = ?", bytes(first.walletId())))
-				.isEqualTo(first.grantedAt());
-		assertThat(utc("select updated_at from ticket_wallets where id = ?", bytes(first.walletId())))
-				.isEqualTo(second.grantedAt());
+		assertThat(utc("select valid_from from ticket_wallets where id = ?", bytes(first.getWalletId())))
+				.isEqualTo(first.getGrantedAt());
+		assertThat(utc("select created_at from ticket_wallets where id = ?", bytes(first.getWalletId())))
+				.isEqualTo(first.getGrantedAt());
+		assertThat(utc("select updated_at from ticket_wallets where id = ?", bytes(first.getWalletId())))
+				.isEqualTo(second.getGrantedAt());
 	}
 
 	@Test
@@ -127,12 +127,12 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		GrantResult replayed = transaction.execute(status ->
 				grantService.grant(command(userId, GrantSourceType.MISSION, claimId, 2)));
 		// then
-		assertThat(replayed).isEqualTo(new GrantResult(first.ledgerId(), first.walletId(), 2, 2,
-				first.grantedAt(), first.expiresAt(), true));
+		assertThat(replayed).isEqualTo(new GrantResult(first.getLedgerId(), first.getWalletId(), 2, 2,
+				first.getGrantedAt(), first.getExpiresAt(), true));
 		assertThat(ledgerCount(userId)).isEqualTo(1);
 		assertThat(allocationCount(userId)).isEqualTo(1);
-		assertThat(walletBalance(first.walletId())).isEqualTo(2);
-		assertThat(walletVersion(first.walletId())).isEqualTo(1);
+		assertThat(walletBalance(first.getWalletId())).isEqualTo(2);
+		assertThat(walletVersion(first.getWalletId())).isEqualTo(1);
 	}
 
 	@Test
@@ -170,13 +170,13 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		// when
 		GrantResult october = grantNewMissionClaim(userId, 1);
 		// then
-		assertThat(october.walletId()).isNotEqualTo(september.walletId());
-		assertThat(september.expiresAt()).isEqualTo(Instant.parse("2026-09-30T15:00:00Z"));
-		assertThat(october.expiresAt()).isEqualTo(Instant.parse("2026-10-31T15:00:00Z"));
+		assertThat(october.getWalletId()).isNotEqualTo(september.getWalletId());
+		assertThat(september.getExpiresAt()).isEqualTo(Instant.parse("2026-09-30T15:00:00Z"));
+		assertThat(october.getExpiresAt()).isEqualTo(Instant.parse("2026-10-31T15:00:00Z"));
 		assertThat(jdbc.queryForObject("select expiry_month from ticket_wallets where id = ?", LocalDate.class,
-				bytes(september.walletId()))).isEqualTo(LocalDate.parse("2026-09-01"));
+				bytes(september.getWalletId()))).isEqualTo(LocalDate.parse("2026-09-01"));
 		assertThat(jdbc.queryForObject("select expiry_month from ticket_wallets where id = ?", LocalDate.class,
-				bytes(october.walletId()))).isEqualTo(LocalDate.parse("2026-10-01"));
+				bytes(october.getWalletId()))).isEqualTo(LocalDate.parse("2026-10-01"));
 		assertThat(walletCount(userId)).isEqualTo(2);
 	}
 
@@ -198,9 +198,9 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 					grantService.grant(command(userId, GrantSourceType.GAME, gameClaim, 1)));
 		});
 		// then
-		assertThat(filledClaimColumn(results.get(0).ledgerId())).isEqualTo("MISSION");
-		assertThat(filledClaimColumn(results.get(1).ledgerId())).isEqualTo("ATTENDANCE");
-		assertThat(filledClaimColumn(results.get(2).ledgerId())).isEqualTo("GAME");
+		assertThat(filledClaimColumn(results.get(0).getLedgerId())).isEqualTo("MISSION");
+		assertThat(filledClaimColumn(results.get(1).getLedgerId())).isEqualTo("ATTENDANCE");
+		assertThat(filledClaimColumn(results.get(2).getLedgerId())).isEqualTo("GAME");
 	}
 
 	@Test
@@ -213,8 +213,8 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		assertThat(grantService.findGrant(source)).isEmpty();
 		GrantResult granted = transaction.execute(status ->
 				grantService.grant(command(userId, GrantSourceType.MISSION, claimId, 1)));
-		GrantResult expected = new GrantResult(granted.ledgerId(), granted.walletId(), granted.quantity(),
-				granted.balanceAfter(), granted.grantedAt(), granted.expiresAt(), true);
+		GrantResult expected = new GrantResult(granted.getLedgerId(), granted.getWalletId(), granted.getQuantity(),
+				granted.getBalanceAfter(), granted.getGrantedAt(), granted.getExpiresAt(), true);
 		// when
 		Optional<GrantResult> withoutTransaction = grantService.findGrant(source);
 		Optional<GrantResult> inTransaction = transaction.execute(status -> grantService.findGrant(source));

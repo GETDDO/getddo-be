@@ -46,12 +46,12 @@ public class TicketWalletRepositoryImpl implements TicketWalletRepository {
 		entityManager.createNativeQuery(INSERT_IF_ABSENT)
 				.setParameter("id", UuidBinary.toBytes(newWalletId()))
 				.setParameter("userId", UuidBinary.toBytes(userId))
-				.setParameter("expiryMonth", period.expiryMonth())
-				.setParameter("expiresAt", period.expiresAt())
+				.setParameter("expiryMonth", period.getExpiryMonth())
+				.setParameter("expiresAt", period.getExpiresAt())
 				.setParameter("createdAt", createdAt)
 				.executeUpdate();
 		TicketWalletEntity wallet = walletJpaRepository
-				.findByUserIdAndExpiryMonth(userId, period.expiryMonth())
+				.findByUserIdAndExpiryMonth(userId, period.getExpiryMonth())
 				.orElseThrow(() -> new IllegalStateException("확보한 응모권 지갑을 조회하지 못했다."));
 		LockedWallets.register(wallet.getId());
 		return TicketWalletMapper.toDomain(wallet);
@@ -67,12 +67,12 @@ public class TicketWalletRepositoryImpl implements TicketWalletRepository {
 	 */
 	@Override
 	public void save(TicketWallet wallet) {
-		if (!LockedWallets.isLocked(wallet.id())) {
+		if (!LockedWallets.isLocked(wallet.getId())) {
 			throw new IllegalStateException("잠그지 않은 응모권 지갑은 갱신할 수 없다.");
 		}
 		// 잠근 Entity가 영속성 컨텍스트에 있으므로 추가 조회 없이 반환된다.
-		TicketWalletEntity entity = entityManager.find(TicketWalletEntity.class, wallet.id());
-		entity.applyDeposit(wallet.balance(), wallet.version());
+		TicketWalletEntity entity = entityManager.find(TicketWalletEntity.class, wallet.getId());
+		entity.applyDeposit(wallet.getBalance(), wallet.getVersion());
 	}
 
 	/** 공통 Entity와 같은 Hibernate UUID v7 생성기로 새 지갑 ID를 만든다. */

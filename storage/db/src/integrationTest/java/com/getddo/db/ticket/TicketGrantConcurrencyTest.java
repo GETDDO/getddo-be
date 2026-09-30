@@ -43,8 +43,8 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 		// then
 		assertThat(outcomes).allMatch(GrantResult.class::isInstance);
 		assertThat(walletCount(userId)).isEqualTo(1);
-		assertThat(walletBalance(existing.walletId())).isEqualTo(3);
-		assertThat(walletVersion(existing.walletId())).isEqualTo(3);
+		assertThat(walletBalance(existing.getWalletId())).isEqualTo(3);
+		assertThat(walletVersion(existing.getWalletId())).isEqualTo(3);
 		assertThat(ledgerVersions()).containsExactly(1L, 2L, 3L);
 	}
 
@@ -60,9 +60,9 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 		assertThat(outcomes).allMatch(GrantResult.class::isInstance);
 		GrantResult first = (GrantResult) outcomes.get(0);
 		GrantResult second = (GrantResult) outcomes.get(1);
-		assertThat(second.walletId()).isEqualTo(first.walletId());
+		assertThat(second.getWalletId()).isEqualTo(first.getWalletId());
 		assertThat(walletCount(userId)).isEqualTo(1);
-		assertThat(walletBalance(first.walletId())).isEqualTo(2);
+		assertThat(walletBalance(first.getWalletId())).isEqualTo(2);
 		assertThat(ledgerVersions()).containsExactly(1L, 2L);
 	}
 
@@ -93,9 +93,9 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 				results.add(future.get(WAIT_SECONDS, TimeUnit.SECONDS));
 			}
 			// then
-			assertThat(results).extracting(GrantResult::walletId).containsOnly(results.get(0).walletId());
+			assertThat(results).extracting(GrantResult::getWalletId).containsOnly(results.get(0).getWalletId());
 			assertThat(walletCount(userId)).isEqualTo(1);
-			assertThat(walletBalance(results.get(0).walletId())).isEqualTo(requests);
+			assertThat(walletBalance(results.get(0).getWalletId())).isEqualTo(requests);
 			assertThat(ledgerVersions()).containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L);
 		} finally {
 			executor.shutdownNow();
@@ -114,8 +114,8 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 		assertThat(outcomes.get(1)).isInstanceOf(DataIntegrityViolationException.class);
 		assertThat(ledgerCount(userId)).isEqualTo(1);
 		assertThat(allocationCount(userId)).isEqualTo(1);
-		assertThat(walletBalance(winner.walletId())).isEqualTo(1);
-		assertThat(walletVersion(winner.walletId())).isEqualTo(1);
+		assertThat(walletBalance(winner.getWalletId())).isEqualTo(1);
+		assertThat(walletVersion(winner.getWalletId())).isEqualTo(1);
 	}
 
 	/**

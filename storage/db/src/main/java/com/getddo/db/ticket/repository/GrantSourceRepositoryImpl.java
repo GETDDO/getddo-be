@@ -44,8 +44,8 @@ public class GrantSourceRepositoryImpl implements GrantSourceRepository {
 	public Optional<GrantSourceClaim> find(GrantSource source) {
 		entityManager.flush();
 		@SuppressWarnings("unchecked")
-		List<Object[]> rows = entityManager.createNativeQuery(claimSql(source.type()))
-				.setParameter("id", UuidBinary.toBytes(source.claimId()))
+		List<Object[]> rows = entityManager.createNativeQuery(claimSql(source.getType()))
+				.setParameter("id", UuidBinary.toBytes(source.getClaimId()))
 				.getResultList();
 		if (rows.isEmpty()) {
 			return Optional.empty();

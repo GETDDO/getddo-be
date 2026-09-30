@@ -28,18 +28,18 @@ class TicketLedgerTest {
 		// when
 		TicketLedger ledger = TicketLedger.grant(deposited, command, GRANTED_AT);
 		// then
-		assertThat(ledger.id()).isNull();
-		assertThat(ledger.walletId()).isEqualTo(deposited.id());
-		assertThat(ledger.userId()).isEqualTo(USER_ID);
-		assertThat(ledger.type()).isEqualTo(TicketTransactionType.GRANT);
-		assertThat(ledger.quantity()).isEqualTo(1);
-		assertThat(ledger.idempotencyKey()).isEqualTo(SOURCE.idempotencyKey());
-		assertThat(ledger.reason()).isEqualTo("게임 보상");
-		assertThat(ledger.createdAt()).isEqualTo(GRANTED_AT);
-		assertThat(ledger.balanceAfter()).isEqualTo(4);
-		assertThat(ledger.walletVersion()).isEqualTo(3);
-		assertThat(ledger.expiresAt()).isEqualTo(deposited.expiresAt());
-		assertThat(ledger.grantSource()).isEqualTo(SOURCE);
+		assertThat(ledger.getId()).isNull();
+		assertThat(ledger.getWalletId()).isEqualTo(deposited.getId());
+		assertThat(ledger.getUserId()).isEqualTo(USER_ID);
+		assertThat(ledger.getType()).isEqualTo(TicketTransactionType.GRANT);
+		assertThat(ledger.getQuantity()).isEqualTo(1);
+		assertThat(ledger.getIdempotencyKey()).isEqualTo(SOURCE.idempotencyKey());
+		assertThat(ledger.getReason()).isEqualTo("게임 보상");
+		assertThat(ledger.getCreatedAt()).isEqualTo(GRANTED_AT);
+		assertThat(ledger.getBalanceAfter()).isEqualTo(4);
+		assertThat(ledger.getWalletVersion()).isEqualTo(3);
+		assertThat(ledger.getExpiresAt()).isEqualTo(deposited.getExpiresAt());
+		assertThat(ledger.getGrantSource()).isEqualTo(SOURCE);
 	}
 
 	@Test
@@ -47,13 +47,13 @@ class TicketLedgerTest {
 	void convertsToGrantResult() {
 		// given
 		UUID ledgerId = UUID.randomUUID();
-		TicketLedger saved = new TicketLedger(ledgerId, deposited.id(), USER_ID, TicketTransactionType.GRANT, 1,
-				SOURCE.idempotencyKey(), "게임 보상", GRANTED_AT, 4, 3, deposited.expiresAt(), SOURCE);
+		TicketLedger saved = new TicketLedger(ledgerId, deposited.getId(), USER_ID, TicketTransactionType.GRANT, 1,
+				SOURCE.idempotencyKey(), "게임 보상", GRANTED_AT, 4, 3, deposited.getExpiresAt(), SOURCE);
 		// when
 		GrantResult result = saved.toGrantResult(true);
 		// then
-		assertThat(result).isEqualTo(new GrantResult(ledgerId, deposited.id(), 1, 4, GRANTED_AT,
-				deposited.expiresAt(), true));
+		assertThat(result).isEqualTo(new GrantResult(ledgerId, deposited.getId(), 1, 4, GRANTED_AT,
+				deposited.getExpiresAt(), true));
 	}
 
 	@Test
@@ -61,8 +61,8 @@ class TicketLedgerTest {
 	void selfCreditAllocation() {
 		// given
 		UUID ledgerId = UUID.randomUUID();
-		TicketLedger saved = new TicketLedger(ledgerId, deposited.id(), USER_ID, TicketTransactionType.GRANT, 2,
-				SOURCE.idempotencyKey(), "게임 보상", GRANTED_AT, 4, 3, deposited.expiresAt(), SOURCE);
+		TicketLedger saved = new TicketLedger(ledgerId, deposited.getId(), USER_ID, TicketTransactionType.GRANT, 2,
+				SOURCE.idempotencyKey(), "게임 보상", GRANTED_AT, 4, 3, deposited.getExpiresAt(), SOURCE);
 		// when
 		TicketLedgerAllocation allocation = TicketLedgerAllocation.selfCredit(saved);
 		// then
