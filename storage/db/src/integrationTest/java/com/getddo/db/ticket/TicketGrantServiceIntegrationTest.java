@@ -181,6 +181,45 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 	}
 
 	@Test
+	@DisplayName("시계가 나노초를 주어도 지급 시각은 DB가 저장하는 마이크로초로 잘라 응답·재조회·저장 값이 같다")
+	void grantedAtIsTruncatedToStoredPrecision() {
+		// given
+		clock.set(Instant.parse("2026-09-15T03:00:00.123456789Z"));
+		TicketGrantSeeds.MissionParents parents = seeds.missionParents(userId);
+		UUID claimId = transaction.execute(status -> seeds.missionClaim(userId, parents, 1));
+		// when
+		GrantResult granted = transaction.execute(status ->
+				grantService.grant(command(userId, GrantSourceType.MISSION, claimId, 1)));
+		// then
+		Instant truncated = Instant.parse("2026-09-15T03:00:00.123456Z");
+		assertThat(granted.getGrantedAt()).isEqualTo(truncated);
+		assertThat(grantService.findGrant(new GrantSource(GrantSourceType.MISSION, claimId)))
+				.map(GrantResult::getGrantedAt).contains(truncated);
+		assertThat(utc("select created_at from ticket_ledger where id = ?", bytes(granted.getLedgerId())))
+				.isEqualTo(truncated);
+	}
+
+	@Test
+	@DisplayName("9월 마지막 1마이크로초 안의 지급도 9월 지갑에 들어가고 생성 시각이 만료 시각으로 반올림되지 않는다")
+	void lastInstantOfMonthStaysInMonth() {
+		// given: 반올림하면 10/1 00:00 KST가 되는 순간
+		clock.set(Instant.parse("2026-09-30T14:59:59.9999996Z"));
+		// when
+		GrantResult granted = grantNewMissionClaim(userId, 1);
+		// then
+		Instant lastMicro = Instant.parse("2026-09-30T14:59:59.999999Z");
+		assertThat(granted.getGrantedAt()).isEqualTo(lastMicro);
+		assertThat(granted.getExpiresAt()).isEqualTo(Instant.parse("2026-09-30T15:00:00Z"));
+		assertThat(utc("select created_at from ticket_ledger where id = ?", bytes(granted.getLedgerId())))
+				.isEqualTo(lastMicro)
+				.isBefore(granted.getExpiresAt());
+		assertThat(utc("select created_at from ticket_wallets where id = ?", bytes(granted.getWalletId())))
+				.isEqualTo(lastMicro);
+		assertThat(jdbc.queryForObject("select expiry_month from ticket_wallets where id = ?", LocalDate.class,
+				bytes(granted.getWalletId()))).isEqualTo(LocalDate.parse("2026-09-01"));
+	}
+
+	@Test
 	@DisplayName("청구 종류마다 원장의 해당 청구 참조 컬럼 하나만 채워진다")
 	void fillsOnlyMatchingClaimColumn() {
 		// given

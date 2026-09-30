@@ -1,6 +1,7 @@
 package com.getddo.core.ticket.service;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -93,7 +94,8 @@ public class TicketGrantService {
 		}
 
 		// 지급 시각은 한 번만 구한다. 지갑 월·만료 시각과 지갑·원장·배분의 생성 시각이 모두 이 값을 쓴다.
-		Instant grantedAt = timeProvider.now();
+		// DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·저장 값과 지갑 월이 어긋나지 않게 한다.
+		Instant grantedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
 		TicketWalletPeriod period = TicketWalletPeriod.forGrant(grantedAt, timeProvider);
 		TicketWallet deposited = walletRepository
 				.getOrCreateForUpdate(command.getUserId(), period, grantedAt)
