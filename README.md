@@ -86,6 +86,8 @@ storage:db → core
 | ------------ | ----------------------------------- | ----------------------------- |
 | `api`        | `<도메인>/controller`                  | Controller                    |
 | `api`        | `<도메인>/dto/request`, `dto/response` | 요청·응답 DTO                     |
+| `api`        | `common/context`                    | 여러 API에서 사용하는 사용자 문맥 어노테이션·ArgumentResolver |
+| `api`        | `common/config`                     | MVC·OpenAPI 등 API 공통 설정       |
 | `core`       | `<도메인>/service`                     | 업무 흐름과 트랜잭션을 담당하는 Service     |
 | `core`       | `<도메인>/domain`                      | 상태와 비즈니스 규칙을 가진 도메인 객체        |
 | `core`       | `<도메인>/repository`                  | 조회·저장 인터페이스                   |

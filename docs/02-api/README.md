@@ -4,6 +4,8 @@
 
 공용 요청·응답 초안은 [getddo-spec의 도메인별 API 문서](https://github.com/GETDDO/getddo-spec/tree/main/05-api)를 따릅니다. 백엔드 구현 검토는 [내부 처리 흐름](internal-flows.md), [검증 항목](verification.md), [API·DB 대응](../03-database/api-schema-mapping.md)에 기록합니다.
 
+GD-52의 요청 헤더와 Controller 사용법은 [시연용 사용자 문맥과 내 정보 API](user-profile.md)에 정리합니다.
+
 ## 접속
 
 DB 연결 등 애플리케이션 실행 준비를 마친 뒤 `./gradlew :api:bootRun`으로 실행합니다.
@@ -15,7 +17,7 @@ DB 연결 등 애플리케이션 실행 준비를 마친 뒤 `./gradlew :api:boo
 | OpenAPI JSON | <http://localhost:8080/v3/api-docs> |
 
 Swagger UI 진입 주소는 `/swagger-ui/index.html`로 이동합니다.
-현재 업무 Controller가 없으므로 실제 API 목록은 기능 구현 후 표시됩니다.
+현재 사용자·알림·관리자 이벤트 Controller의 API가 표시됩니다. `@CurrentUser User`를 받는 API에는 공통 사용자 헤더 입력란이 자동으로 추가됩니다.
 
 ## 자동 문서 생성
 
@@ -34,7 +36,7 @@ Swagger UI 진입 주소는 `/swagger-ui/index.html`로 이동합니다.
 Swagger 전용 어노테이션이 없는 테스트 전용 Controller로 UI 접근과 요청·공통 응답 스키마의 자동 생성을 검증합니다.
 
 ```bash
-./gradlew :api:test --tests 'com.getddo.api.common.config.OpenApiConfigTest'
+./gradlew :api:integrationTest --tests 'com.getddo.api.common.config.OpenApiConfigTest'
 ./gradlew test
 ./gradlew build
 ```
