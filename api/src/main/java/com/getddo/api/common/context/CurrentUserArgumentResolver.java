@@ -15,8 +15,6 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.user.domain.Membership;
 import com.getddo.core.user.domain.User;
 import com.getddo.core.user.domain.UserRole;
-import com.getddo.core.user.exception.UserErrorCode;
-import com.getddo.core.user.exception.UserException;
 import com.getddo.core.user.service.UserService;
 
 /**
@@ -66,15 +64,15 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 		User user = userService.findById(id);
 		// 헤더 역할로 권한을 부여하지 않고 저장된 역할과 일치하는지 확인한다.
 		if (user.role() != role) {
-			throw new UserException(UserErrorCode.USER_ROLE_MISMATCH);
+			throw new BusinessException(CommonErrorCode.USER_ROLE_MISMATCH);
 		}
 		if (user.role() == UserRole.USER) {
 			// DB 멤버십이 없는 USER를 헤더 값으로 보충하지 않는다.
 			if (user.membership() == null) {
-				throw new UserException(UserErrorCode.USER_MEMBERSHIP_REQUIRED);
+				throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_REQUIRED);
 			}
 			if (user.membership() != membership) {
-				throw new UserException(UserErrorCode.USER_MEMBERSHIP_MISMATCH);
+				throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_MISMATCH);
 			}
 		}
 		// 모든 대조가 끝난 뒤 보관한다. ADMIN의 반환 멤버십도 헤더가 아닌 DB 값을 유지한다.
@@ -90,7 +88,7 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 		String[] values = request.getHeaderValues(name);
 		if (values == null || values.length == 0) {
 			if (required) {
-				throw new UserException(UserErrorCode.USER_CONTEXT_REQUIRED);
+				throw new BusinessException(CommonErrorCode.USER_CONTEXT_REQUIRED);
 			}
 			return null;
 		}
