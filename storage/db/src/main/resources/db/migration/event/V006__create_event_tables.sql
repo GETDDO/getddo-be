@@ -18,6 +18,7 @@ CREATE TABLE `events` (
   `canceled_at` DATETIME(6),
   `created_at` DATETIME(6) NOT NULL,
   `updated_at` DATETIME(6) NOT NULL,
+  `deleted_at` DATETIME(6),
   `membership_rule` ENUM('excellent', 'vip', 'vvip') NOT NULL,
   CONSTRAINT `chk_event_ticket_limit` CHECK (max_tickets_per_user IS NULL OR max_tickets_per_user > 0),
   CONSTRAINT `chk_event_dates` CHECK (ends_at > starts_at),
@@ -95,6 +96,7 @@ CREATE TABLE `banners` (
   `display_order` INT NOT NULL,
   `created_at` DATETIME(6) NOT NULL,
   `updated_at` DATETIME(6) NOT NULL,
+  `deleted_at` DATETIME(6),
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_banners_1` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`),
   CONSTRAINT `fk_banners_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
