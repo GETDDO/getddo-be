@@ -38,7 +38,7 @@ class AdminEventRegistrationTest {
 		long previousPrizes = count("event_prizes");
 
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest()))
 				.andExpect(status().isCreated())
@@ -68,13 +68,14 @@ class AdminEventRegistrationTest {
 		long previousPrizes = count("event_prizes");
 
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest().replace("\"rank\": 2", "\"rank\": 1")))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("EVENT-004"));
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", userId.toString())
+				.header("X-User-ID", userId.toString()).header("X-User-Role", "USER")
+				.header("X-User-Membership", "vip")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest()))
 				.andExpect(status().isForbidden())
@@ -91,18 +92,18 @@ class AdminEventRegistrationTest {
 		long previousPrizes = count("event_prizes");
 
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest().replace("\"prizes\": [", "\"otherPrizes\": [")))
 				.andExpect(status().isBadRequest());
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest().replace("2099-09-30T19:00:00+09:00", "2099-09-30T17:00:00+09:00")))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("EVENT-002"));
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest().replace("\"maxTicketsPerUser\": 5", "\"maxTicketsPerUser\": 4")))
 				.andExpect(status().isBadRequest())
@@ -124,7 +125,7 @@ class AdminEventRegistrationTest {
 
 		// when / then
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(requestWithDescriptions(description, description)))
 				.andExpect(status().isCreated())
@@ -147,13 +148,13 @@ class AdminEventRegistrationTest {
 
 		// when / then
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(requestWithDescriptions(description, "경품 설명")))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("EVENT-001"));
 		mvc.perform(post("/api/v1/admin/events")
-				.header("X-User-ID", adminId.toString())
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(requestWithDescriptions("이벤트 설명", description)))
 				.andExpect(status().isBadRequest())
@@ -179,7 +180,7 @@ class AdminEventRegistrationTest {
 		try {
 			// when / then
 			mvc.perform(post("/api/v1/admin/events")
-					.header("X-User-ID", adminId.toString())
+					.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(validRequest().replace("경품 A", failingPrizeName)))
 					.andExpect(status().isInternalServerError())
@@ -190,6 +191,46 @@ class AdminEventRegistrationTest {
 		} finally {
 			executeSql("ALTER TABLE event_prizes DROP CHECK " + constraintName);
 		}
+	}
+
+	@Test
+	@DisplayName("관리자 이벤트 등록도 공통 MVC에서 역할 헤더 누락과 DB 불일치를 거절한다")
+	void requiresMatchingUserContextBeforeRegisteringEvent() throws Exception {
+		// given
+		UUID adminId = insertUser("ADMIN");
+		UUID userId = insertUser("USER");
+		long previousEvents = count("events");
+		long previousPrizes = count("event_prizes");
+
+		// when / then
+		mvc.perform(post("/api/v1/admin/events").header("X-User-ID", adminId)
+				.contentType(MediaType.APPLICATION_JSON).content(validRequest()))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("USER-003"));
+		mvc.perform(post("/api/v1/admin/events").header("X-User-ID", userId).header("X-User-Role", "ADMIN")
+				.contentType(MediaType.APPLICATION_JSON).content(validRequest()))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("USER-004"));
+		mvc.perform(post("/api/v1/admin/events").header("X-User-ID", UUID.randomUUID())
+				.header("X-User-Role", "ADMIN").contentType(MediaType.APPLICATION_JSON).content(validRequest()))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("USER-002"));
+		assertThat(count("events")).isEqualTo(previousEvents);
+		assertThat(count("event_prizes")).isEqualTo(previousPrizes);
+	}
+
+	@Test
+	@DisplayName("공통 MVC 검증 후에도 비활성 관리자의 등록은 서비스가 거절한다")
+	void inactiveAdminStillCannotRegisterEvent() throws Exception {
+		// given
+		UUID adminId = insertUser("ADMIN");
+		executeSql("UPDATE users SET status = 'INACTIVE' WHERE id = UNHEX(REPLACE('" + adminId + "', '-', ''))");
+		long previousEvents = count("events");
+		long previousPrizes = count("event_prizes");
+
+		// when / then
+		mvc.perform(post("/api/v1/admin/events").header("X-User-ID", adminId).header("X-User-Role", "ADMIN")
+				.contentType(MediaType.APPLICATION_JSON).content(validRequest()))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("EVENT-006"));
+		assertThat(count("events")).isEqualTo(previousEvents);
+		assertThat(count("event_prizes")).isEqualTo(previousPrizes);
 	}
 
 	private void executeSql(String sql) throws SQLException {
@@ -210,7 +251,7 @@ class AdminEventRegistrationTest {
 		try (Connection connection = dataSource.getConnection();
 				PreparedStatement statement = connection.prepareStatement("""
 				INSERT INTO users (id, name, role, status, membership, created_at, updated_at)
-				VALUES (UNHEX(REPLACE(?, '-', '')), '관리자', ?, 'ACTIVE', 'vip', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+				VALUES (UNHEX(REPLACE(?, '-', '')), '관리자', ?, 'ACTIVE', 'VIP', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
 				""")) {
 			statement.setString(1, id.toString());
 			statement.setString(2, role);
