@@ -1,5 +1,6 @@
 package com.getddo.core.event.service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -8,7 +9,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
@@ -129,6 +133,66 @@ class EventRegistrationServiceTest {
 				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.ADMIN_REQUIRED));
 		verifyNoInteractions(events);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"x", "가", "😀", "A가😀"})
+	@DisplayName("영문·한글·이모지 설명은 UTF-8 65,535바이트까지 등록할 수 있다")
+	void acceptsDescriptionsAtUtf8ByteLimit(String unit) {
+		// given
+		String description = descriptionAtTextLimit(unit);
+		EventRegistration registration = withDescriptions(description, description);
+
+		// when
+		service.register(registration);
+
+		// then
+		verify(events).create(registration, EventStatus.SCHEDULED);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"x", "가", "😀", "A가😀"})
+	@DisplayName("이벤트 설명이 UTF-8 상한을 1바이트 넘으면 저장 전에 거절한다")
+	void rejectsOversizedEventDescriptionBeforeAnyWrite(String unit) {
+		// given
+		EventRegistration registration = withDescriptions(descriptionAtTextLimit(unit) + "x", null);
+
+		// when / then
+		assertThatThrownBy(() -> service.register(registration))
+				.isInstanceOf(BusinessException.class)
+				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+						.isEqualTo(EventErrorCode.INVALID_DETAILS));
+		verifyNoInteractions(events);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"x", "가", "😀", "A가😀"})
+	@DisplayName("경품 설명이 UTF-8 상한을 1바이트 넘으면 저장 전에 거절한다")
+	void rejectsOversizedPrizeDescriptionBeforeAnyWrite(String unit) {
+		// given
+		EventRegistration registration = withDescriptions("이벤트 설명", descriptionAtTextLimit(unit) + "x");
+
+		// when / then
+		assertThatThrownBy(() -> service.register(registration))
+				.isInstanceOf(BusinessException.class)
+				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+						.isEqualTo(EventErrorCode.INVALID_PRIZES));
+		verifyNoInteractions(events);
+	}
+
+	private String descriptionAtTextLimit(String unit) {
+		int unitBytes = unit.getBytes(StandardCharsets.UTF_8).length;
+		return unit.repeat(65_535 / unitBytes) + "x".repeat(65_535 % unitBytes);
+	}
+
+	private EventRegistration withDescriptions(String description, String prizeDescription) {
+		EventRegistration source = validRegistration();
+		EventRegistration.Prize prize = source.prizes().getFirst();
+		return new EventRegistration(source.createdBy(), source.title(), description, source.imageKey(),
+				source.eventType(), source.weightingEnabled(), source.maxTicketsPerUser(), source.membershipRule(),
+				source.startsAt(), source.endsAt(),
+				List.of(new EventRegistration.Prize(prize.rank(), prize.name(), prizeDescription,
+						prize.imageKey(), prize.winnerCount()), source.prizes().get(1)));
 	}
 
 	private EventRegistration validRegistration() {

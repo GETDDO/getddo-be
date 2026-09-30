@@ -1,5 +1,6 @@
 package com.getddo.core.event.service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -21,6 +22,8 @@ import com.getddo.core.event.repository.EventRepository;
 /** 이벤트와 경품을 함께 검증하고 등록한다. */
 @Service
 public class EventRegistrationService {
+	private static final int MAX_DESCRIPTION_BYTES = 65_535;
+
 	private final EventRepository eventRepository;
 	private final EventActorRepository actorRepository;
 	private final TimeProvider timeProvider;
@@ -58,7 +61,8 @@ public class EventRegistrationService {
 
 	private void validate(EventRegistration registration) {
 		if (blankOrTooLong(registration.title(), 200) || registration.description() == null
-				|| registration.description().isBlank() || tooLong(registration.imageKey(), 500)) {
+				|| registration.description().isBlank() || descriptionTooLong(registration.description())
+				|| tooLong(registration.imageKey(), 500)) {
 			throw new BusinessException(EventErrorCode.INVALID_DETAILS);
 		}
 		if (registration.startsAt() == null || registration.endsAt() == null
@@ -76,6 +80,7 @@ public class EventRegistrationService {
 		for (EventRegistration.Prize prize : registration.prizes()) {
 			if (prize == null || prize.rank() < 1 || prize.winnerCount() < 1
 					|| blankOrTooLong(prize.name(), 200) || tooLong(prize.imageKey(), 500)
+					|| descriptionTooLong(prize.description())
 					|| !ranks.add(prize.rank())) {
 				throw new BusinessException(EventErrorCode.INVALID_PRIZES);
 			}
@@ -99,5 +104,9 @@ public class EventRegistrationService {
 
 	private boolean tooLong(String value, int maximum) {
 		return value != null && value.length() > maximum;
+	}
+
+	private boolean descriptionTooLong(String value) {
+		return value != null && value.getBytes(StandardCharsets.UTF_8).length > MAX_DESCRIPTION_BYTES;
 	}
 }
