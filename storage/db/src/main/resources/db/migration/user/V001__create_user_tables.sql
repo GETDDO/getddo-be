@@ -6,7 +6,7 @@ CREATE TABLE `users` (
   `name` VARCHAR(20) NOT NULL,
   `role` ENUM('USER', 'ADMIN') NOT NULL,
   `status` ENUM('ACTIVE', 'INACTIVE') NOT NULL,
-  `membership` ENUM('excellent', 'vip', 'vvip'),
+  `membership` ENUM('EXCELLENT', 'VIP', 'VVIP'),
   `phone_num` VARCHAR(11),
   `email` VARCHAR(255),
   `updated_at` DATETIME(6) NOT NULL,
