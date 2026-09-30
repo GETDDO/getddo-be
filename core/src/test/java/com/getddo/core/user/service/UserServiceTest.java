@@ -5,7 +5,12 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
+import com.getddo.core.user.domain.User;
+import com.getddo.core.user.domain.UserRole;
+import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.exception.UserException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,6 +20,41 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class UserServiceTest {
 
 	private static final UUID USER_ID = UUID.fromString("0199564e-45e0-7000-8000-0123456789ab");
+
+	@ParameterizedTest
+	@EnumSource(UserRole.class)
+	@DisplayName("내 정보는 이미 조회한 활성 사용자를 재조회 없이 반환한다")
+	void profileReusesActiveUser(UserRole role) {
+		// given
+		UserService service = new UserService(id -> {
+			throw new AssertionError("내 정보 응답용으로 다시 조회하면 안 됩니다.");
+		});
+		User user = new User(USER_ID, "사용자", role, UserStatus.ACTIVE, null,
+				null, null, null, null, null, null);
+
+		// when / then
+		assertThat(service.getProfile(user)).isSameAs(user);
+	}
+
+	@ParameterizedTest
+	@EnumSource(UserRole.class)
+	@DisplayName("일반 사용자와 관리자 모두 INACTIVE이면 내 정보 조회를 거절한다")
+	void rejectsInactiveProfile(UserRole role) {
+		// given
+		UserService service = new UserService(id -> {
+			throw new AssertionError("내 정보 상태 검증에서 다시 조회하면 안 됩니다.");
+		});
+		User user = new User(USER_ID, "사용자", role, UserStatus.INACTIVE, null,
+				null, null, null, null, null, null);
+
+		// when / then
+		assertThatExceptionOfType(UserException.class)
+				.isThrownBy(() -> service.getProfile(user))
+				.satisfies(exception -> {
+					assertThat(exception.getErrorCode().getStatus()).isEqualTo(403);
+					assertThat(exception.getErrorCode().getCode()).isEqualTo("USER-007");
+				});
+	}
 
 	@Test
 	@DisplayName("ID가 null이면 DB 조회 전에 사용자 ID 필수 예외를 던진다")
