@@ -1,5 +1,11 @@
 package com.getddo.db.migration;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,8 +24,8 @@ class MySqlMigrationTest {
 	static final MySQLContainer MYSQL = MySqlTestContainers.create();
 
 	@Test
-	@DisplayName("빈 MySQL에 Flyway SQL을 적용하고 재실행해도 중복 적용하지 않는다")
-	void migratesSchemaAndDoesNotReapplyIt() {
+	@DisplayName("빈 MySQL에 V001~V011을 적용하고 논리 삭제 컬럼과 재실행을 확인한다")
+	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		Flyway flyway = Flyway.configure()
 				.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
@@ -31,9 +37,19 @@ class MySqlMigrationTest {
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(appliedMigrations).isEqualTo(12);
+		assertThat(appliedMigrations).isEqualTo(11);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		flyway.validate();
+		assertNullableDeletedAtColumn("events");
+		assertNullableDeletedAtColumn("banners");
+	}
+
+	private void assertNullableDeletedAtColumn(String tableName) throws SQLException {
+		try (Connection connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+			ResultSet columns = connection.getMetaData().getColumns(null, null, tableName, "deleted_at")) {
+			assertThat(columns.next()).isTrue();
+			assertThat(columns.getInt("NULLABLE")).isEqualTo(DatabaseMetaData.columnNullable);
+		}
 	}
 }
