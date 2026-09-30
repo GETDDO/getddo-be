@@ -20,21 +20,21 @@ public final class TicketLedgerMapper {
 	}
 
 	public static TicketLedgerEntity toEntity(TicketLedger ledger) {
-		GrantSource source = ledger.grantSource();
+		GrantSource source = ledger.getGrantSource();
 		return TicketLedgerEntity.builder()
-				.walletId(ledger.walletId())
-				.userId(ledger.userId())
+				.walletId(ledger.getWalletId())
+				.userId(ledger.getUserId())
 				.missionRewardClaimId(claimIdOf(source, GrantSourceType.MISSION))
 				.attendanceRewardClaimId(claimIdOf(source, GrantSourceType.ATTENDANCE))
 				.gameRewardClaimId(claimIdOf(source, GrantSourceType.GAME))
-				.expiresAt(ledger.expiresAt())
-				.transactionType(ledger.type())
-				.quantity(ledger.quantity())
-				.idempotencyKey(ledger.idempotencyKey())
-				.reason(ledger.reason())
-				.createdAt(ledger.createdAt())
-				.balanceAfter(ledger.balanceAfter())
-				.walletVersion(ledger.walletVersion())
+				.expiresAt(ledger.getExpiresAt())
+				.transactionType(ledger.getType())
+				.quantity(ledger.getQuantity())
+				.idempotencyKey(ledger.getIdempotencyKey())
+				.reason(ledger.getReason())
+				.createdAt(ledger.getCreatedAt())
+				.balanceAfter(ledger.getBalanceAfter())
+				.walletVersion(ledger.getWalletVersion())
 				.build();
 	}
 
@@ -56,18 +56,18 @@ public final class TicketLedgerMapper {
 
 	public static TicketLedgerAllocationEntity toEntity(TicketLedgerAllocation allocation) {
 		return new TicketLedgerAllocationEntity(
-				allocation.ledgerId(),
-				allocation.sourceCreditLedgerId(),
-				allocation.originalGrantId(),
-				allocation.quantity(),
-				allocation.createdAt());
+				allocation.getLedgerId(),
+				allocation.getSourceCreditLedgerId(),
+				allocation.getOriginalGrantId(),
+				allocation.getQuantity(),
+				allocation.getCreatedAt());
 	}
 
 	private static UUID claimIdOf(GrantSource source, GrantSourceType type) {
-		if (source == null || source.type() != type) {
+		if (source == null || source.getType() != type) {
 			return null;
 		}
-		return source.claimId();
+		return source.getClaimId();
 	}
 
 	private static GrantSource grantSourceOf(TicketLedgerEntity entity) {

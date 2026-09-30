@@ -36,7 +36,7 @@ class TicketWalletPeriodTest {
 		// when
 		TicketWalletPeriod period = TicketWalletPeriod.forGrant(at, time);
 		// then
-		assertThat(period.expiryMonth()).isEqualTo(LocalDate.parse(expiryMonth));
-		assertThat(period.expiresAt()).isEqualTo(Instant.parse(expiresAt));
+		assertThat(period.getExpiryMonth()).isEqualTo(LocalDate.parse(expiryMonth));
+		assertThat(period.getExpiresAt()).isEqualTo(Instant.parse(expiresAt));
 	}
 }

@@ -1,6 +1,7 @@
 package com.getddo.db.ticket;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceType;
+import com.getddo.core.ticket.domain.TicketWalletStatus;
 import com.getddo.core.ticket.service.TicketGrantService;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
@@ -98,6 +100,21 @@ abstract class TicketIntegrationTestSupport {
 
 	protected long walletVersion(UUID walletId) {
 		return count("select version from ticket_wallets where id = ?", bytes(walletId));
+	}
+
+	/** 지급으로는 만들 수 없는 상태(만료 처리된 지갑 등)의 지갑을 직접 넣는다. 시각은 UTC 원값으로 저장한다. */
+	protected UUID insertWallet(UUID user, String expiryMonth, String expiresAt, long balance,
+			TicketWalletStatus status) {
+		UUID id = UUID.randomUUID();
+		LocalDateTime createdAt = LocalDateTime.parse("2026-07-01T00:00:00");
+		jdbc.update("""
+				insert into ticket_wallets (id, user_id, expiry_month, valid_from, expires_at, balance, status, version,
+				  created_at, updated_at)
+				values (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+				""", bytes(id), bytes(user), LocalDate.parse(expiryMonth), createdAt,
+				LocalDateTime.ofInstant(Instant.parse(expiresAt), ZoneOffset.UTC), balance, status.name(),
+				createdAt, createdAt);
+		return id;
 	}
 
 	/** DB에 저장된 DATETIME 원값을 UTC 순간으로 읽는다. */
