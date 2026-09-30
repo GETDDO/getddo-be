@@ -16,7 +16,16 @@ public enum CommonErrorCode implements ErrorCode {
 	/** DTO 제약 위반, 필수 파라미터·헤더 누락 등 입력 조건을 만족하지 못한 경우. */
 	INVALID_INPUT(400, "COMMON-002", "요청 값이 올바르지 않습니다."),
 	/** 깨진 JSON이나 숫자·UUID 등으로 변환할 수 없는 요청 값처럼 해석 단계에서 실패한 경우. */
-	INVALID_FORMAT(400, "COMMON-005", "요청 형식이 올바르지 않습니다.");
+	INVALID_FORMAT(400, "COMMON-005", "요청 형식이 올바르지 않습니다."),
+	// 사용자 문맥 오류의 기존 응답 코드는 호출부 호환성을 위해 유지한다.
+	/** 현재 사용자를 선택하는 필수 헤더가 누락된 경우. */
+	USER_CONTEXT_REQUIRED(401, "USER-003", "사용자 정보 헤더가 필요합니다."),
+	/** 헤더의 역할이 DB에 저장된 사용자 역할과 다른 경우. */
+	USER_ROLE_MISMATCH(403, "USER-004", "사용자 역할이 일치하지 않습니다."),
+	/** USER의 문맥을 확인하는 데 필요한 DB 멤버십이 없는 경우. */
+	USER_MEMBERSHIP_REQUIRED(403, "USER-005", "사용자 멤버십을 확인할 수 없습니다."),
+	/** 헤더의 멤버십이 DB에 저장된 USER의 멤버십과 다른 경우. */
+	USER_MEMBERSHIP_MISMATCH(409, "USER-006", "사용자 멤버십이 일치하지 않습니다.");
 
 	private final int status;
 	private final String code;
