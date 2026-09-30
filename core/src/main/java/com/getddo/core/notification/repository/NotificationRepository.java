@@ -5,17 +5,8 @@ import java.util.UUID;
 import com.getddo.core.common.pagination.CursorResult;
 import com.getddo.core.notification.domain.Notification;
 
-/**
- * 알림 소유자 범위의 조회·읽음 갱신에 필요한 저장 작업을 정의한다.
- *
- * <p>사용자·멤버십 조회는 현재 시연용 사용자 문맥 확인에 사용하며 사용자 정보를 변경하지 않는다.
- * 공통 사용자 처리와의 통합은 담당 경계 확인이 필요하다.</p>
- */
+/** 알림 소유자 범위의 조회·읽음 갱신에 필요한 저장 작업을 정의한다. */
 public interface NotificationRepository {
-	/** 시연용 헤더가 가리키는 등록 사용자가 있는지 확인한다. */
-	boolean userExists(UUID userId);
-	/** 선택적 멤버십 헤더가 DB의 사용자 값과 일치하는지 확인한다. */
-	boolean membershipMatches(UUID userId, String membership);
 	/**
 	 * 본인 알림을 생성 시각·ID 역순으로 조회한다. 조회는 읽음 상태를 바꾸지 않는다.
 	 *
