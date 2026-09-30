@@ -21,8 +21,9 @@
 ## 3. DTO와 변환
 
 - JSON 요청·응답 DTO는 `record`를 기본으로 한다. 이름은 역할에 따라 `XxxRequest`, `XxxResponse`로 구분한다. 폼·쿼리 파라미터 바인딩 등에서 다른 형태가 필요하면 해당 DTO의 실제 바인딩 방식을 확인한다.
+- `record`는 JSON 요청·응답 DTO에만 사용한다. `core`의 도메인 객체·값 객체·서비스 입출력 값과 공통 페이징 모델은 `private final` 필드와 getter(`getXxx()`, boolean은 `isXxx()`)를 가진 불변 클래스로 작성하고, 값 비교가 필요하면 `equals`·`hashCode`를 함께 구현한다.
 - 단순 변환의 방향은 요청 DTO의 `toDomain()`, 응답 DTO의 `from(domain)`, `storage:db` Mapper의 `toDomain()`·`toEntity()`로 표현한다. 변환 중 업무 정책을 판정하거나 DB를 조회해야 하면 변환 메서드에 넣지 않고 Service·도메인에서 처리한다.
-- DTO, 도메인 객체, JPA Entity를 서로 직접 대체하지 않는다. 특히 Entity와 도메인 객체를 API에 그대로 노출하지 않는다. `record`에 가변 컬렉션이 있으면 필요한 경우 복사해 외부 변경으로부터 보호한다.
+- DTO, 도메인 객체, JPA Entity를 서로 직접 대체하지 않는다. 특히 Entity와 도메인 객체를 API에 그대로 노출하지 않는다. `record`나 불변 클래스에 가변 컬렉션이 있으면 필요한 경우 복사해 외부 변경으로부터 보호한다.
 
 ## 4. 입력 검증과 업무 검증
 

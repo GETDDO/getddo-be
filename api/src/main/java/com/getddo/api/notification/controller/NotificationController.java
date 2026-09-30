@@ -56,8 +56,8 @@ public class NotificationController {
 		CursorResult<Notification> result = service.findMine(
 				userId(selectedUserId), membership(selectedMembership), cursor, size, isRead);
 		return ResponseEnvelope.success(new CursorResult<>(
-				result.items().stream().map(NotificationResponse::from).toList(),
-				result.nextCursor(), result.totalElements()));
+				result.getItems().stream().map(NotificationResponse::from).toList(),
+				result.getNextCursor(), result.getTotalElements()));
 	}
 
 	/**
