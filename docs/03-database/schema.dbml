@@ -36,6 +36,12 @@ Enum membership_grade {
   vvip
 }
 
+Enum user_membership_grade {
+  EXCELLENT
+  VIP
+  VVIP
+}
+
 Enum ticket_wallet_status {
   ACTIVE
   EXPIRED
@@ -754,7 +760,7 @@ Table users {
   name varchar(20) [not null, note: '사용자 이름']
   role user_role [not null, note: 'USER=일반 사용자 / ADMIN=관리자']
   status user_status [not null, note: 'ACTIVE=활성 / INACTIVE=비활성']
-  membership membership_grade [note: 'excellent=우수 / vip=VIP / vvip=VVIP']
+  membership user_membership_grade [note: 'EXCELLENT=우수 / VIP=VIP / VVIP=VVIP']
   phone_num varchar(11) [note: '핸드폰 번호']
   email varchar(255) [note: '이메일']
   updated_at datetime(6) [not null, note: '수정 시각 UTC']
