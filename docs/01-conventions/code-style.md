@@ -48,6 +48,7 @@
 ## 7. 오류와 API 응답
 
 - 도메인별 오류 코드는 `ErrorCode`를 구현한 enum으로 관리한다. 예상 가능한 업무 규칙 위반은 `BusinessException`으로 전달하고, `GlobalExceptionHandler`가 HTTP 응답으로 변환한다. `CommonErrorCode`에 도메인 전용 오류를 모으지 않는다.
+- 도메인 오류 코드 enum은 `core`의 `<기능>/exception` 패키지에 둔다(예: `core/ticket/exception/TicketErrorCode`). 공통 계약인 `ErrorCode`·`BusinessException`은 `core/common/exception`에 둔다.
 - 성공 JSON 응답은 `ResponseEnvelope.success(data)`를 사용한다. 데이터가 없는 JSON 응답은 `success(null)`을 사용하고, 본문이 없는 HTTP 204와 구분한다. 상태 코드와 공개 메시지는 오류 의미에 맞춘다.
 - 예외 원문, SQL, 비밀값, 개인정보를 공개 메시지나 로그에 넣지 않는다. API 필드·상태·오류 코드를 바꾸면 프론트엔드 계약과 호환성을 확인한다.
 
