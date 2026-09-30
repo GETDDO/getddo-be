@@ -57,16 +57,16 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 		TicketWallet wallet = transaction.execute(status ->
 				walletRepository.getOrCreateForUpdate(userId, SEPTEMBER, GRANTED_AT));
 		// then
-		assertThat(wallet.id().version()).isEqualTo(7);
-		assertThat(wallet.userId()).isEqualTo(userId);
-		assertThat(wallet.expiryMonth()).isEqualTo(SEPTEMBER.expiryMonth());
-		assertThat(wallet.validFrom()).isEqualTo(GRANTED_AT);
-		assertThat(wallet.expiresAt()).isEqualTo(SEPTEMBER.expiresAt());
-		assertThat(wallet.balance()).isZero();
-		assertThat(wallet.status()).isEqualTo(TicketWalletStatus.ACTIVE);
-		assertThat(wallet.version()).isZero();
+		assertThat(wallet.getId().version()).isEqualTo(7);
+		assertThat(wallet.getUserId()).isEqualTo(userId);
+		assertThat(wallet.getExpiryMonth()).isEqualTo(SEPTEMBER.getExpiryMonth());
+		assertThat(wallet.getValidFrom()).isEqualTo(GRANTED_AT);
+		assertThat(wallet.getExpiresAt()).isEqualTo(SEPTEMBER.getExpiresAt());
+		assertThat(wallet.getBalance()).isZero();
+		assertThat(wallet.getStatus()).isEqualTo(TicketWalletStatus.ACTIVE);
+		assertThat(wallet.getVersion()).isZero();
 		assertThat(jdbc.queryForObject(
-				"select created_at from ticket_wallets where id = ?", LocalDateTime.class, bytes(wallet.id())))
+				"select created_at from ticket_wallets where id = ?", LocalDateTime.class, bytes(wallet.getId())))
 				.isEqualTo(LocalDateTime.parse("2026-09-15T03:00:00.123456"));
 	}
 
@@ -80,8 +80,8 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 		TicketWallet second = transaction.execute(status ->
 				walletRepository.getOrCreateForUpdate(userId, SEPTEMBER, GRANTED_AT.plusSeconds(60)));
 		// then
-		assertThat(second.id()).isEqualTo(first.id());
-		assertThat(second.validFrom()).isEqualTo(GRANTED_AT);
+		assertThat(second.getId()).isEqualTo(first.getId());
+		assertThat(second.getValidFrom()).isEqualTo(GRANTED_AT);
 		assertThat(countWallets()).isEqualTo(1);
 	}
 
@@ -98,9 +98,9 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 		});
 		// then
 		assertThat(jdbc.queryForObject("select balance from ticket_wallets where id = ?", Long.class,
-				bytes(saved.id()))).isEqualTo(3L);
+				bytes(saved.getId()))).isEqualTo(3L);
 		assertThat(jdbc.queryForObject("select version from ticket_wallets where id = ?", Long.class,
-				bytes(saved.id()))).isEqualTo(1L);
+				bytes(saved.getId()))).isEqualTo(1L);
 	}
 
 	@Test
@@ -115,8 +115,8 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 				walletRepository.save(wallet.deposit(1))))
 				.isInstanceOf(InvalidDataAccessApiUsageException.class)
 				.hasCauseInstanceOf(IllegalStateException.class);
-		assertThat(walletBalance(wallet.id())).isZero();
-		assertThat(walletVersion(wallet.id())).isZero();
+		assertThat(walletBalance(wallet.getId())).isZero();
+		assertThat(walletVersion(wallet.getId())).isZero();
 	}
 
 	@Test
@@ -148,25 +148,25 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 			UUID claimId = seeds.missionClaim(userId, parents, 2);
 			TicketWallet wallet = walletRepository.getOrCreateForUpdate(userId, SEPTEMBER, GRANTED_AT).deposit(2);
 			walletRepository.save(wallet);
-			TicketLedger ledger = ledgerRepository.save(new TicketLedger(null, wallet.id(), userId,
+			TicketLedger ledger = ledgerRepository.save(new TicketLedger(null, wallet.getId(), userId,
 					TicketTransactionType.GRANT, 2, "GRANT:MISSION:" + claimId, "테스트 미션", GRANTED_AT,
-					wallet.balance(), wallet.version(), wallet.expiresAt(),
+					wallet.getBalance(), wallet.getVersion(), wallet.getExpiresAt(),
 					new GrantSource(GrantSourceType.MISSION, claimId)));
 			allocationRepository.save(TicketLedgerAllocation.selfCredit(ledger));
 			return ledger;
 		});
 		// then
-		assertThat(saved.id().version()).isEqualTo(7);
+		assertThat(saved.getId().version()).isEqualTo(7);
 		TicketLedger found = transaction.execute(status ->
-				ledgerRepository.findByIdempotencyKey(saved.idempotencyKey()).orElseThrow());
+				ledgerRepository.findByIdempotencyKey(saved.getIdempotencyKey()).orElseThrow());
 		assertThat(found).isEqualTo(saved);
 		assertThat(jdbc.queryForObject("""
 				select count(*) from ticket_ledger_allocations
 				where ledger_id = ? and source_credit_ledger_id = ? and original_grant_id = ?
 				  and quantity = 2 and created_at = '2026-09-15 03:00:00.123456'
-				""", Long.class, bytes(saved.id()), bytes(saved.id()), bytes(saved.id()))).isEqualTo(1L);
+				""", Long.class, bytes(saved.getId()), bytes(saved.getId()), bytes(saved.getId()))).isEqualTo(1L);
 		assertThat(jdbc.queryForObject(
-				"select expires_at from ticket_ledger where id = ?", LocalDateTime.class, bytes(saved.id())))
+				"select expires_at from ticket_ledger where id = ?", LocalDateTime.class, bytes(saved.getId())))
 				.isEqualTo(LocalDateTime.parse("2026-09-30T15:00:00"));
 	}
 
