@@ -13,7 +13,9 @@ public enum TicketErrorCode implements ErrorCode {
 	/** 지급 근거 청구 행이 없는 경우. 호출자가 청구를 먼저 저장하지 않았다는 뜻이다. */
 	TICKET_GRANT_SOURCE_NOT_FOUND(404, "TICKET-002", "응모권 지급 근거를 찾을 수 없습니다."),
 	/** 청구 행의 사용자 또는 수량이 지급 요청과 다른 경우. */
-	TICKET_GRANT_SOURCE_MISMATCH(409, "TICKET-003", "응모권 지급 근거가 요청과 일치하지 않습니다.");
+	TICKET_GRANT_SOURCE_MISMATCH(409, "TICKET-003", "응모권 지급 근거가 요청과 일치하지 않습니다."),
+	/** 이력 조회의 커서 형식, 조회 개수, 기간 조건이 올바르지 않은 경우. */
+	TICKET_INVALID_LEDGER_QUERY(400, "TICKET-004", "응모권 이력 조회 조건이 올바르지 않습니다.");
 
 	private final int status;
 	private final String code;
