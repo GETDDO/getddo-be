@@ -1,4 +1,4 @@
-package com.getddo.core.ticket.domain;
+package com.getddo.core.ticket.exception;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package com.getddo.core.ticket.domain;
+package com.getddo.core.ticket.exception;
 
 import com.getddo.core.common.exception.ErrorCode;
 

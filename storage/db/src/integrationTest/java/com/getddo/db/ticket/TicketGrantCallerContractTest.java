@@ -21,7 +21,7 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceType;
-import com.getddo.core.ticket.domain.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketErrorCode;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static com.getddo.db.ticket.TicketGrantSeeds.uuid;
