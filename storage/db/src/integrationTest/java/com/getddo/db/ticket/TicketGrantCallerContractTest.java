@@ -21,7 +21,7 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceType;
-import com.getddo.core.ticket.domain.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketErrorCode;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static com.getddo.db.ticket.TicketGrantSeeds.uuid;
@@ -68,10 +68,10 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 					grantService.grant(command(userId, GrantSourceType.MISSION, claim.getId(), 2)));
 		});
 		// then
-		assertThat(granted.result().replayed()).isFalse();
+		assertThat(granted.result().isReplayed()).isFalse();
 		UUID ledgerClaimId = uuid(jdbc.queryForObject(
 				"select mission_reward_claim_id from ticket_ledger where id = ?", byte[].class,
-				bytes(granted.result().ledgerId())));
+				bytes(granted.result().getLedgerId())));
 		assertThat(ledgerClaimId).isEqualTo(granted.claimId());
 	}
 
@@ -93,12 +93,12 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 		});
 		// 새 트랜잭션에서 처음부터 다시 처리하면 사전 조회가 기존 청구를 찾아 기존 결과를 반환한다
 		GrantResult retried = completeMission(parents, () -> { });
-		assertThat(retried).isEqualTo(new GrantResult(existing.ledgerId(), existing.walletId(), existing.quantity(),
-				existing.balanceAfter(), existing.grantedAt(), existing.expiresAt(), true));
+		assertThat(retried).isEqualTo(new GrantResult(existing.getLedgerId(), existing.getWalletId(), existing.getQuantity(),
+				existing.getBalanceAfter(), existing.getGrantedAt(), existing.getExpiresAt(), true));
 		assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId)))
 				.isEqualTo(1);
 		assertThat(ledgerCount(userId)).isEqualTo(1);
-		assertThat(walletVersion(existing.walletId())).isEqualTo(1);
+		assertThat(walletVersion(existing.getWalletId())).isEqualTo(1);
 	}
 
 	@Test
@@ -153,14 +153,14 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 
 			// 새 트랜잭션에서 처음부터 다시 처리하면 사전 조회가 기존 청구를 찾아 기존 결과를 반환한다
 			GrantResult retried = completeMission(parents, () -> { });
-			assertThat(retried).isEqualTo(new GrantResult(winner.ledgerId(), winner.walletId(), winner.quantity(),
-					winner.balanceAfter(), winner.grantedAt(), winner.expiresAt(), true));
+			assertThat(retried).isEqualTo(new GrantResult(winner.getLedgerId(), winner.getWalletId(), winner.getQuantity(),
+					winner.getBalanceAfter(), winner.getGrantedAt(), winner.getExpiresAt(), true));
 			assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId)))
 					.isEqualTo(1);
 			assertThat(ledgerCount(userId)).isEqualTo(1);
 			assertThat(allocationCount(userId)).isEqualTo(1);
-			assertThat(walletBalance(winner.walletId())).isEqualTo(1);
-			assertThat(walletVersion(winner.walletId())).isEqualTo(1);
+			assertThat(walletBalance(winner.getWalletId())).isEqualTo(1);
+			assertThat(walletVersion(winner.getWalletId())).isEqualTo(1);
 		} finally {
 			releaseFirst.countDown();
 			executor.shutdownNow();
@@ -176,7 +176,7 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 		// then
 		UUID stored = uuid(jdbc.queryForObject("select id from ticket_wallets where user_id = ?", byte[].class,
 				bytes(userId)));
-		assertThat(stored).isEqualTo(result.walletId());
+		assertThat(stored).isEqualTo(result.getWalletId());
 		assertThat(stored.version()).isEqualTo(7);
 	}
 

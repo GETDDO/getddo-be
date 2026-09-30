@@ -1,6 +1,7 @@
 package com.getddo.core.ticket.service;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -13,11 +14,11 @@ import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceClaim;
-import com.getddo.core.ticket.domain.TicketErrorCode;
 import com.getddo.core.ticket.domain.TicketLedger;
 import com.getddo.core.ticket.domain.TicketLedgerAllocation;
 import com.getddo.core.ticket.domain.TicketWallet;
 import com.getddo.core.ticket.domain.TicketWalletPeriod;
+import com.getddo.core.ticket.exception.TicketErrorCode;
 import com.getddo.core.ticket.repository.GrantSourceRepository;
 import com.getddo.core.ticket.repository.TicketLedgerAllocationRepository;
 import com.getddo.core.ticket.repository.TicketLedgerRepository;
@@ -83,7 +84,7 @@ public class TicketGrantService {
 	@Transactional(propagation = Propagation.MANDATORY)
 	public GrantResult grant(GrantCommand command) {
 		validate(command);
-		GrantSource source = command.source();
+		GrantSource source = command.getSource();
 		verifyClaim(command);
 
 		// 같은 청구의 지급 원장이 있으면 재호출이다. 지갑을 건드리지 않고 확정된 결과를 돌려준다.
@@ -93,11 +94,12 @@ public class TicketGrantService {
 		}
 
 		// 지급 시각은 한 번만 구한다. 지갑 월·만료 시각과 지갑·원장·배분의 생성 시각이 모두 이 값을 쓴다.
-		Instant grantedAt = timeProvider.now();
+		// DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·저장 값과 지갑 월이 어긋나지 않게 한다.
+		Instant grantedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
 		TicketWalletPeriod period = TicketWalletPeriod.forGrant(grantedAt, timeProvider);
 		TicketWallet deposited = walletRepository
-				.getOrCreateForUpdate(command.userId(), period, grantedAt)
-				.deposit(command.quantity());
+				.getOrCreateForUpdate(command.getUserId(), period, grantedAt)
+				.deposit(command.getQuantity());
 		walletRepository.save(deposited);
 
 		TicketLedger ledger = ledgerRepository.save(TicketLedger.grant(deposited, command, grantedAt));
@@ -128,24 +130,24 @@ public class TicketGrantService {
 
 	private static void validate(GrantCommand command) {
 		if (command == null
-				|| command.userId() == null
-				|| !isComplete(command.source())
-				|| command.quantity() < 1
-				|| command.reason() == null
-				|| command.reason().isBlank()) {
+				|| command.getUserId() == null
+				|| !isComplete(command.getSource())
+				|| command.getQuantity() < 1
+				|| command.getReason() == null
+				|| command.getReason().isBlank()) {
 			throw new BusinessException(TicketErrorCode.TICKET_INVALID_GRANT);
 		}
 	}
 
 	private static boolean isComplete(GrantSource source) {
-		return source != null && source.type() != null && source.claimId() != null;
+		return source != null && source.getType() != null && source.getClaimId() != null;
 	}
 
 	/** 청구 행이 있고 사용자·수량이 요청과 같은지 확인한다. 사용자 존재는 청구의 FK가 보장한다. */
 	private void verifyClaim(GrantCommand command) {
-		GrantSourceClaim claim = grantSourceRepository.find(command.source())
+		GrantSourceClaim claim = grantSourceRepository.find(command.getSource())
 				.orElseThrow(() -> new BusinessException(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND));
-		if (!claim.userId().equals(command.userId()) || claim.ticketCount() != command.quantity()) {
+		if (!claim.getUserId().equals(command.getUserId()) || claim.getTicketCount() != command.getQuantity()) {
 			throw new BusinessException(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);
 		}
 	}
