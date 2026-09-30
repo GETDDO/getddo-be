@@ -11,7 +11,12 @@ import tools.jackson.databind.ObjectMapper;
 import com.getddo.api.support.ApiIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -55,6 +60,7 @@ class OpenApiConfigTest {
 		JsonNode document = objectMapper.readTree(body);
 		JsonNode operation = document.path("paths").path("/test/openapi/{id}").path("post");
 		assertThat(operation.isMissingNode()).isFalse();
+		assertThat(operation.path("parameters").size()).isEqualTo(1);
 		JsonNode parameter = operation.path("parameters").get(0);
 		assertThat(parameter.path("name").asString()).isEqualTo("id");
 		assertThat(parameter.path("in").asString()).isEqualTo("path");
@@ -74,6 +80,28 @@ class OpenApiConfigTest {
 		JsonNode data = resolveSchema(document, properties.path("data"));
 		assertThat(data.path("properties").path("id").path("type").asString()).isEqualTo("integer");
 		assertThat(data.path("properties").path("name").path("type").asString()).isEqualTo("string");
+	}
+
+	@Test
+	@DisplayName("CurrentUser만 선언해도 공통 헤더를 한 번 문서화하고 User 내부 필드는 숨긴다")
+	void documentsCurrentUserHeadersWithoutSwaggerAnnotations() throws Exception {
+		// given: Swagger 어노테이션 없이 CurrentUser 파라미터 두 개를 선언한 테스트 API
+		String parameters = "$.paths['/test/openapi/context'].get.parameters";
+		// when / then
+		mockMvc.perform(get("/v3/api-docs"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath(parameters, hasSize(3)))
+				.andExpect(jsonPath(parameters + "[*].name",
+						containsInAnyOrder("X-User-ID", "X-User-Role", "X-User-Membership")))
+				.andExpect(jsonPath(parameters + "[*].in", everyItem(is("header"))))
+				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-ID')].required", contains(true)))
+				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-ID')].schema.format", contains("uuid")))
+				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-Role')].required", contains(true)))
+				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-Role')].schema.enum[*]",
+						contains("USER", "ADMIN")))
+				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-Membership')].required", contains(false)))
+				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-Membership')].schema.enum[*]",
+						contains("excellent", "vip", "vvip")));
 	}
 
 	private JsonNode resolveSchema(JsonNode document, JsonNode schema) {
