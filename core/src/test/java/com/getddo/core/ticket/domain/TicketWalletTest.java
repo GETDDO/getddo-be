@@ -29,11 +29,11 @@ class TicketWalletTest {
 		// when
 		TicketWallet deposited = original.deposit(3);
 		// then
-		assertThat(deposited.balance()).isEqualTo(8);
-		assertThat(deposited.version()).isEqualTo(3);
-		assertThat(deposited.id()).isEqualTo(original.id());
-		assertThat(original.balance()).isEqualTo(5);
-		assertThat(original.version()).isEqualTo(2);
+		assertThat(deposited.getBalance()).isEqualTo(8);
+		assertThat(deposited.getVersion()).isEqualTo(3);
+		assertThat(deposited.getId()).isEqualTo(original.getId());
+		assertThat(original.getBalance()).isEqualTo(5);
+		assertThat(original.getVersion()).isEqualTo(2);
 	}
 
 	@ParameterizedTest

@@ -28,13 +28,13 @@ import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceClaim;
 import com.getddo.core.ticket.domain.GrantSourceType;
-import com.getddo.core.ticket.domain.TicketErrorCode;
 import com.getddo.core.ticket.domain.TicketLedger;
 import com.getddo.core.ticket.domain.TicketLedgerAllocation;
 import com.getddo.core.ticket.domain.TicketTransactionType;
 import com.getddo.core.ticket.domain.TicketWallet;
 import com.getddo.core.ticket.domain.TicketWalletPeriod;
 import com.getddo.core.ticket.domain.TicketWalletStatus;
+import com.getddo.core.ticket.exception.TicketErrorCode;
 import com.getddo.core.ticket.repository.GrantSourceRepository;
 import com.getddo.core.ticket.repository.TicketLedgerAllocationRepository;
 import com.getddo.core.ticket.repository.TicketLedgerRepository;
@@ -80,13 +80,13 @@ class TicketGrantServiceTest {
 	}
 
 	private static TicketWallet wallet(long balance, long version) {
-		return new TicketWallet(UUID.randomUUID(), USER_ID, SEPTEMBER.expiryMonth(), NOW, SEPTEMBER.expiresAt(),
+		return new TicketWallet(UUID.randomUUID(), USER_ID, SEPTEMBER.getExpiryMonth(), NOW, SEPTEMBER.getExpiresAt(),
 				balance, TicketWalletStatus.ACTIVE, version);
 	}
 
 	private static TicketLedger savedGrant(UUID walletId, long quantity, long balanceAfter, long walletVersion) {
 		return new TicketLedger(UUID.randomUUID(), walletId, USER_ID, TicketTransactionType.GRANT, quantity,
-				SOURCE.idempotencyKey(), "테스트 미션", NOW, balanceAfter, walletVersion, SEPTEMBER.expiresAt(),
+				SOURCE.idempotencyKey(), "테스트 미션", NOW, balanceAfter, walletVersion, SEPTEMBER.getExpiresAt(),
 				SOURCE);
 	}
 
@@ -232,22 +232,22 @@ class TicketGrantServiceTest {
 			ArgumentCaptor<TicketLedgerAllocation> savedAllocation =
 					ArgumentCaptor.forClass(TicketLedgerAllocation.class);
 			verify(allocationRepository).save(savedAllocation.capture());
-			assertThat(savedAllocation.getValue().ledgerId()).isEqualTo(result.ledgerId());
-			assertThat(savedAllocation.getValue().createdAt()).isEqualTo(NOW);
+			assertThat(savedAllocation.getValue().getLedgerId()).isEqualTo(result.getLedgerId());
+			assertThat(savedAllocation.getValue().getCreatedAt()).isEqualTo(NOW);
 
-			assertThat(result.ledgerId()).isNotNull();
-			assertThat(result.walletId()).isEqualTo(locked.id());
-			assertThat(result.quantity()).isEqualTo(2);
-			assertThat(result.balanceAfter()).isEqualTo(5);
-			assertThat(result.grantedAt()).isEqualTo(NOW);
-			assertThat(result.expiresAt()).isEqualTo(SEPTEMBER.expiresAt());
-			assertThat(result.replayed()).isFalse();
+			assertThat(result.getLedgerId()).isNotNull();
+			assertThat(result.getWalletId()).isEqualTo(locked.getId());
+			assertThat(result.getQuantity()).isEqualTo(2);
+			assertThat(result.getBalanceAfter()).isEqualTo(5);
+			assertThat(result.getGrantedAt()).isEqualTo(NOW);
+			assertThat(result.getExpiresAt()).isEqualTo(SEPTEMBER.getExpiresAt());
+			assertThat(result.isReplayed()).isFalse();
 		}
 
 		private TicketLedger withId(TicketLedger ledger) {
-			return new TicketLedger(UUID.randomUUID(), ledger.walletId(), ledger.userId(), ledger.type(),
-					ledger.quantity(), ledger.idempotencyKey(), ledger.reason(), ledger.createdAt(),
-					ledger.balanceAfter(), ledger.walletVersion(), ledger.expiresAt(), ledger.grantSource());
+			return new TicketLedger(UUID.randomUUID(), ledger.getWalletId(), ledger.getUserId(), ledger.getType(),
+					ledger.getQuantity(), ledger.getIdempotencyKey(), ledger.getReason(), ledger.getCreatedAt(),
+					ledger.getBalanceAfter(), ledger.getWalletVersion(), ledger.getExpiresAt(), ledger.getGrantSource());
 		}
 	}
 
