@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.JsonNode;
@@ -41,8 +42,8 @@ class NotificationApiIntegrationTest {
 
 	@BeforeEach
 	void seed() {
-		insertUser(USER, "vip");
-		insertUser(OTHER, "excellent");
+		insertUser(USER, "VIP");
+		insertUser(OTHER, "EXCELLENT");
 		insertJob(JOB);
 		insertJob(SECOND_JOB);
 		// 같은 발생 건은 사용자당 알림 1건이므로 본인의 두 알림은 서로 다른 작업에 연결한다.
@@ -65,7 +66,7 @@ class NotificationApiIntegrationTest {
 
 		// when / then
 		String body = mvc.perform(get("/api/v1/notifications/me")
-				.header("X-User-ID", USER).param("size", "1"))
+				.headers(userHeaders(USER, "vip")).param("size", "1"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(2))
 				.andExpect(jsonPath("$.data.items[0].id").value(SECOND.toString()))
@@ -75,7 +76,7 @@ class NotificationApiIntegrationTest {
 		String cursor = page.path("nextCursor").asString();
 		assertThat(cursor).isNotBlank();
 		mvc.perform(get("/api/v1/notifications/me")
-				.header("X-User-ID", USER).param("size", "1").param("cursor", cursor))
+				.headers(userHeaders(USER, "vip")).param("size", "1").param("cursor", cursor))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items[0].id").value(FIRST.toString()))
 				.andExpect(jsonPath("$.data.nextCursor").value(nullValue()));
@@ -89,19 +90,19 @@ class NotificationApiIntegrationTest {
 		// given: seed()가 본인·타인 사용자와 알림을 준비한다.
 
 		// when / then
-		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).header("X-User-ID", OTHER))
+		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).headers(userHeaders(OTHER, "excellent")))
 				.andExpect(status().isNotFound());
-		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).header("X-User-ID", USER))
+		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).headers(userHeaders(USER, "vip")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.isRead").value(true));
 		mvc.perform(get("/api/v1/notifications/me")
-				.header("X-User-ID", USER).param("isRead", "false"))
+				.headers(userHeaders(USER, "vip")).param("isRead", "false"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(1))
 				.andExpect(jsonPath("$.data.items[0].id").value(SECOND.toString()));
-		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).header("X-User-ID", USER))
+		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).headers(userHeaders(USER, "vip")))
 				.andExpect(status().isOk());
-		mvc.perform(put("/api/v1/notifications/me/read-all").header("X-User-ID", USER))
+		mvc.perform(put("/api/v1/notifications/me/read-all").headers(userHeaders(USER, "vip")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.updatedCount").value(1));
 		assertThat(unread(USER)).isZero();
@@ -116,24 +117,62 @@ class NotificationApiIntegrationTest {
 		// when / then
 		mvc.perform(get("/api/v1/notifications/me"))
 				.andExpect(status().isUnauthorized())
-				.andExpect(jsonPath("$.code").value("USER_CONTEXT_REQUIRED"));
+				.andExpect(jsonPath("$.code").value("USER-003"));
 		mvc.perform(get("/api/v1/notifications/me").header("X-User-ID", "not-a-uuid"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("COMMON-005"));
-		mvc.perform(get("/api/v1/notifications/me").header("X-User-ID", UUID.randomUUID()))
+		mvc.perform(get("/api/v1/notifications/me").headers(userHeaders(UUID.randomUUID(), "vip")))
 				.andExpect(status().isUnauthorized())
-				.andExpect(jsonPath("$.code").value("USER_CONTEXT_INVALID"));
+				.andExpect(jsonPath("$.code").value("USER-002"));
 		mvc.perform(get("/api/v1/notifications/me")
-				.header("X-User-ID", USER).header("X-User-Membership", "excellent"))
+				.headers(userHeaders(USER, "excellent")))
 				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.code").value("USER_MEMBERSHIP_MISMATCH"));
+				.andExpect(jsonPath("$.code").value("USER-006"));
 		mvc.perform(get("/api/v1/notifications/me")
-				.header("X-User-ID", USER).header("X-User-Membership", "vip"))
+				.headers(userHeaders(USER, "vip")))
 				.andExpect(status().isOk());
-		mvc.perform(get("/api/v1/notifications/me").header("X-User-ID", USER)
+		mvc.perform(get("/api/v1/notifications/me").headers(userHeaders(USER, "vip"))
 				.param("cursor", "bad cursor"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("NOTIFICATION-001"));
+	}
+
+	@Test
+	@DisplayName("멤버십이 없는 관리자도 본인 알림을 조회하고 읽음 처리한다")
+	void adminWithoutMembershipUsesCommonUserContext() throws Exception {
+		// given
+		jdbc.update("update users set role = 'ADMIN', membership = null where id = ?", bytes(USER));
+		HttpHeaders headers = new HttpHeaders();
+		headers.set("X-User-ID", USER.toString());
+		headers.set("X-User-Role", "ADMIN");
+
+		// when / then
+		mvc.perform(get("/api/v1/notifications/me").headers(headers))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2));
+		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).headers(headers))
+				.andExpect(status().isOk());
+		mvc.perform(put("/api/v1/notifications/me/read-all").headers(headers))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.updatedCount").value(1));
+		assertThat(unread(OTHER)).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("공통 사용자 검증을 적용해도 비활성 사용자의 알림 조회를 새로 차단하지 않는다")
+	void inactiveUserKeepsAccessToOwnNotifications() throws Exception {
+		// given
+		jdbc.update("update users set status = 'INACTIVE' where id = ?", bytes(USER));
+
+		// when / then
+		mvc.perform(get("/api/v1/notifications/me").headers(userHeaders(USER, "vip")))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2));
+	}
+
+	private HttpHeaders userHeaders(UUID userId, String membership) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.set("X-User-ID", userId.toString());
+		headers.set("X-User-Role", "USER");
+		headers.set("X-User-Membership", membership);
+		return headers;
 	}
 
 	private void insertUser(UUID id, String membership) {
