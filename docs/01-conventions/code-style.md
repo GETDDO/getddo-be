@@ -15,13 +15,14 @@
 ## 2. 생성자 주입과 객체 생성
 
 - 운영 코드의 의존성은 `private final` 필드와 생성자 주입으로 명시한다. 필드 주입이나 의존성을 바꾸는 setter는 사용하지 않는다. 테스트의 Spring 필드 주입은 예외로 둔다.
-- Lombok을 사용할 수 있는 모듈에서는 `@RequiredArgsConstructor`를 사용할 수 있다. 현재 Lombok은 `storage:db`에만 선언되어 있으므로 `api`·`core`에서는 명시적 생성자를 쓴다. `@RequiredArgsConstructor`를 전 모듈 기본 규칙으로 정하려면 의존성 추가를 별도로 결정한다.
+- Lombok을 사용할 수 있는 모듈에서는 `@RequiredArgsConstructor`를 사용할 수 있다. 현재 Lombok은 `core`·`storage:db`에 선언되어 있으며 `api`에서는 명시적 생성자를 쓴다. `@RequiredArgsConstructor`를 전 모듈 기본 규칙으로 정하려면 의존성 추가를 별도로 결정한다.
 - 최초 상태와 기본값이 있는 도메인 객체는 `User.create(...)`처럼 생성 목적을 드러내는 정적 팩터리에 초기화를 모은다. 상태가 없는 단순 값 객체까지 정적 팩터리를 강제하지 않는다. 생성 후 여러 setter를 호출해야 유효해지는 방식은 피한다.
 
 ## 3. DTO와 변환
 
 - JSON 요청·응답 DTO는 `record`를 기본으로 한다. 이름은 역할에 따라 `XxxRequest`, `XxxResponse`로 구분한다. 폼·쿼리 파라미터 바인딩 등에서 다른 형태가 필요하면 해당 DTO의 실제 바인딩 방식을 확인한다.
 - 단순 변환의 방향은 요청 DTO의 `toDomain()`, 응답 DTO의 `from(domain)`, `storage:db` Mapper의 `toDomain()`·`toEntity()`로 표현한다. 변환 중 업무 정책을 판정하거나 DB를 조회해야 하면 변환 메서드에 넣지 않고 Service·도메인에서 처리한다.
+- Entity와 도메인 사이의 단순 필드 변환은 `@Mapper(componentModel = "spring")`을 사용해 MapStruct로 생성하고 주입한다. Lombok과 함께 사용할 때는 `lombok-mapstruct-binding` annotation processor를 등록한다.
 - DTO, 도메인 객체, JPA Entity를 서로 직접 대체하지 않는다. 특히 Entity와 도메인 객체를 API에 그대로 노출하지 않는다. `record`에 가변 컬렉션이 있으면 필요한 경우 복사해 외부 변경으로부터 보호한다.
 
 ## 4. 입력 검증과 업무 검증
@@ -48,6 +49,7 @@
 ## 7. 오류와 API 응답
 
 - 도메인별 오류 코드는 `ErrorCode`를 구현한 enum으로 관리한다. 예상 가능한 업무 규칙 위반은 `BusinessException`으로 전달하고, `GlobalExceptionHandler`가 HTTP 응답으로 변환한다. `CommonErrorCode`에 도메인 전용 오류를 모으지 않는다.
+- 사용자 오류는 `core/user/exception`의 `UserErrorCode`와 `BusinessException`을 상속한 `UserException`으로 묶는다. Service에서 `UserException`을 던지며 공통 예외 처리기를 그대로 사용한다.
 - 성공 JSON 응답은 `ResponseEnvelope.success(data)`를 사용한다. 데이터가 없는 JSON 응답은 `success(null)`을 사용하고, 본문이 없는 HTTP 204와 구분한다. 상태 코드와 공개 메시지는 오류 의미에 맞춘다.
 - 예외 원문, SQL, 비밀값, 개인정보를 공개 메시지나 로그에 넣지 않는다. API 필드·상태·오류 코드를 바꾸면 프론트엔드 계약과 호환성을 확인한다.
 
