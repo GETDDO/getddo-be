@@ -16,12 +16,15 @@
 
 - 운영 코드의 의존성은 `private final` 필드와 생성자 주입으로 명시한다. 필드 주입이나 의존성을 바꾸는 setter는 사용하지 않는다. 테스트의 Spring 필드 주입은 예외로 둔다.
 - Lombok을 사용할 수 있는 모듈에서는 `@RequiredArgsConstructor`를 사용할 수 있다. 현재 Lombok은 `core`·`storage:db`에 선언되어 있으며 `api`에서는 명시적 생성자를 쓴다. `@RequiredArgsConstructor`를 전 모듈 기본 규칙으로 정하려면 의존성 추가를 별도로 결정한다.
+- Lombok `@AllArgsConstructor`는 사용하지 않는다. 생성 시 검증이 필요한 객체는 명시적 생성자나 정적 팩터리를 사용한다. 의존성 주입에는 기존 규칙대로 `@RequiredArgsConstructor`를 사용할 수 있다.
+- `core` 도메인 객체에는 `@Builder`를 사용하지 않는다. API 요청·응답 DTO를 생성할 때는 `@Builder` 사용을 적극 권장한다. 요청 DTO에 적용할 때는 JSON 역직렬화와 입력 검증이 정상 동작하는지 확인한다.
 - 최초 상태와 기본값이 있는 도메인 객체는 `User.create(...)`처럼 생성 목적을 드러내는 정적 팩터리에 초기화를 모은다. 상태가 없는 단순 값 객체까지 정적 팩터리를 강제하지 않는다. 생성 후 여러 setter를 호출해야 유효해지는 방식은 피한다.
 
 ## 3. DTO와 변환
 
 - JSON 요청·응답 DTO는 `record`를 기본으로 한다. 이름은 역할에 따라 `XxxRequest`, `XxxResponse`로 구분한다. 폼·쿼리 파라미터 바인딩 등에서 다른 형태가 필요하면 해당 DTO의 실제 바인딩 방식을 확인한다.
-- `record`는 JSON 요청·응답 DTO에만 사용한다. `core`의 도메인 객체·값 객체·서비스 입출력 값과 공통 페이징 모델은 `private final` 필드와 getter(`getXxx()`, boolean은 `isXxx()`)를 가진 불변 클래스로 작성하고, 값 비교가 필요하면 `equals`·`hashCode`를 함께 구현한다.
+- `record`는 JSON으로 주고받는 API 요청·응답 DTO에서만 사용한다. `core`의 도메인 객체·값 객체·서비스 입출력 값과 공통 페이징 모델은 클래스로 작성한다.
+- 상태 변경이 필요한 도메인 객체는 범용 setter 대신 변경 목적이 드러나는 메서드를 둔다. 상태 변경이 없는 모델은 `private final` 필드를 사용한다. 필요한 접근자는 `getXxx()`·`isXxx()` 형태로 제공하며 Lombok `@Getter`를 사용할 수 있다. 값 비교가 필요하면 `equals`·`hashCode`를 함께 구현한다.
 - 단순 변환의 방향은 요청 DTO의 `toDomain()`, 응답 DTO의 `from(domain)`, `storage:db` Mapper의 `toDomain()`·`toEntity()`로 표현한다. 변환 중 업무 정책을 판정하거나 DB를 조회해야 하면 변환 메서드에 넣지 않고 Service·도메인에서 처리한다.
 - Entity와 도메인 사이의 단순 필드 변환은 `@Mapper(componentModel = "spring")`을 사용해 MapStruct로 생성하고 주입한다. Lombok과 함께 사용할 때는 `lombok-mapstruct-binding` annotation processor를 등록한다.
 - DTO, 도메인 객체, JPA Entity를 서로 직접 대체하지 않는다. 특히 Entity와 도메인 객체를 API에 그대로 노출하지 않는다. `record`나 불변 클래스에 가변 컬렉션이 있으면 필요한 경우 복사해 외부 변경으로부터 보호한다.
@@ -65,4 +68,6 @@
 ## 9. 이름과 형식
 
 - 클래스·인터페이스·enum은 `UpperCamelCase`, 메서드·필드는 `lowerCamelCase`, 상수는 `UPPER_SNAKE_CASE`로 쓴다. 도메인 용어는 [공용 용어집](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/glossary.md)을 따른다.
+- enum은 클래스 안에 중첩하지 않고 해당 기능의 패키지에 별도 파일로 둔다. 이름은 `DrawSelectionResultType`처럼 의미와 소속이 드러나게 짓는다. 오류 코드 enum은 기존 규칙대로 `<도메인>/exception` 패키지에 둔다.
+- 모델에 Lombok `@ToString`을 붙이거나 `toString()`을 직접 재정의하지 않는다. `UUID.toString()`처럼 문자열 변환을 위해 기존 메서드를 호출하는 경우와 `record`가 자동 생성하는 메서드는 이 규칙의 대상이 아니다.
 - 현재 코드에는 탭 들여쓰기가 사용되지만 `.editorconfig`나 자동 포매터 설정은 없다. 들여쓰기, 줄 길이, import 정렬은 팀이 도구와 함께 정한 뒤 적용한다. 포맷 차이만으로 기존 코드의 변경을 요구하지 않는다.
