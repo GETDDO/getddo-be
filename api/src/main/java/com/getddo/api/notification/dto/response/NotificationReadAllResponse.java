@@ -13,6 +13,11 @@ public final class NotificationReadAllResponse {
 		this.updatedCount = updatedCount;
 	}
 
+	/**
+	 * 이번 요청으로 읽음 처리한 알림 건수를 반환한다.
+	 *
+	 * @return 실제 변경한 건수. 이미 읽은 알림은 제외
+	 */
 	public long getUpdatedCount() {
 		return updatedCount;
 	}

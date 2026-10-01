@@ -49,18 +49,38 @@ public final class NotificationResponse {
 				notification.getCreatedAt(), notification.isRead(), notification.getEventId(), notification.getLinkUrl());
 	}
 
+	/**
+	 * 알림의 식별자를 반환한다.
+	 *
+	 * @return 알림 ID
+	 */
 	public UUID getId() {
 		return id;
 	}
 
+	/**
+	 * 사용자에게 표시할 알림 제목을 반환한다.
+	 *
+	 * @return 알림 제목
+	 */
 	public String getTitle() {
 		return title;
 	}
 
+	/**
+	 * 사용자에게 표시할 알림 내용을 반환한다.
+	 *
+	 * @return 알림 내용
+	 */
 	public String getBody() {
 		return body;
 	}
 
+	/**
+	 * 알림이 생성된 UTC 시각을 반환한다.
+	 *
+	 * @return 알림 생성 시각
+	 */
 	public Instant getCreatedAt() {
 		return createdAt;
 	}
@@ -71,10 +91,20 @@ public final class NotificationResponse {
 		return isRead;
 	}
 
+	/**
+	 * 알림과 관련된 이벤트의 ID를 반환한다.
+	 *
+	 * @return 관련 이벤트 ID. 없으면 null
+	 */
 	public UUID getEventId() {
 		return eventId;
 	}
 
+	/**
+	 * 알림에서 이동할 관련 화면 링크를 반환한다.
+	 *
+	 * @return 관련 화면 링크. 없으면 null
+	 */
 	public String getLinkUrl() {
 		return linkUrl;
 	}

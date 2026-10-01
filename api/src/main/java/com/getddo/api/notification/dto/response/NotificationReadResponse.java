@@ -20,6 +20,11 @@ public final class NotificationReadResponse {
 		this.isRead = isRead;
 	}
 
+	/**
+	 * 읽음 처리한 본인 알림의 ID를 반환한다.
+	 *
+	 * @return 읽음 처리한 알림 ID
+	 */
 	public UUID getId() {
 		return id;
 	}
