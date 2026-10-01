@@ -29,7 +29,6 @@ public final class TicketLedgerFilter {
 		return new TicketLedgerFilter(transactionType, from, to);
 	}
 
-	/** 조건 없이 전체 이력을 조회한다. */
 	public static TicketLedgerFilter none() {
 		return NONE;
 	}

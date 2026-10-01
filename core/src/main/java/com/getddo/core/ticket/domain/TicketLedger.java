@@ -29,9 +29,7 @@ public final class TicketLedger {
 	private final String idempotencyKey;
 	private final String reason;
 	private final Instant createdAt;
-	/** 거래 직후 지갑 잔액. */
 	private final long balanceAfter;
-	/** 거래로 갱신된 지갑 version. */
 	private final long walletVersion;
 	/** 입금(GRANT·REFUND)분의 만료 시각. 그 외 null. */
 	private final Instant expiresAt;
@@ -61,7 +59,6 @@ public final class TicketLedger {
 				source);
 	}
 
-	/** 이 지급 원장 행을 호출자에게 돌려줄 결과로 바꾼다. */
 	public GrantResult toGrantResult(boolean replayed) {
 		return new GrantResult(id, walletId, quantity, balanceAfter, createdAt, expiresAt, replayed);
 	}

@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 
 import com.getddo.core.common.exception.ErrorCode;
 
-/** 출석 도메인 오류. */
 @Getter
 @RequiredArgsConstructor
 public enum AttendanceErrorCode implements ErrorCode {

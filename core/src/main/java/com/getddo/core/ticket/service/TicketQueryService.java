@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.pagination.CursorQuery;
 import com.getddo.core.common.pagination.CursorResult;
 import com.getddo.core.common.time.TimeProvider;
@@ -19,6 +18,7 @@ import com.getddo.core.ticket.domain.TicketLedgerFilter;
 import com.getddo.core.ticket.domain.TicketTransactionView;
 import com.getddo.core.ticket.domain.TicketWalletView;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 import com.getddo.core.ticket.repository.TicketQueryRepository;
 
 /**
@@ -65,7 +65,7 @@ public class TicketQueryService {
 	 * @param filter 거래 유형·기간 조건
 	 * @param page   커서와 조회 개수(1~100)
 	 * @return 이력, 다음 커서(마지막이면 null), 조건에 맞는 전체 수
-	 * @throws com.getddo.core.common.exception.BusinessException 커서 형식·조회 개수·기간 조건이 올바르지 않은 경우
+	 * @throws TicketException 커서 형식·조회 개수·기간 조건이 올바르지 않은 경우
 	 */
 	@Transactional(readOnly = true)
 	public CursorResult<TicketTransactionView> getMyLedger(UUID userId, TicketLedgerFilter filter,
@@ -84,7 +84,7 @@ public class TicketQueryService {
 
 	private static void validate(TicketLedgerFilter filter, CursorQuery page) {
 		if (filter == null || page == null || page.getSize() > MAX_PAGE_SIZE || !filter.hasValidPeriod()) {
-			throw new BusinessException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
+			throw new TicketException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
 		}
 	}
 }

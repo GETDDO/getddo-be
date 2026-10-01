@@ -9,7 +9,6 @@ import com.getddo.core.ticket.domain.TicketLedger;
 import com.getddo.core.ticket.repository.TicketLedgerRepository;
 import com.getddo.db.ticket.mapper.TicketLedgerMapper;
 
-/** 응모권 원장 저장소 구현. */
 @Repository
 @RequiredArgsConstructor
 public class TicketLedgerRepositoryImpl implements TicketLedgerRepository {

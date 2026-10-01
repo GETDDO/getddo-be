@@ -17,11 +17,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.IllegalTransactionStateException;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceType;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static com.getddo.db.ticket.TicketGrantSeeds.uuid;
@@ -116,8 +116,8 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 			UUID mismatched = seeds.missionClaim(userId, second, 2);
 			grantService.grant(command(userId, GrantSourceType.MISSION, mismatched, 1));
 		}))
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(TicketException.class)
+				.extracting(error -> ((TicketException) error).getErrorCode())
 				.isEqualTo(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);
 		assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId))).isZero();
 		assertThat(walletCount(userId)).isZero();

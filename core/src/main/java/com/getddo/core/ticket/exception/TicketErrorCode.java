@@ -20,7 +20,9 @@ public enum TicketErrorCode implements ErrorCode {
 	/** 청구 행의 사용자 또는 수량이 지급 요청과 다른 경우. */
 	TICKET_GRANT_SOURCE_MISMATCH(409, "TICKET-003", "응모권 지급 근거가 요청과 일치하지 않습니다."),
 	/** 이력 조회의 커서 형식, 조회 개수, 기간 조건이 올바르지 않은 경우. */
-	TICKET_INVALID_LEDGER_QUERY(400, "TICKET-004", "응모권 이력 조회 조건이 올바르지 않습니다.");
+	TICKET_INVALID_LEDGER_QUERY(400, "TICKET-004", "응모권 이력 조회 조건이 올바르지 않습니다."),
+	/** 만료된 지갑에 입금하려는 경우. */
+	TICKET_WALLET_EXPIRED(409, "TICKET-005", "만료된 응모권 지갑에는 지급할 수 없습니다.");
 
 	private final int status;
 	private final String code;

@@ -15,8 +15,8 @@ import com.getddo.core.attendance.domain.AttendanceReceipt;
 import com.getddo.core.attendance.domain.AttendanceRewardReceipt;
 import com.getddo.core.attendance.domain.AttendanceRewardType;
 import com.getddo.core.attendance.exception.AttendanceErrorCode;
+import com.getddo.core.attendance.exception.AttendanceException;
 import com.getddo.core.attendance.service.AttendanceService;
-import com.getddo.core.common.exception.BusinessException;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -235,8 +235,8 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		// when
 		// then
 		assertThatThrownBy(() -> attendAt("2026-09-15T12:00:00"))
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(AttendanceException.class)
+				.extracting(error -> ((AttendanceException) error).getErrorCode())
 				.isEqualTo(AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isZero();
 	}
@@ -249,8 +249,8 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		// when
 		// then
 		assertThatThrownBy(() -> attendAt("2026-09-15T12:00:00"))
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(AttendanceException.class)
+				.extracting(error -> ((AttendanceException) error).getErrorCode())
 				.isEqualTo(AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isZero();
 		assertThat(count("select count(*) from attendance_reward_claims where user_id = ?", bytes(userId))).isZero();

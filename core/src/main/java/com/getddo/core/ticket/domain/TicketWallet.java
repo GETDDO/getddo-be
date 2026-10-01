@@ -9,6 +9,9 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
+import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
+
 /**
  * 사용자의 만료 묶음별 응모권 지갑.
  *
@@ -39,14 +42,14 @@ public final class TicketWallet {
 	 *
 	 * @return 잔액이 {@code quantity}만큼, version이 1 늘어난 지갑
 	 * @throws IllegalArgumentException 수량이 1 미만인 경우
-	 * @throws IllegalStateException    활성 지갑이 아닌 경우
+	 * @throws TicketException          활성 지갑이 아닌 경우 {@code TICKET_WALLET_EXPIRED}
 	 */
 	public TicketWallet deposit(long quantity) {
 		if (quantity < 1) {
 			throw new IllegalArgumentException("입금 수량은 1 이상이어야 한다.");
 		}
 		if (status != TicketWalletStatus.ACTIVE) {
-			throw new IllegalStateException("활성 지갑에만 입금할 수 있다.");
+			throw new TicketException(TicketErrorCode.TICKET_WALLET_EXPIRED);
 		}
 		return new TicketWallet(id, userId, expiryMonth, validFrom, expiresAt,
 				Math.addExact(balance, quantity), status, version + 1);

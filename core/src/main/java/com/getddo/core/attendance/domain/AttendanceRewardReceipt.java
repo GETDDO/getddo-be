@@ -23,9 +23,7 @@ public final class AttendanceRewardReceipt {
 	/** 단계 보상이면 단계 일수, 일일 보상이면 null. */
 	private final Integer milestoneDays;
 	private final int ticketCount;
-	/** 지급 시각 UTC. */
 	private final Instant grantedAt;
-	/** 지급분 만료 시각 UTC. */
 	private final Instant expiresAt;
 
 	public AttendanceRewardReceipt(UUID claimId, AttendanceRewardType rewardType, Integer milestoneDays,

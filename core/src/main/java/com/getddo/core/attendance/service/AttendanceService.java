@@ -35,7 +35,7 @@ public class AttendanceService {
 	 *
 	 * @param userId 요청 사용자 ID. 호출자가 확인한 등록 사용자여야 한다
 	 * @return 출석과 이 출석으로 확정된 보상
-	 * @throws com.getddo.core.common.exception.BusinessException 적용할 출석 보상 정책이 없는 경우
+	 * @throws com.getddo.core.attendance.exception.AttendanceException 적용할 출석 보상 정책이 없는 경우
 	 *         {@code ATTENDANCE_POLICY_NOT_FOUND}
 	 */
 	@Transactional(propagation = Propagation.NOT_SUPPORTED)

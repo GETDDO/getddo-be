@@ -27,7 +27,6 @@ public final class GrantResult {
 	private final long balanceAfter;
 	/** 지급 시각 UTC. 원장 행의 생성 시각과 같다. */
 	private final Instant grantedAt;
-	/** 지급분의 만료 시각 UTC. */
 	private final Instant expiresAt;
 	/** true면 이번 호출이 아니라 이전에 확정된 지급을 돌려준 것이다. */
 	private final boolean replayed;

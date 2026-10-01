@@ -25,11 +25,11 @@ import com.getddo.core.attendance.domain.DailyRewardPolicy;
 import com.getddo.core.attendance.domain.StreakMilestone;
 import com.getddo.core.attendance.domain.StreakPolicySet;
 import com.getddo.core.attendance.exception.AttendanceErrorCode;
+import com.getddo.core.attendance.exception.AttendanceException;
 import com.getddo.core.attendance.repository.AttendancePolicyRepository;
 import com.getddo.core.attendance.repository.AttendanceRepository;
 import com.getddo.core.attendance.repository.AttendanceRewardClaimRepository;
 import com.getddo.core.attendance.repository.AttendanceStreakRepository;
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
@@ -105,8 +105,8 @@ class AttendanceRecorderTest {
 
 	private static void assertErrorCode(Runnable call, AttendanceErrorCode expected) {
 		assertThatThrownBy(call::run)
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(AttendanceException.class)
+				.extracting(error -> ((AttendanceException) error).getErrorCode())
 				.isEqualTo(expected);
 	}
 

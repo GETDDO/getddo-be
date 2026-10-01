@@ -22,7 +22,6 @@ import lombok.ToString;
 @AllArgsConstructor
 public final class TicketLedgerAllocation {
 
-	/** 이번 거래 원장 ID. */
 	private final UUID ledgerId;
 	/** 수량이 변동된 입금 원장 ID. */
 	private final UUID sourceCreditLedgerId;

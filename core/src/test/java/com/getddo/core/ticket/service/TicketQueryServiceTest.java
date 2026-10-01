@@ -15,7 +15,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.pagination.CursorQuery;
 import com.getddo.core.common.pagination.CursorResult;
 import com.getddo.core.common.time.TimeProvider;
@@ -28,6 +27,7 @@ import com.getddo.core.ticket.domain.TicketWallet;
 import com.getddo.core.ticket.domain.TicketWalletStatus;
 import com.getddo.core.ticket.domain.TicketWalletView;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 import com.getddo.core.ticket.repository.TicketQueryRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,8 +75,8 @@ class TicketQueryServiceTest {
 
 	private static void assertInvalidQuery(Runnable call) {
 		assertThatThrownBy(call::run)
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(TicketException.class)
+				.extracting(error -> ((TicketException) error).getErrorCode())
 				.isEqualTo(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
 	}
 

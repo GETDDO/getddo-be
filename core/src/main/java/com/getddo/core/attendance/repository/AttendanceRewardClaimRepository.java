@@ -6,7 +6,6 @@ import java.util.UUID;
 import com.getddo.core.attendance.domain.AttendanceRewardClaim;
 import com.getddo.core.attendance.domain.AttendanceRewardType;
 
-/** 출석 보상 청구 저장소. */
 public interface AttendanceRewardClaimRepository {
 
 	/**

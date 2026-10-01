@@ -6,7 +6,6 @@ import java.util.UUID;
 
 import com.getddo.core.attendance.domain.Attendance;
 
-/** 출석 기록 저장소. */
 public interface AttendanceRepository {
 
 	/**

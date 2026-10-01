@@ -28,7 +28,6 @@ public final class AttendanceReceipt {
 	private final int consecutiveDays;
 	/** 일일 보상이 먼저, 단계 보상은 단계 일수 오름차순인 변경 불가능한 목록. */
 	private final List<AttendanceRewardReceipt> rewards;
-	/** 출석 기록 시각 UTC. */
 	private final Instant createdAt;
 	/** 이번 호출에서 새로 출석했는지. API에서 201과 200을 구분하는 데 쓴다. */
 	private final boolean created;

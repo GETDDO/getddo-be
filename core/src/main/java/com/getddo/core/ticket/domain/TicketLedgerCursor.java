@@ -11,8 +11,8 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 
 /**
  * 응모권 이력 커서. 마지막으로 받은 이력의 정렬 키 {@code (createdAt, id)}다.
@@ -38,7 +38,7 @@ public final class TicketLedgerCursor {
 	/**
 	 * 클라이언트가 보낸 커서 문자열을 해석한다.
 	 *
-	 * @throws BusinessException 형식이 올바르지 않은 경우 {@code TICKET_INVALID_LEDGER_QUERY}
+	 * @throws TicketException 형식이 올바르지 않은 경우 {@code TICKET_INVALID_LEDGER_QUERY}
 	 */
 	public static TicketLedgerCursor decode(String encoded) {
 		try {
@@ -61,7 +61,7 @@ public final class TicketLedgerCursor {
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
 	}
 
-	private static BusinessException invalid() {
-		return new BusinessException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
+	private static TicketException invalid() {
+		return new TicketException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
 	}
 }

@@ -22,11 +22,11 @@ import com.getddo.core.attendance.domain.DailyRewardPolicy;
 import com.getddo.core.attendance.domain.StreakMilestone;
 import com.getddo.core.attendance.domain.StreakPolicySet;
 import com.getddo.core.attendance.exception.AttendanceErrorCode;
+import com.getddo.core.attendance.exception.AttendanceException;
 import com.getddo.core.attendance.repository.AttendancePolicyRepository;
 import com.getddo.core.attendance.repository.AttendanceRepository;
 import com.getddo.core.attendance.repository.AttendanceRewardClaimRepository;
 import com.getddo.core.attendance.repository.AttendanceStreakRepository;
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
@@ -62,7 +62,7 @@ public class AttendanceRecorder {
 	 *
 	 * @param userId 요청 사용자 ID
 	 * @return 새 출석이면 {@code created=true}, 이미 출석한 날이면 저장된 결과({@code created=false})
-	 * @throws BusinessException 적용할 일일 정책이나 그 달의 연속 출석 정책 묶음이 없는 경우
+	 * @throws AttendanceException 적용할 일일 정책이나 그 달의 연속 출석 정책 묶음이 없는 경우
 	 */
 	@Transactional
 	public AttendanceReceipt record(UUID userId) {
@@ -143,7 +143,7 @@ public class AttendanceRecorder {
 		return "연속 출석 " + milestoneDays + "일 보상";
 	}
 
-	private static BusinessException noPolicy() {
-		return new BusinessException(AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
+	private static AttendanceException noPolicy() {
+		return new AttendanceException(AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
 	}
 }
