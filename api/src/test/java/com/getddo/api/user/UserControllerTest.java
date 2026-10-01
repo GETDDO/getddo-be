@@ -309,6 +309,38 @@ class UserControllerTest {
 	}
 
 	@Test
+	@DisplayName("선택 멤버십으로 조회한 캐시가 다음 파라미터의 필수 멤버십 검증을 우회하지 않는다")
+	void optionalContextDoesNotBypassRequiredMembership() throws Exception {
+		// given / when / then
+		mvc.perform(get("/test/optional-then-required").header("X-User-ID", USER_ID)
+				.header("X-User-Role", "USER"))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("USER-003"));
+		assertThat(lookups.get()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("기본 사용자 캐시가 선택 멤버십 파라미터의 관리자 DB 대조를 우회하지 않는다")
+	void requiredContextDoesNotBypassOptionalAdminMembershipCheck() throws Exception {
+		// given: ADMIN의 기본 문맥은 멤버십 형식만 검사한다.
+		// when / then
+		mvc.perform(get("/test/required-then-optional").header("X-User-ID", ADMIN_ID)
+				.header("X-User-Role", "ADMIN").header("X-User-Membership", "vip"))
+				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("USER-006"));
+		assertThat(lookups.get()).isEqualTo(1);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"/test/optional-then-required", "/test/required-then-optional"})
+	@DisplayName("서로 다른 멤버십 조건을 만족하면 파라미터 순서와 무관하게 같은 DB 조회를 재사용한다")
+	void mixedMembershipPoliciesReuseDatabaseLookup(String path) throws Exception {
+		// given / when / then
+		mvc.perform(get(path).header("X-User-ID", USER_ID)
+				.header("X-User-Role", "USER").header("X-User-Membership", "vip"))
+				.andExpect(status().isOk()).andExpect(content().string("true"));
+		assertThat(lookups.get()).isEqualTo(1);
+	}
+
+	@Test
 	@DisplayName("동시에 진행되는 요청 사이에 사용자 정보가 섞이지 않는다")
 	void concurrentRequestsKeepUsersSeparate() throws Exception {
 		// given: 두 요청이 모두 저장소에 도달한 뒤 함께 진행한다.
@@ -349,6 +381,16 @@ class UserControllerTest {
 
 		@GetMapping("/test/twice")
 		String twice(@CurrentUser User first, @CurrentUser User second) {
+			return Boolean.toString(first == second);
+		}
+
+		@GetMapping("/test/optional-then-required")
+		String optionalThenRequired(@CurrentUser(membershipRequired = false) User first, @CurrentUser User second) {
+			return Boolean.toString(first == second);
+		}
+
+		@GetMapping("/test/required-then-optional")
+		String requiredThenOptional(@CurrentUser User first, @CurrentUser(membershipRequired = false) User second) {
 			return Boolean.toString(first == second);
 		}
 	}

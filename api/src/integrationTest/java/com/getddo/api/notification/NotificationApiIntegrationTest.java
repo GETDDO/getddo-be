@@ -9,6 +9,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -137,23 +139,55 @@ class NotificationApiIntegrationTest {
 				.andExpect(jsonPath("$.code").value("NOTIFICATION-001"));
 	}
 
-	@Test
-	@DisplayName("멤버십이 없는 관리자도 본인 알림을 조회하고 읽음 처리한다")
-	void adminWithoutMembershipUsesCommonUserContext() throws Exception {
+	@ParameterizedTest
+	@CsvSource({"USER, VIP", "USER,", "ADMIN, VIP", "ADMIN,"})
+	@DisplayName("DB 멤버십 유무와 무관하게 사용자·관리자가 헤더 생략 후 본인 알림만 조회·읽음 처리한다")
+	void missingMembershipPreservesOwnership(String role, String membership) throws Exception {
 		// given
-		jdbc.update("update users set role = 'ADMIN', membership = null where id = ?", bytes(USER));
+		jdbc.update("update users set role = ?, membership = ? where id = ?", role, membership, bytes(USER));
 		HttpHeaders headers = new HttpHeaders();
 		headers.set("X-User-ID", USER.toString());
-		headers.set("X-User-Role", "ADMIN");
+		headers.set("X-User-Role", role);
 
 		// when / then
 		mvc.perform(get("/api/v1/notifications/me").headers(headers))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2));
+		assertThat(unread(USER)).isEqualTo(2);
+		mvc.perform(put("/api/v1/notifications/{id}/read", OTHER_NOTIFICATION).headers(headers))
+				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOTIFICATION-002"));
 		mvc.perform(put("/api/v1/notifications/{id}/read", FIRST).headers(headers))
-				.andExpect(status().isOk());
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.isRead").value(true));
 		mvc.perform(put("/api/v1/notifications/me/read-all").headers(headers))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.updatedCount").value(1));
+		assertThat(unread(USER)).isZero();
 		assertThat(unread(OTHER)).isEqualTo(1);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"USER, VIP, vip, 200", "ADMIN, VIP, vip, 200",
+			"USER, VIP, excellent, 409", "ADMIN, VIP, excellent, 409",
+			"USER, , vip, 409", "ADMIN, , vip, 409"})
+	@DisplayName("전달한 멤버십은 실제 DB 값과 대조하고 사용자 정보를 변경하지 않는다")
+	void suppliedMembershipMatchesDatabase(String role, String membership, String supplied, int expected)
+			throws Exception {
+		// given
+		jdbc.update("update users set role = ?, membership = ? where id = ?", role, membership, bytes(USER));
+		HttpHeaders headers = userHeaders(USER, supplied);
+		headers.set("X-User-Role", role);
+
+		// when / then
+		var result = mvc.perform(put("/api/v1/notifications/me/read-all").headers(headers))
+				.andExpect(status().is(expected));
+		if (expected == 409) {
+			result.andExpect(jsonPath("$.code").value("USER-006"));
+			assertThat(unread(USER)).isEqualTo(2);
+		} else {
+			result.andExpect(jsonPath("$.data.updatedCount").value(2));
+			assertThat(unread(USER)).isZero();
+		}
+		assertThat(unread(OTHER)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select membership from users where id = ?", String.class, bytes(USER)))
+				.isEqualTo(membership);
 	}
 
 	@Test
