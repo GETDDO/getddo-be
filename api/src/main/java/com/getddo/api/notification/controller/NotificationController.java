@@ -45,7 +45,7 @@ public class NotificationController {
 	 */
 	@GetMapping("/me")
 	public ResponseEnvelope<CursorResult<NotificationResponse>> findMine(
-			@CurrentUser User user,
+			@CurrentUser(membershipRequired = false) User user,
 			@RequestParam(required = false) String cursor,
 			@RequestParam(defaultValue = "20") int size,
 			@RequestParam(required = false) Boolean isRead) {
@@ -65,7 +65,7 @@ public class NotificationController {
 	 */
 	@PutMapping("/{notificationId}/read")
 	public ResponseEnvelope<NotificationReadResponse> markRead(
-			@CurrentUser User user,
+			@CurrentUser(membershipRequired = false) User user,
 			@PathVariable UUID notificationId) {
 		UUID id = service.markRead(user, notificationId);
 		return ResponseEnvelope.success(new NotificationReadResponse(id, true));
@@ -79,7 +79,7 @@ public class NotificationController {
 	 */
 	@PutMapping("/me/read-all")
 	public ResponseEnvelope<NotificationReadAllResponse> markAllRead(
-			@CurrentUser User user) {
+			@CurrentUser(membershipRequired = false) User user) {
 		return ResponseEnvelope.success(new NotificationReadAllResponse(
 				service.markAllRead(user)));
 	}

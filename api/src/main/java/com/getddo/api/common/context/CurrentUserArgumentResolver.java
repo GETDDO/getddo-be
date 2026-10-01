@@ -50,23 +50,22 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 	@Override
 	public User resolveArgument(MethodParameter parameter, ModelAndViewContainer container,
 			NativeWebRequest request, WebDataBinderFactory binderFactory) {
-		// 한 요청에 @CurrentUser 파라미터가 여러 개여도 DB는 한 번만 조회한다.
-		// 요청 속성만 사용하므로 다음 요청은 새로 조회하고, 동시 요청 사이에 사용자가 섞이지 않는다.
-		User cached = (User) request.getAttribute(CURRENT_USER_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
-		if (cached != null) {
-			return cached;
-		}
-
-		// 잘못된 형식은 DB 조회 전에 거절한다. ADMIN의 멤버십은 생략 가능하지만 보내면 형식을 검사한다.
+		boolean membershipRequired = parameter.getParameterAnnotation(CurrentUser.class).membershipRequired();
+		// 잘못된 형식은 DB 조회 전에 거절한다. 선택 멤버십도 전달하면 형식을 검사한다.
 		UUID id = parseId(header(request, "X-User-ID", true));
 		UserRole role = parseRole(header(request, "X-User-Role", true));
-		Membership membership = parseMembership(header(request, "X-User-Membership", role == UserRole.USER));
-		User user = userService.findById(id);
+		Membership membership = parseMembership(header(request, "X-User-Membership",
+				membershipRequired && role == UserRole.USER));
+		// DB 조회는 요청당 한 번 재사용하되 파라미터별 멤버십 조건은 매번 확인한다.
+		User user = (User) request.getAttribute(CURRENT_USER_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+		if (user == null) {
+			user = userService.findById(id);
+		}
 		// 헤더 역할로 권한을 부여하지 않고 저장된 역할과 일치하는지 확인한다.
 		if (user.role() != role) {
 			throw new BusinessException(CommonErrorCode.USER_ROLE_MISMATCH);
 		}
-		if (user.role() == UserRole.USER) {
+		if (membershipRequired && user.role() == UserRole.USER) {
 			// DB 멤버십이 없는 USER를 헤더 값으로 보충하지 않는다.
 			if (user.membership() == null) {
 				throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_REQUIRED);
@@ -74,6 +73,8 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 			if (user.membership() != membership) {
 				throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_MISMATCH);
 			}
+		} else if (!membershipRequired && membership != null && user.membership() != membership) {
+			throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_MISMATCH);
 		}
 		// 모든 대조가 끝난 뒤 보관한다. ADMIN의 반환 멤버십도 헤더가 아닌 DB 값을 유지한다.
 		request.setAttribute(CURRENT_USER_ATTRIBUTE, user, RequestAttributes.SCOPE_REQUEST);
@@ -120,7 +121,7 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 		}
 	}
 
-	/** 소문자 헤더 값을 도메인 enum으로 변환한다. ADMIN의 헤더 생략은 null로 유지한다. */
+	/** 소문자 헤더 값을 도메인 enum으로 변환한다. 선택 헤더 생략은 null로 유지한다. */
 	private Membership parseMembership(String value) {
 		if (value == null) {
 			return null;
