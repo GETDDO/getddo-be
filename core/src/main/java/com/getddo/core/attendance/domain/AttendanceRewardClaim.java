@@ -5,6 +5,10 @@ import java.time.YearMonth;
 import java.util.Objects;
 import java.util.UUID;
 
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
+
 /**
  * 출석 보상 청구. 응모권 지급의 근거가 되며, 청구 ID로 응모권을 지급한다.
  *
@@ -12,31 +16,27 @@ import java.util.UUID;
  * 일일 보상은 출석 날짜({@code 2026-09-30}), 단계 보상은 KST 기준월과 단계 일수({@code 2026-09:7})다.
  * 그래서 단계 보상은 연속이 끊겼다가 같은 달에 같은 일수에 다시 도달해도 한 번만 청구된다.</p>
  */
+@Getter
+@EqualsAndHashCode
+@ToString
 public final class AttendanceRewardClaim {
 
+	/** 저장 전에는 null. */
 	private final UUID id;
 	private final UUID userId;
 	private final UUID attendanceId;
 	private final AttendanceRewardType rewardType;
+	/** 일일 보상 정책 ID. 단계 보상이면 null. */
 	private final UUID rewardPolicyId;
+	/** 단계 정책 ID. 일일 보상이면 null. */
 	private final UUID streakPolicyId;
+	/** 보상 기준 KST 날짜. */
 	private final LocalDate rewardDate;
+	/** 단계 일수. 일일 보상이면 null. */
 	private final Integer milestoneDays;
 	private final String sourceKey;
 	private final int ticketCount;
 
-	/**
-	 * @param id             청구 ID. 저장 전에는 null
-	 * @param userId         사용자 ID
-	 * @param attendanceId   근거 출석 ID
-	 * @param rewardType     보상 종류
-	 * @param rewardPolicyId 일일 보상 정책 ID. 단계 보상이면 null
-	 * @param streakPolicyId 단계 정책 ID. 일일 보상이면 null
-	 * @param rewardDate     보상 기준 KST 날짜
-	 * @param milestoneDays  단계 일수. 일일 보상이면 null
-	 * @param sourceKey      중복 방지 키
-	 * @param ticketCount    지급 수량
-	 */
 	public AttendanceRewardClaim(UUID id, UUID userId, UUID attendanceId, AttendanceRewardType rewardType,
 			UUID rewardPolicyId, UUID streakPolicyId, LocalDate rewardDate, Integer milestoneDays, String sourceKey,
 			int ticketCount) {
@@ -79,72 +79,5 @@ public final class AttendanceRewardClaim {
 
 	private static UUID requireId(Attendance attendance) {
 		return Objects.requireNonNull(attendance.getId(), "attendance.id");
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getUserId() {
-		return userId;
-	}
-
-	public UUID getAttendanceId() {
-		return attendanceId;
-	}
-
-	public AttendanceRewardType getRewardType() {
-		return rewardType;
-	}
-
-	public UUID getRewardPolicyId() {
-		return rewardPolicyId;
-	}
-
-	public UUID getStreakPolicyId() {
-		return streakPolicyId;
-	}
-
-	public LocalDate getRewardDate() {
-		return rewardDate;
-	}
-
-	public Integer getMilestoneDays() {
-		return milestoneDays;
-	}
-
-	public String getSourceKey() {
-		return sourceKey;
-	}
-
-	public int getTicketCount() {
-		return ticketCount;
-	}
-
-	@Override
-	public boolean equals(Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof AttendanceRewardClaim that)) {
-			return false;
-		}
-		return ticketCount == that.ticketCount && Objects.equals(id, that.id) && userId.equals(that.userId)
-				&& attendanceId.equals(that.attendanceId) && rewardType == that.rewardType
-				&& Objects.equals(rewardPolicyId, that.rewardPolicyId)
-				&& Objects.equals(streakPolicyId, that.streakPolicyId) && rewardDate.equals(that.rewardDate)
-				&& Objects.equals(milestoneDays, that.milestoneDays) && sourceKey.equals(that.sourceKey);
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(id, userId, attendanceId, rewardType, rewardPolicyId, streakPolicyId, rewardDate,
-				milestoneDays, sourceKey, ticketCount);
-	}
-
-	@Override
-	public String toString() {
-		return "AttendanceRewardClaim[id=" + id + ", rewardType=" + rewardType + ", sourceKey=" + sourceKey
-				+ ", ticketCount=" + ticketCount + "]";
 	}
 }

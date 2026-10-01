@@ -1,5 +1,8 @@
 package com.getddo.db.attendance.mapper;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+
 import com.getddo.core.attendance.domain.Attendance;
 import com.getddo.core.attendance.domain.AttendanceRewardClaim;
 import com.getddo.core.attendance.domain.AttendanceStreak;
@@ -7,47 +10,23 @@ import com.getddo.db.attendance.entity.AttendanceEntity;
 import com.getddo.db.attendance.entity.AttendanceRewardClaimEntity;
 import com.getddo.db.attendance.entity.AttendanceStreakEntity;
 
-/** 출석 Entity와 도메인 객체 변환. */
-public final class AttendanceMapper {
+/** 출석 Entity와 도메인 객체 변환. ID와 생성 시각은 영속화 때 채워지므로 Entity로는 옮기지 않는다. */
+@Mapper(componentModel = "spring")
+public interface AttendanceMapper {
 
-	private AttendanceMapper() {
-	}
+	AttendanceEntity toEntity(Attendance attendance);
 
-	public static AttendanceEntity toEntity(Attendance attendance) {
-		return new AttendanceEntity(attendance.getUserId(), attendance.getAttendanceDate());
-	}
+	Attendance toDomain(AttendanceEntity entity);
 
-	public static Attendance toDomain(AttendanceEntity entity) {
-		return new Attendance(entity.getId(), entity.getUserId(), entity.getAttendanceDate(), entity.getCreatedAt());
-	}
+	AttendanceStreakEntity toEntity(AttendanceStreak streak);
 
-	public static AttendanceStreakEntity toEntity(AttendanceStreak streak) {
-		return new AttendanceStreakEntity(streak.getUserId(), streak.getPolicySetId(), streak.getStreakMonth(),
-				streak.getConsecutiveDays(), streak.getLastAttendanceDate());
-	}
+	/** {@code attend(LocalDate)}는 새 현황을 돌려주는 업무 메서드라 속성이 아니다. */
+	@Mapping(target = "attend", ignore = true)
+	AttendanceStreak toDomain(AttendanceStreakEntity entity);
 
-	public static AttendanceStreak toDomain(AttendanceStreakEntity entity) {
-		return new AttendanceStreak(entity.getId(), entity.getUserId(), entity.getPolicySetId(),
-				entity.getStreakMonth(), entity.getConsecutiveDays(), entity.getLastAttendanceDate());
-	}
+	@Mapping(target = "attendanceStreakPolicyId", source = "streakPolicyId")
+	AttendanceRewardClaimEntity toEntity(AttendanceRewardClaim claim);
 
-	public static AttendanceRewardClaimEntity toEntity(AttendanceRewardClaim claim) {
-		return AttendanceRewardClaimEntity.builder()
-				.userId(claim.getUserId())
-				.attendanceId(claim.getAttendanceId())
-				.rewardType(claim.getRewardType())
-				.rewardPolicyId(claim.getRewardPolicyId())
-				.attendanceStreakPolicyId(claim.getStreakPolicyId())
-				.rewardDate(claim.getRewardDate())
-				.milestoneDays(claim.getMilestoneDays())
-				.sourceKey(claim.getSourceKey())
-				.ticketCount(claim.getTicketCount())
-				.build();
-	}
-
-	public static AttendanceRewardClaim toDomain(AttendanceRewardClaimEntity entity) {
-		return new AttendanceRewardClaim(entity.getId(), entity.getUserId(), entity.getAttendanceId(),
-				entity.getRewardType(), entity.getRewardPolicyId(), entity.getAttendanceStreakPolicyId(),
-				entity.getRewardDate(), entity.getMilestoneDays(), entity.getSourceKey(), entity.getTicketCount());
-	}
+	@Mapping(target = "streakPolicyId", source = "attendanceStreakPolicyId")
+	AttendanceRewardClaim toDomain(AttendanceRewardClaimEntity entity);
 }

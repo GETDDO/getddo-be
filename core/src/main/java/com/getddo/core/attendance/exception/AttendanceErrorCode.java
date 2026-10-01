@@ -1,8 +1,13 @@
 package com.getddo.core.attendance.exception;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 import com.getddo.core.common.exception.ErrorCode;
 
 /** 출석 도메인 오류. */
+@Getter
+@RequiredArgsConstructor
 public enum AttendanceErrorCode implements ErrorCode {
 	/**
 	 * 출석 시각에 적용할 일일 보상 정책이나 그 달의 연속 출석 정책 묶음이 없는 경우.
@@ -13,25 +18,4 @@ public enum AttendanceErrorCode implements ErrorCode {
 	private final int status;
 	private final String code;
 	private final String message;
-
-	AttendanceErrorCode(int status, String code, String message) {
-		this.status = status;
-		this.code = code;
-		this.message = message;
-	}
-
-	@Override
-	public int getStatus() {
-		return status;
-	}
-
-	@Override
-	public String getCode() {
-		return code;
-	}
-
-	@Override
-	public String getMessage() {
-		return message;
-	}
 }

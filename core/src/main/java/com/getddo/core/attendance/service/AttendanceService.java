@@ -3,6 +3,7 @@ package com.getddo.core.attendance.service;
 import java.util.Objects;
 import java.util.UUID;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -22,13 +23,10 @@ import com.getddo.core.attendance.domain.AttendanceReceipt;
  * 먼저 확정된 출석을 돌려준다. 호출자 트랜잭션에 합류하면 롤백 표시가 남아 이 재처리를 할 수 없기 때문이다.</p>
  */
 @Service
+@RequiredArgsConstructor
 public class AttendanceService {
 
 	private final AttendanceRecorder recorder;
-
-	public AttendanceService(AttendanceRecorder recorder) {
-		this.recorder = recorder;
-	}
 
 	/**
 	 * 요청 사용자를 오늘(KST) 출석 처리한다.

@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.attendance.domain.Attendance;
@@ -12,22 +13,17 @@ import com.getddo.core.attendance.repository.AttendanceRepository;
 import com.getddo.db.attendance.entity.AttendanceEntity;
 import com.getddo.db.attendance.mapper.AttendanceMapper;
 
-/** 출석 기록 저장소 구현. */
 @Repository
+@RequiredArgsConstructor
 public class AttendanceRepositoryImpl implements AttendanceRepository {
 
 	private final EntityManager entityManager;
 	private final AttendanceJpaRepository attendanceJpaRepository;
-
-	public AttendanceRepositoryImpl(EntityManager entityManager, AttendanceJpaRepository attendanceJpaRepository) {
-		this.entityManager = entityManager;
-		this.attendanceJpaRepository = attendanceJpaRepository;
-	}
+	private final AttendanceMapper mapper;
 
 	@Override
 	public Optional<Attendance> findByUserIdAndDate(UUID userId, LocalDate attendanceDate) {
-		return attendanceJpaRepository.findByUserIdAndAttendanceDate(userId, attendanceDate)
-				.map(AttendanceMapper::toDomain);
+		return attendanceJpaRepository.findByUserIdAndAttendanceDate(userId, attendanceDate).map(mapper::toDomain);
 	}
 
 	/**
@@ -38,8 +34,8 @@ public class AttendanceRepositoryImpl implements AttendanceRepository {
 	 */
 	@Override
 	public Attendance insert(Attendance attendance) {
-		AttendanceEntity saved = attendanceJpaRepository.saveAndFlush(AttendanceMapper.toEntity(attendance));
+		AttendanceEntity saved = attendanceJpaRepository.saveAndFlush(mapper.toEntity(attendance));
 		entityManager.refresh(saved);
-		return AttendanceMapper.toDomain(saved);
+		return mapper.toDomain(saved);
 	}
 }

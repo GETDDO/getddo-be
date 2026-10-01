@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
+import lombok.RequiredArgsConstructor;
 import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Repository;
 
@@ -24,6 +25,7 @@ import com.getddo.db.common.util.UuidBinary;
  * 연속 출석 정책 묶음도 이번 범위에서는 조회만 하므로 네이티브 SQL로 읽는다. 값은 모두 파라미터로 바인딩한다.</p>
  */
 @Repository
+@RequiredArgsConstructor
 public class AttendancePolicyRepositoryImpl implements AttendancePolicyRepository {
 
 	private static final String DAILY_POLICY_SQL = """
@@ -47,10 +49,6 @@ public class AttendancePolicyRepositoryImpl implements AttendancePolicyRepositor
 			""";
 
 	private final EntityManager entityManager;
-
-	public AttendancePolicyRepositoryImpl(EntityManager entityManager) {
-		this.entityManager = entityManager;
-	}
 
 	@Override
 	public Optional<DailyRewardPolicy> findDailyPolicy(Instant at) {

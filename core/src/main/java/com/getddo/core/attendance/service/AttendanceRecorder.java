@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +42,7 @@ import com.getddo.core.ticket.service.TicketGrantService;
  * 취소된다.</p>
  */
 @Service
+@RequiredArgsConstructor
 public class AttendanceRecorder {
 
 	private static final String DAILY_REASON = "출석 보상";
@@ -51,21 +53,6 @@ public class AttendanceRecorder {
 	private final AttendancePolicyRepository policyRepository;
 	private final TicketGrantService grantService;
 	private final TimeProvider timeProvider;
-
-	public AttendanceRecorder(
-			AttendanceRepository attendanceRepository,
-			AttendanceStreakRepository streakRepository,
-			AttendanceRewardClaimRepository claimRepository,
-			AttendancePolicyRepository policyRepository,
-			TicketGrantService grantService,
-			TimeProvider timeProvider) {
-		this.attendanceRepository = attendanceRepository;
-		this.streakRepository = streakRepository;
-		this.claimRepository = claimRepository;
-		this.policyRepository = policyRepository;
-		this.grantService = grantService;
-		this.timeProvider = timeProvider;
-	}
 
 	/**
 	 * 요청 사용자를 오늘(KST) 출석 처리한다.
