@@ -2,25 +2,29 @@ package com.getddo.core.event.service;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+
+import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.domain.EventTimeRange;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.exception.EventErrorCode;
+import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.repository.EventActorRepository;
 import com.getddo.core.event.repository.EventRepository;
 
 /** 이벤트와 경품을 함께 검증하고 등록한다. */
 @Service
+@RequiredArgsConstructor
 public class EventRegistrationService {
 	private static final int MAX_DESCRIPTION_BYTES = 65_535;
 
@@ -28,71 +32,68 @@ public class EventRegistrationService {
 	private final EventActorRepository actorRepository;
 	private final TimeProvider timeProvider;
 
-	public EventRegistrationService(EventRepository eventRepository, EventActorRepository actorRepository,
-			TimeProvider timeProvider) {
-		this.eventRepository = eventRepository;
-		this.actorRepository = actorRepository;
-		this.timeProvider = timeProvider;
-	}
-
 	@Transactional
 	public RegisteredEvent register(EventRegistration registration) {
-		if (registration == null || registration.createdBy() == null) {
-			throw new BusinessException(EventErrorCode.USER_CONTEXT_REQUIRED);
+		if (registration == null || registration.getCreatedBy() == null) {
+			throw new EventException(EventErrorCode.USER_CONTEXT_REQUIRED);
 		}
-		EventActorRepository.Actor actor = actorRepository.findById(registration.createdBy())
-				.orElseThrow(() -> new BusinessException(EventErrorCode.USER_CONTEXT_REQUIRED));
-		if (!actor.active() || !actor.admin()) {
-			throw new BusinessException(EventErrorCode.ADMIN_REQUIRED);
+		EventActorRepository.Actor actor = actorRepository.findById(registration.getCreatedBy())
+				.orElseThrow(() -> new EventException(EventErrorCode.USER_CONTEXT_REQUIRED));
+		if (!actor.isActive() || !actor.isAdmin()) {
+			throw new EventException(EventErrorCode.ADMIN_REQUIRED);
 		}
+		registration = normalizePeriod(registration);
 		validate(registration);
 		Instant now = timeProvider.now();
-		EventStatus initialStatus = now.isBefore(registration.startsAt()) ? EventStatus.SCHEDULED
-				: now.isBefore(registration.endsAt()) ? EventStatus.OPEN : EventStatus.CLOSED;
-		return eventRepository.create(copyPrizes(registration), initialStatus);
-	}
-
-	private EventRegistration copyPrizes(EventRegistration registration) {
-		return new EventRegistration(registration.createdBy(), registration.title(), registration.description(),
-				registration.imageKey(), registration.eventType(), registration.weightingEnabled(),
-				registration.maxTicketsPerUser(), registration.membershipRule(), registration.startsAt(),
-				registration.endsAt(), List.copyOf(registration.prizes()));
+		EventStatus initialStatus = now.isBefore(registration.getStartsAt()) ? EventStatus.SCHEDULED
+				: now.isBefore(registration.getEndsAt()) ? EventStatus.OPEN : EventStatus.CLOSED;
+		return eventRepository.create(registration, initialStatus);
 	}
 
 	private void validate(EventRegistration registration) {
-		if (blankOrTooLong(registration.title(), 200) || registration.description() == null
-				|| registration.description().isBlank() || descriptionTooLong(registration.description())
-				|| tooLong(registration.imageKey(), 500)) {
-			throw new BusinessException(EventErrorCode.INVALID_DETAILS);
+		if (blankOrTooLong(registration.getTitle(), 200) || registration.getDescription() == null
+				|| registration.getDescription().isBlank() || descriptionTooLong(registration.getDescription())
+				|| tooLong(registration.getImageKey(), 500)) {
+			throw new EventException(EventErrorCode.INVALID_DETAILS);
 		}
-		if (registration.startsAt() == null || registration.endsAt() == null
-				|| !registration.endsAt().isAfter(registration.startsAt())) {
-			throw new BusinessException(EventErrorCode.INVALID_PERIOD);
+		if (!EventTimeRange.contains(registration.getStartsAt()) || !EventTimeRange.contains(registration.getEndsAt())
+				|| !registration.getEndsAt().isAfter(registration.getStartsAt())) {
+			throw new EventException(EventErrorCode.INVALID_PERIOD);
 		}
-		if (registration.eventType() == null || registration.membershipRule() == null
+		if (registration.getEventType() == null || registration.getMembershipRule() == null
 				|| !validTicketConfiguration(registration)) {
-			throw new BusinessException(EventErrorCode.INVALID_CONFIGURATION);
+			throw new EventException(EventErrorCode.INVALID_CONFIGURATION);
 		}
-		if (registration.prizes() == null || registration.prizes().isEmpty()) {
-			throw new BusinessException(EventErrorCode.INVALID_PRIZES);
+		if (registration.getPrizes() == null || registration.getPrizes().isEmpty()) {
+			throw new EventException(EventErrorCode.INVALID_PRIZES);
 		}
 		Set<Integer> ranks = new HashSet<>();
-		for (EventRegistration.Prize prize : registration.prizes()) {
-			if (prize == null || prize.rank() < 1 || prize.winnerCount() < 1
-					|| blankOrTooLong(prize.name(), 200) || tooLong(prize.imageKey(), 500)
-					|| descriptionTooLong(prize.description())
-					|| !ranks.add(prize.rank())) {
-				throw new BusinessException(EventErrorCode.INVALID_PRIZES);
+		for (EventRegistration.Prize prize : registration.getPrizes()) {
+			if (prize == null || prize.getRank() < 1 || prize.getWinnerCount() < 1
+					|| blankOrTooLong(prize.getName(), 200) || tooLong(prize.getImageKey(), 500)
+					|| descriptionTooLong(prize.getDescription())
+					|| !ranks.add(prize.getRank())) {
+				throw new EventException(EventErrorCode.INVALID_PRIZES);
 			}
 		}
 	}
 
+	/** 저장·기간 검증·초기 상태 판정에 동일한 마이크로초 정밀도의 시각을 사용한다. */
+	private EventRegistration normalizePeriod(EventRegistration registration) {
+		return new EventRegistration(registration.getCreatedBy(), registration.getTitle(), registration.getDescription(),
+				registration.getImageKey(), registration.getEventType(), registration.isWeightingEnabled(),
+				registration.getMaxTicketsPerUser(), registration.getMembershipRule(),
+				registration.getStartsAt() == null ? null : registration.getStartsAt().truncatedTo(ChronoUnit.MICROS),
+				registration.getEndsAt() == null ? null : registration.getEndsAt().truncatedTo(ChronoUnit.MICROS),
+				registration.getPrizes());
+	}
+
 	private boolean validTicketConfiguration(EventRegistration registration) {
-		Integer limit = registration.maxTicketsPerUser();
-		if (registration.eventType() == EventType.NO_TICKET) {
-			return !registration.weightingEnabled() && limit == null;
+		Integer limit = registration.getMaxTicketsPerUser();
+		if (registration.getEventType() == EventType.NO_TICKET) {
+			return !registration.isWeightingEnabled() && limit == null;
 		}
-		if (!registration.weightingEnabled()) {
+		if (!registration.isWeightingEnabled()) {
 			return Integer.valueOf(1).equals(limit);
 		}
 		return limit == null || Integer.valueOf(5).equals(limit);
