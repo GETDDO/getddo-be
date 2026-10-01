@@ -96,11 +96,4 @@ public final class DrawSelection {
 	public int hashCode() {
 		return Objects.hash(prizeId, rank, slotNumber, selectionOrder, candidateId, userId, resultType);
 	}
-
-	@Override
-	public String toString() {
-		return "DrawSelection[prizeId=" + prizeId + ", rank=" + rank + ", slotNumber=" + slotNumber
-				+ ", selectionOrder=" + selectionOrder + ", candidateId=" + candidateId + ", userId=" + userId
-				+ ", resultType=" + resultType + "]";
-	}
 }

@@ -48,9 +48,4 @@ public final class DrawCandidate {
 	public int hashCode() {
 		return Objects.hash(candidateId, userId, weight);
 	}
-
-	@Override
-	public String toString() {
-		return "DrawCandidate[candidateId=" + candidateId + ", userId=" + userId + ", weight=" + weight + "]";
-	}
 }
