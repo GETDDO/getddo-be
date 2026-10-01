@@ -38,8 +38,10 @@ import static org.mockito.Mockito.when;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class BaseEntityJpaTest {
 
-	private static final Instant CREATED = Instant.parse("2026-09-30T14:59:59Z");
-	private static final Instant UPDATED = Instant.parse("2026-09-30T15:00:01Z");
+	private static final Instant CREATED = Instant.parse("2026-09-30T14:59:59.999999600Z");
+	private static final Instant UPDATED = Instant.parse("2026-09-30T15:00:01.123456789Z");
+	private static final Instant EXPECTED_CREATED = Instant.parse("2026-09-30T14:59:59.999999Z");
+	private static final Instant EXPECTED_UPDATED = Instant.parse("2026-09-30T15:00:01.123456Z");
 
 	@Autowired
 	private EntityManager entityManager;
@@ -70,6 +72,7 @@ class BaseEntityJpaTest {
 		assertThat(id.version()).isEqualTo(7);
 		assertThat(second.getId().version()).isEqualTo(7);
 		assertThat(second.getId()).isNotEqualTo(id);
+		assertThat(first.getCreatedAt()).isEqualTo(EXPECTED_CREATED);
 
 		List<byte[]> ids = jdbc.query(
 				"select id from auditing_created_record",
@@ -95,7 +98,7 @@ class BaseEntityJpaTest {
 		entityManager.clear();
 		CreatedRecord loaded = entityManager.find(CreatedRecord.class, id);
 		assertThat(loaded.getId()).isEqualTo(id);
-		assertThat(loaded.getCreatedAt()).isEqualTo(CREATED);
+		assertThat(loaded.getCreatedAt()).isEqualTo(first.getCreatedAt());
 	}
 
 	@Test
@@ -105,22 +108,26 @@ class BaseEntityJpaTest {
 		MutableRecord record = new MutableRecord("before");
 		entityManager.persist(record);
 		entityManager.flush();
+		assertThat(record.getCreatedAt()).isEqualTo(EXPECTED_CREATED);
+		assertThat(record.getUpdatedAt()).isEqualTo(EXPECTED_CREATED);
 		UUID id = record.getId();
 		entityManager.clear();
 		MutableRecord loaded = entityManager.find(MutableRecord.class, id);
-		assertThat(loaded.getCreatedAt()).isEqualTo(CREATED);
-		assertThat(loaded.getUpdatedAt()).isEqualTo(CREATED);
+		assertThat(loaded.getCreatedAt()).isEqualTo(record.getCreatedAt());
+		assertThat(loaded.getUpdatedAt()).isEqualTo(record.getUpdatedAt());
 
 		// when
 		when(clock.instant()).thenReturn(UPDATED);
 		loaded.changePayload("after");
 		entityManager.flush();
+		assertThat(loaded.getCreatedAt()).isEqualTo(EXPECTED_CREATED);
+		assertThat(loaded.getUpdatedAt()).isEqualTo(EXPECTED_UPDATED);
 		entityManager.clear();
 		// then
 		MutableRecord updated = entityManager.find(MutableRecord.class, id);
 		assertThat(updated.getId()).isEqualTo(id);
-		assertThat(updated.getCreatedAt()).isEqualTo(CREATED);
-		assertThat(updated.getUpdatedAt()).isEqualTo(UPDATED);
+		assertThat(updated.getCreatedAt()).isEqualTo(loaded.getCreatedAt());
+		assertThat(updated.getUpdatedAt()).isEqualTo(loaded.getUpdatedAt());
 		assertThat(updated.payload).isEqualTo("after");
 	}
 
@@ -140,7 +147,7 @@ class BaseEntityJpaTest {
 		entityManager.clear();
 		// then
 		assertThat(entityManager.find(MutableRecord.class, id).getUpdatedAt())
-				.isEqualTo(CREATED);
+				.isEqualTo(EXPECTED_CREATED);
 	}
 
 	@Test
@@ -155,7 +162,7 @@ class BaseEntityJpaTest {
 		entityManager.clear();
 		// then
 		assertThat(entityManager.find(CreatedRecord.class, id).getCreatedAt())
-				.isEqualTo(CREATED);
+				.isEqualTo(EXPECTED_CREATED);
 		assertThat(jdbc.queryForList("""
 				select column_name from information_schema.columns
 				where table_schema = database()
