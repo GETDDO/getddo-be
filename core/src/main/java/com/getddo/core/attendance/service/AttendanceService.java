@@ -1,5 +1,7 @@
 package com.getddo.core.attendance.service;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -11,6 +13,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.attendance.domain.AttendanceReceipt;
+import com.getddo.core.common.time.TimeProvider;
 
 /**
  * 출석(AT02) 진입점.
@@ -21,12 +24,16 @@ import com.getddo.core.attendance.domain.AttendanceReceipt;
  * <p>출석은 독립된 업무 단위다. 호출자 트랜잭션이 있어도 잠시 멈추고({@code NOT_SUPPORTED}) 출석 처리 트랜잭션을 따로 열어
  * 커밋한다. 같은 날 동시 요청이 겹쳐 출석 UNIQUE 위반이 나거나 잠금 교착으로 롤백되면, 새 트랜잭션에서 한 번 더 처리해
  * 먼저 확정된 출석을 돌려준다. 호출자 트랜잭션에 합류하면 롤백 표시가 남아 이 재처리를 할 수 없기 때문이다.</p>
+ *
+ * <p>요청 시각은 처음 한 번만 읽어 재처리에도 그대로 쓴다. 잠금을 기다리는 사이 KST 자정이 지나도 다음 날 출석으로
+ * 바뀌지 않는다.</p>
  */
 @Service
 @RequiredArgsConstructor
 public class AttendanceService {
 
 	private final AttendanceRecorder recorder;
+	private final TimeProvider timeProvider;
 
 	/**
 	 * 요청 사용자를 오늘(KST) 출석 처리한다.
@@ -41,13 +48,15 @@ public class AttendanceService {
 	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public AttendanceReceipt attend(UUID userId) {
 		Objects.requireNonNull(userId, "userId");
+		// DATETIME(6)이 저장하는 정밀도로 잘라 정책 적용 시각 판정이 저장 값과 어긋나지 않게 한다.
+		Instant requestedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
 		try {
-			return recorder.record(userId);
+			return recorder.record(userId, requestedAt);
 		} catch (DataIntegrityViolationException | PessimisticLockingFailureException concurrentAttendance) {
 			// 같은 날 먼저 확정된 출석이 있거나, 월 첫 출석이 자정 전후로 겹쳐 잠금 교착이 났다.
 			// 롤백된 트랜잭션은 버리고 새 트랜잭션에서 한 번만 다시 처리한다.
 			// 다른 원인의 실패라면 재처리에서도 같은 예외가 나고 그대로 전파된다.
-			return recorder.record(userId);
+			return recorder.record(userId, requestedAt);
 		}
 	}
 }

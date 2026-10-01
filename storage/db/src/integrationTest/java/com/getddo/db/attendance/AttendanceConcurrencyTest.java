@@ -51,7 +51,7 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		try {
 			Future<AttendanceReceipt> first = executor.submit(() -> transaction.execute(status -> {
-				AttendanceReceipt receipt = attendanceRecorder.record(userId);
+				AttendanceReceipt receipt = attendanceRecorder.record(userId, clock.instant());
 				firstRecorded.countDown();
 				await(releaseFirst);
 				return receipt;
@@ -86,7 +86,7 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		try {
 			Future<AttendanceReceipt> first = executor.submit(() -> transaction.execute(status -> {
-				AttendanceReceipt receipt = attendanceRecorder.record(userId);
+				AttendanceReceipt receipt = attendanceRecorder.record(userId, clock.instant());
 				firstRecorded.countDown();
 				await(releaseFirst);
 				return receipt;
@@ -104,6 +104,42 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 			// then
 			assertThat(retried.isCreated()).isFalse();
 			assertThat(retried.getAttendanceId()).isEqualTo(winner.getAttendanceId());
+			assertSingleAttendanceAndGrant();
+		} finally {
+			releaseFirst.countDown();
+			executor.shutdownNow();
+		}
+	}
+
+	@Test
+	@DisplayName("뒤 요청이 잠금을 기다리는 사이 KST 자정이 지나도 재처리는 첫 요청의 날짜로 앞 요청의 출석을 돌려준다")
+	void retryAcrossMidnightKeepsRequestDate() throws Exception {
+		// given: 9/15 23:59:59 KST에 앞 트랜잭션이 출석·지급을 마치고 커밋 직전에 멈춘다
+		clock.set(Instant.parse("2026-09-15T14:59:59Z"));
+		CountDownLatch firstRecorded = new CountDownLatch(1);
+		CountDownLatch releaseFirst = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		try {
+			Future<AttendanceReceipt> first = executor.submit(() -> transaction.execute(status -> {
+				AttendanceReceipt receipt = attendanceRecorder.record(userId, clock.instant());
+				firstRecorded.countDown();
+				await(releaseFirst);
+				return receipt;
+			}));
+			assertThat(firstRecorded.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+			// when: 뒤 요청이 같은 날 잠금을 기다리는 동안 9/16 00:00:01 KST가 된다
+			Future<AttendanceReceipt> second = executor.submit(() -> attendanceService.attend(userId));
+			new LockWaitProbe(mysql).awaitLockWaits(1);
+			clock.set(Instant.parse("2026-09-15T15:00:01Z"));
+			releaseFirst.countDown();
+			AttendanceReceipt winner = first.get(WAIT_SECONDS, TimeUnit.SECONDS);
+			AttendanceReceipt retried = second.get(WAIT_SECONDS, TimeUnit.SECONDS);
+
+			// then
+			assertThat(retried.isCreated()).isFalse();
+			assertThat(retried.getAttendanceId()).isEqualTo(winner.getAttendanceId());
+			assertThat(retried.getAttendanceDate()).isEqualTo(LocalDate.parse("2026-09-15"));
 			assertSingleAttendanceAndGrant();
 		} finally {
 			releaseFirst.countDown();

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +50,7 @@ import static org.mockito.Mockito.when;
 class AttendanceRecorderTest {
 
 	/** 2026-09-07 12:00 KST. */
-	private static final Instant NOW = Instant.parse("2026-09-07T03:00:00.123456789Z");
+	private static final Instant NOW = Instant.parse("2026-09-07T03:00:00.123456Z");
 	private static final LocalDate TODAY = LocalDate.parse("2026-09-07");
 	private static final LocalDate SEPTEMBER = LocalDate.parse("2026-09-01");
 	private static final UUID USER_ID = UUID.randomUUID();
@@ -69,9 +70,13 @@ class AttendanceRecorderTest {
 	@Mock
 	private TicketGrantService grantService;
 
-	private AttendanceRecorder recorder(Instant now) {
-		return new AttendanceRecorder(attendanceRepository, streakRepository, claimRepository, policyRepository,
-				grantService, new TimeProvider(Clock.fixed(now, ZoneOffset.UTC)));
+	private AttendanceRecorder recorder;
+
+	@BeforeEach
+	void setUp() {
+		// 출석일은 넘겨받은 요청 시각으로만 정한다. 시계를 다른 날로 두어 시계를 읽지 않는지 함께 확인한다.
+		recorder = new AttendanceRecorder(attendanceRepository, streakRepository, claimRepository, policyRepository,
+				grantService, new TimeProvider(Clock.fixed(Instant.EPOCH, ZoneOffset.UTC)));
 	}
 
 	private static Attendance saved(LocalDate date) {
@@ -124,7 +129,7 @@ class AttendanceRecorderTest {
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
-		AttendanceReceipt receipt = recorder(NOW).record(USER_ID);
+		AttendanceReceipt receipt = recorder.record(USER_ID, NOW);
 		// then
 		assertThat(receipt.isCreated()).isTrue();
 		assertThat(receipt.getAttendanceDate()).isEqualTo(TODAY);
@@ -140,8 +145,8 @@ class AttendanceRecorderTest {
 	}
 
 	@Test
-	@DisplayName("일일 정책은 마이크로초로 자른 출석 시각으로 조회한다")
-	void looksUpDailyPolicyAtTruncatedNow() {
+	@DisplayName("일일 정책은 넘겨받은 요청 시각으로 조회한다")
+	void looksUpDailyPolicyAtRequestedTime() {
 		// given
 		when(attendanceRepository.findByUserIdAndDate(USER_ID, TODAY)).thenReturn(Optional.empty());
 		insertReturnsSavedAttendance(TODAY);
@@ -153,9 +158,9 @@ class AttendanceRecorderTest {
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
-		recorder(NOW).record(USER_ID);
+		recorder.record(USER_ID, NOW);
 		// then
-		verify(policyRepository).findDailyPolicy(Instant.parse("2026-09-07T03:00:00.123456Z"));
+		verify(policyRepository).findDailyPolicy(NOW);
 	}
 
 	@Test
@@ -174,7 +179,7 @@ class AttendanceRecorderTest {
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
-		AttendanceReceipt receipt = recorder(NOW).record(USER_ID);
+		AttendanceReceipt receipt = recorder.record(USER_ID, NOW);
 		// then
 		assertThat(receipt.getConsecutiveDays()).isEqualTo(7);
 		assertThat(receipt.getRewards()).extracting(AttendanceRewardReceipt::getRewardType)
@@ -207,7 +212,7 @@ class AttendanceRecorderTest {
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
-		AttendanceReceipt receipt = recorder(NOW).record(USER_ID);
+		AttendanceReceipt receipt = recorder.record(USER_ID, NOW);
 		// then
 		assertThat(receipt.getRewards()).extracting(AttendanceRewardReceipt::getRewardType)
 				.containsExactly(AttendanceRewardType.DAILY);
@@ -230,7 +235,7 @@ class AttendanceRecorderTest {
 		when(streakRepository.find(USER_ID, SEPTEMBER)).thenReturn(Optional.of(
 				new AttendanceStreak(UUID.randomUUID(), USER_ID, SET.getId(), SEPTEMBER, 3, TODAY)));
 		// when
-		AttendanceReceipt receipt = recorder(NOW).record(USER_ID);
+		AttendanceReceipt receipt = recorder.record(USER_ID, NOW);
 		// then
 		assertThat(receipt.isCreated()).isFalse();
 		assertThat(receipt.getAttendanceId()).isEqualTo(existing.getId());
@@ -257,7 +262,7 @@ class AttendanceRecorderTest {
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
-		AttendanceReceipt receipt = recorder(utcSeptemberKstOctober).record(USER_ID);
+		AttendanceReceipt receipt = recorder.record(USER_ID, utcSeptemberKstOctober);
 		// then
 		assertThat(receipt.getAttendanceDate()).isEqualTo(october);
 		assertThat(receipt.getConsecutiveDays()).isEqualTo(1);
@@ -271,7 +276,7 @@ class AttendanceRecorderTest {
 		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.empty());
 		// when
 		// then
-		assertErrorCode(() -> recorder(NOW).record(USER_ID), AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
+		assertErrorCode(() -> recorder.record(USER_ID, NOW), AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
 		verify(attendanceRepository, never()).insert(any());
 		verify(grantService, never()).grant(any());
 	}
@@ -287,7 +292,7 @@ class AttendanceRecorderTest {
 		when(policyRepository.findStreakPolicySet(SEPTEMBER)).thenReturn(Optional.empty());
 		// when
 		// then
-		assertErrorCode(() -> recorder(NOW).record(USER_ID), AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
+		assertErrorCode(() -> recorder.record(USER_ID, NOW), AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
 		verify(grantService, never()).grant(any());
 	}
 }

@@ -2,7 +2,6 @@ package com.getddo.core.attendance.service;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -55,27 +54,26 @@ public class AttendanceRecorder {
 	private final TimeProvider timeProvider;
 
 	/**
-	 * 요청 사용자를 오늘(KST) 출석 처리한다.
+	 * 요청 시각의 KST 업무일로 사용자를 출석 처리한다.
 	 *
 	 * <p>같은 날 동시 요청이 겹치면 늦은 쪽은 출석 저장에서 UNIQUE 위반으로 실패하고 이 트랜잭션 전체가 롤백된다.
 	 * 재처리는 호출자({@link AttendanceService})가 새 트랜잭션에서 한다.</p>
 	 *
-	 * @param userId 요청 사용자 ID
+	 * @param userId      요청 사용자 ID
+	 * @param requestedAt 출석 요청 시각. 업무일과 일일 정책 판정 기준이며 재처리에서도 같은 값을 쓴다
 	 * @return 새 출석이면 {@code created=true}, 이미 출석한 날이면 저장된 결과({@code created=false})
 	 * @throws AttendanceException 적용할 일일 정책이나 그 달의 연속 출석 정책 묶음이 없는 경우
 	 */
 	@Transactional
-	public AttendanceReceipt record(UUID userId) {
-		// DATETIME(6)이 저장하는 정밀도로 잘라 정책 적용 시각 판정이 저장 값과 어긋나지 않게 한다.
-		Instant now = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
-		LocalDate today = timeProvider.businessDate(now);
+	public AttendanceReceipt record(UUID userId, Instant requestedAt) {
+		LocalDate today = timeProvider.businessDate(requestedAt);
 
 		Optional<Attendance> existing = attendanceRepository.findByUserIdAndDate(userId, today);
 		if (existing.isPresent()) {
 			return existingReceipt(existing.get());
 		}
 
-		DailyRewardPolicy dailyPolicy = policyRepository.findDailyPolicy(now).orElseThrow(AttendanceRecorder::noPolicy);
+		DailyRewardPolicy dailyPolicy = policyRepository.findDailyPolicy(requestedAt).orElseThrow(AttendanceRecorder::noPolicy);
 		Attendance attendance = attendanceRepository.insert(Attendance.create(userId, today));
 		AttendanceStreak streak = streakRepository.save(advanceStreak(userId, today));
 
