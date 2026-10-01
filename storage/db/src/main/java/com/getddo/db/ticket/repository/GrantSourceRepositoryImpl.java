@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.ticket.domain.GrantSource;
@@ -20,6 +21,7 @@ import com.getddo.db.common.util.UuidBinary;
  * 외부 입력이 SQL 문장에 섞이지 않는다.</p>
  */
 @Repository
+@RequiredArgsConstructor
 public class GrantSourceRepositoryImpl implements GrantSourceRepository {
 
 	private static final String MISSION_CLAIM_SQL =
@@ -30,10 +32,6 @@ public class GrantSourceRepositoryImpl implements GrantSourceRepository {
 			"select user_id, ticket_count from game_reward_claims where id = :id";
 
 	private final EntityManager entityManager;
-
-	public GrantSourceRepositoryImpl(EntityManager entityManager) {
-		this.entityManager = entityManager;
-	}
 
 	/**
 	 * {@inheritDoc}

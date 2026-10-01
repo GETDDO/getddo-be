@@ -10,6 +10,7 @@ import java.util.UUID;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import jakarta.persistence.Tuple;
+import lombok.RequiredArgsConstructor;
 import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Repository;
 
@@ -32,6 +33,7 @@ import com.getddo.db.ticket.mapper.TicketWalletMapper;
  * 같게 한다.</p>
  */
 @Repository
+@RequiredArgsConstructor
 public class TicketQueryRepositoryImpl implements TicketQueryRepository {
 
 	private static final String LEDGER_SELECT = """
@@ -52,16 +54,12 @@ public class TicketQueryRepositoryImpl implements TicketQueryRepository {
 
 	private final EntityManager entityManager;
 	private final TicketWalletJpaRepository walletJpaRepository;
-
-	public TicketQueryRepositoryImpl(EntityManager entityManager, TicketWalletJpaRepository walletJpaRepository) {
-		this.entityManager = entityManager;
-		this.walletJpaRepository = walletJpaRepository;
-	}
+	private final TicketWalletMapper walletMapper;
 
 	@Override
 	public List<TicketWallet> findWallets(UUID userId) {
 		return walletJpaRepository.findByUserIdOrderByExpiryMonthDesc(userId).stream()
-				.map(TicketWalletMapper::toDomain)
+				.map(walletMapper::toDomain)
 				.toList();
 	}
 

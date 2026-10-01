@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.id.uuid.UuidVersion7Strategy;
 import org.springframework.stereotype.Repository;
@@ -24,6 +25,7 @@ import com.getddo.db.ticket.mapper.TicketWalletMapper;
  * 다시 조회할 수 없기 때문이다.</p>
  */
 @Repository
+@RequiredArgsConstructor
 public class TicketWalletRepositoryImpl implements TicketWalletRepository {
 
 	private static final String INSERT_IF_ABSENT = """
@@ -36,11 +38,7 @@ public class TicketWalletRepositoryImpl implements TicketWalletRepository {
 
 	private final EntityManager entityManager;
 	private final TicketWalletJpaRepository walletJpaRepository;
-
-	public TicketWalletRepositoryImpl(EntityManager entityManager, TicketWalletJpaRepository walletJpaRepository) {
-		this.entityManager = entityManager;
-		this.walletJpaRepository = walletJpaRepository;
-	}
+	private final TicketWalletMapper walletMapper;
 
 	@Override
 	public TicketWallet getOrCreateForUpdate(UUID userId, TicketWalletPeriod period, Instant createdAt) {
@@ -55,7 +53,7 @@ public class TicketWalletRepositoryImpl implements TicketWalletRepository {
 				.findByUserIdAndExpiryMonth(userId, period.getExpiryMonth())
 				.orElseThrow(() -> new IllegalStateException("확보한 응모권 지갑을 조회하지 못했다."));
 		LockedWallets.register(wallet.getId());
-		return TicketWalletMapper.toDomain(wallet);
+		return walletMapper.toDomain(wallet);
 	}
 
 	/**

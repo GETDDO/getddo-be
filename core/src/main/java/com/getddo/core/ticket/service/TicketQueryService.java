@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ import com.getddo.core.ticket.repository.TicketQueryRepository;
  * <p>조회 대상 사용자는 호출자가 확인한 요청 사용자여야 한다. 이 서비스는 사용자 ID를 그대로 믿고 조회한다.</p>
  */
 @Service
+@RequiredArgsConstructor
 public class TicketQueryService {
 
 	/** 이력 한 번 조회의 최대 개수. 공통 API 계약의 커서 조회 상한이다. */
@@ -33,11 +35,6 @@ public class TicketQueryService {
 
 	private final TicketQueryRepository queryRepository;
 	private final TimeProvider timeProvider;
-
-	public TicketQueryService(TicketQueryRepository queryRepository, TimeProvider timeProvider) {
-		this.queryRepository = queryRepository;
-		this.timeProvider = timeProvider;
-	}
 
 	/**
 	 * 사용자의 지갑 목록과 사용 가능 잔액을 조회한다.

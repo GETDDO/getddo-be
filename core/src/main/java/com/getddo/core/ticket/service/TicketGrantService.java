@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ import com.getddo.core.ticket.repository.TicketWalletRepository;
  * </ol>
  */
 @Service
+@RequiredArgsConstructor
 public class TicketGrantService {
 
 	private final GrantSourceRepository grantSourceRepository;
@@ -53,19 +55,6 @@ public class TicketGrantService {
 	private final TicketWalletRepository walletRepository;
 	private final TicketLedgerAllocationRepository allocationRepository;
 	private final TimeProvider timeProvider;
-
-	public TicketGrantService(
-			GrantSourceRepository grantSourceRepository,
-			TicketLedgerRepository ledgerRepository,
-			TicketWalletRepository walletRepository,
-			TicketLedgerAllocationRepository allocationRepository,
-			TimeProvider timeProvider) {
-		this.grantSourceRepository = grantSourceRepository;
-		this.ledgerRepository = ledgerRepository;
-		this.walletRepository = walletRepository;
-		this.allocationRepository = allocationRepository;
-		this.timeProvider = timeProvider;
-	}
 
 	/**
 	 * 청구 한 건에 대해 응모권을 지급한다.
