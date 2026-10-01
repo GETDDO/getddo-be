@@ -43,15 +43,15 @@ public final class DrawingSelectionService {
 		List<DrawPrize> orderedPrizes = new ArrayList<>(prizes);
 		validateCandidates(remaining, weightingEnabled);
 		validatePrizes(orderedPrizes);
-		orderedPrizes.sort(Comparator.comparingInt(DrawPrize::rank));
+		orderedPrizes.sort(Comparator.comparingInt(DrawPrize::getRank));
 
 		BigInteger totalWeight = remaining.stream()
-				.map(candidate -> BigInteger.valueOf(candidate.weight()))
+				.map(candidate -> BigInteger.valueOf(candidate.getWeight()))
 				.reduce(BigInteger.ZERO, BigInteger::add);
 		List<DrawSelection> results = new ArrayList<>();
 		int selectionOrder = 0;
 		for (DrawPrize prize : orderedPrizes) {
-			for (int slotIndex = 0; slotIndex < prize.winnerCount(); slotIndex++) {
+			for (int slotIndex = 0; slotIndex < prize.getWinnerCount(); slotIndex++) {
 				int slot = slotIndex + 1;
 				if (remaining.isEmpty()) {
 					results.add(DrawSelection.unfilled(prize, slot));
@@ -64,7 +64,7 @@ public final class DrawingSelectionService {
 				}
 				int selectedIndex = selectedIndex(remaining, roll);
 				DrawCandidate selected = remaining.remove(selectedIndex);
-				totalWeight = totalWeight.subtract(BigInteger.valueOf(selected.weight()));
+			totalWeight = totalWeight.subtract(BigInteger.valueOf(selected.getWeight()));
 				results.add(DrawSelection.selected(prize, slot, ++selectionOrder, selected));
 			}
 		}
@@ -76,10 +76,10 @@ public final class DrawingSelectionService {
 		Set<UUID> userIds = new HashSet<>();
 		for (DrawCandidate candidate : candidates) {
 			Objects.requireNonNull(candidate, "candidate");
-			if (!candidateIds.add(candidate.candidateId()) || !userIds.add(candidate.userId())) {
+			if (!candidateIds.add(candidate.getCandidateId()) || !userIds.add(candidate.getUserId())) {
 				throw new IllegalArgumentException("duplicate candidate or user");
 			}
-			if (!weightingEnabled && candidate.weight() != 1) {
+			if (!weightingEnabled && candidate.getWeight() != 1) {
 				throw new IllegalArgumentException("unweighted candidates must have weight 1");
 			}
 		}
@@ -91,10 +91,10 @@ public final class DrawingSelectionService {
 		long slotCount = 0;
 		for (DrawPrize prize : prizes) {
 			Objects.requireNonNull(prize, "prize");
-			if (!prizeIds.add(prize.prizeId()) || !ranks.add(prize.rank())) {
+			if (!prizeIds.add(prize.getPrizeId()) || !ranks.add(prize.getRank())) {
 				throw new IllegalArgumentException("duplicate prize or rank");
 			}
-			slotCount += prize.winnerCount();
+			slotCount += prize.getWinnerCount();
 			if (slotCount > Integer.MAX_VALUE) {
 				throw new IllegalArgumentException("too many prize slots");
 			}
@@ -104,7 +104,7 @@ public final class DrawingSelectionService {
 	private static int selectedIndex(List<DrawCandidate> candidates, BigInteger roll) {
 		BigInteger boundary = BigInteger.ZERO;
 		for (int index = 0; index < candidates.size(); index++) {
-			boundary = boundary.add(BigInteger.valueOf(candidates.get(index).weight()));
+			boundary = boundary.add(BigInteger.valueOf(candidates.get(index).getWeight()));
 			if (roll.compareTo(boundary) < 0) {
 				return index;
 			}

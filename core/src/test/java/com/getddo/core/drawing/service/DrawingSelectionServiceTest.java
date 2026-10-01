@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import com.getddo.core.drawing.domain.DrawCandidate;
 import com.getddo.core.drawing.domain.DrawPrize;
 import com.getddo.core.drawing.domain.DrawSelection;
-import com.getddo.core.drawing.domain.DrawSelection.ResultType;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -52,8 +52,8 @@ class DrawingSelectionServiceTest {
 				assertThat(bound).isEqualTo(BigInteger.valueOf(4));
 				return BigInteger.valueOf(roll);
 			});
-			UUID expected = value == 0 ? candidates.get(0).candidateId() : candidates.get(1).candidateId();
-			assertThat(service.select(candidates, List.of(prize), true).get(0).candidateId()).isEqualTo(expected);
+			UUID expected = value == 0 ? candidates.get(0).getCandidateId() : candidates.get(1).getCandidateId();
+			assertThat(service.select(candidates, List.of(prize), true).get(0).getCandidateId()).isEqualTo(expected);
 		}
 	}
 
@@ -65,8 +65,8 @@ class DrawingSelectionServiceTest {
 			return BigInteger.valueOf(Long.MAX_VALUE);
 		});
 
-		assertThat(service.select(candidates, List.of(prize(1, 1, 1)), true).get(0).candidateId())
-				.isEqualTo(candidates.get(1).candidateId());
+		assertThat(service.select(candidates, List.of(prize(1, 1, 1)), true).get(0).getCandidateId())
+				.isEqualTo(candidates.get(1).getCandidateId());
 	}
 
 	@Test
@@ -83,15 +83,15 @@ class DrawingSelectionServiceTest {
 				DrawSelection.selected(first, 2, 2, candidates.get(1)),
 				DrawSelection.unfilled(second, 1),
 				DrawSelection.unfilled(second, 2));
-		assertThat(results.get(2).resultType()).isEqualTo(ResultType.UNFILLED);
-		assertThat(results.get(2).selectionOrder()).isNull();
+		assertThat(results.get(2).getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+		assertThat(results.get(2).getSelectionOrder()).isNull();
 	}
 
 	@Test
 	void rejectsInvalidCandidatesAndPrizeConfiguration() {
 		DrawCandidate first = candidate(1, 1);
-		DrawCandidate sameUser = new DrawCandidate(id(9), first.userId(), 1);
-		DrawCandidate sameCandidate = new DrawCandidate(first.candidateId(), id(9), 1);
+		DrawCandidate sameUser = new DrawCandidate(id(9), first.getUserId(), 1);
+		DrawCandidate sameCandidate = new DrawCandidate(first.getCandidateId(), id(9), 1);
 		DrawPrize firstPrize = prize(1, 1, 1);
 		DrawingSelectionService service = new DrawingSelectionService(bound -> BigInteger.ZERO);
 
