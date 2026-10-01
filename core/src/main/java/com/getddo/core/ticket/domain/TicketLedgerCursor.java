@@ -9,7 +9,6 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 import com.getddo.core.ticket.exception.TicketErrorCode;
 import com.getddo.core.ticket.exception.TicketException;
@@ -22,7 +21,6 @@ import com.getddo.core.ticket.exception.TicketException;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class TicketLedgerCursor {
 
 	private static final String SEPARATOR = "|";

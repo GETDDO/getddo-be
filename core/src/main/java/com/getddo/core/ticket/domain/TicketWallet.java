@@ -4,10 +4,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 import com.getddo.core.ticket.exception.TicketErrorCode;
 import com.getddo.core.ticket.exception.TicketException;
@@ -21,8 +19,6 @@ import com.getddo.core.ticket.exception.TicketException;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
-@AllArgsConstructor
 public final class TicketWallet {
 
 	private final UUID id;
@@ -36,6 +32,18 @@ public final class TicketWallet {
 	/** 저장된 상태. 조회 시각 기준 상태는 {@link TicketWalletView}가 계산한다. */
 	private final TicketWalletStatus status;
 	private final long version;
+
+	public TicketWallet(UUID id, UUID userId, LocalDate expiryMonth, Instant validFrom, Instant expiresAt, long balance,
+			TicketWalletStatus status, long version) {
+		this.id = id;
+		this.userId = userId;
+		this.expiryMonth = expiryMonth;
+		this.validFrom = validFrom;
+		this.expiresAt = expiresAt;
+		this.balance = balance;
+		this.status = status;
+		this.version = version;
+	}
 
 	/**
 	 * 입금한 결과의 지갑을 반환한다. 이 객체는 바꾸지 않는다.

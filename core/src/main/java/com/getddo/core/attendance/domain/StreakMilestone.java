@@ -5,12 +5,10 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /** 연속 출석 정책 묶음의 단계 하나. 연속 일수가 {@code milestoneDays}에 도달하면 보상한다. */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class StreakMilestone {
 
 	/** {@code attendance_streak_policies.id}. */

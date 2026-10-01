@@ -3,10 +3,8 @@ package com.getddo.core.ticket.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 응모권 원장 행. 수정·삭제 없이 누적되는 거래 이력이다.
@@ -15,8 +13,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
-@AllArgsConstructor
 public final class TicketLedger {
 
 	/** 저장 전에는 null. */
@@ -35,6 +31,23 @@ public final class TicketLedger {
 	private final Instant expiresAt;
 	/** 지급 근거 청구. GRANT가 아니면 null. */
 	private final GrantSource grantSource;
+
+	public TicketLedger(UUID id, UUID walletId, UUID userId, TicketTransactionType type, long quantity,
+			String idempotencyKey, String reason, Instant createdAt, long balanceAfter, long walletVersion,
+			Instant expiresAt, GrantSource grantSource) {
+		this.id = id;
+		this.walletId = walletId;
+		this.userId = userId;
+		this.type = type;
+		this.quantity = quantity;
+		this.idempotencyKey = idempotencyKey;
+		this.reason = reason;
+		this.createdAt = createdAt;
+		this.balanceAfter = balanceAfter;
+		this.walletVersion = walletVersion;
+		this.expiresAt = expiresAt;
+		this.grantSource = grantSource;
+	}
 
 	/**
 	 * 입금이 반영된 지갑으로 지급 원장 행을 만든다.

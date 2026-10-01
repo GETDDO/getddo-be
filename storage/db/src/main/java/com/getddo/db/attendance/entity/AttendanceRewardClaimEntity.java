@@ -9,7 +9,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,9 +24,7 @@ import com.getddo.db.common.entity.BaseEntity;
 @Getter
 @Entity
 @Table(name = "attendance_reward_claims")
-@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class AttendanceRewardClaimEntity extends BaseEntity {
 
 	@Column(name = "user_id", nullable = false, updatable = false, length = 16)
@@ -59,4 +56,19 @@ public class AttendanceRewardClaimEntity extends BaseEntity {
 
 	@Column(name = "ticket_count", nullable = false, updatable = false)
 	private int ticketCount;
+
+	@Builder
+	private AttendanceRewardClaimEntity(UUID userId, UUID attendanceId, AttendanceRewardType rewardType,
+			UUID rewardPolicyId, UUID attendanceStreakPolicyId, LocalDate rewardDate, Integer milestoneDays,
+			String sourceKey, int ticketCount) {
+		this.userId = userId;
+		this.attendanceId = attendanceId;
+		this.rewardType = rewardType;
+		this.rewardPolicyId = rewardPolicyId;
+		this.attendanceStreakPolicyId = attendanceStreakPolicyId;
+		this.rewardDate = rewardDate;
+		this.milestoneDays = milestoneDays;
+		this.sourceKey = sourceKey;
+		this.ticketCount = ticketCount;
+	}
 }

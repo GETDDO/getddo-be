@@ -7,7 +7,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -18,7 +17,6 @@ import com.getddo.db.common.entity.BaseUpdatableEntity;
 @Entity
 @Table(name = "attendance_streaks")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 public class AttendanceStreakEntity extends BaseUpdatableEntity {
 
 	@Column(name = "user_id", nullable = false, updatable = false, length = 16)
@@ -37,6 +35,15 @@ public class AttendanceStreakEntity extends BaseUpdatableEntity {
 
 	@Column(name = "last_attendance_date", nullable = false)
 	private LocalDate lastAttendanceDate;
+
+	public AttendanceStreakEntity(UUID userId, UUID policySetId, LocalDate streakMonth, int consecutiveDays,
+			LocalDate lastAttendanceDate) {
+		this.userId = userId;
+		this.policySetId = policySetId;
+		this.streakMonth = streakMonth;
+		this.consecutiveDays = consecutiveDays;
+		this.lastAttendanceDate = lastAttendanceDate;
+	}
 
 	/**
 	 * 새 출석을 반영한 연속 일수와 마지막 출석일을 기록한다. 잠금을 잡은 뒤에만 호출한다.

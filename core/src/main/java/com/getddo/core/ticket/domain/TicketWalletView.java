@@ -4,11 +4,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 사용자에게 보여 주는 지갑 한 개의 상태.
@@ -18,8 +15,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class TicketWalletView {
 
 	private final UUID id;
@@ -30,6 +25,16 @@ public final class TicketWalletView {
 	/** 저장된 잔액. 만료된 지갑이면 사용할 수 없는 수량이다. */
 	private final long balance;
 	private final TicketWalletStatus status;
+
+	private TicketWalletView(UUID id, LocalDate expiryMonth, Instant validFrom, Instant expiresAt, long balance,
+			TicketWalletStatus status) {
+		this.id = id;
+		this.expiryMonth = expiryMonth;
+		this.validFrom = validFrom;
+		this.expiresAt = expiresAt;
+		this.balance = balance;
+		this.status = status;
+	}
 
 	/** 저장된 지갑을 조회 시각 기준 상태로 바꾼다. 만료 시각과 조회 시각이 같으면 만료로 본다. */
 	public static TicketWalletView of(TicketWallet wallet, Instant serverTime) {

@@ -8,14 +8,12 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 한 달에 적용하는 연속 출석 정책 묶음. 대상 월 이하에서 가장 최근에 시작한 묶음을 쓰며, 그 묶음의 단계만 사용한다.
  */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class StreakPolicySet {
 
 	private final UUID id;

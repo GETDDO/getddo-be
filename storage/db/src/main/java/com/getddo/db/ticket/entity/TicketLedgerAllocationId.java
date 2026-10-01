@@ -4,7 +4,6 @@ import java.io.Serializable;
 import java.util.UUID;
 
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,10 +12,15 @@ import lombok.NoArgsConstructor;
 @Getter
 @EqualsAndHashCode
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 public class TicketLedgerAllocationId implements Serializable {
 
 	private UUID ledgerId;
 	private UUID sourceCreditLedgerId;
 	private UUID originalGrantId;
+
+	public TicketLedgerAllocationId(UUID ledgerId, UUID sourceCreditLedgerId, UUID originalGrantId) {
+		this.ledgerId = ledgerId;
+		this.sourceCreditLedgerId = sourceCreditLedgerId;
+		this.originalGrantId = originalGrantId;
+	}
 }

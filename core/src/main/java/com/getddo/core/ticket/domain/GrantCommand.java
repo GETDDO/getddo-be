@@ -2,10 +2,8 @@ package com.getddo.core.ticket.domain;
 
 import java.util.UUID;
 
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 응모권 지급 요청.
@@ -15,8 +13,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
-@AllArgsConstructor
 public final class GrantCommand {
 
 	/** 청구 행의 {@code user_id}와 같아야 한다. */
@@ -27,4 +23,11 @@ public final class GrantCommand {
 	private final long quantity;
 	/** 이력 화면에 그대로 표시되는 사유(예: 미션 제목). 공백 불가. */
 	private final String reason;
+
+	public GrantCommand(UUID userId, GrantSource source, long quantity, String reason) {
+		this.userId = userId;
+		this.source = source;
+		this.quantity = quantity;
+		this.reason = reason;
+	}
 }

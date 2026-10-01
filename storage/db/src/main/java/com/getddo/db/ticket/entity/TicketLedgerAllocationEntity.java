@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -29,7 +28,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "ticket_ledger_allocations")
 @IdClass(TicketLedgerAllocationId.class)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 public class TicketLedgerAllocationEntity {
 
 	@Id
@@ -49,4 +47,13 @@ public class TicketLedgerAllocationEntity {
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
+
+	public TicketLedgerAllocationEntity(UUID ledgerId, UUID sourceCreditLedgerId, UUID originalGrantId, long quantity,
+			Instant createdAt) {
+		this.ledgerId = ledgerId;
+		this.sourceCreditLedgerId = sourceCreditLedgerId;
+		this.originalGrantId = originalGrantId;
+		this.quantity = quantity;
+		this.createdAt = createdAt;
+	}
 }

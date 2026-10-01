@@ -6,7 +6,6 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 사용자의 월별 연속 출석 현황.
@@ -16,7 +15,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class AttendanceStreak {
 
 	/** 저장 전에는 null. */

@@ -62,15 +62,8 @@ class TicketQueryServiceTest {
 	}
 
 	private static TicketTransactionView grant(Instant createdAt) {
-		return TicketTransactionView.builder()
-				.id(UUID.randomUUID())
-				.walletId(UUID.randomUUID())
-				.transactionType(TicketTransactionType.GRANT)
-				.quantity(1)
-				.balanceAfter(1)
-				.reason("보상")
-				.createdAt(createdAt)
-				.build();
+		return new TicketTransactionView(UUID.randomUUID(), UUID.randomUUID(), TicketTransactionType.GRANT, 1, 1, "보상",
+				createdAt, null, null, null, null, null, null, null, null);
 	}
 
 	private static void assertInvalidQuery(Runnable call) {

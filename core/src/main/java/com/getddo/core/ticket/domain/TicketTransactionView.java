@@ -5,21 +5,17 @@ import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 사용자에게 보여 주는 응모권 이력 한 건(T02).
  *
  * <p>미션·게임·출석일·이벤트는 원장이 가리키는 청구·응모 기록에서 가져온 파생 값이며 해당 거래와 관계없으면 null이다.
- * {@code quantity}는 지급·반환이 양수, 차감·만료·회수가 음수다. {@code balanceAfter}는 해당 지갑의 처리 직후 잔액이다.
- * 필드가 많아 인자 순서 실수를 막으려고 빌더로 만든다.</p>
+ * {@code quantity}는 지급·반환이 양수, 차감·만료·회수가 음수다. {@code balanceAfter}는 해당 지갑의 처리 직후 잔액이다.</p>
  */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class TicketTransactionView {
 
 	private final UUID id;
@@ -40,8 +36,7 @@ public final class TicketTransactionView {
 	private final UUID relatedLedgerId;
 	private final UUID refundOfId;
 
-	@Builder
-	private TicketTransactionView(UUID id, UUID walletId, TicketTransactionType transactionType, long quantity,
+	public TicketTransactionView(UUID id, UUID walletId, TicketTransactionType transactionType, long quantity,
 			long balanceAfter, String reason, Instant createdAt, Instant expiresAt, UUID eventId, UUID eventEntryId,
 			UUID missionId, UUID gameId, LocalDate attendanceDate, UUID relatedLedgerId, UUID refundOfId) {
 		this.id = Objects.requireNonNull(id, "id");

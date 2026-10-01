@@ -3,10 +3,8 @@ package com.getddo.core.ticket.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 확정된 응모권 지급 결과.
@@ -16,8 +14,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
-@AllArgsConstructor
 public final class GrantResult {
 
 	private final UUID ledgerId;
@@ -30,4 +26,15 @@ public final class GrantResult {
 	private final Instant expiresAt;
 	/** true면 이번 호출이 아니라 이전에 확정된 지급을 돌려준 것이다. */
 	private final boolean replayed;
+
+	public GrantResult(UUID ledgerId, UUID walletId, long quantity, long balanceAfter, Instant grantedAt,
+			Instant expiresAt, boolean replayed) {
+		this.ledgerId = ledgerId;
+		this.walletId = walletId;
+		this.quantity = quantity;
+		this.balanceAfter = balanceAfter;
+		this.grantedAt = grantedAt;
+		this.expiresAt = expiresAt;
+		this.replayed = replayed;
+	}
 }

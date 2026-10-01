@@ -5,12 +5,10 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /** 출석 시각에 적용하는 일일 출석 보상 정책({@code reward_policies}의 ATTENDANCE 정책). */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class DailyRewardPolicy {
 
 	private final UUID id;

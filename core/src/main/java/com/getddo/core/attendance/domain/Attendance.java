@@ -7,12 +7,10 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /** 사용자의 KST 업무일 출석 기록. 같은 사용자·같은 날짜에는 하나만 존재한다. */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class Attendance {
 
 	/** 저장 전에는 null. */

@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 출석 보상 청구. 응모권 지급의 근거가 되며, 청구 ID로 응모권을 지급한다.
@@ -18,7 +17,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class AttendanceRewardClaim {
 
 	/** 저장 전에는 null. */

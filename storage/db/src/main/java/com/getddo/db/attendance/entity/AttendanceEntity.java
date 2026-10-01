@@ -7,7 +7,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -18,7 +17,6 @@ import com.getddo.db.common.entity.BaseEntity;
 @Entity
 @Table(name = "attendances")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 public class AttendanceEntity extends BaseEntity {
 
 	@Column(name = "user_id", nullable = false, updatable = false, length = 16)
@@ -27,4 +25,9 @@ public class AttendanceEntity extends BaseEntity {
 	/** 출석 기준 KST 날짜. */
 	@Column(name = "attendance_date", nullable = false, updatable = false)
 	private LocalDate attendanceDate;
+
+	public AttendanceEntity(UUID userId, LocalDate attendanceDate) {
+		this.userId = userId;
+		this.attendanceDate = attendanceDate;
+	}
 }

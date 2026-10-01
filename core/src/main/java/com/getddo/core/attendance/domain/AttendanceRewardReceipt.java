@@ -6,7 +6,6 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 출석 보상 한 건의 지급 결과. API 응답의 {@code RewardReceipt}에 대응한다.
@@ -15,7 +14,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class AttendanceRewardReceipt {
 
 	private final UUID claimId;

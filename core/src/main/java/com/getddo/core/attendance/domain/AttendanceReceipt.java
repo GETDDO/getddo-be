@@ -8,7 +8,6 @@ import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 출석 처리 결과(AT02). API 응답의 {@code AttendanceReceipt}에 대응한다.
@@ -18,7 +17,6 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
 public final class AttendanceReceipt {
 
 	private final UUID attendanceId;

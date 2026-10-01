@@ -130,22 +130,21 @@ public class TicketQueryRepositoryImpl implements TicketQueryRepository {
 	}
 
 	private static TicketTransactionView toView(Tuple row) {
-		return TicketTransactionView.builder()
-				.id(row.get("id", UUID.class))
-				.walletId(row.get("wallet_id", UUID.class))
-				.transactionType(TicketTransactionType.valueOf(row.get("transaction_type", String.class)))
-				.quantity(row.get("quantity", Long.class))
-				.balanceAfter(row.get("balance_after", Long.class))
-				.reason(row.get("reason", String.class))
-				.createdAt(row.get("created_at", Instant.class))
-				.expiresAt(row.get("expires_at", Instant.class))
-				.eventId(row.get("event_id", UUID.class))
-				.eventEntryId(row.get("event_entry_id", UUID.class))
-				.missionId(row.get("mission_id", UUID.class))
-				.gameId(row.get("game_id", UUID.class))
-				.attendanceDate(row.get("attendance_date", LocalDate.class))
-				.relatedLedgerId(row.get("related_ledger_id", UUID.class))
-				.refundOfId(row.get("refund_of_id", UUID.class))
-				.build();
+		return new TicketTransactionView(
+				row.get("id", UUID.class),
+				row.get("wallet_id", UUID.class),
+				TicketTransactionType.valueOf(row.get("transaction_type", String.class)),
+				row.get("quantity", Long.class),
+				row.get("balance_after", Long.class),
+				row.get("reason", String.class),
+				row.get("created_at", Instant.class),
+				row.get("expires_at", Instant.class),
+				row.get("event_id", UUID.class),
+				row.get("event_entry_id", UUID.class),
+				row.get("mission_id", UUID.class),
+				row.get("game_id", UUID.class),
+				row.get("attendance_date", LocalDate.class),
+				row.get("related_ledger_id", UUID.class),
+				row.get("refund_of_id", UUID.class));
 	}
 }

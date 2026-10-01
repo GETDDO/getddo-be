@@ -2,10 +2,8 @@ package com.getddo.core.ticket.domain;
 
 import java.util.UUID;
 
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.ToString;
 
 /**
  * 응모권 지급의 근거가 된 청구 한 건.
@@ -15,14 +13,17 @@ import lombok.ToString;
  */
 @Getter
 @EqualsAndHashCode
-@ToString
-@AllArgsConstructor
 public final class GrantSource {
 
 	private static final String GRANT_KEY_PREFIX = "GRANT:";
 
 	private final GrantSourceType type;
 	private final UUID claimId;
+
+	public GrantSource(GrantSourceType type, UUID claimId) {
+		this.type = type;
+		this.claimId = claimId;
+	}
 
 	/**
 	 * 이 청구의 지급 원장 행을 식별하는 멱등키 {@code GRANT:{종류}:{청구ID}}를 만든다.
