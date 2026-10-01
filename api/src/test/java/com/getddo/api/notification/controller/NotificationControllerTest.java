@@ -27,6 +27,8 @@ import com.getddo.core.user.domain.UserRole;
 import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.service.UserService;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -63,6 +65,7 @@ class NotificationControllerTest {
 		// when / then
 		mvc.perform(selected(put("/api/v1/notifications/me/read-all")))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data").value(aMapWithSize(1)))
 				.andExpect(jsonPath("$.data.updatedCount").value(3));
 		verify(service).markAllRead(USER);
 	}
@@ -77,6 +80,7 @@ class NotificationControllerTest {
 		// when / then
 		mvc.perform(selected(put("/api/v1/notifications/{id}/read", notificationId)))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data").value(aMapWithSize(2)))
 				.andExpect(jsonPath("$.data.id").value(notificationId.toString()))
 				.andExpect(jsonPath("$.data.isRead").value(true));
 	}
@@ -94,8 +98,14 @@ class NotificationControllerTest {
 		// when / then
 		mvc.perform(selected(get("/api/v1/notifications/me")))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data").value(aMapWithSize(3)))
+				.andExpect(jsonPath("$.data.items[0]").value(aMapWithSize(7)))
 				.andExpect(jsonPath("$.data.items[0].id").value(notificationId.toString()))
+				.andExpect(jsonPath("$.data.items[0].title").value("제목"))
+				.andExpect(jsonPath("$.data.items[0].body").value("내용"))
 				.andExpect(jsonPath("$.data.items[0].isRead").value(false))
+				.andExpect(jsonPath("$.data.items[0].eventId").value(nullValue()))
+				.andExpect(jsonPath("$.data.items[0].linkUrl").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[0].createdAt").value("2026-09-30T01:00:00Z"))
 				.andExpect(jsonPath("$.data.totalElements").value(1));
 	}

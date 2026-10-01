@@ -7,6 +7,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
+import lombok.Value;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
@@ -41,8 +43,8 @@ public class NotificationRepositoryImpl implements NotificationRepository {
 	public CursorResult<Notification> findMine(UUID userId, String cursor, int size, Boolean isRead) {
 		Cursor after = decode(cursor);
 		List<NotificationEntity> rows = notifications.findMine(userId, isRead,
-				after == null ? null : after.createdAt,
-				after == null ? null : after.id, PageRequest.of(0, size + 1));
+				after == null ? null : after.getCreatedAt(),
+				after == null ? null : after.getId(), PageRequest.of(0, size + 1));
 		boolean hasNext = rows.size() > size;
 		List<NotificationEntity> page = hasNext ? rows.subList(0, size) : rows;
 		String nextCursor = hasNext ? encode(page.getLast()) : null;
@@ -92,6 +94,10 @@ public class NotificationRepositoryImpl implements NotificationRepository {
 		}
 	}
 
-	private record Cursor(Instant createdAt, UUID id) {
+	/** 다음 페이지 위치를 나타내는 생성 시각과 ID를 불변 값으로 보관한다. */
+	@Value
+	private static class Cursor {
+		Instant createdAt;
+		UUID id;
 	}
 }
