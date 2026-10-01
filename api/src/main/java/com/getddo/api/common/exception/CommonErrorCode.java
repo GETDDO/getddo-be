@@ -24,7 +24,7 @@ public enum CommonErrorCode implements ErrorCode {
 	USER_ROLE_MISMATCH(403, "USER-004", "사용자 역할이 일치하지 않습니다."),
 	/** USER의 문맥을 확인하는 데 필요한 DB 멤버십이 없는 경우. */
 	USER_MEMBERSHIP_REQUIRED(403, "USER-005", "사용자 멤버십을 확인할 수 없습니다."),
-	/** 헤더의 멤버십이 DB에 저장된 USER의 멤버십과 다른 경우. */
+	/** 헤더의 멤버십이 DB 값과 다른 경우. 선택 멤버십을 대조하는 API에서는 ADMIN도 적용한다. */
 	USER_MEMBERSHIP_MISMATCH(409, "USER-006", "사용자 멤버십이 일치하지 않습니다.");
 
 	private final int status;
