@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import com.getddo.core.ticket.domain.TicketWallet;
 import com.getddo.core.ticket.domain.TicketWalletPeriod;
 import com.getddo.core.ticket.repository.TicketWalletRepository;
+import com.getddo.db.common.util.UuidBinary;
 import com.getddo.db.ticket.entity.TicketWalletEntity;
 import com.getddo.db.ticket.mapper.TicketWalletMapper;
 

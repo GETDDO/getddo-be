@@ -10,6 +10,7 @@ import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceClaim;
 import com.getddo.core.ticket.domain.GrantSourceType;
 import com.getddo.core.ticket.repository.GrantSourceRepository;
+import com.getddo.db.common.util.UuidBinary;
 
 /**
  * 지급 근거 청구 조회 구현.

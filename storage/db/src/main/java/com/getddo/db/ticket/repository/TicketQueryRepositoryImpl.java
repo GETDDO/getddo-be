@@ -19,6 +19,7 @@ import com.getddo.core.ticket.domain.TicketTransactionType;
 import com.getddo.core.ticket.domain.TicketTransactionView;
 import com.getddo.core.ticket.domain.TicketWallet;
 import com.getddo.core.ticket.repository.TicketQueryRepository;
+import com.getddo.db.common.util.UuidBinary;
 import com.getddo.db.ticket.mapper.TicketWalletMapper;
 
 /**
