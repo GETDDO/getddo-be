@@ -51,9 +51,4 @@ public final class DrawPrize {
 	public int hashCode() {
 		return Objects.hash(prizeId, rank, winnerCount);
 	}
-
-	@Override
-	public String toString() {
-		return "DrawPrize[prizeId=" + prizeId + ", rank=" + rank + ", winnerCount=" + winnerCount + "]";
-	}
 }
