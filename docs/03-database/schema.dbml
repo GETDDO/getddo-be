@@ -552,6 +552,9 @@ Table events {
 
   // CHECK chk_event_ticket_limit: max_tickets_per_user IS NULL OR max_tickets_per_user > 0
   // CHECK chk_event_dates: ends_at > starts_at
+  indexes {
+    (deleted_at, created_at, id) [name: 'idx_events_list']
+  }
   Note: '이벤트'
 }
 
