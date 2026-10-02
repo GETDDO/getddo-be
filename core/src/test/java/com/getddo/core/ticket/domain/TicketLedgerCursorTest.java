@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,8 +53,8 @@ class TicketLedgerCursorTest {
 		// when
 		// then
 		assertThatThrownBy(() -> TicketLedgerCursor.decode(encoded))
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(TicketException.class)
+				.extracting(error -> ((TicketException) error).getErrorCode())
 				.isEqualTo(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
 	}
 
@@ -66,6 +66,6 @@ class TicketLedgerCursorTest {
 				.encodeToString((CREATED_AT + "|not-a-uuid").getBytes(StandardCharsets.UTF_8));
 		// when
 		// then
-		assertThatThrownBy(() -> TicketLedgerCursor.decode(encoded)).isInstanceOf(BusinessException.class);
+		assertThatThrownBy(() -> TicketLedgerCursor.decode(encoded)).isInstanceOf(TicketException.class);
 	}
 }

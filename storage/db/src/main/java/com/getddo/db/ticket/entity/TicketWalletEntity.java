@@ -49,7 +49,6 @@ public class TicketWalletEntity {
 	@Column(name = "expiry_month", nullable = false, updatable = false)
 	private LocalDate expiryMonth;
 
-	/** 지갑의 첫 입금 시각 UTC. */
 	@Column(name = "valid_from", nullable = false, updatable = false)
 	private Instant validFrom;
 

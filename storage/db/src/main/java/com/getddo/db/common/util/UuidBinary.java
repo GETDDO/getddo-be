@@ -1,4 +1,4 @@
-package com.getddo.db.ticket.repository;
+package com.getddo.db.common.util;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -8,21 +8,21 @@ import java.util.UUID;
  *
  * <p>Hibernate가 Entity의 UUID를 저장하는 형식(상위 64비트 → 하위 64비트, big-endian)과 같다.</p>
  */
-final class UuidBinary {
+public final class UuidBinary {
 
 	private static final int UUID_BYTES = 16;
 
 	private UuidBinary() {
 	}
 
-	static byte[] toBytes(UUID value) {
+	public static byte[] toBytes(UUID value) {
 		return ByteBuffer.allocate(UUID_BYTES)
 				.putLong(value.getMostSignificantBits())
 				.putLong(value.getLeastSignificantBits())
 				.array();
 	}
 
-	static UUID fromBytes(byte[] value) {
+	public static UUID fromBytes(byte[] value) {
 		if (value.length != UUID_BYTES) {
 			throw new IllegalArgumentException("UUID 컬럼은 16바이트여야 한다.");
 		}

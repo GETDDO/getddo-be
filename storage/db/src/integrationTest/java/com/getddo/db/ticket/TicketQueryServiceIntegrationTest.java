@@ -9,7 +9,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.pagination.CursorQuery;
 import com.getddo.core.common.pagination.CursorResult;
 import com.getddo.core.ticket.domain.GrantResult;
@@ -19,6 +18,7 @@ import com.getddo.core.ticket.domain.TicketTransactionView;
 import com.getddo.core.ticket.domain.TicketWalletStatus;
 import com.getddo.core.ticket.domain.TicketWalletView;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 import com.getddo.core.ticket.service.TicketQueryService;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
@@ -116,8 +116,8 @@ class TicketQueryServiceIntegrationTest extends TicketIntegrationTestSupport {
 		// when
 		// then
 		assertThatThrownBy(() -> queryService.getMyLedger(userId, TicketLedgerFilter.none(), page))
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(TicketException.class)
+				.extracting(error -> ((TicketException) error).getErrorCode())
 				.isEqualTo(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
 	}
 }

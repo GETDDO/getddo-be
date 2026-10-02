@@ -9,9 +9,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
-import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TicketWalletTest {
 
@@ -54,6 +57,9 @@ class TicketWalletTest {
 		TicketWallet wallet = wallet(0, TicketWalletStatus.EXPIRED, 4);
 		// when
 		// then
-		assertThatIllegalStateException().isThrownBy(() -> wallet.deposit(1));
+		assertThatThrownBy(() -> wallet.deposit(1))
+				.isInstanceOf(TicketException.class)
+				.extracting(error -> ((TicketException) error).getErrorCode())
+				.isEqualTo(TicketErrorCode.TICKET_WALLET_EXPIRED);
 	}
 }

@@ -2,6 +2,9 @@ package com.getddo.db.ticket.mapper;
 
 import java.util.UUID;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceType;
 import com.getddo.core.ticket.domain.TicketLedger;
@@ -12,65 +15,36 @@ import com.getddo.db.ticket.entity.TicketLedgerEntity;
 /**
  * 원장·배분 Entity와 도메인 객체 변환.
  *
- * <p>도메인의 지급 근거 청구 하나는 원장의 청구 종류별 참조 컬럼 셋 중 하나로 저장된다.</p>
+ * <p>도메인의 지급 근거 청구 하나는 원장의 청구 종류별 참조 컬럼 셋 중 하나로 저장된다. 이 분배만 직접 작성한다.</p>
  */
-public final class TicketLedgerMapper {
+@Mapper(componentModel = "spring", imports = GrantSourceType.class)
+public interface TicketLedgerMapper {
 
-	private TicketLedgerMapper() {
-	}
+	@Mapping(target = "transactionType", source = "type")
+	@Mapping(target = "missionRewardClaimId",
+			expression = "java(claimIdOf(ledger.getGrantSource(), GrantSourceType.MISSION))")
+	@Mapping(target = "attendanceRewardClaimId",
+			expression = "java(claimIdOf(ledger.getGrantSource(), GrantSourceType.ATTENDANCE))")
+	@Mapping(target = "gameRewardClaimId",
+			expression = "java(claimIdOf(ledger.getGrantSource(), GrantSourceType.GAME))")
+	TicketLedgerEntity toEntity(TicketLedger ledger);
 
-	public static TicketLedgerEntity toEntity(TicketLedger ledger) {
-		GrantSource source = ledger.getGrantSource();
-		return TicketLedgerEntity.builder()
-				.walletId(ledger.getWalletId())
-				.userId(ledger.getUserId())
-				.missionRewardClaimId(claimIdOf(source, GrantSourceType.MISSION))
-				.attendanceRewardClaimId(claimIdOf(source, GrantSourceType.ATTENDANCE))
-				.gameRewardClaimId(claimIdOf(source, GrantSourceType.GAME))
-				.expiresAt(ledger.getExpiresAt())
-				.transactionType(ledger.getType())
-				.quantity(ledger.getQuantity())
-				.idempotencyKey(ledger.getIdempotencyKey())
-				.reason(ledger.getReason())
-				.createdAt(ledger.getCreatedAt())
-				.balanceAfter(ledger.getBalanceAfter())
-				.walletVersion(ledger.getWalletVersion())
-				.build();
-	}
+	@Mapping(target = "type", source = "transactionType")
+	@Mapping(target = "grantSource", expression = "java(grantSourceOf(entity))")
+	TicketLedger toDomain(TicketLedgerEntity entity);
 
-	public static TicketLedger toDomain(TicketLedgerEntity entity) {
-		return new TicketLedger(
-				entity.getId(),
-				entity.getWalletId(),
-				entity.getUserId(),
-				entity.getTransactionType(),
-				entity.getQuantity(),
-				entity.getIdempotencyKey(),
-				entity.getReason(),
-				entity.getCreatedAt(),
-				entity.getBalanceAfter(),
-				entity.getWalletVersion(),
-				entity.getExpiresAt(),
-				grantSourceOf(entity));
-	}
+	TicketLedgerAllocationEntity toEntity(TicketLedgerAllocation allocation);
 
-	public static TicketLedgerAllocationEntity toEntity(TicketLedgerAllocation allocation) {
-		return new TicketLedgerAllocationEntity(
-				allocation.getLedgerId(),
-				allocation.getSourceCreditLedgerId(),
-				allocation.getOriginalGrantId(),
-				allocation.getQuantity(),
-				allocation.getCreatedAt());
-	}
-
-	private static UUID claimIdOf(GrantSource source, GrantSourceType type) {
+	/** 청구가 해당 종류일 때만 그 청구 ID를 돌려준다. */
+	default UUID claimIdOf(GrantSource source, GrantSourceType type) {
 		if (source == null || source.getType() != type) {
 			return null;
 		}
 		return source.getClaimId();
 	}
 
-	private static GrantSource grantSourceOf(TicketLedgerEntity entity) {
+	/** 채워진 청구 참조 컬럼으로 지급 근거 청구를 만든다. 지급이 아닌 원장이면 null이다. */
+	default GrantSource grantSourceOf(TicketLedgerEntity entity) {
 		if (entity.getMissionRewardClaimId() != null) {
 			return new GrantSource(GrantSourceType.MISSION, entity.getMissionRewardClaimId());
 		}

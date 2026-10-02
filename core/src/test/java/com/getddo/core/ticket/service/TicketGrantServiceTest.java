@@ -21,7 +21,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
@@ -35,6 +34,7 @@ import com.getddo.core.ticket.domain.TicketWallet;
 import com.getddo.core.ticket.domain.TicketWalletPeriod;
 import com.getddo.core.ticket.domain.TicketWalletStatus;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 import com.getddo.core.ticket.repository.GrantSourceRepository;
 import com.getddo.core.ticket.repository.TicketLedgerAllocationRepository;
 import com.getddo.core.ticket.repository.TicketLedgerRepository;
@@ -92,8 +92,8 @@ class TicketGrantServiceTest {
 
 	private void assertErrorCode(Runnable call, TicketErrorCode expected) {
 		assertThatThrownBy(call::run)
-				.isInstanceOf(BusinessException.class)
-				.extracting(error -> ((BusinessException) error).getErrorCode())
+				.isInstanceOf(TicketException.class)
+				.extracting(error -> ((TicketException) error).getErrorCode())
 				.isEqualTo(expected);
 	}
 

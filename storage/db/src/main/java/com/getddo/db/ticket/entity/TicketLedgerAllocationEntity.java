@@ -48,8 +48,8 @@ public class TicketLedgerAllocationEntity {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
-	public TicketLedgerAllocationEntity(UUID ledgerId, UUID sourceCreditLedgerId, UUID originalGrantId,
-			long quantity, Instant createdAt) {
+	public TicketLedgerAllocationEntity(UUID ledgerId, UUID sourceCreditLedgerId, UUID originalGrantId, long quantity,
+			Instant createdAt) {
 		this.ledgerId = ledgerId;
 		this.sourceCreditLedgerId = sourceCreditLedgerId;
 		this.originalGrantId = originalGrantId;

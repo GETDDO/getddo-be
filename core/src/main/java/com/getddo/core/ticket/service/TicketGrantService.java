@@ -4,11 +4,11 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
@@ -19,6 +19,7 @@ import com.getddo.core.ticket.domain.TicketLedgerAllocation;
 import com.getddo.core.ticket.domain.TicketWallet;
 import com.getddo.core.ticket.domain.TicketWalletPeriod;
 import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 import com.getddo.core.ticket.repository.GrantSourceRepository;
 import com.getddo.core.ticket.repository.TicketLedgerAllocationRepository;
 import com.getddo.core.ticket.repository.TicketLedgerRepository;
@@ -46,6 +47,7 @@ import com.getddo.core.ticket.repository.TicketWalletRepository;
  * </ol>
  */
 @Service
+@RequiredArgsConstructor
 public class TicketGrantService {
 
 	private final GrantSourceRepository grantSourceRepository;
@@ -53,19 +55,6 @@ public class TicketGrantService {
 	private final TicketWalletRepository walletRepository;
 	private final TicketLedgerAllocationRepository allocationRepository;
 	private final TimeProvider timeProvider;
-
-	public TicketGrantService(
-			GrantSourceRepository grantSourceRepository,
-			TicketLedgerRepository ledgerRepository,
-			TicketWalletRepository walletRepository,
-			TicketLedgerAllocationRepository allocationRepository,
-			TimeProvider timeProvider) {
-		this.grantSourceRepository = grantSourceRepository;
-		this.ledgerRepository = ledgerRepository;
-		this.walletRepository = walletRepository;
-		this.allocationRepository = allocationRepository;
-		this.timeProvider = timeProvider;
-	}
 
 	/**
 	 * 청구 한 건에 대해 응모권을 지급한다.
@@ -78,7 +67,7 @@ public class TicketGrantService {
 	 *
 	 * @param command 지급 요청
 	 * @return 이번에 확정된 지급 결과, 또는 이미 확정된 지급 결과
-	 * @throws com.getddo.core.common.exception.BusinessException 입력이 올바르지 않거나
+	 * @throws TicketException 입력이 올바르지 않거나
 	 *         청구가 없거나 청구의 사용자·수량이 요청과 다른 경우
 	 */
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -122,7 +111,7 @@ public class TicketGrantService {
 	@Transactional(readOnly = true)
 	public Optional<GrantResult> findGrant(GrantSource source) {
 		if (!isComplete(source)) {
-			throw new BusinessException(TicketErrorCode.TICKET_INVALID_GRANT);
+			throw new TicketException(TicketErrorCode.TICKET_INVALID_GRANT);
 		}
 		return ledgerRepository.findByIdempotencyKey(source.idempotencyKey())
 				.map(ledger -> ledger.toGrantResult(true));
@@ -135,7 +124,7 @@ public class TicketGrantService {
 				|| command.getQuantity() < 1
 				|| command.getReason() == null
 				|| command.getReason().isBlank()) {
-			throw new BusinessException(TicketErrorCode.TICKET_INVALID_GRANT);
+			throw new TicketException(TicketErrorCode.TICKET_INVALID_GRANT);
 		}
 	}
 
@@ -146,9 +135,9 @@ public class TicketGrantService {
 	/** 청구 행이 있고 사용자·수량이 요청과 같은지 확인한다. 사용자 존재는 청구의 FK가 보장한다. */
 	private void verifyClaim(GrantCommand command) {
 		GrantSourceClaim claim = grantSourceRepository.find(command.getSource())
-				.orElseThrow(() -> new BusinessException(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND));
+				.orElseThrow(() -> new TicketException(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND));
 		if (!claim.getUserId().equals(command.getUserId()) || claim.getTicketCount() != command.getQuantity()) {
-			throw new BusinessException(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);
+			throw new TicketException(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);
 		}
 	}
 }
