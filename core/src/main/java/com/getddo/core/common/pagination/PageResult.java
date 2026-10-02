@@ -2,6 +2,7 @@ package com.getddo.core.common.pagination;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * 한 페이지의 항목과 전체 조회 결과의 개수를 담는다.
@@ -35,6 +36,19 @@ public final class PageResult<T> {
 		this.page = page;
 		this.size = size;
 		this.totalElements = totalElements;
+	}
+
+	/**
+	 * 항목의 순서와 페이지 정보를 유지하면서 각 항목을 변환한 새 결과를 반환한다.
+	 *
+	 * @param mapper 각 항목에 적용할 변환 함수
+	 * @param <R> 변환한 항목 타입
+	 * @throws NullPointerException 변환 함수가 null이거나 변환한 항목이 null인 경우
+	 */
+	public <R> PageResult<R> map(Function<? super T, ? extends R> mapper) {
+		Objects.requireNonNull(mapper, "mapper");
+		List<R> mapped = items.stream().<R>map(mapper::apply).toList();
+		return new PageResult<>(mapped, page, size, totalElements);
 	}
 
 	/** 전체 항목 수를 기준으로 계산한 페이지 수를 반환한다. */
