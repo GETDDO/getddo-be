@@ -30,4 +30,14 @@ class TicketErrorCodeTest {
 		assertThat(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH.getCode()).isEqualTo("TICKET-003");
 		assertThat(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH.getStatus()).isEqualTo(409);
 	}
+
+	@Test
+	@DisplayName("만료된 지갑 입금 오류는 TICKET-005, 409이다")
+	void walletExpiredError() {
+		// given
+		// when
+		// then
+		assertThat(TicketErrorCode.TICKET_WALLET_EXPIRED.getCode()).isEqualTo("TICKET-005");
+		assertThat(TicketErrorCode.TICKET_WALLET_EXPIRED.getStatus()).isEqualTo(409);
+	}
 }

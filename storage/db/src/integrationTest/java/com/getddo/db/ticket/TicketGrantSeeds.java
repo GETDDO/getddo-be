@@ -37,6 +37,7 @@ public class TicketGrantSeeds {
 	 * 테스트가 커밋한 행을 다음 테스트에 남기지 않으려고 {@code @AfterEach}에서 호출한다.
 	 */
 	public void cleanUp() {
+		// 1) 사용자가 소유한 행. 다른 사용자가 만든 정책을 참조할 수 있으므로 정책보다 먼저 모두 지운다.
 		for (UUID user : users) {
 			byte[] id = bytes(user);
 			jdbc.update("""
@@ -50,10 +51,21 @@ public class TicketGrantSeeds {
 			jdbc.update("delete from attendance_reward_claims where user_id = ?", id);
 			jdbc.update("delete from game_reward_claims where user_id = ?", id);
 			jdbc.update("delete from mission_submissions where user_id = ?", id);
-			jdbc.update("delete from missions where created_by = ?", id);
+			jdbc.update("delete from attendance_streaks where user_id = ?", id);
 			jdbc.update("delete from attendances where user_id = ?", id);
 			jdbc.update("delete from game_plays where user_id = ?", id);
+		}
+		// 2) 사용자가 등록자인 행(미션·보상 정책·연속 출석 정책)
+		for (UUID user : users) {
+			byte[] id = bytes(user);
+			jdbc.update("delete from missions where created_by = ?", id);
 			jdbc.update("delete from reward_policies where created_by = ?", id);
+			jdbc.update("""
+					delete p from attendance_streak_policies p
+					join attendance_streak_policy_sets s on s.id = p.policy_set_id
+					where s.created_by = ?
+					""", id);
+			jdbc.update("delete from attendance_streak_policy_sets where created_by = ?", id);
 		}
 		for (UUID game : games) {
 			jdbc.update("delete from games where id = ?", bytes(game));
