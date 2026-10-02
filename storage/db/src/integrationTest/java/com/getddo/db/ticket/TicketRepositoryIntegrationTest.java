@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -168,6 +169,34 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 		assertThat(jdbc.queryForObject(
 				"select expires_at from ticket_ledger where id = ?", LocalDateTime.class, bytes(saved.getId())))
 				.isEqualTo(LocalDateTime.parse("2026-09-30T15:00:00"));
+	}
+
+	@Test
+	@DisplayName("배분 행은 UUID v7 id를 받고, 같은 거래·입금·최초 지급 조합의 두 번째 행은 UNIQUE로 거부한다")
+	void allocationGetsIdAndRejectsDuplicateCombination() {
+		// given
+		TicketGrantSeeds.MissionParents parents = seeds.missionParents(userId);
+		TicketLedger saved = transaction.execute(status -> {
+			UUID claimId = seeds.missionClaim(userId, parents, 1);
+			TicketWallet wallet = walletRepository.getOrCreateForUpdate(userId, SEPTEMBER, GRANTED_AT).deposit(1);
+			walletRepository.save(wallet);
+			TicketLedger ledger = ledgerRepository.save(new TicketLedger(null, wallet.getId(), userId,
+					TicketTransactionType.GRANT, 1, "GRANT:MISSION:" + claimId, "테스트 미션", GRANTED_AT,
+					wallet.getBalance(), wallet.getVersion(), wallet.getExpiresAt(),
+					new GrantSource(GrantSourceType.MISSION, claimId)));
+			allocationRepository.save(TicketLedgerAllocation.selfCredit(ledger));
+			return ledger;
+		});
+		// when
+		// then
+		assertThat(jdbc.queryForObject("""
+				select substr(hex(id), 13, 1) from ticket_ledger_allocations where ledger_id = ?
+				""", String.class, bytes(saved.getId()))).isEqualTo("7");
+		assertThatThrownBy(() -> transaction.executeWithoutResult(status ->
+				allocationRepository.save(TicketLedgerAllocation.selfCredit(saved))))
+				.isInstanceOf(DataIntegrityViolationException.class);
+		assertThat(count("select count(*) from ticket_ledger_allocations where ledger_id = ?", bytes(saved.getId())))
+				.isEqualTo(1);
 	}
 
 	@Test
