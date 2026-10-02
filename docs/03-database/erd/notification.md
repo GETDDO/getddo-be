@@ -8,20 +8,8 @@
 
 | 테이블 | 역할 |
 | --- | --- |
-| [`notification_jobs`](#notification_jobs) | 알림 생성 작업과 재시도 상태 |
-| [`notifications`](#notifications) | 사용자 알림과 읽음·모의 발송 상태 |
-
-## 테이블 이미지
-
-저장소 DBML의 전체 컬럼·자료형·키·설명을 캡처한 이미지입니다. 이미지를 누르면 원본 크기로 볼 수 있습니다.
-
-### notification_jobs
-
-[![notification_jobs 전체 컬럼](../../assets/erd-tables/notification_jobs.png)](../../assets/erd-tables/notification_jobs.png)
-
-### notifications
-
-[![notifications 전체 컬럼](../../assets/erd-tables/notifications.png)](../../assets/erd-tables/notifications.png)
+| [`notification_jobs`](../../../storage/db/src/main/resources/db/migration/notification/V010__create_notification_tables.sql#L4) | 알림 생성 작업과 재시도 상태 |
+| [`notifications`](../../../storage/db/src/main/resources/db/migration/notification/V010__create_notification_tables.sql#L30) | 사용자 알림과 읽음·모의 발송 상태 |
 
 ## 다른 도메인과의 연결
 
@@ -29,11 +17,11 @@ FK가 있는 테이블에서 참조하는 테이블 방향으로 표시합니다
 
 | FK가 있는 테이블 | FK 컬럼 | 참조 테이블 | 참조 컬럼 |
 | --- | --- | --- | --- |
-| `notification_jobs` | `event_id` | [`events`](event.md#events) | `id` |
-| `notification_jobs` | `publication_id` | [`publications`](drawing.md#publications) | `id` |
-| `notification_jobs` | `target_user_id` | [`users`](user.md#users) | `id` |
-| `notifications` | `user_id` | [`users`](user.md#users) | `id` |
-| `notifications` | `event_id` | [`events`](event.md#events) | `id` |
+| `notification_jobs` | `event_id` | [`events`](event.md#테이블) | `id` |
+| `notification_jobs` | `publication_id` | [`publications`](drawing.md#테이블) | `id` |
+| `notification_jobs` | `target_user_id` | [`users`](user.md#테이블) | `id` |
+| `notifications` | `user_id` | [`users`](user.md#테이블) | `id` |
+| `notifications` | `event_id` | [`events`](event.md#테이블) | `id` |
 
 ## 스키마 원본
 

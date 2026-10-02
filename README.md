@@ -78,21 +78,21 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 
 ### 도메인별 ERD
 
-도메인을 선택하면 각 테이블의 전체 컬럼 캡처 이미지를 바로 볼 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. 캡처는 현재 저장소의 DBML을 기준으로 하며, 상세 제약조건은 각 페이지의 Flyway SQL에서 확인합니다.
+도메인을 선택하면 테이블 목록과 연결된 도메인을 확인할 수 있습니다. 테이블 이름을 누르면 해당 Flyway SQL로 이동하며, 전체 컬럼과 관계는 DBML에서도 확인할 수 있습니다.
 
 | 도메인 | 테이블 수 | 내용 |
 | --- | ---: | --- |
-| [사용자](docs/03-database/erd/user.md#테이블-이미지) | 1 | 사용자 정보·역할·멤버십 |
-| [이벤트·응모](docs/03-database/erd/event.md#테이블-이미지) | 5 | 이벤트·경품·응모자·응모 요청·배너 |
-| [출석](docs/03-database/erd/attendance.md#테이블-이미지) | 5 | 일일·연속 출석과 보상 기록 |
-| [미션](docs/03-database/erd/mission.md#테이블-이미지) | 10 | 퀴즈·설문·제출·보상 기록 |
-| [게임](docs/03-database/erd/game.md#테이블-이미지) | 4 | 게임·플레이·통계·보상 기록 |
-| [보상 정책](docs/03-database/erd/reward.md#테이블-이미지) | 1 | 출석·미션·게임의 보상 정책 |
-| [응모권](docs/03-database/erd/ticket.md#테이블-이미지) | 5 | 지갑·원장·배분·반환·회수 |
-| [어뷰징 검토](docs/03-database/erd/abuse.md#테이블-이미지) | 1 | 의심 행위 탐지와 관리자 검토 |
-| [추첨·발표](docs/03-database/erd/drawing.md#테이블-이미지) | 6 | 추첨 실행·후보·결과·당첨·발표 |
-| [알림](docs/03-database/erd/notification.md#테이블-이미지) | 2 | 알림 생성 작업과 사용자 알림 |
-| [감사 로그](docs/03-database/erd/audit.md#테이블-이미지) | 1 | 변경 행위와 변경 전후 데이터 |
+| [사용자](docs/03-database/erd/user.md#테이블) | 1 | 사용자 정보·역할·멤버십 |
+| [이벤트·응모](docs/03-database/erd/event.md#테이블) | 5 | 이벤트·경품·응모자·응모 요청·배너 |
+| [출석](docs/03-database/erd/attendance.md#테이블) | 5 | 일일·연속 출석과 보상 기록 |
+| [미션](docs/03-database/erd/mission.md#테이블) | 10 | 퀴즈·설문·제출·보상 기록 |
+| [게임](docs/03-database/erd/game.md#테이블) | 4 | 게임·플레이·통계·보상 기록 |
+| [보상 정책](docs/03-database/erd/reward.md#테이블) | 1 | 출석·미션·게임의 보상 정책 |
+| [응모권](docs/03-database/erd/ticket.md#테이블) | 5 | 지갑·원장·배분·반환·회수 |
+| [어뷰징 검토](docs/03-database/erd/abuse.md#테이블) | 1 | 의심 행위 탐지와 관리자 검토 |
+| [추첨·발표](docs/03-database/erd/drawing.md#테이블) | 6 | 추첨 실행·후보·결과·당첨·발표 |
+| [알림](docs/03-database/erd/notification.md#테이블) | 2 | 알림 생성 작업과 사용자 알림 |
+| [감사 로그](docs/03-database/erd/audit.md#테이블) | 1 | 변경 행위와 변경 전후 데이터 |
 
 ## 패키지 구조
 
