@@ -221,8 +221,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			update notifications set mock_delivery_status = 'SENT', mock_sent_at = ?,
 			next_delivery_attempt_at = null, last_delivery_error = null
 			where id = ? and mock_delivery_status = 'PENDING' and delivery_attempt_count = ?
-			and next_delivery_attempt_at > ?
-			""", time(now), bytes(delivery.getId()), delivery.getAttemptCount(), time(now));
+			""", time(now), bytes(delivery.getId()), delivery.getAttemptCount());
 	}
 
 	@Override

@@ -329,6 +329,32 @@ class NotificationJobIntegrationTest {
 		assertThat(count("select delivery_attempt_count from notifications where id = ?", bytes(notification))).isEqualTo(2);
 	}
 
+	@ParameterizedTest
+	@ValueSource(ints = {60, 61})
+	@DisplayName("발송 제한 시각 이후라도 재선점 전 성공은 저장하고 다시 발송하지 않는다")
+	void completesExpiredDeliveryBeforeReclaim(int elapsedSeconds) {
+		// given
+		UUID id = service.register(request("slow-delivery", NOW, List.of(USER)));
+		service.processNextJob();
+		UUID notification = notificationId(id, USER);
+		when(sender.send(any())).thenAnswer(invocation -> {
+			clock.set(NOW.plusSeconds(elapsedSeconds));
+			return MockDeliveryStatus.SENT;
+		});
+
+		// when
+		assertThat(service.processNextDelivery()).isTrue();
+
+		// then
+		assertThat(count("select count(*) from notifications where id = ? and mock_delivery_status = 'SENT' and is_read = false",
+				bytes(notification))).isEqualTo(1);
+		assertThat(timestamp("select mock_sent_at from notifications where id = ?", bytes(notification)))
+				.isEqualTo(clock.instant());
+		assertThat(timestamp("select next_delivery_attempt_at from notifications where id = ?", bytes(notification))).isNull();
+		assertThat(count("select delivery_attempt_count from notifications where id = ?", bytes(notification))).isEqualTo(1);
+		assertThat(service.processNextDelivery()).isFalse();
+	}
+
 	@Test
 	@DisplayName("발송 선점도 장애 후 복구하며 이전 발송 차수의 늦은 결과 저장을 차단한다")
 	void recoversDeliveryAndFencesOldAttempt() {

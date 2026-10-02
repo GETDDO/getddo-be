@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.Value;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import com.getddo.core.notification.exception.NotificationProcessingErrorCode;
 import com.getddo.core.notification.exception.NotificationProcessingException;
@@ -20,17 +21,18 @@ import com.getddo.core.notification.exception.NotificationProcessingException;
  * 수신 자격은 호출자가 판정한다. 예약된 시작 알림의 자격도 실제 생성 시점에 판정해야 하므로
  * 이벤트 등록 시점의 사용자 목록을 미리 확정하는 용도로 사용하지 않는다.</p>
  */
-@Value
-public class NotificationJobRequest {
-	String occurrenceKey;
-	NotificationType type;
-	UUID eventId;
-	UUID publicationId;
-	String title;
-	String body;
-	String linkUrl;
-	Instant scheduledAt;
-	List<UUID> recipientIds;
+@Getter
+@EqualsAndHashCode
+public final class NotificationJobRequest {
+	private final String occurrenceKey;
+	private final NotificationType type;
+	private final UUID eventId;
+	private final UUID publicationId;
+	private final String title;
+	private final String body;
+	private final String linkUrl;
+	private final Instant scheduledAt;
+	private final List<UUID> recipientIds;
 
 	/**
 	 * 중복·순서·DB 시각 정밀도 차이가 재요청 판정에 영향을 주지 않도록 입력을 정규화한다.
