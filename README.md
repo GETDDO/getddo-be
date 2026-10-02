@@ -64,7 +64,11 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 
 ## 아키텍처
 
-<!-- 아키텍처 이미지 삽입 위치 -->
+### 클라우드 아키텍처
+
+[![GETDDO AWS 클라우드 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.png)
+
+[draw.io 원본](docs/assets/cloud-architecture.drawio)
 
 ## ERD
 
