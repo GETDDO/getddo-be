@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -40,14 +41,16 @@ class NotificationControllerTest {
 	private static final User USER = new User(USER_ID, "사용자", UserRole.USER, UserStatus.ACTIVE,
 			Membership.VIP, null, null, null, null, null, null);
 	private final NotificationService service = mock(NotificationService.class);
+	private User selectedUser;
 	private MockMvc mvc;
 
 	@BeforeEach
 	void setUp() {
+		selectedUser = USER;
 		mvc = MockMvcBuilders.standaloneSetup(new NotificationController(service))
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(
-						new UserService(id -> Optional.of(USER).filter(user -> user.id().equals(id)))))
+						new UserService(id -> Optional.of(selectedUser).filter(user -> user.id().equals(id)))))
 				.build();
 	}
 
@@ -126,7 +129,7 @@ class NotificationControllerTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"X-User-Role", "X-User-Membership"})
+	@ValueSource(strings = {"X-User-ID", "X-User-Role"})
 	@DisplayName("모든 알림 API에서 USER의 필수 헤더를 공통 MVC가 검사한다")
 	void allEndpointsRequireUserContextHeaders(String missing) throws Exception {
 		for (MockHttpServletRequestBuilder request : endpoints()) {
@@ -158,6 +161,75 @@ class NotificationControllerTest {
 			});
 			mvc.perform(request).andExpect(status().is(statusCode))
 					.andExpect(jsonPath("$.code").value(code));
+		}
+		verifyNoInteractions(service);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"USER, VIP", "USER,", "ADMIN, VIP", "ADMIN,"})
+	@DisplayName("DB 멤버십 유무와 관계없이 사용자·관리자는 멤버십 헤더 없이 알림을 조회·읽음 처리한다")
+	void allEndpointsAllowMissingMembership(UserRole role, Membership membership) throws Exception {
+		// given
+		selectedUser = new User(USER_ID, "사용자", role, UserStatus.ACTIVE,
+				membership, null, null, null, null, null, null);
+		UUID notificationId = UUID.randomUUID();
+		when(service.findMine(selectedUser, null, 20, null)).thenReturn(new CursorResult<>(List.of(), null, 0));
+		when(service.markRead(selectedUser, notificationId)).thenReturn(notificationId);
+		when(service.markAllRead(selectedUser)).thenReturn(2L);
+
+		// when / then
+		mvc.perform(get("/api/v1/notifications/me")
+				.header("X-User-ID", USER_ID).header("X-User-Role", role.name()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+		mvc.perform(put("/api/v1/notifications/{id}/read", notificationId)
+				.header("X-User-ID", USER_ID).header("X-User-Role", role.name()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(notificationId.toString()));
+		mvc.perform(put("/api/v1/notifications/me/read-all")
+				.header("X-User-ID", USER_ID).header("X-User-Role", role.name()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.updatedCount").value(2));
+	}
+
+	@ParameterizedTest
+	@CsvSource({"USER, VIP, vip, 200", "ADMIN, VIP, vip, 200",
+			"USER, VIP, excellent, 409", "ADMIN, VIP, excellent, 409",
+			"USER, , vip, 409", "ADMIN, , vip, 409"})
+	@DisplayName("선택 멤버십을 전달하면 사용자·관리자 모두 DB 값과 대조한다")
+	void suppliedMembershipMustMatchDatabase(UserRole role, Membership membership, String header, int expected)
+			throws Exception {
+		// given
+		selectedUser = new User(USER_ID, "사용자", role, UserStatus.ACTIVE,
+				membership, null, null, null, null, null, null);
+		when(service.findMine(selectedUser, null, 20, null)).thenReturn(new CursorResult<>(List.of(), null, 0));
+
+		// when / then
+		for (MockHttpServletRequestBuilder request : endpoints()) {
+			var result = mvc.perform(request.header("X-User-ID", USER_ID).header("X-User-Role", role.name())
+					.header("X-User-Membership", header)).andExpect(status().is(expected));
+			if (expected == 409) {
+				result.andExpect(jsonPath("$.code").value("USER-006"));
+			}
+		}
+		if (expected == 409) {
+			verifyNoInteractions(service);
+		}
+	}
+
+	@ParameterizedTest
+	@EnumSource(UserRole.class)
+	@DisplayName("선택 멤버십도 빈 값·공백·잘못된 값·중복은 모든 알림 API에서 거절한다")
+	void optionalMembershipStillRejectsMalformedHeaders(UserRole role) throws Exception {
+		// given
+		selectedUser = new User(USER_ID, "사용자", role, UserStatus.ACTIVE,
+				Membership.VIP, null, null, null, null, null, null);
+
+		// when / then
+		for (String[] values : List.of(new String[]{""}, new String[]{" "}, new String[]{"gold"},
+				new String[]{"VIP"}, new String[]{"vip", "vip"})) {
+			for (MockHttpServletRequestBuilder request : endpoints()) {
+				mvc.perform(request.header("X-User-ID", USER_ID).header("X-User-Role", role.name())
+						.header("X-User-Membership", (Object[]) values))
+						.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-005"));
+			}
 		}
 		verifyNoInteractions(service);
 	}

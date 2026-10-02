@@ -31,18 +31,21 @@ public class OpenApiConfig {
 	@Bean
 	public OperationCustomizer currentUserHeaders() {
 		return (operation, handlerMethod) -> {
-			boolean usesCurrentUser = Arrays.stream(handlerMethod.getMethodParameters())
-					.anyMatch(parameter -> parameter.hasParameterAnnotation(CurrentUser.class)
-							&& parameter.getParameterType() == User.class);
-			if (!usesCurrentUser) {
+			List<CurrentUser> contexts = Arrays.stream(handlerMethod.getMethodParameters())
+					.filter(parameter -> parameter.hasParameterAnnotation(CurrentUser.class)
+							&& parameter.getParameterType() == User.class)
+					.map(parameter -> parameter.getParameterAnnotation(CurrentUser.class)).toList();
+			if (contexts.isEmpty()) {
 				return operation;
 			}
+			boolean membershipRequired = contexts.stream().anyMatch(CurrentUser::membershipRequired);
 			operation.addParametersItem(new Parameter().name("X-User-ID").in("header").required(true)
 					.description("사전 등록한 사용자 ID").schema(new UUIDSchema()));
 			operation.addParametersItem(new Parameter().name("X-User-Role").in("header").required(true)
 					.schema(new StringSchema()._enum(List.of("USER", "ADMIN"))));
 			operation.addParametersItem(new Parameter().name("X-User-Membership").in("header").required(false)
-					.description("USER는 필수, ADMIN은 생략 가능")
+					.description(membershipRequired ? "USER는 필수, ADMIN은 생략 가능"
+							: "USER·ADMIN 모두 선택, 전달하면 DB 멤버십과 대조")
 					.schema(new StringSchema()._enum(List.of("excellent", "vip", "vvip"))));
 			return operation;
 		};
