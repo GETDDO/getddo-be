@@ -50,134 +50,93 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 
 | 구분 | 기술 |
 | --- | --- |
-| 언어 | Java 21 |
-| 프레임워크 | Spring Boot 4.1.1, Spring MVC |
-| 빌드 | Gradle 9.7.1 · Wrapper 사용 |
-| 데이터베이스 | MySQL 8.4 |
-| 영속성·마이그레이션 | Spring Data JPA, Flyway |
-| 객체 매핑 | MapStruct 1.6.3, Lombok |
-| API 문서 | springdoc-openapi 3.1.1 · Swagger UI |
-| 테스트 | JUnit, Spring Boot Test, Testcontainers |
-| 실행 환경 | Docker, Docker Compose |
-| CI | GitHub Actions |
+| 언어 | ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white) |
+| 프레임워크 | ![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring MVC](https://img.shields.io/badge/Spring_MVC-6DB33F?style=for-the-badge&logo=spring&logoColor=white) |
+| 빌드 | ![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
+| 데이터베이스 | ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white) |
+| 캐시 · 도입 예정 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
+| 영속성·마이그레이션 | ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white) |
+| 객체 매핑 | ![MapStruct 1.6.3](https://img.shields.io/badge/MapStruct-1.6.3-455A64?style=for-the-badge) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge) |
+| API 문서 | ![springdoc-openapi 3.1.1](https://img.shields.io/badge/springdoc--openapi-3.1.1-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) ![Swagger UI](https://img.shields.io/badge/Swagger_UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
+| 테스트 | ![JUnit](https://img.shields.io/badge/JUnit-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Spring Boot Test](https://img.shields.io/badge/Spring_Boot_Test-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=for-the-badge) |
+| 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
+| CI | ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
 
 ## 아키텍처
 
-하나의 Spring Boot 애플리케이션으로 실행하는 Gradle 멀티모듈 구조입니다. `api`는 실행과 요청·응답, `core`는 업무 규칙, `storage:db`는 DB 구현을 담당합니다.
-
-### 모듈 의존 관계
-
-```mermaid
-flowchart LR
-    api["api · Controller / DTO"] --> core["core · Service / Domain / Repository 인터페이스"]
-    api --> storage["storage:db · JPA / Repository 구현"]
-    storage --> core
-```
-
-- `api`는 `core`와 `storage:db`를 조립하며, 실행 가능한 Spring Boot JAR을 생성합니다.
-- `core`와 `storage:db`는 라이브러리 JAR을 생성합니다.
-- `core`는 `api`나 `storage:db`를 참조하지 않습니다.
-- `storage`는 경로 구분용 프로젝트이며, 실제 DB 코드는 `storage:db`에 둡니다.
-
-Controller는 Service를 호출하고, Service는 `core`의 Repository 인터페이스에 의존합니다. `storage:db`가 그 인터페이스를 구현해 MySQL에 접근합니다. HTTP DTO와 JPA Entity를 `core`에 직접 전달하지 않습니다.
-
-로컬에서는 Docker Compose로 애플리케이션과 MySQL을 실행합니다. 앱 시작 시 Flyway가 마이그레이션을 적용합니다.
+<!-- 아키텍처 이미지 삽입 위치 -->
 
 ## ERD
 
-전체 스키마는 41개 테이블로 구성됩니다. 아래는 사용자·응모권·이벤트·추첨의 주요 관계를 추린 요약이며, 전체 컬럼과 관계는 [통합 스키마 DBML](docs/03-database/schema.dbml)을 확인합니다.
-
-```mermaid
-erDiagram
-    users ||--o{ ticket_wallets : "응모권 지갑"
-    ticket_wallets ||--o{ ticket_ledger : "거래 이력"
-    users ||--o{ event_participants : "이벤트 응모자"
-    events ||--o{ event_participants : "응모자"
-    events ||--o{ event_entries : "응모 요청"
-    event_participants |o--o{ event_entries : "접수 완료 시 연결"
-    events ||--o{ event_prizes : "경품"
-    events ||--o{ draw_runs : "추첨 실행"
-    draw_runs ||--o{ draw_candidates : "후보 스냅샷"
-    event_participants ||--o{ draw_candidates : "추첨 후보"
-    draw_runs ||--o{ draw_results : "추첨 결과"
-    event_prizes ||--o{ draw_results : "경품별 결과"
-```
-
-DBML은 ERD 확인용이며, 실제 DB 적용 기준은 [Flyway 마이그레이션](storage/db/src/main/resources/db/migration)입니다. 설계 설명과 검토 문서는 [DB 문서](docs/03-database/README.md)에서 관리합니다.
+<!-- ERD 이미지 삽입 위치 -->
+<!-- ERD 링크 삽입 위치 -->
 
 ## 패키지 구조
 
-모듈별로 도메인 패키지를 나누고, 각 도메인 안에 Controller·Service·Repository 등 역할별 패키지를 둡니다.
+하나의 Spring Boot 애플리케이션으로 실행하는 멀티모듈 구조입니다. 아래는 주요 디렉터리와 기능 추가 시 패키지 배치 기준입니다. `<도메인>`에는 `user`, `event`, `ticket` 등 기능별 패키지 이름이 들어갑니다.
 
 ```text
 getddo-be/
-├── api/
-│   ├── build.gradle
+├── api/                                         # HTTP 요청·응답과 애플리케이션 실행
+│   ├── build.gradle                             # 웹·검증·API 문서 의존성
 │   └── src/
 │       ├── main/
 │       │   ├── java/com/getddo/api/
-│       │   │   └── GetddoBeApplication.java
-│       │   └── resources/application.yaml
-│       ├── integrationTest/java/com/getddo/api/
-│       └── test/
-│           ├── java/com/getddo/api/
-│           └── resources/
-├── core/
-│   ├── build.gradle
+│       │   │   ├── GetddoBeApplication.java     # Spring Boot 진입점
+│       │   │   ├── common/                      # API 공통 처리
+│       │   │   │   ├── config/                  # MVC·CORS·OpenAPI 설정
+│       │   │   │   ├── context/                 # 사용자 문맥 어노테이션·ArgumentResolver
+│       │   │   │   ├── exception/               # 공통 API 오류 코드·전역 예외 처리
+│       │   │   │   └── response/                # 공통 응답 형식 ResponseEnvelope
+│       │   │   └── <도메인>/
+│       │   │       ├── controller/              # 요청을 받아 Service에 위임
+│       │   │       ├── dto/request/             # 요청 DTO와 입력 검증
+│       │   │       ├── dto/response/            # 응답 DTO
+│       │   │       └── mapper/                  # 도메인 객체 → 응답 DTO 변환
+│       │   └── resources/                       # application.yaml 등 실행 설정
+│       ├── test/                                # DB 없는 API·설정 테스트
+│       └── integrationTest/                     # 앱 기동·API·DB 연동 테스트
+├── core/                                        # 도메인 모델과 비즈니스 규칙
+│   ├── build.gradle                             # Spring Context·트랜잭션 의존성
 │   └── src/
-│       ├── main/
-│       │   ├── java/com/getddo/core/
-│       │   └── resources/
-│       └── test/
-│           ├── java/com/getddo/core/
-│           └── resources/
-├── storage/
-│   └── db/
-│       ├── build.gradle
+│       ├── main/java/com/getddo/core/
+│       │   ├── common/                          # 공통 예외·페이지 조회 모델·시각 처리
+│       │   └── <도메인>/
+│       │       ├── domain/                      # 도메인 객체·상태·비즈니스 규칙
+│       │       ├── service/                     # 업무 흐름과 트랜잭션
+│       │       ├── repository/                  # 조회·저장 인터페이스
+│       │       └── exception/                   # 도메인 오류 코드(ErrorCode 구현)
+│       └── test/                                # 도메인 규칙·Service 테스트
+├── storage/                                     # 영속성 모듈의 경로 구분
+│   └── db/                                      # MySQL 영속성 구현
+│       ├── build.gradle                         # JPA·Flyway·MySQL 드라이버 의존성
 │       └── src/
 │           ├── main/
 │           │   ├── java/com/getddo/db/
-│           │   └── resources/db/migration/
-│           ├── integrationTest/java/com/getddo/db/
-│           ├── testFixtures/java/com/getddo/db/support/
-│           └── test/
-│               ├── java/com/getddo/db/
-│               └── resources/
-├── .github/
-│   ├── pull_request_template.md
-│   └── workflows/build.yml
-├── docs/
-├── gradle/wrapper/
-├── compose.yaml
-├── Dockerfile
-├── .env.example
-├── build.gradle
-├── settings.gradle
-├── gradlew
-└── gradlew.bat
+│           │   │   ├── common/                  # 공통 Entity·JPA Auditing 설정
+│           │   │   └── <도메인>/
+│           │   │       ├── entity/              # DB 테이블에 대응하는 JPA Entity
+│           │   │       ├── repository/          # JpaRepository·core Repository 구현
+│           │   │       └── mapper/              # Entity ↔ 도메인 객체 변환
+│           │   └── resources/db/migration/      # 도메인별 Flyway SQL
+│           ├── test/                            # DB 없는 영속성 관련 테스트
+│           ├── integrationTest/                 # 실제 MySQL·마이그레이션 검증
+│           └── testFixtures/                    # 공유 Testcontainers 설정
+├── .github/                                     # GitHub 협업·자동화 설정
+│   ├── pull_request_template.md                 # PR 작성 양식
+│   └── workflows/                               # 빌드·테스트·PR 제목 검사
+├── docs/                                        # 백엔드 API·DB·결정·작업 기록
+├── gradle/wrapper/                              # Gradle 실행 버전 고정
+├── compose.yaml                                 # 로컬 앱·MySQL 컨테이너 구성
+├── Dockerfile                                   # 애플리케이션 이미지 빌드
+├── .env.example                                 # 로컬 환경변수 예시
+├── build.gradle                                 # 모듈 공통 빌드·테스트 설정
+├── settings.gradle                              # 프로젝트 이름·모듈 등록
+├── gradlew                                      # macOS·Linux·WSL Gradle 실행
+└── gradlew.bat                                  # Windows Gradle 실행
 ```
 
-빈 디렉터리는 `.gitkeep`으로 유지합니다. `.gitkeep`은 Git의 특별한 기능이 아니라, 빈 디렉터리를 추적하기 위해 두는 파일입니다. 실제 파일이 추가되면 해당 디렉터리의 `.gitkeep`은 제거해도 됩니다.
-
-### 기능 추가 시 패키지 배치
-
-도메인 패키지는 담당자가 기능 구현 시 생성하며, 아래 기준으로 객체를 배치합니다.
-
-
-| 모듈           | 패키지                                 | 배치할 객체                        |
-| ------------ | ----------------------------------- | ----------------------------- |
-| `api`        | `<도메인>/controller`                  | Controller                    |
-| `api`        | `<도메인>/dto/request`, `dto/response` | 요청·응답 DTO                     |
-| `api`        | `common/context`                    | 여러 API에서 사용하는 사용자 문맥 어노테이션·ArgumentResolver |
-| `api`        | `common/config`                     | MVC·OpenAPI 등 API 공통 설정       |
-| `core`       | `<도메인>/service`                     | 업무 흐름과 트랜잭션을 담당하는 Service     |
-| `core`       | `<도메인>/domain`                      | 상태와 비즈니스 규칙을 가진 도메인 객체        |
-| `core`       | `<도메인>/repository`                  | 조회·저장 인터페이스                   |
-| `core`       | `<도메인>/exception`                   | 도메인 오류 코드(`ErrorCode` 구현 enum)   |
-| `storage:db` | `<도메인>/entity`                      | JPA Entity                    |
-| `storage:db` | `<도메인>/repository`                  | JpaRepository, RepositoryImpl |
-| `storage:db` | `<도메인>/mapper`                      | Entity와 도메인 객체 변환             |
-
+의존 방향은 `api → core`, `api → storage:db`, `storage:db → core`입니다. `api`만 실행 가능한 Spring Boot JAR을 만들고, 나머지 두 모듈은 라이브러리 JAR을 만듭니다. `core`는 API DTO나 JPA Entity에 의존하지 않습니다.
 
 ## 실행 방법
 
