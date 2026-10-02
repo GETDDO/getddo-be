@@ -168,8 +168,8 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		jdbc.update("""
 			update notification_jobs set status = 'COMPLETED', completed_at = ?,
 			lease_until = null, next_attempt_at = null, last_error = null
-			where id = ? and status = 'PROCESSING' and attempt_count = ? and lease_until > ?
-			""", time(now), bytes(job.getId()), job.getAttemptCount(), time(now));
+			where id = ? and status = 'PROCESSING' and attempt_count = ?
+			""", time(now), bytes(job.getId()), job.getAttemptCount());
 	}
 
 	@Override
