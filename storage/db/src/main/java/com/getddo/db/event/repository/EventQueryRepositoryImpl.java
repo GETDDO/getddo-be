@@ -1,7 +1,10 @@
 package com.getddo.db.event.repository;
 
-import java.nio.ByteBuffer;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -9,10 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
-import jakarta.persistence.Tuple;
-import org.hibernate.query.NativeQuery;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.common.pagination.PageQuery;
@@ -24,9 +24,10 @@ import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.repository.EventQueryRepository;
+import com.getddo.db.common.util.UuidBinary;
 
 /**
- * 이벤트 조회 전용 구현. UUID·시각은 Hibernate 타입으로 읽어 기존 Entity와 UTC 해석을 맞춘다.
+ * 이벤트 조회 전용 JDBC 구현. BINARY(16)은 공통 UUID 변환을 사용하고 DATETIME(6)은 UTC로 해석한다.
  * 관리자 목록의 경품은 페이지의 이벤트 ID를 모아 한 번에 읽고, 사용자 목록에서는 경품을 읽지 않는다.
  * 추첨 영역의 발표 기록은 공개 상태 판정을 위해 읽기만 한다.
  */
@@ -44,38 +45,31 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 			       e.starts_at, e.ends_at, e.status, e.created_at, e.updated_at,
 			       e.suspended_from_status, e.suspended_at, e.canceled_at,
 			""" + PUBLIC_STATUS + " as public_status from events e";
-	private final EntityManager entityManager;
+	private final NamedParameterJdbcTemplate jdbc;
 
-	public EventQueryRepositoryImpl(EntityManager entityManager) {
-		this.entityManager = entityManager;
+	public EventQueryRepositoryImpl(NamedParameterJdbcTemplate jdbc) {
+		this.jdbc = jdbc;
 	}
 
 	@Override
 	public PageResult<EventView> findAll(EventQueryFilter filter, PageQuery page, boolean publicView) {
 		Map<String, Object> parameters = new HashMap<>();
 		String where = where(filter, publicView, parameters);
-		Query countQuery = entityManager.createNativeQuery("select count(*) from events e" + where);
-		bind(countQuery, parameters);
-		long total = ((Number) countQuery.getSingleResult()).longValue();
-
-		NativeQuery<Tuple> query = eventQuery(SELECT + where
-				+ " order by e.created_at desc, e.id desc limit :limit offset :offset");
-		bind(query, parameters);
-		query.setParameter("limit", page.getSize());
-		query.setParameter("offset", page.offset());
-		List<Tuple> rows = query.getResultList();
-		Map<UUID, List<RegisteredEvent.Prize>> prizes = publicView ? Map.of() : findPrizes(rows);
-		return new PageResult<>(rows.stream().map(row -> toView(row, prizes)).toList(),
+		long total = jdbc.queryForObject("select count(*) from events e" + where, parameters, Long.class);
+		parameters.put("limit", page.getSize());
+		parameters.put("offset", page.offset());
+		List<EventView> rows = jdbc.query(SELECT + where
+				+ " order by e.created_at desc, e.id desc limit :limit offset :offset",
+				parameters, (row, rowNumber) -> toView(row));
+		return new PageResult<>(publicView ? rows : attachPrizes(rows),
 				page.getPage(), page.getSize(), total);
 	}
 
 	@Override
 	public Optional<EventView> findById(UUID eventId) {
-		NativeQuery<Tuple> query = eventQuery(SELECT + " where e.deleted_at is null and e.id = :id");
-		query.setParameter("id", uuidBytes(eventId));
-		List<Tuple> rows = query.getResultList();
-		Map<UUID, List<RegisteredEvent.Prize>> prizes = findPrizes(rows);
-		return rows.stream().findFirst().map(row -> toView(row, prizes));
+		List<EventView> rows = jdbc.query(SELECT + " where e.deleted_at is null and e.id = :id",
+				Map.of("id", UuidBinary.toBytes(eventId)), (row, rowNumber) -> toView(row));
+		return attachPrizes(rows).stream().findFirst();
 	}
 
 	private static String where(EventQueryFilter filter, boolean publicView, Map<String, Object> parameters) {
@@ -100,73 +94,66 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 		// 모집 구간 [starts_at, ends_at)과 검색 구간 [from, to)가 한 순간이라도 겹치는 경우.
 		if (filter.getFrom() != null) {
 			where.append(" and e.ends_at > :from");
-			parameters.put("from", filter.getFrom());
+			parameters.put("from", LocalDateTime.ofInstant(filter.getFrom(), ZoneOffset.UTC));
 		}
 		if (filter.getTo() != null) {
 			where.append(" and e.starts_at < :to");
-			parameters.put("to", filter.getTo());
+			parameters.put("to", LocalDateTime.ofInstant(filter.getTo(), ZoneOffset.UTC));
 		}
 		return where.toString();
 	}
 
-	private Map<UUID, List<RegisteredEvent.Prize>> findPrizes(List<Tuple> events) {
+	private List<EventView> attachPrizes(List<EventView> events) {
+		Map<UUID, List<RegisteredEvent.Prize>> prizes = findPrizes(events);
+		return events.stream().map(event -> withPrizes(event,
+				prizes.getOrDefault(event.getDetails().getId(), List.of()))).toList();
+	}
+
+	private Map<UUID, List<RegisteredEvent.Prize>> findPrizes(List<EventView> events) {
 		if (events.isEmpty()) {
 			return Map.of();
 		}
-		@SuppressWarnings("unchecked")
-		NativeQuery<Tuple> query = entityManager.createNativeQuery("""
+		Map<UUID, List<RegisteredEvent.Prize>> prizes = new HashMap<>();
+		jdbc.query("""
 				select p.id, p.event_id, p.prize_rank, p.name, p.description, p.image_key, p.winner_count
 				from event_prizes p where p.event_id in (:eventIds) order by p.event_id, p.prize_rank
-				""", Tuple.class).unwrap(NativeQuery.class)
-				.addScalar("id", UUID.class).addScalar("event_id", UUID.class)
-				.addScalar("prize_rank", Integer.class).addScalar("name", String.class)
-				.addScalar("description", String.class).addScalar("image_key", String.class)
-				.addScalar("winner_count", Integer.class);
-		query.setParameterList("eventIds", events.stream().map(row -> uuidBytes(row.get("id", UUID.class))).toList());
-		Map<UUID, List<RegisteredEvent.Prize>> prizes = new HashMap<>();
-		for (Tuple row : query.getResultList()) {
-			prizes.computeIfAbsent(row.get("event_id", UUID.class), ignored -> new ArrayList<>())
-					.add(new RegisteredEvent.Prize(row.get("id", UUID.class), row.get("prize_rank", Integer.class),
-							row.get("name", String.class), row.get("description", String.class),
-							row.get("image_key", String.class), row.get("winner_count", Integer.class)));
-		}
+				""", Map.of("eventIds", events.stream()
+						.map(event -> UuidBinary.toBytes(event.getDetails().getId())).toList()), row -> {
+			prizes.computeIfAbsent(UuidBinary.fromBytes(row.getBytes("event_id")), ignored -> new ArrayList<>())
+					.add(new RegisteredEvent.Prize(UuidBinary.fromBytes(row.getBytes("id")), row.getInt("prize_rank"),
+							row.getString("name"), row.getString("description"),
+							row.getString("image_key"), row.getInt("winner_count")));
+		});
 		return prizes;
 	}
 
-	@SuppressWarnings("unchecked")
-	private NativeQuery<Tuple> eventQuery(String sql) {
-		return entityManager.createNativeQuery(sql, Tuple.class).unwrap(NativeQuery.class)
-				.addScalar("id", UUID.class).addScalar("created_by", UUID.class)
-				.addScalar("title", String.class).addScalar("description", String.class)
-				.addScalar("image_key", String.class).addScalar("event_type", String.class)
-				.addScalar("weighting_enabled", Boolean.class).addScalar("max_tickets_per_user", Integer.class)
-				.addScalar("membership_rule", String.class).addScalar("starts_at", Instant.class)
-				.addScalar("ends_at", Instant.class).addScalar("status", String.class)
-				.addScalar("created_at", Instant.class).addScalar("updated_at", Instant.class)
-				.addScalar("suspended_from_status", String.class).addScalar("suspended_at", Instant.class)
-				.addScalar("canceled_at", Instant.class).addScalar("public_status", String.class);
-	}
-
-	private static EventView toView(Tuple row, Map<UUID, List<RegisteredEvent.Prize>> prizes) {
-		UUID id = row.get("id", UUID.class);
-		RegisteredEvent details = new RegisteredEvent(id, row.get("created_by", UUID.class),
-				row.get("title", String.class), row.get("description", String.class), row.get("image_key", String.class),
-				EventType.valueOf(row.get("event_type", String.class)), row.get("weighting_enabled", Boolean.class),
-				row.get("max_tickets_per_user", Integer.class), MembershipRule.valueOf(row.get("membership_rule", String.class)),
-				row.get("starts_at", Instant.class), row.get("ends_at", Instant.class),
-				EventStatus.valueOf(row.get("status", String.class)), row.get("created_at", Instant.class),
-				row.get("updated_at", Instant.class), prizes.getOrDefault(id, List.of()));
-		String suspendedFrom = row.get("suspended_from_status", String.class);
-		return new EventView(details, EventStatus.valueOf(row.get("public_status", String.class)),
+	private static EventView toView(ResultSet row) throws SQLException {
+		RegisteredEvent details = new RegisteredEvent(UuidBinary.fromBytes(row.getBytes("id")),
+				UuidBinary.fromBytes(row.getBytes("created_by")), row.getString("title"),
+				row.getString("description"), row.getString("image_key"),
+				EventType.valueOf(row.getString("event_type")), row.getBoolean("weighting_enabled"),
+				row.getObject("max_tickets_per_user", Integer.class), MembershipRule.valueOf(row.getString("membership_rule")),
+				instant(row, "starts_at"), instant(row, "ends_at"), EventStatus.valueOf(row.getString("status")),
+				instant(row, "created_at"), instant(row, "updated_at"), List.of());
+		String suspendedFrom = row.getString("suspended_from_status");
+		return new EventView(details, EventStatus.valueOf(row.getString("public_status")),
 				suspendedFrom == null ? null : EventStatus.valueOf(suspendedFrom),
-				row.get("suspended_at", Instant.class), row.get("canceled_at", Instant.class));
+				instant(row, "suspended_at"), instant(row, "canceled_at"));
 	}
 
-	private static void bind(Query query, Map<String, Object> parameters) {
-		parameters.forEach(query::setParameter);
+	private static EventView withPrizes(EventView view, List<RegisteredEvent.Prize> prizes) {
+		RegisteredEvent event = view.getDetails();
+		RegisteredEvent details = new RegisteredEvent(event.getId(), event.getCreatedBy(), event.getTitle(),
+				event.getDescription(), event.getImageKey(), event.getEventType(), event.isWeightingEnabled(),
+				event.getMaxTicketsPerUser(), event.getMembershipRule(), event.getStartsAt(), event.getEndsAt(),
+				event.getStatus(), event.getCreatedAt(), event.getUpdatedAt(), prizes);
+		return new EventView(details, view.getPublicStatus(), view.getSuspendedFromStatus(),
+				view.getSuspendedAt(), view.getCanceledAt());
 	}
 
-	private static byte[] uuidBytes(UUID id) {
-		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
+	/** DATETIME에는 시간대가 없으므로 JDBC 기본 시간대에 의존하지 않고 UTC로 해석한다. */
+	private static Instant instant(ResultSet row, String column) throws SQLException {
+		LocalDateTime value = row.getObject(column, LocalDateTime.class);
+		return value == null ? null : value.toInstant(ZoneOffset.UTC);
 	}
 }

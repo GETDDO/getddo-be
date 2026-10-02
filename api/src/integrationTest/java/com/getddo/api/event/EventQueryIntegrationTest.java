@@ -77,6 +77,67 @@ class EventQueryIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("JDBC 조회는 DB 세션 시간대와 무관하게 UTC 마이크로초·UUID·NULL을 유지한다")
+	void jdbcQueryPreservesUtcPrecisionAndNullableValues() throws Exception {
+		// given
+		String startsAt = "2099-10-09T15:00:00.123456Z";
+		String endsAt = "2099-10-10T15:00:00.654321Z";
+		UUID event = insertEvent(prefix, "SCHEDULED", "NO_TICKET", "excellent", startsAt, endsAt);
+		UUID prize = insertPrize(event, 1, 2);
+		insertEvent(prefix + "-before", "SCHEDULED", "NO_TICKET", "excellent",
+				"2099-10-09T14:59:59Z", "2099-10-09T15:00:00Z");
+		insertEvent(prefix + "-after", "SCHEDULED", "NO_TICKET", "excellent",
+				"2099-10-10T15:00:00Z", "2099-10-10T15:00:01Z");
+		jdbc.update("update events set image_key=null, created_at=?, updated_at=? where id=?",
+				at(startsAt), at(endsAt), bytes(event));
+		jdbc.update("update event_prizes set description=null, image_key=null where id=?", bytes(prize));
+		String originalTimeZone = jdbc.queryForObject("select @@session.time_zone", String.class);
+		try {
+			// when: 현재 트랜잭션의 연결만 바꾸며 풀에 반환하기 전에 복원한다.
+			jdbc.update("set session time_zone = ?", "+09:00");
+			// then
+			request(admin, "/api/v1/admin/events/" + event)
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.data.id").value(event.toString()))
+					.andExpect(jsonPath("$.data.createdBy").value(admin.toString()))
+					.andExpect(jsonPath("$.data.startsAt").value(startsAt))
+					.andExpect(jsonPath("$.data.endsAt").value(endsAt))
+					.andExpect(jsonPath("$.data.createdAt").value(startsAt))
+					.andExpect(jsonPath("$.data.updatedAt").value(endsAt))
+					.andExpect(jsonPath("$.data.maxTicketsPerUser").value(nullValue()))
+					.andExpect(jsonPath("$.data.suspendedFromStatus").value(nullValue()))
+					.andExpect(jsonPath("$.data.suspendedAt").value(nullValue()))
+					.andExpect(jsonPath("$.data.canceledAt").value(nullValue()))
+					.andExpect(jsonPath("$.data.imageKey").value(nullValue()))
+					.andExpect(jsonPath("$.data.prizes[0].id").value(prize.toString()))
+					.andExpect(jsonPath("$.data.prizes[0].description").value(nullValue()))
+					.andExpect(jsonPath("$.data.prizeImages[0].imageKey").value(nullValue()));
+			request(admin, get("/api/v1/admin/events").param("keyword", prefix)
+					.param("from", "2099-10-10").param("to", "2099-10-10"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.data.totalElements").value(1))
+					.andExpect(jsonPath("$.data.items[0].id").value(event.toString()))
+					.andExpect(jsonPath("$.data.items[0].startsAt").value(startsAt));
+		} finally {
+			jdbc.update("set session time_zone = ?", originalTimeZone);
+		}
+	}
+
+	@Test
+	@DisplayName("JDBC 페이지 오프셋은 int 범위를 넘겨도 전체 건수를 유지하며 빈 목록을 반환한다")
+	void jdbcPaginationKeepsLongOffset() throws Exception {
+		// given
+		insertEvent(prefix, "SCHEDULED", "NO_TICKET", "excellent",
+				"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
+		// when / then
+		request(admin, get("/api/v1/admin/events").param("keyword", prefix)
+				.param("page", String.valueOf(Integer.MAX_VALUE)).param("size", "100"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items").isEmpty())
+				.andExpect(jsonPath("$.data.totalElements").value(1));
+	}
+
+	@Test
 	@DisplayName("사용자·관리자 상세는 등수순 경품·UTC 시각을 반환하고 사용자에게 관리 정보를 노출하지 않는다")
 	void detailProvidesSortedPrizesAndSeparatesPublicFields() throws Exception {
 		// given
