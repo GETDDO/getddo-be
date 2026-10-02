@@ -18,7 +18,7 @@ public interface NotificationJobRepository {
 	NotificationJobRequest findRequest(UUID jobId);
 	/** 사용자별 별도 트랜잭션에서 중복 생성 없이 저장한다. 선점이 유효하지 않으면 false다. */
 	boolean createNotification(NotificationJob job, NotificationJobRequest request, UUID userId, Instant now);
-	/** 자신의 선점 차수일 때만 생성 완료를 확정한다. */
+	/** 재선점되지 않은 자신의 선점 차수라면 제한 시간 이후에도 생성 완료를 확정한다. */
 	void completeJob(NotificationJob job, Instant now);
 	/** 자신의 선점 차수일 때만 실패·다음 시각을 기록한다. null은 최종 실패다. */
 	void failJob(NotificationJob job, Instant nextAttemptAt, String errorCode);

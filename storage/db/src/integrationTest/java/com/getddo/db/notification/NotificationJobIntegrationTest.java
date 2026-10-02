@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -257,6 +258,33 @@ class NotificationJobIntegrationTest {
 		repository.completeJob(current, clock.instant());
 		assertThat(jobStatus(id)).isEqualTo("COMPLETED");
 		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"1, 60", "1, 61", "4, 60", "4, 61"})
+	@DisplayName("첫·마지막 생성 시도도 재선점 전이면 제한 시각 이후 완료를 확정하고 재처리하지 않는다")
+	void completesExpiredJobBeforeReclaim(int attemptCount, int elapsedSeconds) {
+		// given
+		NotificationJobRequest request = request("slow-completion", NOW, List.of(USER));
+		UUID id = service.register(request);
+		for (int attempt = 1; attempt < attemptCount; attempt++) {
+			repository.claimNextJob(clock.instant()).orElseThrow();
+			clock.set(clock.instant().plusSeconds(60));
+		}
+		NotificationJob job = repository.claimNextJob(clock.instant()).orElseThrow();
+		assertThat(repository.createNotification(job, request, USER, clock.instant())).isTrue();
+		clock.set(clock.instant().plusSeconds(elapsedSeconds));
+
+		// when
+		repository.completeJob(job, clock.instant());
+
+		// then
+		assertThat(jobStatus(id)).isEqualTo("COMPLETED");
+		assertThat(timestamp("select completed_at from notification_jobs where id = ?", bytes(id))).isEqualTo(clock.instant());
+		assertThat(timestamp("select lease_until from notification_jobs where id = ?", bytes(id))).isNull();
+		assertThat(count("select attempt_count from notification_jobs where id = ?", bytes(id))).isEqualTo(attemptCount);
+		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
+		assertThat(service.processNextJob()).isFalse();
 	}
 
 	@Test
