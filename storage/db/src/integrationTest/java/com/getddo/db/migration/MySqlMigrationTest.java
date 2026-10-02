@@ -58,11 +58,13 @@ class MySqlMigrationTest {
 	}
 
 	@Test
-	@DisplayName("응모권 배분과 게임 통계는 단일 id PK이고 기존 복합 키 조합은 UNIQUE로 남는다")
+	@DisplayName("응모권 배분과 게임 통계는 BINARY(16) 단일 id PK이고 기존 복합 키 조합은 UNIQUE로 남는다")
 	void allocationAndGameStatsUseSingleIdPrimaryKey() throws SQLException {
 		// given
 		// when
 		// then
+		assertThat(idColumn("ticket_ledger_allocations")).containsExactly("binary(16)", "NO");
+		assertThat(idColumn("user_game_stats")).containsExactly("binary(16)", "NO");
 		assertThat(indexColumns("ticket_ledger_allocations", "PRIMARY")).containsExactly("id");
 		assertThat(indexColumns("ticket_ledger_allocations", "uq_ticket_ledger_allocations_1"))
 				.containsExactly("ledger_id", "source_credit_ledger_id", "original_grant_id");
@@ -107,6 +109,21 @@ class MySqlMigrationTest {
 				statement.setString(i + 1, parameters[i]);
 			}
 			statement.executeUpdate();
+		}
+	}
+
+	/** {@code id} 컬럼의 타입과 NULL 허용 여부({@code YES}/{@code NO})를 반환한다. */
+	private static List<String> idColumn(String tableName) throws SQLException {
+		try (Connection connection = connect();
+			PreparedStatement statement = connection.prepareStatement("""
+					select column_type, is_nullable from information_schema.columns
+					where table_schema = database() and table_name = ? and column_name = 'id'
+					""")) {
+			statement.setString(1, tableName);
+			try (ResultSet rows = statement.executeQuery()) {
+				assertThat(rows.next()).as("%s.id 컬럼", tableName).isTrue();
+				return List.of(rows.getString(1), rows.getString(2));
+			}
 		}
 	}
 
