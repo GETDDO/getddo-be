@@ -3,6 +3,7 @@ package com.getddo.core.notification.domain;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.NonNull;
 import lombok.Value;
 
 /**
@@ -15,6 +16,7 @@ import lombok.Value;
 @Value
 public class Notification {
 	/** 알림 식별자. */
+	@NonNull
 	UUID id;
 	/** 사용자에게 표시할 제목. */
 	String title;

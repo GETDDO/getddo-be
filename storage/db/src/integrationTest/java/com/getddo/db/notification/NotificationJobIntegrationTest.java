@@ -17,6 +17,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -27,6 +29,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.getddo.core.common.time.TimeProvider;
@@ -128,6 +131,42 @@ class NotificationJobIntegrationTest {
 		// then
 		assertThat(count("select count(*) from notification_jobs where id = ?", bytes(id))).isZero();
 		assertThat(service.processNextJob()).isFalse();
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("이전 스냅샷 뒤 다른 트랜잭션이 등록한 작업도 동일 요청은 재사용하고 다른 입력은 충돌로 거절한다")
+	void duplicateRegistrationReadsCurrentRowAfterEarlierSnapshot(boolean conflicting) {
+		// given
+		NotificationJobRequest original = request("snapshot", NOW, List.of(USER, OTHER));
+		NotificationJobRequest candidate = conflicting
+				? request("snapshot", NOW, List.of(USER)) : original;
+		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+		transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		TransactionTemplate separate = new TransactionTemplate(transactionManager);
+		separate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		UUID[] registeredId = new UUID[1];
+		Runnable registration = () -> transaction.executeWithoutResult(status -> {
+			assertThat(count("select count(*) from notification_jobs where occurrence_key = ?",
+					original.getOccurrenceKey())).isZero();
+			registeredId[0] = separate.execute(inner -> service.register(original));
+			// 이전 스냅샷에서는 다른 트랜잭션이 커밋한 작업이 아직 보이지 않는다.
+			assertThat(count("select count(*) from notification_jobs where occurrence_key = ?",
+					original.getOccurrenceKey())).isZero();
+			assertThat(service.register(candidate)).isEqualTo(registeredId[0]);
+		});
+
+		// when / then
+		if (conflicting) {
+			assertThatThrownBy(registration::run).isInstanceOf(NotificationProcessingException.class)
+					.extracting(error -> ((NotificationProcessingException) error).getErrorCode())
+					.isEqualTo(NotificationProcessingErrorCode.OCCURRENCE_CONFLICT);
+		} else {
+			registration.run();
+		}
+		assertThat(repository.findRequest(registeredId[0])).isEqualTo(original);
+		assertThat(count("select count(*) from notification_jobs where occurrence_key = ?",
+				original.getOccurrenceKey())).isEqualTo(1);
 	}
 
 	@Test
