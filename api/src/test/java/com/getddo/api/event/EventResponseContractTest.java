@@ -2,6 +2,7 @@ package com.getddo.api.event;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -9,6 +10,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -20,6 +22,7 @@ import com.getddo.api.event.controller.EventController;
 import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.domain.AdminEventQuery;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.domain.MembershipRule;
@@ -34,10 +37,13 @@ import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.service.UserService;
 
 import static org.hamcrest.Matchers.nullValue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -133,6 +139,23 @@ class EventResponseContractTest {
 					.andExpect(jsonPath(root + ".prizeImages[0].prizeId").value(PRIZE_ID.toString()))
 					.andExpect(jsonPath(root + ".prizeImages[0].imageKey").value("prizes/image.png"));
 		}
+	}
+
+	@Test
+	@DisplayName("관리자 API는 날짜 형식만 해석하고 LocalDate 검색 입력을 서비스에 전달한다")
+	void adminApiPassesCalendarDatesToService() throws Exception {
+		// given
+		when(queries.findAdminEvents(any(), anyInt(), anyInt(), any()))
+				.thenReturn(new PageResult<>(List.of(), 1, 20, 0));
+		// when
+		mvc.perform(get("/api/v1/admin/events").header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN")
+				.param("from", "2026-10-10").param("to", "2026-10-23"))
+				.andExpect(status().isOk());
+		// then
+		ArgumentCaptor<AdminEventQuery> query = ArgumentCaptor.forClass(AdminEventQuery.class);
+		verify(queries).findAdminEvents(eq(actor), eq(1), eq(20), query.capture());
+		assertThat(query.getValue().getFromDate()).isEqualTo(LocalDate.of(2026, 10, 10));
+		assertThat(query.getValue().getToDate()).isEqualTo(LocalDate.of(2026, 10, 23));
 	}
 
 	@Test

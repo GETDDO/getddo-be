@@ -13,9 +13,9 @@ public final class EventQueryFilter {
 	private final EventType eventType;
 	private final MembershipRule membershipRule;
 	private final String keyword;
-	/** 포함하는 UTC 하한. API의 KST 시작 날짜를 자정으로 변환한 값이다. */
+	/** 포함하는 UTC 하한. 관리자 조회 서비스가 KST 시작 날짜를 자정으로 변환한다. */
 	private final Instant from;
-	/** 제외하는 UTC 상한. API의 KST 종료 날짜 다음 날 자정을 변환한 값이다. */
+	/** 제외하는 UTC 상한. 관리자 조회 서비스가 KST 종료 날짜 다음 날 자정을 변환한다. */
 	private final Instant to;
 
 	public EventQueryFilter(EventStatus status, EventType eventType, MembershipRule membershipRule,

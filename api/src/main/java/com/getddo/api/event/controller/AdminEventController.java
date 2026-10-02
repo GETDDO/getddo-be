@@ -21,7 +21,7 @@ import com.getddo.api.event.dto.request.EventWriteRequest;
 import com.getddo.api.event.dto.response.AdminEventResponse;
 import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.event.domain.EventQueryFilter;
+import com.getddo.core.event.domain.AdminEventQuery;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.EventView;
@@ -68,8 +68,7 @@ public class AdminEventController {
 					schema = @Schema(type = "string", format = "date", example = "2026-10-20"))
 			@RequestParam(required = false) String to) {
 		PageResult<EventView> result = queryService.findAdminEvents(user, page, size,
-				new EventQueryFilter(status, eventType, null, keyword,
-						EventRequestContext.searchFrom(from, timeProvider), EventRequestContext.searchTo(to, timeProvider)));
+				new AdminEventQuery(status, eventType, keyword, EventRequestContext.date(from), EventRequestContext.date(to)));
 		Instant now = timeProvider.now();
 		return ResponseEnvelope.success(new PageResult<>(
 				result.getItems().stream().map(event -> AdminEventResponse.from(event, now)).toList(),
