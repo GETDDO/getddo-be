@@ -1,25 +1,113 @@
 # GETDDO Backend
 
-출석·미션을 통한 응모권 적립, 이벤트 응모, 관리자 검토·추첨·결과 발표를 위한 백엔드 프로젝트입니다. 현재 기획 및 초기 구조 설정 단계이며, 세부 기능과 정책은 확정되는 대로 반영합니다.
+## 목차
 
-프론트엔드와 백엔드는 별도 Repository로 관리하며, 동일한 브랜치 전략을 따릅니다.
+1. [프로젝트 소개](#프로젝트-소개)
+2. [개발 방식](#개발-방식)
+3. [핵심 기능](#핵심-기능)
+4. [기술 스택](#기술-스택)
+5. [아키텍처](#아키텍처)
+6. [ERD](#erd)
+7. [패키지 구조](#패키지-구조)
+8. [실행 방법](#실행-방법)
 
-## 기술 구성
+## 프로젝트 소개
 
+GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫폼**입니다. 출석·미션·게임으로 응모권을 모으고, 이벤트에 응모한 뒤 추첨 결과를 확인하는 흐름을 제공합니다.
 
-| 항목          | 구성                      |
-| ----------- | ----------------------- |
-| Java        | 21                      |
-| Spring Boot | 4.1.1                   |
-| Gradle      | Wrapper 사용              |
-| 웹           | Spring MVC              |
-| 영속성         | Spring Data JPA, Flyway |
-| CI          | GitHub Actions          |
+이 저장소는 GETDDO의 백엔드입니다. 응모권 잔액과 이력의 정합성, 중복 요청 방지, 추첨 후보·조건·결과 보존을 중심으로 개발하고 있습니다. 가상 사용자와 더미 데이터로 시연하며, 외부 알림 발송은 모의 처리합니다.
 
+프로젝트의 목표와 범위는 [공용 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/README.md)을 기준으로 합니다.
 
-## 모듈 및 패키지 구조
+## 개발 방식
 
-하나의 애플리케이션으로 실행하는 멀티모듈 구조입니다. `api`는 실행과 요청·응답, `core`는 업무 규칙, `storage:db`는 DB 구현을 담당합니다.
+프론트엔드와 백엔드는 별도 저장소에서 개발하고, 공용 요구사항·도메인 정책·협업 규칙은 [getddo-spec](https://github.com/GETDDO/getddo-spec)에서 관리합니다. 백엔드의 기능별 담당 영역과 공동 작업 경계는 [백엔드 기능 담당자](docs/01-conventions/backend-feature-assignments.md)를 따릅니다.
+
+개발은 Jira 이슈 생성 → `dev` 기준 작업 브랜치 → 구현·테스트 → Pull Request → CI·코드 리뷰 → 병합 순서로 진행합니다. 상세 규칙은 다음 원본 문서를 확인합니다.
+
+- [브랜치 전략](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/branch.md)
+- [커밋 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/commit.md)
+- [개발 흐름](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/workflow.md)
+- [Pull Request 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)
+- [백엔드 코드 스타일](docs/01-conventions/code-style.md)
+- [백엔드 문서와 작업 기록](docs/README.md)
+- [이 저장소의 PR 템플릿](.github/pull_request_template.md)
+
+## 핵심 기능
+
+아래는 개발 중인 서비스의 주요 기능 범위입니다. 세부 정책과 구현·제외 범위는 [기능 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/functional-requirements.md), [도메인 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/README.md), [구현 범위](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/scope.md)를 확인합니다.
+
+| 기능 | 내용 |
+| --- | --- |
+| 출석·미션·게임 | 일일·연속 출석, 퀴즈·설문, 게임 수행에 따른 응모권 보상 |
+| 응모권 관리 | 응모권 잔액과 지급·차감·반환·회수·만료 이력 관리 |
+| 이벤트·응모 | 이벤트와 경품 조회, 응모 조건 검증, 응모 접수와 내 응모 내역 조회 |
+| 참여 검토·추첨 | 어뷰징 의심 건 검토, 추첨 후보·조건 보존, 가중치 추첨과 결과 발표 |
+| 백오피스 | 이벤트·경품·배너·보상 정책 운영, 사용자·응모·감사 로그 조회 |
+| 알림 | 이벤트와 처리 결과에 대한 사이트 내 알림, 읽음 상태 관리 |
+
+## 기술 스택
+
+| 구분 | 기술 |
+| --- | --- |
+| 언어 | Java 21 |
+| 프레임워크 | Spring Boot 4.1.1, Spring MVC |
+| 빌드 | Gradle 9.7.1 · Wrapper 사용 |
+| 데이터베이스 | MySQL 8.4 |
+| 영속성·마이그레이션 | Spring Data JPA, Flyway |
+| 객체 매핑 | MapStruct 1.6.3, Lombok |
+| API 문서 | springdoc-openapi 3.1.1 · Swagger UI |
+| 테스트 | JUnit, Spring Boot Test, Testcontainers |
+| 실행 환경 | Docker, Docker Compose |
+| CI | GitHub Actions |
+
+## 아키텍처
+
+하나의 Spring Boot 애플리케이션으로 실행하는 Gradle 멀티모듈 구조입니다. `api`는 실행과 요청·응답, `core`는 업무 규칙, `storage:db`는 DB 구현을 담당합니다.
+
+### 모듈 의존 관계
+
+```mermaid
+flowchart LR
+    api["api · Controller / DTO"] --> core["core · Service / Domain / Repository 인터페이스"]
+    api --> storage["storage:db · JPA / Repository 구현"]
+    storage --> core
+```
+
+- `api`는 `core`와 `storage:db`를 조립하며, 실행 가능한 Spring Boot JAR을 생성합니다.
+- `core`와 `storage:db`는 라이브러리 JAR을 생성합니다.
+- `core`는 `api`나 `storage:db`를 참조하지 않습니다.
+- `storage`는 경로 구분용 프로젝트이며, 실제 DB 코드는 `storage:db`에 둡니다.
+
+Controller는 Service를 호출하고, Service는 `core`의 Repository 인터페이스에 의존합니다. `storage:db`가 그 인터페이스를 구현해 MySQL에 접근합니다. HTTP DTO와 JPA Entity를 `core`에 직접 전달하지 않습니다.
+
+로컬에서는 Docker Compose로 애플리케이션과 MySQL을 실행합니다. 앱 시작 시 Flyway가 마이그레이션을 적용합니다.
+
+## ERD
+
+전체 스키마는 41개 테이블로 구성됩니다. 아래는 사용자·응모권·이벤트·추첨의 주요 관계를 추린 요약이며, 전체 컬럼과 관계는 [통합 스키마 DBML](docs/03-database/schema.dbml)을 확인합니다.
+
+```mermaid
+erDiagram
+    users ||--o{ ticket_wallets : "응모권 지갑"
+    ticket_wallets ||--o{ ticket_ledger : "거래 이력"
+    users ||--o{ event_participants : "이벤트 응모자"
+    events ||--o{ event_participants : "응모자"
+    events ||--o{ event_entries : "응모 요청"
+    event_participants |o--o{ event_entries : "접수 완료 시 연결"
+    events ||--o{ event_prizes : "경품"
+    events ||--o{ draw_runs : "추첨 실행"
+    draw_runs ||--o{ draw_candidates : "후보 스냅샷"
+    event_participants ||--o{ draw_candidates : "추첨 후보"
+    draw_runs ||--o{ draw_results : "추첨 결과"
+    event_prizes ||--o{ draw_results : "경품별 결과"
+```
+
+DBML은 ERD 확인용이며, 실제 DB 적용 기준은 [Flyway 마이그레이션](storage/db/src/main/resources/db/migration)입니다. 설계 설명과 검토 문서는 [DB 문서](docs/03-database/README.md)에서 관리합니다.
+
+## 패키지 구조
+
+모듈별로 도메인 패키지를 나누고, 각 도메인 안에 Controller·Service·Repository 등 역할별 패키지를 둡니다.
 
 ```text
 getddo-be/
@@ -30,6 +118,7 @@ getddo-be/
 │       │   ├── java/com/getddo/api/
 │       │   │   └── GetddoBeApplication.java
 │       │   └── resources/application.yaml
+│       ├── integrationTest/java/com/getddo/api/
 │       └── test/
 │           ├── java/com/getddo/api/
 │           └── resources/
@@ -49,13 +138,19 @@ getddo-be/
 │           ├── main/
 │           │   ├── java/com/getddo/db/
 │           │   └── resources/db/migration/
+│           ├── integrationTest/java/com/getddo/db/
+│           ├── testFixtures/java/com/getddo/db/support/
 │           └── test/
 │               ├── java/com/getddo/db/
 │               └── resources/
 ├── .github/
 │   ├── pull_request_template.md
 │   └── workflows/build.yml
+├── docs/
 ├── gradle/wrapper/
+├── compose.yaml
+├── Dockerfile
+├── .env.example
 ├── build.gradle
 ├── settings.gradle
 ├── gradlew
@@ -64,22 +159,9 @@ getddo-be/
 
 빈 디렉터리는 `.gitkeep`으로 유지합니다. `.gitkeep`은 Git의 특별한 기능이 아니라, 빈 디렉터리를 추적하기 위해 두는 파일입니다. 실제 파일이 추가되면 해당 디렉터리의 `.gitkeep`은 제거해도 됩니다.
 
-### 모듈 의존 관계
-
-```text
-api → core
-api → storage:db       # 실행 시 구현체 조립
-storage:db → core
-```
-
-- `api`만 실행 가능한 Spring Boot JAR을 생성합니다.
-- `core`와 `storage:db`는 라이브러리 JAR을 생성합니다.
-- `core`는 `api`나 `storage:db`를 참조하지 않습니다.
-- `storage`는 경로 구분용 프로젝트이며, 실제 DB 코드는 `storage:db`에 둡니다.
-
 ### 기능 추가 시 패키지 배치
 
-도메인 패키지는 담당자가 기능 구현 시 생성합니다. 현재는 기본 패키지만 있으며, 아래 구조는 배치 기준입니다.
+도메인 패키지는 담당자가 기능 구현 시 생성하며, 아래 기준으로 객체를 배치합니다.
 
 
 | 모듈           | 패키지                                 | 배치할 객체                        |
@@ -97,9 +179,9 @@ storage:db → core
 | `storage:db` | `<도메인>/mapper`                      | Entity와 도메인 객체 변환             |
 
 
-Controller는 Service를 호출하고, Service는 `core`의 Repository 인터페이스에 의존합니다. `storage:db`가 그 인터페이스를 구현합니다. HTTP DTO와 JPA Entity를 `core`에 직접 전달하지 않습니다.
+## 실행 방법
 
-## 로컬 실행 및 검증
+Docker Compose 실행에는 Docker가 필요합니다. 터미널에서 애플리케이션이나 Gradle 작업을 실행하려면 JDK 21도 준비합니다. Gradle은 저장소의 Wrapper를 사용합니다.
 
 ### Docker Compose
 
@@ -165,17 +247,3 @@ API의 앱 기동·Swagger 테스트는 `api/src/integrationTest/java/com/getddo
 GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradlew build`를 실행합니다. 별도 DB 비밀값 설정은 필요하지 않습니다. 실패한 테스트 보고서는 `test-reports` 아티팩트에서 확인할 수 있습니다.
 
 `PR 제목 검사`는 [공용 PR 제목 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)에 맞는지 별도로 확인합니다. PR 생성·수정·커밋 추가 시 실행하며, 제목·본문만 수정하면 Gradle 빌드는 실행하지 않습니다. 제목 오류로 병합을 막으려면 main/dev Ruleset의 필수 상태 검사에 `PR 제목 검사`를 등록합니다.
-
-## 문서와 협업 규칙
-
-공용 요구사항, 도메인 정책 및 협업 규칙은 [getddo-spec](https://github.com/GETDDO/getddo-spec)에서 관리합니다. 이 저장소에 공용 문서를 복사하지 않고 원본을 참조합니다.
-
-- [기능 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/functional-requirements.md)
-- [도메인 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/README.md)
-- [브랜치 전략](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/branch.md)
-- [커밋 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/commit.md)
-- [개발 흐름](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/workflow.md)
-- [Pull Request 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)
-- [백엔드 문서와 작업 기록](docs/README.md)
-- [백엔드 코드 스타일](docs/01-conventions/code-style.md)
-- [이 저장소의 PR 템플릿](.github/pull_request_template.md)
