@@ -1,105 +1,169 @@
 # GETDDO Backend
 
-출석·미션을 통한 응모권 적립, 이벤트 응모, 관리자 검토·추첨·결과 발표를 위한 백엔드 프로젝트입니다. 현재 기획 및 초기 구조 설정 단계이며, 세부 기능과 정책은 확정되는 대로 반영합니다.
+## 목차
 
-프론트엔드와 백엔드는 별도 Repository로 관리하며, 동일한 브랜치 전략을 따릅니다.
+1. [프로젝트 소개](#프로젝트-소개)
+2. [개발 방식](#개발-방식)
+3. [핵심 기능](#핵심-기능)
+4. [기술 스택](#기술-스택)
+5. [아키텍처](#아키텍처)
+6. [ERD](#erd)
+7. [패키지 구조](#패키지-구조)
+8. [실행 방법](#실행-방법)
 
-## 기술 구성
+## 프로젝트 소개
 
+GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫폼**입니다. 출석·미션·게임으로 응모권을 모으고, 이벤트에 응모한 뒤 추첨 결과를 확인하는 흐름을 제공합니다.
 
-| 항목          | 구성                      |
-| ----------- | ----------------------- |
-| Java        | 21                      |
-| Spring Boot | 4.1.1                   |
-| Gradle      | Wrapper 사용              |
-| 웹           | Spring MVC              |
-| 영속성         | Spring Data JPA, Flyway |
-| CI          | GitHub Actions          |
+이 저장소는 GETDDO의 백엔드입니다. 응모권 잔액과 이력의 정합성, 중복 요청 방지, 추첨 후보·조건·결과 보존을 중심으로 개발하고 있습니다. 가상 사용자와 더미 데이터로 시연하며, 외부 알림 발송은 모의 처리합니다.
 
+프로젝트의 목표와 범위는 [공용 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/README.md)을 기준으로 합니다.
 
-## 모듈 및 패키지 구조
+## 개발 방식
 
-하나의 애플리케이션으로 실행하는 멀티모듈 구조입니다. `api`는 실행과 요청·응답, `core`는 업무 규칙, `storage:db`는 DB 구현을 담당합니다.
+프론트엔드와 백엔드는 별도 저장소에서 개발하고, 공용 요구사항·도메인 정책·협업 규칙은 [getddo-spec](https://github.com/GETDDO/getddo-spec)에서 관리합니다. 백엔드의 기능별 담당 영역과 공동 작업 경계는 [백엔드 기능 담당자](docs/01-conventions/backend-feature-assignments.md)를 따릅니다.
+
+개발은 Jira 이슈 생성 → `dev` 기준 작업 브랜치 → 구현·테스트 → Pull Request → CI·코드 리뷰 → 병합 순서로 진행합니다. 상세 규칙은 다음 원본 문서를 확인합니다.
+
+- [브랜치 전략](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/branch.md)
+- [커밋 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/commit.md)
+- [개발 흐름](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/workflow.md)
+- [Pull Request 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)
+- [백엔드 코드 스타일](docs/01-conventions/code-style.md)
+- [백엔드 문서와 작업 기록](docs/README.md)
+- [이 저장소의 PR 템플릿](.github/pull_request_template.md)
+
+## 핵심 기능
+
+아래는 개발 중인 서비스의 주요 기능 범위입니다. 세부 정책과 구현·제외 범위는 [기능 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/functional-requirements.md), [도메인 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/README.md), [구현 범위](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/scope.md)를 확인합니다.
+
+| 기능 | 내용 |
+| --- | --- |
+| 출석·미션·게임 | 일일·연속 출석, 퀴즈·설문, 게임 수행에 따른 응모권 보상 |
+| 응모권 관리 | 응모권 잔액과 지급·차감·반환·회수·만료 이력 관리 |
+| 이벤트·응모 | 이벤트와 경품 조회, 응모 조건 검증, 응모 접수와 내 응모 내역 조회 |
+| 참여 검토·추첨 | 어뷰징 의심 건 검토, 추첨 후보·조건 보존, 가중치 추첨과 결과 발표 |
+| 백오피스 | 이벤트·경품·배너·보상 정책 운영, 사용자·응모·감사 로그 조회 |
+| 알림 | 이벤트와 처리 결과에 대한 사이트 내 알림, 읽음 상태 관리 |
+
+## 기술 스택
+
+| 구분 | 기술 |
+| --- | --- |
+| 언어 | ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white) |
+| 프레임워크 | ![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring MVC](https://img.shields.io/badge/Spring_MVC-6DB33F?style=for-the-badge&logo=spring&logoColor=white) |
+| 빌드 | ![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
+| 데이터베이스 | ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white) |
+| 캐시 · 도입 예정 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
+| 영속성·마이그레이션 | ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white) |
+| 객체 매핑 | ![MapStruct 1.6.3](https://img.shields.io/badge/MapStruct-1.6.3-455A64?style=for-the-badge) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge) |
+| API 문서 | ![springdoc-openapi 3.1.1](https://img.shields.io/badge/springdoc--openapi-3.1.1-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) ![Swagger UI](https://img.shields.io/badge/Swagger_UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
+| 테스트 | ![JUnit](https://img.shields.io/badge/JUnit-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Spring Boot Test](https://img.shields.io/badge/Spring_Boot_Test-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=for-the-badge) |
+| 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
+| CI | ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
+
+## 아키텍처
+
+### 클라우드 아키텍처
+
+[![GETDDO AWS 클라우드 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.png)
+
+[draw.io 원본](docs/assets/cloud-architecture.drawio)
+
+## ERD
+
+[![GETDDO 전체 ERD](docs/assets/erd.png)](docs/assets/erd.png)
+
+[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](docs/assets/erd.png)
+
+### 도메인별 ERD
+
+도메인을 선택하면 해당 테이블의 관계도와 연결된 도메인을 확인할 수 있습니다. 도메인별 문서는 현재 저장소의 DBML·Flyway SQL을 기준으로 합니다.
+
+| 도메인 | 테이블 수 | 내용 |
+| --- | ---: | --- |
+| [사용자](docs/03-database/erd/user.md) | 1 | 사용자 정보·역할·멤버십 |
+| [이벤트·응모](docs/03-database/erd/event.md) | 5 | 이벤트·경품·응모자·응모 요청·배너 |
+| [출석](docs/03-database/erd/attendance.md) | 5 | 일일·연속 출석과 보상 기록 |
+| [미션](docs/03-database/erd/mission.md) | 10 | 퀴즈·설문·제출·보상 기록 |
+| [게임](docs/03-database/erd/game.md) | 4 | 게임·플레이·통계·보상 기록 |
+| [보상 정책](docs/03-database/erd/reward.md) | 1 | 출석·미션·게임의 보상 정책 |
+| [응모권](docs/03-database/erd/ticket.md) | 5 | 지갑·원장·배분·반환·회수 |
+| [어뷰징 검토](docs/03-database/erd/abuse.md) | 1 | 의심 행위 탐지와 관리자 검토 |
+| [추첨·발표](docs/03-database/erd/drawing.md) | 6 | 추첨 실행·후보·결과·당첨·발표 |
+| [알림](docs/03-database/erd/notification.md) | 2 | 알림 생성 작업과 사용자 알림 |
+| [감사 로그](docs/03-database/erd/audit.md) | 1 | 변경 행위와 변경 전후 데이터 |
+
+## 패키지 구조
+
+하나의 Spring Boot 애플리케이션으로 실행하는 멀티모듈 구조입니다. 아래는 주요 디렉터리와 기능 추가 시 패키지 배치 기준입니다. `<도메인>`에는 `user`, `event`, `ticket` 등 기능별 패키지 이름이 들어갑니다.
 
 ```text
 getddo-be/
-├── api/
-│   ├── build.gradle
+├── api/                                         # HTTP 요청·응답과 애플리케이션 실행
+│   ├── build.gradle                             # 웹·검증·API 문서 의존성
 │   └── src/
 │       ├── main/
 │       │   ├── java/com/getddo/api/
-│       │   │   └── GetddoBeApplication.java
-│       │   └── resources/application.yaml
-│       └── test/
-│           ├── java/com/getddo/api/
-│           └── resources/
-├── core/
-│   ├── build.gradle
+│       │   │   ├── GetddoBeApplication.java     # Spring Boot 진입점
+│       │   │   ├── common/                      # API 공통 처리
+│       │   │   │   ├── config/                  # MVC·CORS·OpenAPI 설정
+│       │   │   │   ├── context/                 # 사용자 문맥 어노테이션·ArgumentResolver
+│       │   │   │   ├── exception/               # 공통 API 오류 코드·전역 예외 처리
+│       │   │   │   └── response/                # 공통 응답 형식 ResponseEnvelope
+│       │   │   └── <도메인>/
+│       │   │       ├── controller/              # 요청을 받아 Service에 위임
+│       │   │       ├── dto/request/             # 요청 DTO와 입력 검증
+│       │   │       ├── dto/response/            # 응답 DTO
+│       │   │       └── mapper/                  # 도메인 객체 → 응답 DTO 변환
+│       │   └── resources/                       # application.yaml 등 실행 설정
+│       ├── test/                                # DB 없는 API·설정 테스트
+│       └── integrationTest/                     # 앱 기동·API·DB 연동 테스트
+├── core/                                        # 도메인 모델과 비즈니스 규칙
+│   ├── build.gradle                             # Spring Context·트랜잭션 의존성
 │   └── src/
-│       ├── main/
-│       │   ├── java/com/getddo/core/
-│       │   └── resources/
-│       └── test/
-│           ├── java/com/getddo/core/
-│           └── resources/
-├── storage/
-│   └── db/
-│       ├── build.gradle
+│       ├── main/java/com/getddo/core/
+│       │   ├── common/                          # 공통 예외·페이지 조회 모델·시각 처리
+│       │   └── <도메인>/
+│       │       ├── domain/                      # 도메인 객체·상태·비즈니스 규칙
+│       │       ├── service/                     # 업무 흐름과 트랜잭션
+│       │       ├── repository/                  # 조회·저장 인터페이스
+│       │       └── exception/                   # 도메인 오류 코드(ErrorCode 구현)
+│       └── test/                                # 도메인 규칙·Service 테스트
+├── storage/                                     # 영속성 모듈의 경로 구분
+│   └── db/                                      # MySQL 영속성 구현
+│       ├── build.gradle                         # JPA·Flyway·MySQL 드라이버 의존성
 │       └── src/
 │           ├── main/
 │           │   ├── java/com/getddo/db/
-│           │   └── resources/db/migration/
-│           └── test/
-│               ├── java/com/getddo/db/
-│               └── resources/
-├── .github/
-│   ├── pull_request_template.md
-│   └── workflows/build.yml
-├── gradle/wrapper/
-├── build.gradle
-├── settings.gradle
-├── gradlew
-└── gradlew.bat
+│           │   │   ├── common/                  # 공통 Entity·JPA Auditing 설정
+│           │   │   └── <도메인>/
+│           │   │       ├── entity/              # DB 테이블에 대응하는 JPA Entity
+│           │   │       ├── repository/          # JpaRepository·core Repository 구현
+│           │   │       └── mapper/              # Entity ↔ 도메인 객체 변환
+│           │   └── resources/db/migration/      # 도메인별 Flyway SQL
+│           ├── test/                            # DB 없는 영속성 관련 테스트
+│           ├── integrationTest/                 # 실제 MySQL·마이그레이션 검증
+│           └── testFixtures/                    # 공유 Testcontainers 설정
+├── .github/                                     # GitHub 협업·자동화 설정
+│   ├── pull_request_template.md                 # PR 작성 양식
+│   └── workflows/                               # 빌드·테스트·PR 제목 검사
+├── docs/                                        # 백엔드 API·DB·결정·작업 기록
+├── gradle/wrapper/                              # Gradle 실행 버전 고정
+├── compose.yaml                                 # 로컬 앱·MySQL 컨테이너 구성
+├── Dockerfile                                   # 애플리케이션 이미지 빌드
+├── .env.example                                 # 로컬 환경변수 예시
+├── build.gradle                                 # 모듈 공통 빌드·테스트 설정
+├── settings.gradle                              # 프로젝트 이름·모듈 등록
+├── gradlew                                      # macOS·Linux·WSL Gradle 실행
+└── gradlew.bat                                  # Windows Gradle 실행
 ```
 
-빈 디렉터리는 `.gitkeep`으로 유지합니다. `.gitkeep`은 Git의 특별한 기능이 아니라, 빈 디렉터리를 추적하기 위해 두는 파일입니다. 실제 파일이 추가되면 해당 디렉터리의 `.gitkeep`은 제거해도 됩니다.
+의존 방향은 `api → core`, `api → storage:db`, `storage:db → core`입니다. `api`만 실행 가능한 Spring Boot JAR을 만들고, 나머지 두 모듈은 라이브러리 JAR을 만듭니다. `core`는 API DTO나 JPA Entity에 의존하지 않습니다.
 
-### 모듈 의존 관계
+## 실행 방법
 
-```text
-api → core
-api → storage:db       # 실행 시 구현체 조립
-storage:db → core
-```
-
-- `api`만 실행 가능한 Spring Boot JAR을 생성합니다.
-- `core`와 `storage:db`는 라이브러리 JAR을 생성합니다.
-- `core`는 `api`나 `storage:db`를 참조하지 않습니다.
-- `storage`는 경로 구분용 프로젝트이며, 실제 DB 코드는 `storage:db`에 둡니다.
-
-### 기능 추가 시 패키지 배치
-
-도메인 패키지는 담당자가 기능 구현 시 생성합니다. 현재는 기본 패키지만 있으며, 아래 구조는 배치 기준입니다.
-
-
-| 모듈           | 패키지                                 | 배치할 객체                        |
-| ------------ | ----------------------------------- | ----------------------------- |
-| `api`        | `<도메인>/controller`                  | Controller                    |
-| `api`        | `<도메인>/dto/request`, `dto/response` | 요청·응답 DTO                     |
-| `api`        | `common/context`                    | 여러 API에서 사용하는 사용자 문맥 어노테이션·ArgumentResolver |
-| `api`        | `common/config`                     | MVC·OpenAPI 등 API 공통 설정       |
-| `core`       | `<도메인>/service`                     | 업무 흐름과 트랜잭션을 담당하는 Service     |
-| `core`       | `<도메인>/domain`                      | 상태와 비즈니스 규칙을 가진 도메인 객체        |
-| `core`       | `<도메인>/repository`                  | 조회·저장 인터페이스                   |
-| `core`       | `<도메인>/exception`                   | 도메인 오류 코드(`ErrorCode` 구현 enum)   |
-| `storage:db` | `<도메인>/entity`                      | JPA Entity                    |
-| `storage:db` | `<도메인>/repository`                  | JpaRepository, RepositoryImpl |
-| `storage:db` | `<도메인>/mapper`                      | Entity와 도메인 객체 변환             |
-
-
-Controller는 Service를 호출하고, Service는 `core`의 Repository 인터페이스에 의존합니다. `storage:db`가 그 인터페이스를 구현합니다. HTTP DTO와 JPA Entity를 `core`에 직접 전달하지 않습니다.
-
-## 로컬 실행 및 검증
+Docker Compose 실행에는 Docker가 필요합니다. 터미널에서 애플리케이션이나 Gradle 작업을 실행하려면 JDK 21도 준비합니다. Gradle은 저장소의 Wrapper를 사용합니다.
 
 ### Docker Compose
 
@@ -165,17 +229,3 @@ API의 앱 기동·Swagger 테스트는 `api/src/integrationTest/java/com/getddo
 GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradlew build`를 실행합니다. 별도 DB 비밀값 설정은 필요하지 않습니다. 실패한 테스트 보고서는 `test-reports` 아티팩트에서 확인할 수 있습니다.
 
 `PR 제목 검사`는 [공용 PR 제목 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)에 맞는지 별도로 확인합니다. PR 생성·수정·커밋 추가 시 실행하며, 제목·본문만 수정하면 Gradle 빌드는 실행하지 않습니다. 제목 오류로 병합을 막으려면 main/dev Ruleset의 필수 상태 검사에 `PR 제목 검사`를 등록합니다.
-
-## 문서와 협업 규칙
-
-공용 요구사항, 도메인 정책 및 협업 규칙은 [getddo-spec](https://github.com/GETDDO/getddo-spec)에서 관리합니다. 이 저장소에 공용 문서를 복사하지 않고 원본을 참조합니다.
-
-- [기능 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/functional-requirements.md)
-- [도메인 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/README.md)
-- [브랜치 전략](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/branch.md)
-- [커밋 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/commit.md)
-- [개발 흐름](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/workflow.md)
-- [Pull Request 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)
-- [백엔드 문서와 작업 기록](docs/README.md)
-- [백엔드 코드 스타일](docs/01-conventions/code-style.md)
-- [이 저장소의 PR 템플릿](.github/pull_request_template.md)

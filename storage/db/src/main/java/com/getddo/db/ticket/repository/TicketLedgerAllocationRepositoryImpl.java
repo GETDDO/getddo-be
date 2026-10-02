@@ -1,6 +1,7 @@
 package com.getddo.db.ticket.repository;
 
 import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.ticket.domain.TicketLedgerAllocation;
@@ -14,16 +15,14 @@ import com.getddo.db.ticket.mapper.TicketLedgerMapper;
  * {@code persist}로 저장한다.</p>
  */
 @Repository
+@RequiredArgsConstructor
 public class TicketLedgerAllocationRepositoryImpl implements TicketLedgerAllocationRepository {
 
 	private final EntityManager entityManager;
-
-	public TicketLedgerAllocationRepositoryImpl(EntityManager entityManager) {
-		this.entityManager = entityManager;
-	}
+	private final TicketLedgerMapper ledgerMapper;
 
 	@Override
 	public void save(TicketLedgerAllocation allocation) {
-		entityManager.persist(TicketLedgerMapper.toEntity(allocation));
+		entityManager.persist(ledgerMapper.toEntity(allocation));
 	}
 }
