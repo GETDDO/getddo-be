@@ -1,0 +1,268 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# 이 파일에서 지정하지 않은 값은 기존 CodeRabbit 설정을 상속한다.
+# 공용 정책은 복제하지 않고 아래 code_guidelines에서 getddo-spec 원문에 연결한다.
+language: ko-KR
+inheritance: true
+tone_instructions: >-
+  한국어로 구체적으로 리뷰한다. 문제 위치, 발생 조건, 영향, 근거와 최소 수정 방향을 설명한다.
+  동작 결함과 컨벤션 제안을 구분하고 불확실한 정책은 질문으로 남긴다.
+  주석 수를 채우기 위한 반복이나 형식적인 칭찬은 생략한다.
+
+reviews:
+  profile: assertive
+  review_status: true
+  review_details: true
+  request_changes_workflow: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    # 기본 브랜치 외에 dev를 대상으로 하는 PR도 자동 리뷰한다.
+    base_branches:
+      - '^dev$'
+    labels:
+      - '!skip-review'
+
+  path_instructions:
+    - path: '**/*'
+      instructions: |
+        변경 파일과 실제 호출자·구현체·테스트를 함께 읽고 정합성, 계약, 회귀 위험을 검토한다.
+        공용 기준의 우선순위는 getddo-spec의 확정 요구사항·구현 범위 → 확정 도메인 규칙
+        → 채택된 공용 ADR → 공용 협업 규칙 → 미결정 사항이다. 백엔드 구현은 AGENTS.md,
+        README.md와 채택된 백엔드 ADR을 함께 확인한다. 문서별 상태와 적용 범위를 먼저 읽는다.
+        검토 대기·제안·미결정 문서나 과거 작업 기록을 확정 정책으로 강제하지 않는다.
+        초안과 구현의 차이는 확정된 상위 근거를 확인하고, 해결되지 않는 정책 충돌은 질문으로 남긴다.
+        연결 문서를 읽지 못했으면 확인 불가를 리뷰 요약에 명시하고 정책을 추측하지 않는다.
+        실제 결함은 재현 입력이나 실행 순서, 영향받는 상태·사용자, 근거 코드와 최소 수정 방향을 제시한다.
+        새 테스트가 필요하면 실패해야 하는 조건과 기대 결과를 구체화한다. 정적 분석 경고도 실제 경로를 검증한다.
+        기존 안전장치로 방지되는 문제나 수정 완료된 문제를 반복하지 않는다. 변경으로 드러나는 기존 결함은 검토한다.
+        컨벤션 위반과 유지보수 제안도 근거가 있으면 알리되, 단순 스타일 차이를 정합성 결함으로 과장하지 않는다.
+        프로젝트 범위 밖 기능, 일괄 리팩터링, 특정 패턴·라이브러리 도입을 근거 없이 요구하지 않는다.
+        도메인 정책·API·데이터 모델·기능 경계가 바뀌면 영향받는 담당 영역과 확인할 계약을 명시한다.
+
+    - path: '**/*.java'
+      instructions: |
+        README.md의 패키지 배치와 docs/01-conventions/code-style.md의 상태·예외를 확인한다.
+        운영 코드의 생성자 주입, 객체 불변식, 목적이 분명한 변경 메서드, 일관된 도메인 용어를 검토한다.
+        테스트의 Spring 필드 주입은 허용한다. api에는 Lombok 의존성이 없으므로 Lombok 도입을 전제하지 않는다.
+        JSON 요청·응답 record와 core의 일반 클래스 사용을 구분하고, 모든 값 객체의 record 전환을 요구하지 않는다.
+        현재 관례의 @AllArgsConstructor·core @Builder 제한, enum의 별도 파일 배치,
+        @ToString·직접 toString 재정의 제한도 확인하되 초안에만 근거한 항목은 컨벤션 제안으로 구분한다.
+        record의 자동 toString과 UUID.toString 같은 호출은 직접 재정의와 다르다.
+        변환은 기존 toDomain/from 및 MapStruct 관례를 따르고, 변환 코드에 DB 조회·업무 판단을 섞지 않는다.
+        null 계약, 빈 컬렉션, 가변 컬렉션 노출, 값 비교, 숫자 범위·overflow와 문자열 길이를 확인한다.
+        Javadoc은 책임과 처리 이유를 설명해야 한다. 포맷 취향, 주석 개수나 일률적인 줄 길이를 강제하지 않는다.
+
+    - path: 'core/src/main/**/*.java'
+      instructions: |
+        core는 도메인 객체·Service·Repository 인터페이스를 맡는다. api DTO, JPA Entity,
+        storage:db 구현이나 HTTP 계층에 의존하지 않는지 확인한다.
+        현재 core의 Spring @Service·@Transactional 사용은 허용된 구조다.
+        상태 전이와 자격 검증을 Controller에만 두거나 Repository 구현에 숨기지 않는다.
+        기존 ErrorCode·BusinessException과 도메인별 exception 패키지를 재사용하고 오류 의미를 보존한다.
+        조회 부재가 정상인지 업무 오류인지 구분하고, Optional을 무조건 예외로 바꾸지 않는다.
+
+    - path: 'api/src/main/**/*.java'
+      instructions: |
+        Controller의 입력 해석·검증 → Service 호출 → ResponseEnvelope 응답 흐름을 확인한다.
+        요청 제약과 @Valid의 실제 적용, 중첩 DTO 검증, 누락·null·빈 값·범위 초과의 오류 응답을 검토한다.
+        공개 Entity·도메인 객체 노출, 내부 필드 과다 노출, 상태 코드·필드명·enum·nullable 계약 변경을 확인한다.
+        데이터 없는 JSON 성공은 기존 success(null), 본문 없는 204와 구분한다.
+        GlobalExceptionHandler가 업무 예외와 입력 오류를 일관되게 처리하고 내부 예외·SQL을 노출하지 않는지 확인한다.
+        목록은 정렬 동률의 기준, cursor·offset 경계, 최대 조회 크기와 권한 조건을 검토한다.
+        getddo-spec/05-api의 확정된 부분과 초안을 구분하고 Swagger·실제 응답·프론트 계약의 차이를 알린다.
+
+    - path: '**/src/main/**/*.java'
+      instructions: |
+        함께 성공해야 하는 기록·보상·원장·잔액·상태 변경의 트랜잭션 경계를 실제 호출 경로에서 확인한다.
+        self-invocation, 전파 옵션, 예외 포착·변환, checked exception, flush 시점으로 원자성이 깨지지 않는지 검토한다.
+        중복 확인 후 저장 사이의 경쟁, 없는 행의 최초 생성 경쟁, lost update, 잠금 순서와 교착을 확인한다.
+        재시도 식별자와 새로운 업무 요청을 구분하고, UNIQUE 제약 위반 후 rollback-only 상태에서 처리를 계속하지 않는다.
+        메모리 잠금·조회만으로 다중 인스턴스의 일관성을 보장한다고 가정하지 않는다.
+        Clock·TimeProvider와 UTC Instant/KST 업무 날짜의 역할을 구분한다. 서버 기본 시간대에 의존하지 않는다.
+        요청 수신 시각, 잠금 획득 시각, 실제 처리·commit 시각 중 해당 정책이 요구하는 기준을 확인한다.
+        자정·월말·윤일, 만료·마감과 동시에 실행되는 요청, 서로 다른 기준일 요청의 처리 순서 역전을 검토한다.
+        트랜잭션 후 비동기 작업은 rollback 시 오발행, commit 후 유실, 중복 전달·재시도와 장애 복구를 확인한다.
+        현재 구조로 보장할 수 있으면 새 프레임워크나 분산 잠금 도입을 일괄 요구하지 않는다.
+
+    - path: 'storage/db/src/main/java/**/*.java'
+      instructions: |
+        Entity·Repository 구현·Mapper와 core 계약 및 실제 Flyway DDL을 대조한다.
+        컬럼명·타입·정밀도·길이·null·enum·FK·UNIQUE·조회 조건의 차이와 변환 시 필드 유실을 확인한다.
+        MapStruct의 생성 코드와 annotation processor 구성을 고려하고 컴파일러가 보장하는 검사를 중복 지적하지 않는다.
+        채택된 ADR-0001의 UUID 생성 시점과 BaseEntity/BaseUpdatableEntity 구분을 따른다.
+        bulk JPQL·native SQL이 Auditing과 영속성 컨텍스트를 우회하는 경로를 검토한다.
+        JPA 기본 생성자·접근 범위, 명시적 LAZY, N+1, fetch join과 pagination 조합, 무제한 전체 조회를 확인한다.
+        모든 FK의 양방향 연관관계나 cascade를 요구하지 않는다. 삭제 전파는 이력 보존·생명주기에 맞춰 검토한다.
+        쿼리 조건·정렬·잠금 범위에 맞는 인덱스와 MySQL의 실제 격리 수준·제약 동작을 고려한다.
+
+    - path: 'storage/db/src/main/resources/db/migration/**/*.sql'
+      instructions: |
+        이미 적용 가능한 기존 Flyway 버전 파일의 수정·삭제 대신 새 마이그레이션이 필요한지 확인한다.
+        버전 중복, 실행 순서, 기존 데이터가 있는 상태의 NOT NULL·UNIQUE·FK 추가와 기본값·backfill을 검토한다.
+        금액·수량·상태·시각의 범위, UUID BINARY(16)와 Entity 매핑, 조회·잠금에 필요한 인덱스를 대조한다.
+        새 DB 생성뿐 아니라 이전 스키마에서 업그레이드할 때 데이터 손실·검증 실패가 없는지 확인한다.
+        초안 DB 문서보다 확정된 공용 정책을 우선하며, DDL과 구현의 불일치는 별도로 알린다.
+
+    - path: '**/attendance/**'
+      instructions: |
+        getddo-spec/02-domain/attendance.md를 기준으로 같은 업무일 중복 출석, 연속 출석의 단절·월 전환,
+        단계 보상의 재달성·재시도, 운영 정책의 적용 시작일·월을 검토한다.
+        같은 날짜 동시 요청뿐 아니라 자정 양쪽 날짜 요청이 역순으로 commit되는 경우를 추적한다.
+        출석 기록·연속 상태·단계 보상·응모권 지급이 모두 일치하고 실패 시 일부만 남지 않는지 확인한다.
+
+    - path: '**/ticket/**'
+      instructions: |
+        getddo-spec/02-domain/ticket.md를 기준으로 지급·차감·만료·환불·회수와 잔액/원장/출처 배분의 일치를 검토한다.
+        같은 보상 출처의 중복 지급, 재시도 시각 변경, 보상 확정과 지갑 최초 생성의 경쟁을 확인한다.
+        일반 지급과 환불의 유효기간 기준을 혼동하지 않는지, 만료된 수량을 소비하거나 잔액이 음수가 되지 않는지 확인한다.
+        원본 원장을 덮어쓰지 않고 교정·환불·회수의 연결 관계를 보존하는지 확인한다.
+        회수 범위와 이미 사용·만료·회수한 양을 추적하고 다른 정상 출처의 잔액까지 회수하지 않는지 검토한다.
+        소비 우선순위 등 미결정 정책이나 범위 밖 수동 조정 기능을 임의로 확정하지 않는다.
+
+    - path: '**/entry/**'
+      instructions: |
+        getddo-spec/02-domain/entry.md와 ticket.md를 기준으로 이벤트 상태·멤버십·응모 자격을 검증한다.
+        같은 요청 재시도와 유효한 추가 응모를 구분하고, 누적 사용 상한·무료 응모 중복·보유량을 함께 확인한다.
+        응모 접수·차감·원장이 원자적이며 취소·중지·마감·만료와 경쟁해도 접수 완료 기준을 만족하는지 검토한다.
+        요청 수, 응모 건수와 고유 응모자 수를 혼동하거나 거절된 응모를 가중치에 포함하지 않는지 확인한다.
+
+    - path: '**/event/**'
+      instructions: |
+        getddo-spec/02-domain/event.md를 기준으로 이벤트·경품 등록의 원자성과 경품 등수·수량의 일관성을 확인한다.
+        등록·수정·시작·중지·재개·취소의 허용 상태와 시각 경계, 관리자 자격을 검토한다.
+        응모와 운영 상태 변경이 경쟁할 때 최종 상태·차감·환불이 일치하는지 확인한다.
+        변경 제한과 연결 배너·경품·이력의 생명주기는 확정 정책을 따르고 일괄 삭제·환불을 임의로 추가하지 않는다.
+
+    - path: '**/drawing/**'
+      instructions: |
+        getddo-spec/02-domain/drawing.md의 후보·가중치·경품 조건 스냅샷, 실행별 확정 결과와 출처 연결을 검토한다.
+        같은 실행 재시도와 새 재추첨을 구분하고, 동시 실행·중단 복구에서 결과가 중복 확정되지 않는지 확인한다.
+        선정 순서와 화면 발표 순서를 구분하고 경품 간 중복 당첨, 인원 초과, 후보 부족을 검사한다.
+        재추첨은 유지할 당첨자·빈 자리·원래 후보와 가중치를 보존하는지 확인한다.
+        의심 상태와 제외 확정을 구분하고, 결과 확정·관리자 확인·공개 시점 사이의 비공개 정보 노출을 검토한다.
+        검증을 위해 원본 스냅샷·결과를 바꾸거나 난수를 다시 뽑도록 요구하지 않는다.
+        일반 사용자 응답의 개인정보 마스킹과 내부 검토 사유 노출을 확인한다.
+
+    - path: '**/mission/**'
+      instructions: |
+        getddo-spec/02-domain/mission.md의 서버 수신 시각 기준, 제출 가능 기간, 사용자별 참여·보상 조건을 확인한다.
+        제출 기록과 보상 지급의 원자성·멱등성, 틀린 퀴즈 답안·누락된 설문 항목과 정답 노출을 검토한다.
+        참여 후 문제·보상 변경과 삭제가 이미 확정된 참여 이력을 훼손하지 않는지 확인한다.
+
+    - path: '**/game/**'
+      instructions: |
+        getddo-spec/02-domain/game.md의 서버 발급 플레이 식별자·점수 검증·일별 제한을 확인한다.
+        같은 플레이 재제출과 다른 플레이를 구분하고 점수·횟수·보상을 중복 반영하지 않는지 검토한다.
+        클라이언트가 보낸 점수만 신뢰하거나 탐지 결과만으로 확정된 무효 처리와 동일하게 다루지 않는지 확인한다.
+        아직 정하지 않은 개별 게임 규칙·검증 임계치를 임의로 요구하지 않는다.
+
+    - path: '**/notification/**'
+      instructions: |
+        getddo-spec/02-domain/notification.md와 05-api/notification.md의 확정 범위를 확인한다.
+        조회·개별 읽음·전체 읽음에 본인 소유권이 적용되고 목록 조회가 읽음 상태를 바꾸지 않는지 검토한다.
+        사용자 문맥의 선택 멤버십 처리는 docs/02-api/user-profile.md와 실제 공통 resolver 계약을 함께 확인한다.
+        발송은 원인이 되는 업무의 실제 확정·공개와 연결하고 대상자·원인·버전별 중복과 재시도를 검토한다.
+        전송 실패가 이미 확정된 업무를 되돌리지 않는지, 재처리 중 누락·중복·영구 실패가 관찰 가능한지 확인한다.
+
+    - path: '**/{user,context}/**'
+      instructions: |
+        docs/02-api/user-profile.md의 시연용 사용자 선택과 신원 인증의 차이를 유지한다.
+        DB 역할·멤버십 대조, 헤더 누락·공백·중복·형식 오류, API별 membershipRequired 차이를 검토한다.
+        사용자 문맥 캐시는 요청 내부에서만 재사용하고 각 파라미터의 조건을 별도로 확인하는지 검사한다.
+        INACTIVE·관리자 자격 제한은 해당 업무 계약을 확인하며 특정 API의 제한을 모든 API에 강제하지 않는다.
+        일반 사용자에게 타인의 정보·관리자 동작이 노출되는 경로를 추적한다. 시연 범위에 로그인·JWT 도입을 강제하지 않는다.
+
+    - path: '**/{abuse,audit}/**'
+      instructions: |
+        공용 확정 요구사항과 관련 도메인 규칙을 기준으로 탐지·검토·확정 조치·재검토를 구분한다.
+        의심만으로 회수·무효화·당첨 취소하지 않고 관리자 권한, 조치 사유와 원본 업무의 연결을 확인한다.
+        반복 조치·동시 처리로 같은 대상의 수량·결과를 중복 반영하지 않는지 검토한다.
+        감사 기록은 실제 처리자·대상·시각·변경 전후·사유를 추적하고 원래 업무의 rollback과 일치해야 한다.
+        개인정보·비밀값의 불필요한 기록과 일반 사용자 노출을 확인한다. 보관·익명화 미결정안을 강제하지 않는다.
+
+    - path: '**/src/{test,integrationTest,testFixtures}/**'
+      instructions: |
+        변경된 동작의 정상·실패·경계 조건을 검증하는지 확인한다. 구현의 호출 횟수만 복제한 테스트로 대체하지 않는다.
+        권한·소유권, 중복·재시도, 시간 경계, 잘못된 상태 전이와 rollback 후 DB 상태를 필요한 범위에서 검증한다.
+        DB 제약·잠금·격리·Flyway·JPA 매핑은 기존 Testcontainers MySQL 환경의 통합 테스트로 검증한다.
+        동시성 테스트는 독립 트랜잭션과 동기화로 경쟁을 재현하고 최종 기록·원장·잔액까지 확인한다.
+        시간 테스트는 고정 또는 제어 가능한 Clock을 사용하고 임의 sleep이나 실행 순서 의존을 피한다.
+        통합 테스트 자체의 상위 트랜잭션이 실제 commit·rollback·이벤트 처리 결함을 가리지 않는지 확인한다.
+        새 테스트의 한국어 DisplayName과 given/when/then 관례를 참고하되 기존 테스트 전체 재포맷을 요구하지 않는다.
+        테스트 비활성화·검증 삭제로 실패를 숨기지 않는다. test와 integrationTest/build의 실행 범위를 구분한다.
+
+    - path: '**/*.gradle'
+      instructions: |
+        Java 21, 기존 Spring Boot BOM, api/core/storage:db 의존 방향과 모듈별 책임을 확인한다.
+        api의 storage:db implementation은 현재 허용된 구성이다. 다른 프로젝트의 runtimeOnly 규칙을 강제하지 않는다.
+        의존성 범위, annotation processor·MapStruct/Lombok 연동, testFixtures와 integrationTest 연결을 검토한다.
+        DB 통합 테스트가 check/build에서 빠지거나 예외 처리로 빌드 실패가 숨겨지지 않는지 확인한다.
+        메이저 버전 변경·사용하지 않는 라이브러리 추가는 필요성과 호환성 검증을 확인한다.
+
+    - path: '**/src/main/resources/**'
+      instructions: |
+        환경별 설정과 실제 바인딩 코드의 일치, 필수 환경변수 누락, 프로파일 활성화 방식을 확인한다.
+        비밀번호·토큰 하드코딩, 운영 debug·과도한 SQL/개인정보 로그, 파괴적인 DDL 자동 실행을 검토한다.
+        Flyway 경로, 시간대, DB 연결·타임아웃·풀 설정이 코드와 배포 환경에 맞는지 확인한다.
+        확정하지 않은 운영 규모나 인프라를 가정해 임의 수치 조정을 요구하지 않는다.
+
+    - path: '.github/workflows/*.{yml,yaml}'
+      instructions: |
+        dev 대상 PR 트리거, 실제 Gradle 검증 범위와 필요한 Java·Docker 환경을 확인한다.
+        최소 토큰 권한, 신뢰하지 않는 PR 코드의 실행 문맥, 비밀값 노출과 shell 입력 삽입을 검토한다.
+        continue-on-error, 경로 필터나 조건식으로 필수 검증이 건너뛰어지지 않는지 확인한다.
+
+    - path: 'docs/**/*.md'
+      instructions: |
+        현재 코드·확정 공용 명세와의 정합성, 링크와 경로, 실행 가능한 명령을 확인한다.
+        공용 정책을 백엔드 문서에서 중복 확정하지 않는다. 초안·제안·채택 상태와 실제 검증 결과를 구분한다.
+        API·DB·운영 변경에 필요한 문서가 갱신됐는지 확인하되 모든 작은 변경에 작업 기록이나 ADR을 요구하지 않는다.
+
+  tools:
+    pmd:
+      enabled: true
+    github-checks:
+      enabled: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    # docs 아래 문서가 실제 소스 리뷰에도 적용되도록 applyTo를 명시한다.
+    # AGENTS.md는 CodeRabbit의 기본 탐지 대상이다.
+    filePatterns:
+      - files: 'README.md, docs/01-conventions/code-style.md, docs/01-conventions/backend-feature-assignments.md'
+        applyTo: '**/*'
+      - files: 'docs/04-decisions/0001-common-entity-uuid-auditing.md'
+        applyTo: 'storage/db/**/*'
+      - files: 'docs/02-api/user-profile.md'
+        applyTo: 'api/**/*.java, core/**/*.java'
+      - files: 'GETDDO/getddo-spec:00-requirements/functional-requirements.md, GETDDO/getddo-spec:00-requirements/scope.md, GETDDO/getddo-spec:02-domain/glossary.md'
+        applyTo: '**/*'
+      - files: 'GETDDO/getddo-spec:02-domain/attendance.md'
+        applyTo: '**/attendance/**'
+      - files: 'GETDDO/getddo-spec:02-domain/ticket.md'
+        applyTo: '**/ticket/**, **/attendance/**, **/entry/**, **/mission/**, **/game/**, **/abuse/**'
+      - files: 'GETDDO/getddo-spec:02-domain/entry.md'
+        applyTo: '**/entry/**, **/event/**, **/drawing/**'
+      - files: 'GETDDO/getddo-spec:02-domain/event.md'
+        applyTo: '**/event/**, **/entry/**, **/drawing/**'
+      - files: 'GETDDO/getddo-spec:02-domain/drawing.md'
+        applyTo: '**/drawing/**, **/abuse/**'
+      - files: 'GETDDO/getddo-spec:02-domain/mission.md'
+        applyTo: '**/mission/**'
+      - files: 'GETDDO/getddo-spec:02-domain/game.md'
+        applyTo: '**/game/**'
+      - files: 'GETDDO/getddo-spec:02-domain/notification.md'
+        applyTo: '**/notification/**'
+      - files: 'GETDDO/getddo-spec:05-api/*.md'
+        applyTo: 'api/**/*.java, docs/02-api/**/*.md'
+  # CodeRabbit 설치에 getddo-spec 읽기 권한이 있어야 한다. 원문은 해당 저장소의 기본 브랜치에서 읽는다.
+  linked_repositories:
+    - repository: GETDDO/getddo-spec
+      instructions: >-
+        GETDDO의 공용 요구사항·범위·용어·도메인 정책·API 계약 원본이다.
+        현재 문서의 상태와 적용 범위를 읽고 확정 요구사항, 확정 도메인 규칙, 채택 ADR 순으로 검토한다.
+        05-api의 일부 계약과 00-requirements/pending-decisions.md는 미확정이므로 정책처럼 강제하지 않는다.
+        확정 문서와 구현의 충돌은 근거를 제시하고, 담당자 결정이 필요한 차이는 질문으로 남긴다.
+        문서에 접근하지 못하면 확인 불가를 명시하며 백엔드의 오래된 초안으로 공용 정책을 대체하지 않는다.
