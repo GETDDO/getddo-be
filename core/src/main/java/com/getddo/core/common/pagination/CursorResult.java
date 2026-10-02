@@ -2,6 +2,7 @@ package com.getddo.core.common.pagination;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * 커서 기준으로 조회한 항목, 다음 조회에 사용할 커서와 전체 항목 수다.
@@ -33,6 +34,19 @@ public final class CursorResult<T> {
 		this.items = copied;
 		this.nextCursor = nextCursor;
 		this.totalElements = totalElements;
+	}
+
+	/**
+	 * 항목의 순서와 커서 정보를 유지하면서 각 항목을 변환한 새 결과를 반환한다.
+	 *
+	 * @param mapper 각 항목에 적용할 변환 함수
+	 * @param <R> 변환한 항목 타입
+	 * @throws NullPointerException 변환 함수가 null이거나 변환한 항목이 null인 경우
+	 */
+	public <R> CursorResult<R> map(Function<? super T, ? extends R> mapper) {
+		Objects.requireNonNull(mapper, "mapper");
+		List<R> mapped = items.stream().<R>map(mapper::apply).toList();
+		return new CursorResult<>(mapped, nextCursor, totalElements);
 	}
 
 	/** 다음 조회에 사용할 커서가 있는지 반환한다. */
