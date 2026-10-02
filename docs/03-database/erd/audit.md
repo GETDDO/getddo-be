@@ -8,21 +8,15 @@
 
 | 테이블 | 역할 |
 | --- | --- |
-| [`audit_logs`](../../../storage/db/src/main/resources/db/migration/audit/V011__create_audit_tables.sql#L4) | 행위자·대상·변경 전후 감사 기록 |
+| [`audit_logs`](#audit_logs) | 행위자·대상·변경 전후 감사 기록 |
 
-## 관계도
+## 테이블 이미지
 
-이 도메인의 PK·FK와 일부 주요 컬럼, 내부 FK 관계를 요약했습니다. 전체 컬럼·UNIQUE·CHECK는 아래 SQL을 확인합니다.
+저장소 DBML의 전체 컬럼·자료형·키·설명을 캡처한 이미지입니다. 이미지를 누르면 원본 크기로 볼 수 있습니다.
 
-```mermaid
-erDiagram
-    audit_logs {
-        binary id PK
-        binary actor_id FK
-        varchar action
-        varchar target_type
-    }
-```
+### audit_logs
+
+[![audit_logs 전체 컬럼](../../assets/erd-tables/audit_logs.png)](../../assets/erd-tables/audit_logs.png)
 
 ## 다른 도메인과의 연결
 
@@ -30,7 +24,7 @@ FK가 있는 테이블에서 참조하는 테이블 방향으로 표시합니다
 
 | FK가 있는 테이블 | FK 컬럼 | 참조 테이블 | 참조 컬럼 |
 | --- | --- | --- | --- |
-| `audit_logs` | `actor_id` | [`users`](user.md) | `id` |
+| `audit_logs` | `actor_id` | [`users`](user.md#users) | `id` |
 
 ## 스키마 원본
 

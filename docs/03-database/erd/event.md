@@ -8,58 +8,35 @@
 
 | 테이블 | 역할 |
 | --- | --- |
-| [`events`](../../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql#L4) | 이벤트 기본 정보와 응모 조건 |
-| [`event_prizes`](../../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql#L29) | 이벤트별 경품·등수·당첨 인원 |
-| [`event_participants`](../../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql#L45) | 이벤트별 응모자와 자격 상태 |
-| [`event_entries`](../../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql#L64) | 개별 응모 요청과 처리 결과 |
-| [`banners`](../../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql#L91) | 이벤트 배너와 노출 순서 |
+| [`events`](#events) | 이벤트 기본 정보와 응모 조건 |
+| [`event_prizes`](#event_prizes) | 이벤트별 경품·등수·당첨 인원 |
+| [`event_participants`](#event_participants) | 이벤트별 응모자와 자격 상태 |
+| [`event_entries`](#event_entries) | 개별 응모 요청과 처리 결과 |
+| [`banners`](#banners) | 이벤트 배너와 노출 순서 |
 
-## 관계도
+## 테이블 이미지
 
-이 도메인의 PK·FK와 일부 주요 컬럼, 내부 FK 관계를 요약했습니다. 전체 컬럼·UNIQUE·CHECK는 아래 SQL을 확인합니다.
+저장소 DBML의 전체 컬럼·자료형·키·설명을 캡처한 이미지입니다. 이미지를 누르면 원본 크기로 볼 수 있습니다.
 
-```mermaid
-erDiagram
-    events {
-        binary id PK
-        binary created_by FK
-        varchar title
-        text description
-    }
-    event_prizes {
-        binary id PK
-        binary event_id FK
-        int prize_rank
-        varchar name
-    }
-    event_participants {
-        binary id PK
-        binary event_id FK
-        binary user_id FK
-        participant_eligibility_status eligibility_status
-        text exclusion_reason
-    }
-    event_entries {
-        binary id PK
-        binary event_id FK
-        binary user_id FK
-        binary participant_id FK
-        varchar idempotency_key
-        int requested_ticket_count
-    }
-    banners {
-        binary id PK
-        binary event_id FK
-        binary created_by FK
-        varchar image_key
-        int display_order
-    }
-    events ||..o{ event_prizes : "event_id"
-    events ||..o{ event_participants : "event_id"
-    events ||..o{ banners : "event_id"
-    events ||..o{ event_entries : "event_id"
-    event_participants |o..o{ event_entries : "participant_id, event_id, user_id"
-```
+### events
+
+[![events 전체 컬럼](../../assets/erd-tables/events.png)](../../assets/erd-tables/events.png)
+
+### event_prizes
+
+[![event_prizes 전체 컬럼](../../assets/erd-tables/event_prizes.png)](../../assets/erd-tables/event_prizes.png)
+
+### event_participants
+
+[![event_participants 전체 컬럼](../../assets/erd-tables/event_participants.png)](../../assets/erd-tables/event_participants.png)
+
+### event_entries
+
+[![event_entries 전체 컬럼](../../assets/erd-tables/event_entries.png)](../../assets/erd-tables/event_entries.png)
+
+### banners
+
+[![banners 전체 컬럼](../../assets/erd-tables/banners.png)](../../assets/erd-tables/banners.png)
 
 ## 다른 도메인과의 연결
 
@@ -67,21 +44,21 @@ FK가 있는 테이블에서 참조하는 테이블 방향으로 표시합니다
 
 | FK가 있는 테이블 | FK 컬럼 | 참조 테이블 | 참조 컬럼 |
 | --- | --- | --- | --- |
-| `event_participants` | `user_id` | [`users`](user.md) | `id` |
-| [`draw_results`](drawing.md) | `event_prize_id` | `event_prizes` | `id` |
-| [`current_awards`](drawing.md) | `event_id` | `events` | `id` |
-| [`current_awards`](drawing.md) | `event_prize_id` | `event_prizes` | `id` |
-| [`draw_candidates`](drawing.md) | `participant_id` | `event_participants` | `id` |
-| `banners` | `created_by` | [`users`](user.md) | `id` |
-| `events` | `created_by` | [`users`](user.md) | `id` |
-| [`notification_jobs`](notification.md) | `event_id` | `events` | `id` |
-| [`notifications`](notification.md) | `event_id` | `events` | `id` |
-| `event_entries` | `user_id` | [`users`](user.md) | `id` |
-| [`publications`](drawing.md) | `event_id` | `events` | `id` |
-| [`draw_runs`](drawing.md) | `event_id` | `events` | `id` |
-| [`abuse_cases`](abuse.md) | `event_id` | `events` | `id` |
-| [`abuse_cases`](abuse.md) | `event_entry_id` | `event_entries` | `id` |
-| [`ticket_ledger`](ticket.md) | `event_entry_id` | `event_entries` | `id` |
+| `event_participants` | `user_id` | [`users`](user.md#users) | `id` |
+| [`draw_results`](drawing.md#draw_results) | `event_prize_id` | `event_prizes` | `id` |
+| [`current_awards`](drawing.md#current_awards) | `event_id` | `events` | `id` |
+| [`current_awards`](drawing.md#current_awards) | `event_prize_id` | `event_prizes` | `id` |
+| [`draw_candidates`](drawing.md#draw_candidates) | `participant_id` | `event_participants` | `id` |
+| `banners` | `created_by` | [`users`](user.md#users) | `id` |
+| `events` | `created_by` | [`users`](user.md#users) | `id` |
+| [`notification_jobs`](notification.md#notification_jobs) | `event_id` | `events` | `id` |
+| [`notifications`](notification.md#notifications) | `event_id` | `events` | `id` |
+| `event_entries` | `user_id` | [`users`](user.md#users) | `id` |
+| [`publications`](drawing.md#publications) | `event_id` | `events` | `id` |
+| [`draw_runs`](drawing.md#draw_runs) | `event_id` | `events` | `id` |
+| [`abuse_cases`](abuse.md#abuse_cases) | `event_id` | `events` | `id` |
+| [`abuse_cases`](abuse.md#abuse_cases) | `event_entry_id` | `event_entries` | `id` |
+| [`ticket_ledger`](ticket.md#ticket_ledger) | `event_entry_id` | `event_entries` | `id` |
 
 ## 스키마 원본
 

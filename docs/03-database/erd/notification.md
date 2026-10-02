@@ -8,35 +8,20 @@
 
 | 테이블 | 역할 |
 | --- | --- |
-| [`notification_jobs`](../../../storage/db/src/main/resources/db/migration/notification/V010__create_notification_tables.sql#L4) | 알림 생성 작업과 재시도 상태 |
-| [`notifications`](../../../storage/db/src/main/resources/db/migration/notification/V010__create_notification_tables.sql#L30) | 사용자 알림과 읽음·모의 발송 상태 |
+| [`notification_jobs`](#notification_jobs) | 알림 생성 작업과 재시도 상태 |
+| [`notifications`](#notifications) | 사용자 알림과 읽음·모의 발송 상태 |
 
-## 관계도
+## 테이블 이미지
 
-이 도메인의 PK·FK와 일부 주요 컬럼, 내부 FK 관계를 요약했습니다. 전체 컬럼·UNIQUE·CHECK는 아래 SQL을 확인합니다.
+저장소 DBML의 전체 컬럼·자료형·키·설명을 캡처한 이미지입니다. 이미지를 누르면 원본 크기로 볼 수 있습니다.
 
-```mermaid
-erDiagram
-    notification_jobs {
-        binary id PK
-        binary event_id FK
-        binary publication_id FK
-        binary target_user_id FK
-        json payload
-        binary source_job_id FK
-        varchar occurrence_key
-    }
-    notifications {
-        binary id PK
-        binary job_id FK
-        binary user_id FK
-        binary event_id FK
-        varchar title
-        text body
-    }
-    notification_jobs |o..o{ notification_jobs : "source_job_id"
-    notification_jobs ||..o{ notifications : "job_id"
-```
+### notification_jobs
+
+[![notification_jobs 전체 컬럼](../../assets/erd-tables/notification_jobs.png)](../../assets/erd-tables/notification_jobs.png)
+
+### notifications
+
+[![notifications 전체 컬럼](../../assets/erd-tables/notifications.png)](../../assets/erd-tables/notifications.png)
 
 ## 다른 도메인과의 연결
 
@@ -44,11 +29,11 @@ FK가 있는 테이블에서 참조하는 테이블 방향으로 표시합니다
 
 | FK가 있는 테이블 | FK 컬럼 | 참조 테이블 | 참조 컬럼 |
 | --- | --- | --- | --- |
-| `notification_jobs` | `event_id` | [`events`](event.md) | `id` |
-| `notification_jobs` | `publication_id` | [`publications`](drawing.md) | `id` |
-| `notification_jobs` | `target_user_id` | [`users`](user.md) | `id` |
-| `notifications` | `user_id` | [`users`](user.md) | `id` |
-| `notifications` | `event_id` | [`events`](event.md) | `id` |
+| `notification_jobs` | `event_id` | [`events`](event.md#events) | `id` |
+| `notification_jobs` | `publication_id` | [`publications`](drawing.md#publications) | `id` |
+| `notification_jobs` | `target_user_id` | [`users`](user.md#users) | `id` |
+| `notifications` | `user_id` | [`users`](user.md#users) | `id` |
+| `notifications` | `event_id` | [`events`](event.md#events) | `id` |
 
 ## 스키마 원본
 

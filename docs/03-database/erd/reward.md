@@ -8,22 +8,15 @@
 
 | 테이블 | 역할 |
 | --- | --- |
-| [`reward_policies`](../../../storage/db/src/main/resources/db/migration/reward/V002__create_reward_tables.sql#L7) | 보상 유형·수량·적용 기간 |
+| [`reward_policies`](#reward_policies) | 보상 유형·수량·적용 기간 |
 
-## 관계도
+## 테이블 이미지
 
-이 도메인의 PK·FK와 일부 주요 컬럼, 내부 FK 관계를 요약했습니다. 전체 컬럼·UNIQUE·CHECK는 아래 SQL을 확인합니다.
+저장소 DBML의 전체 컬럼·자료형·키·설명을 캡처한 이미지입니다. 이미지를 누르면 원본 크기로 볼 수 있습니다.
 
-```mermaid
-erDiagram
-    reward_policies {
-        binary id PK
-        binary created_by FK
-        reward_type reward_type
-        binary game_id FK
-        int reward_ticket_count
-    }
-```
+### reward_policies
+
+[![reward_policies 전체 컬럼](../../assets/erd-tables/reward_policies.png)](../../assets/erd-tables/reward_policies.png)
 
 ## 다른 도메인과의 연결
 
@@ -31,13 +24,13 @@ FK가 있는 테이블에서 참조하는 테이블 방향으로 표시합니다
 
 | FK가 있는 테이블 | FK 컬럼 | 참조 테이블 | 참조 컬럼 |
 | --- | --- | --- | --- |
-| [`mission_reward_claims`](mission.md) | `reward_policy_id` | `reward_policies` | `id` |
-| `reward_policies` | `game_id` | [`games`](game.md) | `id` |
-| `reward_policies` | `created_by` | [`users`](user.md) | `id` |
-| [`missions`](mission.md) | `reward_policy_id` | `reward_policies` | `id` |
-| [`mission_submissions`](mission.md) | `reward_policy_id` | `reward_policies` | `id` |
-| [`attendance_reward_claims`](attendance.md) | `reward_policy_id` | `reward_policies` | `id` |
-| [`game_reward_claims`](game.md) | `reward_policy_id` | `reward_policies` | `id` |
+| [`mission_reward_claims`](mission.md#mission_reward_claims) | `reward_policy_id` | `reward_policies` | `id` |
+| `reward_policies` | `game_id` | [`games`](game.md#games) | `id` |
+| `reward_policies` | `created_by` | [`users`](user.md#users) | `id` |
+| [`missions`](mission.md#missions) | `reward_policy_id` | `reward_policies` | `id` |
+| [`mission_submissions`](mission.md#mission_submissions) | `reward_policy_id` | `reward_policies` | `id` |
+| [`attendance_reward_claims`](attendance.md#attendance_reward_claims) | `reward_policy_id` | `reward_policies` | `id` |
+| [`game_reward_claims`](game.md#game_reward_claims) | `reward_policy_id` | `reward_policies` | `id` |
 
 ## 스키마 원본
 
