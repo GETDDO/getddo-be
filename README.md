@@ -78,7 +78,7 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 
 ### 도메인별 ERD
 
-도메인을 선택하면 GitHub Wiki에서 테이블별 ERD 캡처를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
+도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
 
 | 도메인 | 테이블 수 | 내용 |
 | --- | ---: | --- |
