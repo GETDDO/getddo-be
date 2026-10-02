@@ -17,13 +17,20 @@ public final class NotificationDelivery {
 	private final String linkUrl;
 	private final int attemptCount;
 
-	/** 필수 알림·사용자 ID를 검증하고 불변 발송 입력을 저장한다. */
+	/**
+	 * 필수 식별자·문구를 검증하고 불변 발송 입력을 저장한다. 0은 발송 선점 전 초기 상태다.
+	 * @throws NullPointerException 필수 식별자 또는 문구가 null인 경우
+	 * @throws IllegalArgumentException 발송 차수가 음수인 경우
+	 */
 	public NotificationDelivery(UUID id, UUID userId, String title, String body, String linkUrl, int attemptCount) {
 		this.id = Objects.requireNonNull(id, "id");
 		this.userId = Objects.requireNonNull(userId, "userId");
-		this.title = title;
-		this.body = body;
+		this.title = Objects.requireNonNull(title, "title");
+		this.body = Objects.requireNonNull(body, "body");
 		this.linkUrl = linkUrl;
+		if (attemptCount < 0) {
+			throw new IllegalArgumentException("attemptCount must be non-negative");
+		}
 		this.attemptCount = attemptCount;
 	}
 }

@@ -12,6 +12,40 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationIdentifierTest {
 	@Test
+	@DisplayName("알림과 발송의 필수 문구 및 알림 생성 시각은 null을 거절한다")
+	void rejectsMissingRequiredContent() {
+		// given
+		UUID id = UUID.randomUUID();
+		List<Runnable> constructors = List.of(
+				() -> new Notification(id, null, "내용", Instant.EPOCH, false, null, null),
+				() -> new Notification(id, "제목", null, Instant.EPOCH, false, null, null),
+				() -> new Notification(id, "제목", "내용", null, false, null, null),
+				() -> new NotificationDelivery(id, id, null, "내용", null, 0),
+				() -> new NotificationDelivery(id, id, "제목", null, null, 0));
+
+		// when / then
+		for (Runnable constructor : constructors) {
+			assertThatThrownBy(constructor::run).isInstanceOf(NullPointerException.class);
+		}
+	}
+
+	@Test
+	@DisplayName("작업과 발송의 음수 시도 횟수를 거절하고 0과 양수는 허용한다")
+	void rejectsNegativeAttemptsAndAllowsInitialCount() {
+		// given
+		UUID id = UUID.randomUUID();
+
+		// when / then
+		assertThatThrownBy(() -> new NotificationJob(id, -1)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new NotificationDelivery(id, id, "제목", "내용", null, -1))
+				.isInstanceOf(IllegalArgumentException.class);
+		for (int attempt : List.of(0, 1, 4)) {
+			assertThat(new NotificationJob(id, attempt).getAttemptCount()).isEqualTo(attempt);
+			assertThat(new NotificationDelivery(id, id, "제목", "내용", null, attempt).getAttemptCount()).isEqualTo(attempt);
+		}
+	}
+
+	@Test
 	@DisplayName("알림·작업·발송 입력의 필수 식별자가 null이면 생성 시 거절한다")
 	void rejectsMissingRequiredIdentifiers() {
 		// given

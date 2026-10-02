@@ -72,31 +72,33 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	@Override
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public Optional<NotificationJob> claimNextJob(Instant now) {
-		List<NotificationJob> rows = jdbc.query("""
-			select id, attempt_count from notification_jobs
-			where scheduled_at <= ? and (
-			 (status = 'PENDING' and (next_attempt_at is null or next_attempt_at <= ?))
-			 or (status = 'PROCESSING' and (lease_until is null or lease_until <= ?)))
-			order by scheduled_at, id limit 1 for update skip locked
-			""", (row, index) -> new NotificationJob(uuid(row.getBytes("id")), row.getInt("attempt_count")),
-				time(now), time(now), time(now));
-		if (rows.isEmpty()) {
-			return Optional.empty();
-		}
-		NotificationJob previous = rows.getFirst();
-		if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
+		while (true) {
+			List<NotificationJob> rows = jdbc.query("""
+				select id, attempt_count from notification_jobs
+				where scheduled_at <= ? and (
+				 (status = 'PENDING' and (next_attempt_at is null or next_attempt_at <= ?))
+				 or (status = 'PROCESSING' and (lease_until is null or lease_until <= ?)))
+				order by scheduled_at, id limit 1 for update skip locked
+				""", (row, index) -> new NotificationJob(uuid(row.getBytes("id")), row.getInt("attempt_count")),
+					time(now), time(now), time(now));
+			if (rows.isEmpty()) {
+				return Optional.empty();
+			}
+			NotificationJob previous = rows.getFirst();
+			if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
+				jdbc.update("""
+					update notification_jobs set status = 'FAILED', lease_until = null,
+					next_attempt_at = null, last_error = ? where id = ?
+					""", NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode(), bytes(previous.getId()));
+				continue;
+			}
+			NotificationJob job = new NotificationJob(previous.getId(), previous.getAttemptCount() + 1);
 			jdbc.update("""
-				update notification_jobs set status = 'FAILED', lease_until = null,
-				next_attempt_at = null, last_error = ? where id = ?
-				""", NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode(), bytes(previous.getId()));
-			return Optional.empty();
+				update notification_jobs set status = 'PROCESSING', attempt_count = ?,
+				lease_until = ?, next_attempt_at = null where id = ?
+				""", job.getAttemptCount(), time(now.plus(NotificationRetryPolicy.LEASE)), bytes(job.getId()));
+			return Optional.of(job);
 		}
-		NotificationJob job = new NotificationJob(previous.getId(), previous.getAttemptCount() + 1);
-		jdbc.update("""
-			update notification_jobs set status = 'PROCESSING', attempt_count = ?,
-			lease_until = ?, next_attempt_at = null where id = ?
-			""", job.getAttemptCount(), time(now.plus(NotificationRetryPolicy.LEASE)), bytes(job.getId()));
-		return Optional.of(job);
 	}
 
 	/** 저장된 대상을 읽으므로 일부 생성 후 재시도에서도 대상이 바뀌지 않는다. */
@@ -184,34 +186,36 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	@Override
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public Optional<NotificationDelivery> claimNextDelivery(Instant now) {
-		List<NotificationDelivery> rows = jdbc.query("""
-			select id, user_id, title, body, link_url, delivery_attempt_count from notifications
-			where (mock_delivery_status = 'PENDING'
-			 and (next_delivery_attempt_at is null or next_delivery_attempt_at <= ?))
-			or (mock_delivery_status = 'FAILED' and next_delivery_attempt_at <= ?)
-			order by created_at, id limit 1 for update skip locked
-			""", (row, index) -> new NotificationDelivery(uuid(row.getBytes("id")), uuid(row.getBytes("user_id")),
-				row.getString("title"), row.getString("body"), row.getString("link_url"),
-				row.getInt("delivery_attempt_count")), time(now), time(now));
-		if (rows.isEmpty()) {
-			return Optional.empty();
-		}
-		NotificationDelivery previous = rows.getFirst();
-		if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
+		while (true) {
+			List<NotificationDelivery> rows = jdbc.query("""
+				select id, user_id, title, body, link_url, delivery_attempt_count from notifications
+				where (mock_delivery_status = 'PENDING'
+				 and (next_delivery_attempt_at is null or next_delivery_attempt_at <= ?))
+				or (mock_delivery_status = 'FAILED' and next_delivery_attempt_at <= ?)
+				order by created_at, id limit 1 for update skip locked
+				""", (row, index) -> new NotificationDelivery(uuid(row.getBytes("id")), uuid(row.getBytes("user_id")),
+					row.getString("title"), row.getString("body"), row.getString("link_url"),
+					row.getInt("delivery_attempt_count")), time(now), time(now));
+			if (rows.isEmpty()) {
+				return Optional.empty();
+			}
+			NotificationDelivery previous = rows.getFirst();
+			if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
+				jdbc.update("""
+					update notifications set mock_delivery_status = 'FAILED', next_delivery_attempt_at = null,
+					last_delivery_error = ? where id = ?
+					""", NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode(), bytes(previous.getId()));
+				continue;
+			}
+			NotificationDelivery delivery = new NotificationDelivery(previous.getId(), previous.getUserId(),
+					previous.getTitle(), previous.getBody(), previous.getLinkUrl(), previous.getAttemptCount() + 1);
 			jdbc.update("""
-				update notifications set mock_delivery_status = 'FAILED', next_delivery_attempt_at = null,
-				last_delivery_error = ? where id = ?
-				""", NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode(), bytes(previous.getId()));
-			return Optional.empty();
+				update notifications set mock_delivery_status = ?, delivery_attempt_count = ?,
+				next_delivery_attempt_at = ? where id = ?
+				""", MockDeliveryStatus.PENDING.name(), delivery.getAttemptCount(),
+					time(now.plus(NotificationRetryPolicy.LEASE)), bytes(delivery.getId()));
+			return Optional.of(delivery);
 		}
-		NotificationDelivery delivery = new NotificationDelivery(previous.getId(), previous.getUserId(),
-				previous.getTitle(), previous.getBody(), previous.getLinkUrl(), previous.getAttemptCount() + 1);
-		jdbc.update("""
-			update notifications set mock_delivery_status = ?, delivery_attempt_count = ?,
-			next_delivery_attempt_at = ? where id = ?
-			""", MockDeliveryStatus.PENDING.name(), delivery.getAttemptCount(),
-				time(now.plus(NotificationRetryPolicy.LEASE)), bytes(delivery.getId()));
-		return Optional.of(delivery);
 	}
 
 	@Override

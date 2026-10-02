@@ -32,13 +32,16 @@ public final class Notification {
 	/** 이동할 링크. 없으면 null이다. */
 	private final String linkUrl;
 
-	/** 불변 조회 값을 저장하며 필수 알림 ID가 null이면 거절한다. */
+	/**
+	 * 불변 조회 값을 저장하며 ID·제목·내용·생성 시각이 null이면 거절한다.
+	 * @throws NullPointerException 필수 조회 값이 null인 경우
+	 */
 	public Notification(UUID id, String title, String body, Instant createdAt,
 			boolean isRead, UUID eventId, String linkUrl) {
 		this.id = Objects.requireNonNull(id, "id");
-		this.title = title;
-		this.body = body;
-		this.createdAt = createdAt;
+		this.title = Objects.requireNonNull(title, "title");
+		this.body = Objects.requireNonNull(body, "body");
+		this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
 		this.isRead = isRead;
 		this.eventId = eventId;
 		this.linkUrl = linkUrl;

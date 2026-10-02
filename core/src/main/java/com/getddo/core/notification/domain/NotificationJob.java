@@ -13,9 +13,16 @@ public final class NotificationJob {
 	private final UUID id;
 	private final int attemptCount;
 
-	/** 필수 작업 ID를 검증하고 선점 차수를 저장한다. */
+	/**
+	 * 필수 작업 ID를 검증하고 선점 차수를 저장한다. 0은 아직 선점하지 않은 초기 상태다.
+	 * @throws NullPointerException 작업 ID가 null인 경우
+	 * @throws IllegalArgumentException 선점 차수가 음수인 경우
+	 */
 	public NotificationJob(UUID id, int attemptCount) {
 		this.id = Objects.requireNonNull(id, "id");
+		if (attemptCount < 0) {
+			throw new IllegalArgumentException("attemptCount must be non-negative");
+		}
 		this.attemptCount = attemptCount;
 	}
 }
