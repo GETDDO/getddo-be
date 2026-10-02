@@ -1,6 +1,7 @@
 package com.getddo.api.notification.dto.response;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -26,10 +27,11 @@ public final class NotificationResponse {
 	 * @param isRead 읽음 여부
 	 * @param eventId 관련 이벤트 ID. 없으면 null
 	 * @param linkUrl 관련 화면 링크. 없으면 null
+	 * @throws NullPointerException 필수 알림 ID가 null인 경우
 	 */
 	public NotificationResponse(UUID id, String title, String body, Instant createdAt,
 			boolean isRead, UUID eventId, String linkUrl) {
-		this.id = id;
+		this.id = Objects.requireNonNull(id, "id");
 		this.title = title;
 		this.body = body;
 		this.createdAt = createdAt;

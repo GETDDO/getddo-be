@@ -1,5 +1,6 @@
 package com.getddo.api.notification.dto.response;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -14,9 +15,10 @@ public final class NotificationReadResponse {
 	 *
 	 * @param id 읽음 처리한 본인 알림 ID
 	 * @param isRead 읽음 처리가 성공한 경우 true
+	 * @throws NullPointerException 필수 알림 ID가 null인 경우
 	 */
 	public NotificationReadResponse(UUID id, boolean isRead) {
-		this.id = id;
+		this.id = Objects.requireNonNull(id, "id");
 		this.isRead = isRead;
 	}
 

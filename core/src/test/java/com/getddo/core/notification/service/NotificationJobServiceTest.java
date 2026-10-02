@@ -26,6 +26,7 @@ import com.getddo.core.notification.exception.NotificationProcessingException;
 import com.getddo.core.notification.repository.NotificationJobRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -78,8 +79,8 @@ class NotificationJobServiceTest {
 
 		// when / then
 		assertThat(service.processNextJob()).isTrue();
-		verify(repository, never()).completeJob(JOB, NOW);
-		verify(repository, never()).failJob(JOB, null, "NOTIFICATION-006");
+		verify(repository, never()).completeJob(any(), any());
+		verify(repository, never()).failJob(any(), any(), any());
 	}
 
 	@Test

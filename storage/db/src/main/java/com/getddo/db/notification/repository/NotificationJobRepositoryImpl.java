@@ -59,9 +59,10 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 				request.getTitle(), request.getBody(), request.getLinkUrl(), recipients,
 				request.getOccurrenceKey(), request.getType().name(), NotificationJobStatus.PENDING.name(),
 				time(request.getScheduledAt()), time(now));
-		UUID id = jdbc.queryForObject("select id from notification_jobs where occurrence_key = ?",
+		// 중복 등록에서 확인한 최신 행을 읽어 호출자의 이전 스냅샷 영향을 피한다.
+		UUID id = jdbc.queryForObject("select id from notification_jobs where occurrence_key = ? for share",
 				(row, index) -> uuid(row.getBytes("id")), request.getOccurrenceKey());
-		if (!findRequest(id).equals(request)) {
+		if (!findRequest(id, true).equals(request)) {
 			throw new NotificationProcessingException(NotificationProcessingErrorCode.OCCURRENCE_CONFLICT);
 		}
 		return id;
@@ -101,12 +102,19 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	/** 저장된 대상을 읽으므로 일부 생성 후 재시도에서도 대상이 바뀌지 않는다. */
 	@Override
 	public NotificationJobRequest findRequest(UUID jobId) {
+		return findRequest(jobId, false);
+	}
+
+	/** 등록 입력 비교는 잠금 읽기로 수행해 호출자의 이전 스냅샷에 영향을 받지 않는다. */
+	private NotificationJobRequest findRequest(UUID jobId, boolean lockingRead) {
+		String lockClause = lockingRead ? " for share" : "";
 		List<UUID> recipients = jdbc.query("""
 			select recipients.user_id from notification_jobs j
 			join json_table(j.payload, '$.recipientIds[*]'
 			 columns (user_id varchar(36) path '$' error on error)) recipients
 			where j.id = ? order by recipients.user_id
-			""", (row, index) -> UUID.fromString(row.getString("user_id")), bytes(jobId));
+			""" + (lockingRead ? " for share of j" : ""),
+				(row, index) -> UUID.fromString(row.getString("user_id")), bytes(jobId));
 		return jdbc.queryForObject("""
 			select occurrence_key, notification_type, event_id, publication_id, scheduled_at,
 			json_extract(payload, '$.version') as payload_version,
@@ -116,7 +124,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			if(json_type(json_extract(payload, '$.linkUrl')) = 'NULL', null,
 			 json_unquote(json_extract(payload, '$.linkUrl'))) as link_url
 			from notification_jobs where id = ?
-			""", (row, index) -> {
+			""" + lockClause, (row, index) -> {
 				if (row.getInt("payload_version") != 1 || !"ARRAY".equals(row.getString("recipient_type"))) {
 					throw new NotificationProcessingException(NotificationProcessingErrorCode.INVALID_JOB);
 				}
