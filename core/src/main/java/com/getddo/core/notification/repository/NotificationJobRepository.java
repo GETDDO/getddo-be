@@ -24,7 +24,7 @@ public interface NotificationJobRepository {
 	void failJob(NotificationJob job, Instant nextAttemptAt, String errorCode);
 	/** 생성된 알림 하나의 모의 발송을 별도 트랜잭션에서 선점한다. */
 	Optional<NotificationDelivery> claimNextDelivery(Instant now);
-	/** 자신의 발송 차수일 때만 성공을 기록하며 읽음 상태는 그대로 둔다. */
+	/** 재선점되지 않은 자신의 발송 차수라면 제한 시간 이후에도 성공을 기록하며 읽음 상태는 그대로 둔다. */
 	void completeDelivery(NotificationDelivery delivery, Instant now);
 	/** 생성 실패와 별개인 발송 실패·다음 시각을 기록한다. 읽음 상태는 그대로 둔다. */
 	void failDelivery(NotificationDelivery delivery, Instant nextAttemptAt, String errorCode);
