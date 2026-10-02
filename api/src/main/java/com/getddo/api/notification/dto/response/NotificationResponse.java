@@ -27,14 +27,14 @@ public final class NotificationResponse {
 	 * @param isRead 읽음 여부
 	 * @param eventId 관련 이벤트 ID. 없으면 null
 	 * @param linkUrl 관련 화면 링크. 없으면 null
-	 * @throws NullPointerException 필수 알림 ID가 null인 경우
+	 * @throws NullPointerException 알림 ID·제목·내용·생성 시각 중 필수 값이 null인 경우
 	 */
 	public NotificationResponse(UUID id, String title, String body, Instant createdAt,
 			boolean isRead, UUID eventId, String linkUrl) {
 		this.id = Objects.requireNonNull(id, "id");
-		this.title = title;
-		this.body = body;
-		this.createdAt = createdAt;
+		this.title = Objects.requireNonNull(title, "title");
+		this.body = Objects.requireNonNull(body, "body");
+		this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
 		this.isRead = isRead;
 		this.eventId = eventId;
 		this.linkUrl = linkUrl;

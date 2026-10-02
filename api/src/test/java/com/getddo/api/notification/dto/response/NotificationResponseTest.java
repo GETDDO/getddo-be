@@ -11,6 +11,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationResponseTest {
 	@Test
+	@DisplayName("알림 응답의 필수 제목·내용·생성 시각은 null을 거절한다")
+	void rejectsMissingRequiredContent() {
+		// given
+		UUID id = UUID.randomUUID();
+
+		// when / then
+		assertThatThrownBy(() -> new NotificationResponse(id, null, "내용", Instant.EPOCH, false, null, null))
+				.isInstanceOf(NullPointerException.class).hasMessage("title");
+		assertThatThrownBy(() -> new NotificationResponse(id, "제목", null, Instant.EPOCH, false, null, null))
+				.isInstanceOf(NullPointerException.class).hasMessage("body");
+		assertThatThrownBy(() -> new NotificationResponse(id, "제목", "내용", null, false, null, null))
+				.isInstanceOf(NullPointerException.class).hasMessage("createdAt");
+	}
+
+	@Test
 	@DisplayName("알림 목록과 읽음 응답의 필수 ID가 null이면 생성 시 거절한다")
 	void rejectsMissingIdentifier() {
 		// given / when / then

@@ -278,6 +278,51 @@ class NotificationJobIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("소진된 생성 선점을 최종 실패로 남기고 같은 호출에서 다음 작업을 처리한다")
+	void processesJobAfterExhaustedClaim() {
+		// given
+		UUID exhausted = service.register(request("exhausted-job", NOW, List.of(USER)));
+		for (int attempt = 1; attempt <= 4; attempt++) {
+			assertThat(repository.claimNextJob(clock.instant()).orElseThrow().getAttemptCount()).isEqualTo(attempt);
+			clock.set(clock.instant().plusSeconds(60));
+		}
+		UUID next = service.register(request("next-job", clock.instant(), List.of(USER)));
+
+		// when
+		assertThat(service.processNextJob()).isTrue();
+
+		// then
+		assertThat(jobStatus(exhausted)).isEqualTo("FAILED");
+		assertThat(jobStatus(next)).isEqualTo("COMPLETED");
+		assertThat(count("select count(*) from notifications where job_id = ?", bytes(next))).isEqualTo(1);
+		assertThat(service.processNextJob()).isFalse();
+	}
+
+	@Test
+	@DisplayName("소진된 발송 선점을 최종 실패로 남기고 같은 호출에서 다음 발송을 처리한다")
+	void processesDeliveryAfterExhaustedClaim() {
+		// given
+		UUID exhausted = service.register(request("exhausted-delivery", NOW, List.of(USER)));
+		service.processNextJob();
+		for (int attempt = 1; attempt <= 4; attempt++) {
+			assertThat(repository.claimNextDelivery(clock.instant()).orElseThrow().getAttemptCount()).isEqualTo(attempt);
+			clock.set(clock.instant().plusSeconds(60));
+		}
+		UUID next = service.register(request("next-delivery", clock.instant(), List.of(USER)));
+		service.processNextJob();
+
+		// when
+		assertThat(service.processNextDelivery()).isTrue();
+
+		// then
+		assertThat(count("select count(*) from notifications where job_id = ? and mock_delivery_status = 'FAILED' and next_delivery_attempt_at is null",
+				bytes(exhausted))).isEqualTo(1);
+		assertThat(count("select count(*) from notifications where job_id = ? and mock_delivery_status = 'SENT' and is_read = false",
+				bytes(next))).isEqualTo(1);
+		assertThat(service.processNextDelivery()).isFalse();
+	}
+
+	@Test
 	@DisplayName("모의 발송만 10초·30초·60초 재시도하며 4번째 실패 이후 읽음·생성 결과를 유지한다")
 	void exhaustsOnlyDeliveryRetriesWithoutChangingReadState() {
 		// given
