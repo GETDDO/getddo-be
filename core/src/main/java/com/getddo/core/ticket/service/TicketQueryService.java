@@ -82,6 +82,28 @@ public class TicketQueryService {
 		return new CursorResult<>(items, nextCursor, queryRepository.countLedger(userId, filter));
 	}
 
+	/**
+	 * HTTP 요청 값 그대로 이력을 조회한다.
+	 *
+	 * <p>{@link CursorQuery}는 빈 커서나 1 미만의 개수를 {@link IllegalArgumentException}으로 거절하므로, 만들기 전에
+	 * 같은 조건을 조회 조건 오류로 바꾼다.</p>
+	 *
+	 * @param userId 요청 사용자 ID
+	 * @param filter 거래 유형·기간 조건
+	 * @param cursor 이전 응답의 다음 커서. 첫 조회면 null
+	 * @param size   조회 개수(1~100)
+	 * @return 이력, 다음 커서(마지막이면 null), 조건에 맞는 전체 수
+	 * @throws TicketException 커서 형식·조회 개수·기간 조건이 올바르지 않은 경우
+	 */
+	@Transactional(readOnly = true)
+	public CursorResult<TicketTransactionView> getMyLedger(UUID userId, TicketLedgerFilter filter, String cursor,
+			int size) {
+		if (size < 1 || (cursor != null && cursor.isBlank())) {
+			throw new TicketException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
+		}
+		return getMyLedger(userId, filter, new CursorQuery(cursor, size));
+	}
+
 	private static void validate(TicketLedgerFilter filter, CursorQuery page) {
 		if (filter == null || page == null || page.getSize() > MAX_PAGE_SIZE || !filter.hasValidPeriod()) {
 			throw new TicketException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
