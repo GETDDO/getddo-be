@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -14,7 +13,6 @@ import lombok.Getter;
  * 그 달에 처음 적용한 연속 출석 정책 묶음을 월말까지 유지한다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class AttendanceStreak {
 
 	/** 저장 전에는 null. */

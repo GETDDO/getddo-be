@@ -2,7 +2,6 @@ package com.getddo.core.ticket.domain;
 
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -12,7 +11,6 @@ import lombok.Getter;
  * 값의 유효성은 {@code TicketGrantService.grant}가 검증한다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class GrantCommand {
 
 	/** 청구 행의 {@code user_id}와 같아야 한다. */
