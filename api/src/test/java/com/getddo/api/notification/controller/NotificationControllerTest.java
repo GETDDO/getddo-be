@@ -27,6 +27,10 @@ import com.getddo.core.user.domain.UserRole;
 import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.service.UserService;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -63,6 +67,7 @@ class NotificationControllerTest {
 		// when / then
 		mvc.perform(selected(put("/api/v1/notifications/me/read-all")))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data").value(aMapWithSize(1)))
 				.andExpect(jsonPath("$.data.updatedCount").value(3));
 		verify(service).markAllRead(USER);
 	}
@@ -77,6 +82,7 @@ class NotificationControllerTest {
 		// when / then
 		mvc.perform(selected(put("/api/v1/notifications/{id}/read", notificationId)))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data").value(aMapWithSize(2)))
 				.andExpect(jsonPath("$.data.id").value(notificationId.toString()))
 				.andExpect(jsonPath("$.data.isRead").value(true));
 	}
@@ -86,18 +92,31 @@ class NotificationControllerTest {
 	void listReturnsTheSpecifiedFieldsAndUtcInstant() throws Exception {
 		// given
 		UUID notificationId = UUID.randomUUID();
+		UUID eventId = UUID.randomUUID();
+		String linkUrl = "/events/" + eventId;
 		Notification notification = new Notification(notificationId, "제목", "내용",
+				Instant.parse("2026-09-30T01:00:00Z"), false, eventId, linkUrl);
+		Notification withoutEvent = new Notification(UUID.randomUUID(), "제목", "내용",
 				Instant.parse("2026-09-30T01:00:00Z"), false, null, null);
 		when(service.findMine(USER, null, 20, null))
-				.thenReturn(new CursorResult<>(List.of(notification), null, 1));
+				.thenReturn(new CursorResult<>(List.of(notification, withoutEvent), null, 2));
 
 		// when / then
 		mvc.perform(selected(get("/api/v1/notifications/me")))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data").value(aMapWithSize(3)))
+				.andExpect(jsonPath("$.data.items[0]").value(aMapWithSize(7)))
 				.andExpect(jsonPath("$.data.items[0].id").value(notificationId.toString()))
+				.andExpect(jsonPath("$.data.items[0].title").value("제목"))
+				.andExpect(jsonPath("$.data.items[0].body").value("내용"))
 				.andExpect(jsonPath("$.data.items[0].isRead").value(false))
+				.andExpect(jsonPath("$.data.items[0].eventId").value(eventId.toString()))
+				.andExpect(jsonPath("$.data.items[0].linkUrl").value(linkUrl))
+				.andExpect(jsonPath("$.data.items[1]").value(aMapWithSize(7)))
+				.andExpect(jsonPath("$.data.items[1].eventId").value(nullValue()))
+				.andExpect(jsonPath("$.data.items[1].linkUrl").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[0].createdAt").value("2026-09-30T01:00:00Z"))
-				.andExpect(jsonPath("$.data.totalElements").value(1));
+				.andExpect(jsonPath("$.data.totalElements").value(2));
 	}
 
 	@Test
@@ -200,6 +219,7 @@ class NotificationControllerTest {
 		selectedUser = new User(USER_ID, "사용자", role, UserStatus.ACTIVE,
 				membership, null, null, null, null, null, null);
 		when(service.findMine(selectedUser, null, 20, null)).thenReturn(new CursorResult<>(List.of(), null, 0));
+		when(service.markRead(eq(selectedUser), any(UUID.class))).thenAnswer(call -> call.getArgument(1));
 
 		// when / then
 		for (MockHttpServletRequestBuilder request : endpoints()) {
