@@ -1,6 +1,7 @@
 package com.getddo.api.ticket;
 
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ApiIntegrationTest
 class TicketApiIntegrationTest {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private static final Duration MARGIN = Duration.ofDays(30);
+	private static final YearMonth CURRENT_MONTH = YearMonth.of(2026, 10);
+	private static final YearMonth PAST_MONTH = YearMonth.of(2026, 9);
 	private static final UUID USER = UUID.fromString("00000000-0000-0000-0000-000000000201");
 	private static final UUID OTHER = UUID.fromString("00000000-0000-0000-0000-000000000202");
 	private static final UUID CURRENT_WALLET = UUID.fromString("00000000-0000-0000-0000-000000000211");
@@ -48,20 +52,18 @@ class TicketApiIntegrationTest {
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private ObjectMapper mapper;
 
-	private YearMonth currentMonth;
-
 	/**
-	 * 실제 서버 시계로 상태를 판정하므로 이번 KST 월 지갑(사용 가능)과 지난달 지갑(만료 시각 경과, 저장 상태는 ACTIVE)을
-	 * 현재 시각 기준으로 만든다. 이번 달 지갑에는 지급 이력 3건을 둔다.
+	 * 서버는 실제 시계로 만료를 판정한다. 테스트가 월 경계에 걸려도 결과가 바뀌지 않도록 사용 가능 지갑은 지금부터
+	 * 30일 뒤, 만료 지갑은 30일 전에 만료되게 둔다(만료 지갑의 저장 상태는 ACTIVE). 사용 가능 지갑에는 지급 이력 3건을 둔다.
 	 */
 	@BeforeEach
 	void seed() {
-		currentMonth = YearMonth.now(KST);
+		Instant now = Instant.now();
 		insertUser(USER);
 		insertUser(OTHER);
-		insertWallet(CURRENT_WALLET, USER, currentMonth, 3);
-		insertWallet(PAST_WALLET, USER, currentMonth.minusMonths(1), 5);
-		insertWallet(OTHER_WALLET, OTHER, currentMonth, 9);
+		insertWallet(CURRENT_WALLET, USER, CURRENT_MONTH, now.plus(MARGIN), 3);
+		insertWallet(PAST_WALLET, USER, PAST_MONTH, now.minus(MARGIN), 5);
+		insertWallet(OTHER_WALLET, OTHER, CURRENT_MONTH, now.plus(MARGIN), 9);
 		insertGrant(OLDEST, CURRENT_WALLET, USER, T1, 1);
 		insertGrant(MIDDLE, CURRENT_WALLET, USER, T2, 2);
 		insertGrant(NEWEST, CURRENT_WALLET, USER, T3, 3);
@@ -87,10 +89,10 @@ class TicketApiIntegrationTest {
 				.andExpect(jsonPath("$.data.availableBalance").value(3))
 				.andExpect(jsonPath("$.data.wallets.length()").value(2))
 				.andExpect(jsonPath("$.data.wallets[0].id").value(CURRENT_WALLET.toString()))
-				.andExpect(jsonPath("$.data.wallets[0].expiryMonth").value(currentMonth.toString()))
+				.andExpect(jsonPath("$.data.wallets[0].expiryMonth").value("2026-10"))
 				.andExpect(jsonPath("$.data.wallets[0].status").value("ACTIVE"))
 				.andExpect(jsonPath("$.data.wallets[1].id").value(PAST_WALLET.toString()))
-				.andExpect(jsonPath("$.data.wallets[1].expiryMonth").value(currentMonth.minusMonths(1).toString()))
+				.andExpect(jsonPath("$.data.wallets[1].expiryMonth").value("2026-09"))
 				.andExpect(jsonPath("$.data.wallets[1].status").value("EXPIRED"))
 				.andExpect(jsonPath("$.data.wallets[1].balance").value(5));
 	}
@@ -186,10 +188,10 @@ class TicketApiIntegrationTest {
 				""", bytes(id), now, now);
 	}
 
-	/** {@code month}에 지급한 지갑. 다음 달 1일 00:00 KST에 만료하며 저장 상태는 ACTIVE로 둔다. */
-	private void insertWallet(UUID id, UUID userId, YearMonth month, long balance) {
+	/** 저장 상태는 ACTIVE로 두고 만료 시각만 지정한 지갑. */
+	private void insertWallet(UUID id, UUID userId, YearMonth month, Instant expiresAtInstant, long balance) {
 		LocalDateTime validFrom = utc(month.atDay(1).atStartOfDay(KST).toInstant());
-		LocalDateTime expiresAt = utc(month.plusMonths(1).atDay(1).atStartOfDay(KST).toInstant());
+		LocalDateTime expiresAt = utc(expiresAtInstant);
 		jdbc.update("""
 				insert into ticket_wallets
 				  (id, user_id, expiry_month, valid_from, expires_at, balance, status, version, created_at, updated_at)
