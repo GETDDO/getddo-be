@@ -12,6 +12,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -194,6 +196,38 @@ class TicketQueryServiceTest {
 			service.getMyLedger(USER_ID, TicketLedgerFilter.none(), new CursorQuery(null, 100));
 			// then
 			verify(queryRepository).findLedger(eq(USER_ID), any(), isNull(), eq(101));
+		}
+
+		@ParameterizedTest
+		@ValueSource(ints = {0, -1})
+		@DisplayName("요청 값으로 조회할 때 조회 개수가 1 미만이면 TICKET-004로 거절한다")
+		void rejectsNonPositiveRequestSize(int size) {
+			// given
+			// when
+			// then
+			assertInvalidQuery(() -> service.getMyLedger(USER_ID, TicketLedgerFilter.none(), null, size));
+			verifyNoInteractions(queryRepository);
+		}
+
+		@Test
+		@DisplayName("요청 값으로 조회할 때 빈 커서는 TICKET-004로 거절한다")
+		void rejectsBlankRequestCursor() {
+			// given
+			// when
+			// then
+			assertInvalidQuery(() -> service.getMyLedger(USER_ID, TicketLedgerFilter.none(), " ", 20));
+			verifyNoInteractions(queryRepository);
+		}
+
+		@Test
+		@DisplayName("요청 값으로 조회하면 같은 커서 조회로 이어진다")
+		void requestValuesUseCursorQuery() {
+			// given
+			when(queryRepository.findLedger(eq(USER_ID), any(), isNull(), eq(21))).thenReturn(List.of());
+			// when
+			service.getMyLedger(USER_ID, TicketLedgerFilter.none(), null, 20);
+			// then
+			verify(queryRepository).findLedger(eq(USER_ID), any(), isNull(), eq(21));
 		}
 
 		@Test
