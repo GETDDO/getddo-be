@@ -1,9 +1,11 @@
 package com.getddo.api.attendance;
 
 import java.nio.ByteBuffer;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -11,6 +13,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,12 +31,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ApiIntegrationTest
+@Import(AttendanceApiIntegrationTest.FixedClock.class)
 class AttendanceApiIntegrationTest {
+	/** 2026-09-15 12:00 KST. 실제 시계를 쓰면 KST 자정에 걸친 실행에서 재요청이 다음 날 출석이 된다. */
+	private static final Instant NOW = Instant.parse("2026-09-15T03:00:00Z");
+
 	private static final UUID USER = UUID.fromString("00000000-0000-0000-0000-000000000301");
 	private static final UUID ADMIN = UUID.fromString("00000000-0000-0000-0000-000000000302");
 	private static final UUID DAILY_POLICY = UUID.fromString("00000000-0000-0000-0000-000000000311");
 	private static final UUID STREAK_SET = UUID.fromString("00000000-0000-0000-0000-000000000312");
-	/** 정책 적용 시작과 등록 시각. 실제 서버 시계보다 항상 과거다. */
+	/** 정책 적용 시작과 등록 시각. 고정 시계보다 과거다. */
 	private static final LocalDateTime SEED_TIME = LocalDateTime.of(2026, 1, 1, 0, 0);
 
 	@Autowired private MockMvc mvc;
@@ -66,13 +76,13 @@ class AttendanceApiIntegrationTest {
 	void firstAttendanceCreatesAndRepeatReturnsSameResult() throws Exception {
 		// given
 		seedPolicies();
-		String today = LocalDate.now(ZoneId.of("Asia/Seoul")).toString();
 
 		// when / then
 		String first = mvc.perform(post("/api/v1/attendances").headers(userHeaders(USER)))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data.attendanceDate").value(today))
+				.andExpect(jsonPath("$.data.attendanceDate").value("2026-09-15"))
+				.andExpect(jsonPath("$.data.createdAt").value("2026-09-15T03:00:00Z"))
 				.andExpect(jsonPath("$.data.consecutiveDays").value(1))
 				.andExpect(jsonPath("$.data.rewards.length()").value(1))
 				.andExpect(jsonPath("$.data.rewards[0].ticketCount").value(2))
@@ -158,6 +168,16 @@ class AttendanceApiIntegrationTest {
 				insert into users (id, name, role, status, membership, updated_at, created_at)
 				values (?, 'test', ?, 'ACTIVE', ?, ?, ?)
 				""", bytes(id), role, membership, SEED_TIME, SEED_TIME);
+	}
+
+	/** 공통 시계 대신 고정 시계를 쓰게 한다. 이 테스트 클래스만 별도 컨텍스트로 뜬다. */
+	@TestConfiguration(proxyBeanMethods = false)
+	static class FixedClock {
+		@Bean
+		@Primary
+		Clock fixedClock() {
+			return Clock.fixed(NOW, ZoneOffset.UTC);
+		}
 	}
 
 	private static byte[] bytes(UUID id) {
