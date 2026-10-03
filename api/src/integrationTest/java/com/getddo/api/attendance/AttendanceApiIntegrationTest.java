@@ -96,8 +96,31 @@ class AttendanceApiIntegrationTest {
 
 		assertThat(repeated).isEqualTo(created);
 		assertThat(count("select count(*) from attendances where user_id = ?")).isEqualTo(1);
+		assertThat(count("select count(*) from attendance_reward_claims where user_id = ?")).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select bin_to_uuid(id) from attendance_reward_claims where user_id = ?",
+				String.class, bytes(USER))).isEqualTo(created.path("rewards").path(0).path("claimId").asString());
 		assertThat(count("select count(*) from ticket_ledger where user_id = ?")).isEqualTo(1);
 		assertThat(count("select coalesce(sum(balance), 0) from ticket_wallets where user_id = ?")).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("멤버십 헤더를 생략해도 출석하고, 전달한 멤버십이 DB와 다르면 409로 거절하고 출석을 남기지 않는다")
+	void membershipHeaderIsOptionalButCheckedWhenSent() throws Exception {
+		// given
+		seedPolicies();
+		HttpHeaders withoutMembership = userHeaders(USER);
+		withoutMembership.remove("X-User-Membership");
+		HttpHeaders wrongMembership = userHeaders(USER);
+		wrongMembership.set("X-User-Membership", "excellent");
+
+		// when / then
+		mvc.perform(post("/api/v1/attendances").headers(wrongMembership))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("USER-006"));
+		assertThat(count("select count(*) from attendances where user_id = ?")).isZero();
+		mvc.perform(post("/api/v1/attendances").headers(withoutMembership))
+				.andExpect(status().isCreated());
+		assertThat(count("select count(*) from attendances where user_id = ?")).isEqualTo(1);
 	}
 
 	@Test
