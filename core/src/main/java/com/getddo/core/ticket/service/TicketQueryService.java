@@ -85,8 +85,8 @@ public class TicketQueryService {
 	/**
 	 * HTTP 요청 값 그대로 이력을 조회한다.
 	 *
-	 * <p>{@link CursorQuery}는 빈 커서나 1 미만의 개수를 {@link IllegalArgumentException}으로 거절하므로, 만들기 전에
-	 * 같은 조건을 조회 조건 오류로 바꾼다.</p>
+	 * <p>빈 커서나 1 미만의 개수는 {@link CursorQuery}가 {@link IllegalArgumentException}으로 거절한다. 이를 조회 조건
+	 * 오류로 바꿔 서버 오류가 아닌 400으로 응답되게 한다.</p>
 	 *
 	 * @param userId 요청 사용자 ID
 	 * @param filter 거래 유형·기간 조건
@@ -98,10 +98,14 @@ public class TicketQueryService {
 	@Transactional(readOnly = true)
 	public CursorResult<TicketTransactionView> getMyLedger(UUID userId, TicketLedgerFilter filter, String cursor,
 			int size) {
-		if (size < 1 || (cursor != null && cursor.isBlank())) {
+		Objects.requireNonNull(userId, "userId");
+		CursorQuery page;
+		try {
+			page = new CursorQuery(cursor, size);
+		} catch (IllegalArgumentException invalidPage) {
 			throw new TicketException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
 		}
-		return getMyLedger(userId, filter, new CursorQuery(cursor, size));
+		return getMyLedger(userId, filter, page);
 	}
 
 	private static void validate(TicketLedgerFilter filter, CursorQuery page) {
