@@ -3,12 +3,10 @@ package com.getddo.core.attendance.domain;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /** 출석 시각에 적용하는 일일 출석 보상 정책({@code reward_policies}의 ATTENDANCE 정책). */
 @Getter
-@EqualsAndHashCode
 public final class DailyRewardPolicy {
 
 	private final UUID id;

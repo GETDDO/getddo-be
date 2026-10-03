@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -14,7 +13,6 @@ import lombok.Getter;
  * 만료 시각이 지났으면 EXPIRED로 보여 준다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class TicketWalletView {
 
 	private final UUID id;

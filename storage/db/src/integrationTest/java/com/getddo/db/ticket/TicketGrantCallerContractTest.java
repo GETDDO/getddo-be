@@ -93,7 +93,7 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 		});
 		// 새 트랜잭션에서 처음부터 다시 처리하면 사전 조회가 기존 청구를 찾아 기존 결과를 반환한다
 		GrantResult retried = completeMission(parents, () -> { });
-		assertThat(retried).isEqualTo(new GrantResult(existing.getLedgerId(), existing.getWalletId(), existing.getQuantity(),
+		assertThat(retried).usingRecursiveComparison().isEqualTo(new GrantResult(existing.getLedgerId(), existing.getWalletId(), existing.getQuantity(),
 				existing.getBalanceAfter(), existing.getGrantedAt(), existing.getExpiresAt(), true));
 		assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId)))
 				.isEqualTo(1);
@@ -153,7 +153,7 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 
 			// 새 트랜잭션에서 처음부터 다시 처리하면 사전 조회가 기존 청구를 찾아 기존 결과를 반환한다
 			GrantResult retried = completeMission(parents, () -> { });
-			assertThat(retried).isEqualTo(new GrantResult(winner.getLedgerId(), winner.getWalletId(), winner.getQuantity(),
+			assertThat(retried).usingRecursiveComparison().isEqualTo(new GrantResult(winner.getLedgerId(), winner.getWalletId(), winner.getQuantity(),
 					winner.getBalanceAfter(), winner.getGrantedAt(), winner.getExpiresAt(), true));
 			assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId)))
 					.isEqualTo(1);

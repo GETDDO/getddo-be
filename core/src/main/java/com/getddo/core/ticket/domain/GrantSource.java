@@ -2,7 +2,6 @@ package com.getddo.core.ticket.domain;
 
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -12,7 +11,6 @@ import lombok.Getter;
  * 같은 청구는 한 번만 지급되며, 그 판단 기준이 {@link #idempotencyKey()}다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class GrantSource {
 
 	private static final String GRANT_KEY_PREFIX = "GRANT:";

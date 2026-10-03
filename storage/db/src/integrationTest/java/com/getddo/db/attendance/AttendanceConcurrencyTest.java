@@ -69,7 +69,7 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 			assertThat(winner.isCreated()).isTrue();
 			assertThat(retried.isCreated()).isFalse();
 			assertThat(retried.getAttendanceId()).isEqualTo(winner.getAttendanceId());
-			assertThat(retried.getRewards()).isEqualTo(winner.getRewards());
+			assertThat(retried.getRewards()).usingRecursiveFieldByFieldElementComparator().containsExactlyElementsOf(winner.getRewards());
 			assertSingleAttendanceAndGrant();
 		} finally {
 			releaseFirst.countDown();
