@@ -19,6 +19,7 @@ import org.testcontainers.mysql.MySQLContainer;
 import com.getddo.core.attendance.domain.AttendanceReceipt;
 import com.getddo.core.attendance.service.AttendanceRecorder;
 import com.getddo.core.attendance.service.AttendanceService;
+import com.getddo.db.ticket.ConcurrentTasks;
 import com.getddo.db.ticket.LockWaitProbe;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
@@ -73,7 +74,7 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 			assertSingleAttendanceAndGrant();
 		} finally {
 			releaseFirst.countDown();
-			executor.shutdownNow();
+			ConcurrentTasks.shutdownAndAwait(executor);
 		}
 	}
 
@@ -107,7 +108,7 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 			assertSingleAttendanceAndGrant();
 		} finally {
 			releaseFirst.countDown();
-			executor.shutdownNow();
+			ConcurrentTasks.shutdownAndAwait(executor);
 		}
 	}
 
@@ -143,7 +144,7 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 			assertSingleAttendanceAndGrant();
 		} finally {
 			releaseFirst.countDown();
-			executor.shutdownNow();
+			ConcurrentTasks.shutdownAndAwait(executor);
 		}
 	}
 
@@ -174,7 +175,8 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 			assertThat(receipts).filteredOn(AttendanceReceipt::isCreated).hasSize(1);
 			assertSingleAttendanceAndGrant();
 		} finally {
-			executor.shutdownNow();
+			start.countDown();
+			ConcurrentTasks.shutdownAndAwait(executor);
 		}
 	}
 

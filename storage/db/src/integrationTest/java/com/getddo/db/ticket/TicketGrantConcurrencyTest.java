@@ -98,7 +98,8 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 			assertThat(walletBalance(results.get(0).getWalletId())).isEqualTo(requests);
 			assertThat(ledgerVersions()).containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L);
 		} finally {
-			executor.shutdownNow();
+			start.countDown();
+			ConcurrentTasks.shutdownAndAwait(executor);
 		}
 	}
 
@@ -143,7 +144,7 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 			return List.of(outcome(first), outcome(second));
 		} finally {
 			releaseFirst.countDown();
-			executor.shutdownNow();
+			ConcurrentTasks.shutdownAndAwait(executor);
 		}
 	}
 

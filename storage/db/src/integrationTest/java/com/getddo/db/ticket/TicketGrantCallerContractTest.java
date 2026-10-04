@@ -163,7 +163,7 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 			assertThat(walletVersion(winner.getWalletId())).isEqualTo(1);
 		} finally {
 			releaseFirst.countDown();
-			executor.shutdownNow();
+			ConcurrentTasks.shutdownAndAwait(executor);
 		}
 	}
 
