@@ -160,7 +160,7 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 		assertThat(saved.getId().version()).isEqualTo(7);
 		TicketLedger found = transaction.execute(status ->
 				ledgerRepository.findByIdempotencyKey(saved.getIdempotencyKey()).orElseThrow());
-		assertThat(found).isEqualTo(saved);
+		assertThat(found).usingRecursiveComparison().isEqualTo(saved);
 		assertThat(jdbc.queryForObject("""
 				select count(*) from ticket_ledger_allocations
 				where ledger_id = ? and source_credit_ledger_id = ? and original_grant_id = ?
@@ -213,11 +213,11 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 			UUID attendanceClaim = seeds.attendanceClaim(userId, attendance, 1);
 			UUID gameClaim = seeds.gameClaim(userId, game, 1);
 			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.MISSION, missionClaim)))
-					.contains(new GrantSourceClaim(userId, 3));
+					.get().usingRecursiveComparison().isEqualTo(new GrantSourceClaim(userId, 3));
 			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.ATTENDANCE, attendanceClaim)))
-					.contains(new GrantSourceClaim(userId, 1));
+					.get().usingRecursiveComparison().isEqualTo(new GrantSourceClaim(userId, 1));
 			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.GAME, gameClaim)))
-					.contains(new GrantSourceClaim(userId, 1));
+					.get().usingRecursiveComparison().isEqualTo(new GrantSourceClaim(userId, 1));
 			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.GAME, missionClaim)))
 					.isEmpty();
 		});

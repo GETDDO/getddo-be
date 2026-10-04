@@ -119,7 +119,7 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		assertThat(repeated.isCreated()).isFalse();
 		assertThat(repeated.getAttendanceId()).isEqualTo(first.getAttendanceId());
 		assertThat(repeated.getConsecutiveDays()).isEqualTo(first.getConsecutiveDays());
-		assertThat(repeated.getRewards()).isEqualTo(first.getRewards());
+		assertThat(repeated.getRewards()).usingRecursiveFieldByFieldElementComparator().containsExactlyElementsOf(first.getRewards());
 		assertThat(repeated.getCreatedAt()).isEqualTo(first.getCreatedAt());
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isEqualTo(1);
 		assertClaimsAndLedgerConsistent();

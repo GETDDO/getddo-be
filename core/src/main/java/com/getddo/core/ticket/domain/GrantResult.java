@@ -3,7 +3,6 @@ package com.getddo.core.ticket.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -13,7 +12,6 @@ import lombok.Getter;
  * ({@code ticketCount}, {@code grantedAt}, {@code expiresAt})에 그대로 매핑된다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class GrantResult {
 
 	private final UUID ledgerId;
