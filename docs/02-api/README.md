@@ -6,6 +6,8 @@
 
 GD-52의 요청 헤더와 Controller 사용법은 [시연용 사용자 문맥과 내 정보 API](user-profile.md)에 정리합니다.
 
+GD-55의 내부 Service 호출과 트랜잭션 규칙은 [감사 로그 기록 기능](audit-recording.md)에 정리합니다.
+
 ## 접속
 
 DB 연결 등 애플리케이션 실행 준비를 마친 뒤 `./gradlew :api:bootRun`으로 실행합니다.
