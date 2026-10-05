@@ -45,11 +45,13 @@ class NotificationJobServiceTest {
 	@Mock private MockNotificationSender sender;
 	private NotificationJobService service;
 
+	/** 서비스가 사용할 고정 업무 시각을 준비한다. */
 	@BeforeEach
 	void setUp() {
 		service = new NotificationJobService(repository, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), sender);
 	}
 
+	/** 검증 시나리오: 일부 사용자 생성 후 일시적 실패는 별도 실패 기록과 재시도로 넘긴다. */
 	@Test
 	@DisplayName("일부 사용자 생성 후 일시적 실패는 별도 실패 기록과 재시도로 넘긴다")
 	void recordsGenerationFailureWithoutSending() {
@@ -68,6 +70,7 @@ class NotificationJobServiceTest {
 		verifyNoInteractions(sender);
 	}
 
+	/** 검증 시나리오: 선점이 교체되면 이전 처리자는 생성 완료나 실패를 덮어쓰지 않는다. */
 	@Test
 	@DisplayName("선점이 교체되면 이전 처리자는 생성 완료나 실패를 덮어쓰지 않는다")
 	void stopsWhenClaimIsLost() {
@@ -83,6 +86,7 @@ class NotificationJobServiceTest {
 		verify(repository, never()).failJob(any(), any(), any());
 	}
 
+	/** 검증 시나리오: 대상이 없는 작업도 완료하며 발송을 수행하지 않는다. */
 	@Test
 	@DisplayName("대상이 없는 작업도 완료하며 발송을 수행하지 않는다")
 	void completesEmptyRecipientSet() {
@@ -96,6 +100,7 @@ class NotificationJobServiceTest {
 		verifyNoInteractions(sender);
 	}
 
+	/** 검증 시나리오: 모의 발송 성공은 기존 알림의 발송 결과만 저장한다. */
 	@Test
 	@DisplayName("모의 발송 성공은 기존 알림의 발송 결과만 저장한다")
 	void completesDeliverySeparately() {
@@ -109,6 +114,7 @@ class NotificationJobServiceTest {
 		verify(repository, never()).claimNextJob(NOW);
 	}
 
+	/** 검증 시나리오: 모의 발송 실패 결과는 생성 재시도와 구분해서 10초 뒤 재시도한다. */
 	@Test
 	@DisplayName("모의 발송 실패 결과는 생성 재시도와 구분해서 10초 뒤 재시도한다")
 	void retriesFailedMockDelivery() {
@@ -122,6 +128,7 @@ class NotificationJobServiceTest {
 		verify(repository, never()).completeDelivery(DELIVERY, NOW);
 	}
 
+	/** 검증 시나리오: 모의 발송 입력 오류는 즉시 최종 실패 처리한다. */
 	@Test
 	@DisplayName("모의 발송 입력 오류는 즉시 최종 실패 처리한다")
 	void doesNotRetryInvalidDelivery() {
@@ -134,6 +141,7 @@ class NotificationJobServiceTest {
 		verify(repository).failDelivery(DELIVERY, null, "NOTIFICATION-003");
 	}
 
+	/** 각 시나리오에서 발생 키와 수신 대상을 지정할 유효한 알림 작업 입력을 만든다. */
 	private static NotificationJobRequest request(List<UUID> users) {
 		return new NotificationJobRequest("발생-1", NotificationType.RESULT_CHANGED,
 				null, null, "제목", "내용", null, NOW, users);

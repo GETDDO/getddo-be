@@ -14,6 +14,7 @@ import com.getddo.core.notification.service.NotificationJobService;
 public class NotificationWorker {
 	private final NotificationJobService service;
 
+	/** 정기 폴링에서 호출할 알림 생성·발송 서비스를 연결한다. */
 	public NotificationWorker(NotificationJobService service) {
 		this.service = service;
 	}

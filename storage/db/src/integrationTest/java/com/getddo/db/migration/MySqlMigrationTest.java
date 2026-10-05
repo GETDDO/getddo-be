@@ -23,6 +23,7 @@ class MySqlMigrationTest {
 	@Container
 	static final MySQLContainer MYSQL = MySqlTestContainers.create();
 
+	/** 검증 시나리오: 빈 MySQL에 V001~V011·V014를 적용하고 논리 삭제 컬럼·알림 인덱스·재실행을 확인한다. */
 	@Test
 	@DisplayName("빈 MySQL에 V001~V011·V014를 적용하고 논리 삭제 컬럼·알림 인덱스·재실행을 확인한다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
@@ -48,6 +49,7 @@ class MySqlMigrationTest {
 		assertIndexExists("notifications", "ix_notification_delivery_retry");
 	}
 
+	/** MySQL 메타데이터에서 워커 선점·재시도에 필요한 인덱스의 적용을 확인한다. */
 	private void assertIndexExists(String tableName, String indexName) throws SQLException {
 		try (Connection connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
 			ResultSet indexes = connection.getMetaData().getIndexInfo(null, null, tableName, false, false)) {
@@ -59,6 +61,7 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** 논리 삭제 컬럼이 기존 활성 데이터를 표현할 수 있도록 null을 허용하는지 확인한다. */
 	private void assertNullableDeletedAtColumn(String tableName) throws SQLException {
 		try (Connection connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
 			ResultSet columns = connection.getMetaData().getColumns(null, null, tableName, "deleted_at")) {

@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationIdentifierTest {
+	/** 검증 시나리오: 알림과 발송의 필수 문구 및 알림 생성 시각은 null을 거절한다. */
 	@Test
 	@DisplayName("알림과 발송의 필수 문구 및 알림 생성 시각은 null을 거절한다")
 	void rejectsMissingRequiredContent() {
@@ -29,6 +30,7 @@ class NotificationIdentifierTest {
 		}
 	}
 
+	/** 검증 시나리오: 작업과 발송의 음수 시도 횟수를 거절하고 0과 양수는 허용한다. */
 	@Test
 	@DisplayName("작업과 발송의 음수 시도 횟수를 거절하고 0과 양수는 허용한다")
 	void rejectsNegativeAttemptsAndAllowsInitialCount() {
@@ -45,6 +47,7 @@ class NotificationIdentifierTest {
 		}
 	}
 
+	/** 검증 시나리오: 알림·작업·발송 입력의 필수 식별자가 null이면 생성 시 거절한다. */
 	@Test
 	@DisplayName("알림·작업·발송 입력의 필수 식별자가 null이면 생성 시 거절한다")
 	void rejectsMissingRequiredIdentifiers() {
@@ -62,6 +65,7 @@ class NotificationIdentifierTest {
 		}
 	}
 
+	/** 검증 시나리오: 관련 이벤트가 없는 알림은 필수 ID만으로 생성할 수 있다. */
 	@Test
 	@DisplayName("관련 이벤트가 없는 알림은 필수 ID만으로 생성할 수 있다")
 	void allowsAbsentRelatedEvent() {
@@ -76,6 +80,7 @@ class NotificationIdentifierTest {
 		assertThat(notification.getEventId()).isNull();
 	}
 
+	/** 검증 시나리오: 알림은 값 비교를 유지하고 문자열 출력에 알림 내용을 노출하지 않는다. */
 	@Test
 	@DisplayName("알림은 값 비교를 유지하고 문자열 출력에 알림 내용을 노출하지 않는다")
 	void preservesValueEqualityWithoutPrintingContent() {

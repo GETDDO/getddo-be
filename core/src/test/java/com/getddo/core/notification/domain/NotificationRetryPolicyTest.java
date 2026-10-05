@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationRetryPolicyTest {
 	private static final Instant NOW = Instant.parse("2026-10-01T00:00:00Z");
 
+	/** 검증 시나리오: 일시적 오류의 생성·발송 재시도 간격은 10초·30초·60초다. */
 	@ParameterizedTest
 	@CsvSource({"1,10", "2,30", "3,60"})
 	@DisplayName("일시적 오류의 생성·발송 재시도 간격은 10초·30초·60초다")
@@ -29,6 +30,7 @@ class NotificationRetryPolicyTest {
 		assertThat(NotificationRetryPolicy.nextAttemptAt(attempt, NOW, failure)).isEqualTo(NOW.plusSeconds(seconds));
 	}
 
+	/** 검증 시나리오: 4번째 실패·입력 오류·제약 위반은 최종 실패로 처리하며 예외 원문을 저장하지 않는다. */
 	@Test
 	@DisplayName("4번째 실패·입력 오류·제약 위반은 최종 실패로 처리하며 예외 원문을 저장하지 않는다")
 	void stopsExhaustedAndPermanentFailures() {

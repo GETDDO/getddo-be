@@ -61,6 +61,7 @@ public final class NotificationJobRequest {
 				.sorted(Comparator.comparing(UUID::toString)).toList();
 	}
 
+	/** DB 컬럼의 문자 수 제한과 필수 문구 조건을 함께 확인한다. */
 	private static boolean validText(String value, int maxLength) {
 		return value != null && !value.isBlank()
 				&& value.codePointCount(0, value.length()) <= maxLength;

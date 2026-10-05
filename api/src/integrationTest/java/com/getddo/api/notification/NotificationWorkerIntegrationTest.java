@@ -36,6 +36,7 @@ class NotificationWorkerIntegrationTest {
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private PlatformTransactionManager transactionManager;
 
+	/** 검증 시나리오: 실제 스케줄러는 업무 커밋 후 알림을 한 번 생성·모의 발송하며 미읽음을 유지한다. */
 	@Test
 	@DisplayName("실제 스케줄러는 업무 커밋 후 알림을 한 번 생성·모의 발송하며 미읽음을 유지한다")
 	void schedulerProcessesOnlyCommittedJobs() {
@@ -79,6 +80,7 @@ class NotificationWorkerIntegrationTest {
 		}
 	}
 
+	/** DB의 BINARY(16) 식별자와 비교할 수 있도록 UUID를 바이트 배열로 변환한다. */
 	private static byte[] bytes(UUID id) {
 		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
