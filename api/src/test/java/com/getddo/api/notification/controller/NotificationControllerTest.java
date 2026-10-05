@@ -48,6 +48,7 @@ class NotificationControllerTest {
 	private User selectedUser;
 	private MockMvc mvc;
 
+	/** 실제 사용자 문맥 검증과 응답 직렬화를 사용할 MockMvc 및 사용자 저장소를 준비한다. */
 	@BeforeEach
 	void setUp() {
 		selectedUser = USER;
@@ -58,6 +59,7 @@ class NotificationControllerTest {
 				.build();
 	}
 
+	/** 검증 시나리오: 선택한 사용자의 전체 읽음 결과 건수를 반환한다. */
 	@Test
 	@DisplayName("선택한 사용자의 전체 읽음 결과 건수를 반환한다")
 	void readAllUsesSelectedUserAndReturnsUpdatedCount() throws Exception {
@@ -72,6 +74,7 @@ class NotificationControllerTest {
 		verify(service).markAllRead(USER);
 	}
 
+	/** 검증 시나리오: 개별 읽음 응답에 알림 ID와 읽음 여부를 반환한다. */
 	@Test
 	@DisplayName("개별 읽음 응답에 알림 ID와 읽음 여부를 반환한다")
 	void individualReadReturnsIsReadField() throws Exception {
@@ -87,6 +90,7 @@ class NotificationControllerTest {
 				.andExpect(jsonPath("$.data.isRead").value(true));
 	}
 
+	/** 검증 시나리오: 목록 응답에 공개 필드와 UTC 생성 시각을 반환한다. */
 	@Test
 	@DisplayName("목록 응답에 공개 필드와 UTC 생성 시각을 반환한다")
 	void listReturnsTheSpecifiedFieldsAndUtcInstant() throws Exception {
@@ -119,6 +123,7 @@ class NotificationControllerTest {
 				.andExpect(jsonPath("$.data.totalElements").value(2));
 	}
 
+	/** 검증 시나리오: 사용자 헤더가 없으면 401로 거절한다. */
 	@Test
 	@DisplayName("사용자 헤더가 없으면 401로 거절한다")
 	void missingUserSelectionIsRejected() throws Exception {
@@ -130,6 +135,7 @@ class NotificationControllerTest {
 				.andExpect(jsonPath("$.code").value("USER-003"));
 	}
 
+	/** 검증 시나리오: UUID나 멤버십 형식이 잘못되면 400으로 거절한다. */
 	@Test
 	@DisplayName("UUID나 멤버십 형식이 잘못되면 400으로 거절한다")
 	void malformedUserIdAndMembershipAreBadRequests() throws Exception {
@@ -147,6 +153,7 @@ class NotificationControllerTest {
 				.andExpect(jsonPath("$.code").value("COMMON-005"));
 	}
 
+	/** 검증 시나리오: 모든 알림 API에서 USER의 필수 헤더를 공통 MVC가 검사한다. */
 	@ParameterizedTest
 	@ValueSource(strings = {"X-User-ID", "X-User-Role"})
 	@DisplayName("모든 알림 API에서 USER의 필수 헤더를 공통 MVC가 검사한다")
@@ -163,6 +170,7 @@ class NotificationControllerTest {
 		verifyNoInteractions(service);
 	}
 
+	/** 검증 시나리오: 모든 알림 API에서 역할·멤버십 불일치와 미등록 사용자를 공통 MVC가 거절한다. */
 	@ParameterizedTest
 	@CsvSource({
 			"X-User-Role, ADMIN, 403, USER-004",
@@ -184,6 +192,7 @@ class NotificationControllerTest {
 		verifyNoInteractions(service);
 	}
 
+	/** 검증 시나리오: DB 멤버십 유무와 관계없이 사용자·관리자는 멤버십 헤더 없이 알림을 조회·읽음 처리한다. */
 	@ParameterizedTest
 	@CsvSource({"USER, VIP", "USER,", "ADMIN, VIP", "ADMIN,"})
 	@DisplayName("DB 멤버십 유무와 관계없이 사용자·관리자는 멤버십 헤더 없이 알림을 조회·읽음 처리한다")
@@ -208,6 +217,7 @@ class NotificationControllerTest {
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.updatedCount").value(2));
 	}
 
+	/** 검증 시나리오: 선택 멤버십을 전달하면 사용자·관리자 모두 DB 값과 대조한다. */
 	@ParameterizedTest
 	@CsvSource({"USER, VIP, vip, 200", "ADMIN, VIP, vip, 200",
 			"USER, VIP, excellent, 409", "ADMIN, VIP, excellent, 409",
@@ -234,6 +244,7 @@ class NotificationControllerTest {
 		}
 	}
 
+	/** 검증 시나리오: 선택 멤버십도 빈 값·공백·잘못된 값·중복은 모든 알림 API에서 거절한다. */
 	@ParameterizedTest
 	@EnumSource(UserRole.class)
 	@DisplayName("선택 멤버십도 빈 값·공백·잘못된 값·중복은 모든 알림 API에서 거절한다")
@@ -254,12 +265,14 @@ class NotificationControllerTest {
 		verifyNoInteractions(service);
 	}
 
+	/** 공통 사용자 문맥 검증을 적용할 알림 목록·개별 읽음·전체 읽음 요청을 제공한다. */
 	private List<MockHttpServletRequestBuilder> endpoints() {
 		return List.of(get("/api/v1/notifications/me"),
 				put("/api/v1/notifications/{id}/read", UUID.randomUUID()),
 				put("/api/v1/notifications/me/read-all"));
 	}
 
+	/** 정상 사용자·역할·멤버십 헤더를 붙여 응답 계약 검증에 사용할 요청을 만든다. */
 	private MockHttpServletRequestBuilder selected(MockHttpServletRequestBuilder request) {
 		return request.header("X-User-ID", USER_ID).header("X-User-Role", "USER")
 				.header("X-User-Membership", "vip");

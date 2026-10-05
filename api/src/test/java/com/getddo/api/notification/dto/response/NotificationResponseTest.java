@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationResponseTest {
+	/** 검증 시나리오: 알림 응답의 필수 제목·내용·생성 시각은 null을 거절한다. */
 	@Test
 	@DisplayName("알림 응답의 필수 제목·내용·생성 시각은 null을 거절한다")
 	void rejectsMissingRequiredContent() {
@@ -25,6 +26,7 @@ class NotificationResponseTest {
 				.isInstanceOf(NullPointerException.class).hasMessage("createdAt");
 	}
 
+	/** 검증 시나리오: 알림 목록과 읽음 응답의 필수 ID가 null이면 생성 시 거절한다. */
 	@Test
 	@DisplayName("알림 목록과 읽음 응답의 필수 ID가 null이면 생성 시 거절한다")
 	void rejectsMissingIdentifier() {
@@ -35,6 +37,7 @@ class NotificationResponseTest {
 				.isInstanceOf(NullPointerException.class).hasMessage("id");
 	}
 
+	/** 검증 시나리오: 관련 이벤트가 없는 응답도 필수 ID와 읽음 상태를 보존한다. */
 	@Test
 	@DisplayName("관련 이벤트가 없는 응답도 필수 ID와 읽음 상태를 보존한다")
 	void allowsAbsentRelatedEvent() {

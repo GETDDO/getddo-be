@@ -88,7 +88,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
 				jdbc.update("""
 					update notification_jobs set status = 'FAILED', lease_until = null,
-					next_attempt_at = null, last_error = ? where id = ?
+					next_attempt_at = null, last_error = coalesce(last_error, ?) where id = ?
 					""", NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode(), bytes(previous.getId()));
 				continue;
 			}
@@ -162,6 +162,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		return true;
 	}
 
+	/** 재선점되지 않은 처리 차수의 완료를 별도 트랜잭션으로 기록하고 선점·오류 정보를 비운다. */
 	@Override
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void completeJob(NotificationJob job, Instant now) {
@@ -172,6 +173,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			""", time(now), bytes(job.getId()), job.getAttemptCount());
 	}
 
+	/** 현재 처리 차수의 실패와 다음 시각을 별도 트랜잭션으로 기록한다. 다음 시각이 null이면 최종 실패다. */
 	@Override
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void failJob(NotificationJob job, Instant nextAttemptAt, String errorCode) {
@@ -203,7 +205,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
 				jdbc.update("""
 					update notifications set mock_delivery_status = 'FAILED', next_delivery_attempt_at = null,
-					last_delivery_error = ? where id = ?
+					last_delivery_error = coalesce(last_delivery_error, ?) where id = ?
 					""", NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode(), bytes(previous.getId()));
 				continue;
 			}
@@ -218,6 +220,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		}
 	}
 
+	/** 현재 발송 차수의 성공 시각을 별도 트랜잭션으로 저장하며 사용자의 읽음 상태는 변경하지 않는다. */
 	@Override
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void completeDelivery(NotificationDelivery delivery, Instant now) {
@@ -228,6 +231,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			""", time(now), bytes(delivery.getId()), delivery.getAttemptCount());
 	}
 
+	/** 현재 발송 차수의 실패와 재시도 시각을 저장한다. 이전 차수의 결과와 읽음 상태는 반영하지 않는다. */
 	@Override
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void failDelivery(NotificationDelivery delivery, Instant nextAttemptAt, String errorCode) {
@@ -243,11 +247,13 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		return UuidVersion7Strategy.INSTANCE.generateUuid(null);
 	}
 
+	/** DB의 BINARY(16) 식별자와 비교할 수 있도록 UUID를 바이트 배열로 변환한다. */
 	private static byte[] bytes(UUID id) {
 		return id == null ? null : ByteBuffer.allocate(16)
 				.putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
 
+	/** DB의 BINARY(16) 값을 UUID로 복원하며 nullable 식별자는 null로 유지한다. */
 	private static UUID uuid(byte[] value) {
 		if (value == null) {
 			return null;
@@ -261,6 +267,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		return instant == null ? null : LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
 	}
 
+	/** DB의 날짜·시각을 UTC 순간으로 읽으며 nullable 시각은 null로 유지한다. */
 	private static Instant instant(ResultSet row, String column) throws SQLException {
 		LocalDateTime value = row.getObject(column, LocalDateTime.class);
 		return value == null ? null : value.toInstant(ZoneOffset.UTC);

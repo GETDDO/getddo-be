@@ -29,6 +29,7 @@ import com.getddo.db.notification.mapper.NotificationMapper;
 public class NotificationRepositoryImpl implements NotificationRepository {
 	private final NotificationJpaRepository notifications;
 
+	/** 사용자별 알림 조회와 읽음 변경을 수행할 JPA 저장소를 연결한다. */
 	public NotificationRepositoryImpl(NotificationJpaRepository notifications) {
 		this.notifications = notifications;
 	}

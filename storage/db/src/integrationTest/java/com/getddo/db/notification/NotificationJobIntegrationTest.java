@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -71,6 +72,7 @@ class NotificationJobIntegrationTest {
 	@MockitoBean private MockNotificationSender sender;
 	private String prefix;
 
+	/** 각 시나리오의 시계·사용자·발송 결과를 초기화해 테스트 간 영향을 차단한다. */
 	@BeforeEach
 	void setUp() {
 		clock.set(NOW);
@@ -84,6 +86,7 @@ class NotificationJobIntegrationTest {
 		when(sender.send(any())).thenReturn(MockDeliveryStatus.SENT);
 	}
 
+	/** 각 시나리오에서 만든 알림·작업·사용자를 정리해 다음 테스트와 격리한다. */
 	@AfterEach
 	void clean() {
 		List<byte[]> jobs = jdbc.query("select id from notification_jobs where occurrence_key like ?",
@@ -95,6 +98,7 @@ class NotificationJobIntegrationTest {
 		jdbc.update("delete from users where id in (?, ?)", bytes(USER), bytes(OTHER));
 	}
 
+	/** 검증 시나리오: 같은 발생 건과 수신자 순서 변경은 같은 작업이며 다른 문구는 충돌로 거절한다. */
 	@Test
 	@DisplayName("같은 발생 건과 수신자 순서 변경은 같은 작업이며 다른 문구는 충돌로 거절한다")
 	void idempotentRegistrationAndConflictingInput() {
@@ -118,6 +122,7 @@ class NotificationJobIntegrationTest {
 		assertThat(repository.findRequest(id)).isEqualTo(request);
 	}
 
+	/** 검증 시나리오: 업무 트랜잭션이 롤백되면 발생 건의 작업도 남지 않는다. */
 	@Test
 	@DisplayName("업무 트랜잭션이 롤백되면 발생 건의 작업도 남지 않는다")
 	void registrationParticipatesInOriginalTransaction() {
@@ -136,6 +141,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextJob()).isFalse();
 	}
 
+	/** 검증 시나리오: 이전 스냅샷 뒤 다른 트랜잭션이 등록한 작업도 동일 요청은 재사용하고 다른 입력은 충돌로 거절한다. */
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})
 	@DisplayName("이전 스냅샷 뒤 다른 트랜잭션이 등록한 작업도 동일 요청은 재사용하고 다른 입력은 충돌로 거절한다")
@@ -172,6 +178,7 @@ class NotificationJobIntegrationTest {
 				original.getOccurrenceKey())).isEqualTo(1);
 	}
 
+	/** 검증 시나리오: 예약 시각 전에는 생성하지 않으며 생성·모의 발송은 읽음 상태를 변경하지 않는다. */
 	@Test
 	@DisplayName("예약 시각 전에는 생성하지 않으며 생성·모의 발송은 읽음 상태를 변경하지 않는다")
 	void respectsScheduledBoundaryAndSeparatesDeliveryFromRead() {
@@ -193,6 +200,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextDelivery()).isFalse();
 	}
 
+	/** 검증 시나리오: 부분 생성 후 재시도는 기존 알림 ID·읽음·발송 결과를 보존하고 누락 사용자만 추가한다. */
 	@Test
 	@DisplayName("부분 생성 후 재시도는 기존 알림 ID·읽음·발송 결과를 보존하고 누락 사용자만 추가한다")
 	void retriesPartialGenerationWithoutChangingExistingNotifications() {
@@ -217,6 +225,7 @@ class NotificationJobIntegrationTest {
 				bytes(original))).isEqualTo(1);
 	}
 
+	/** 검증 시나리오: 사용자 FK 위반은 즉시 최종 실패로 기록하며 이미 저장한 알림과 확정 업무 결과를 보존한다. */
 	@Test
 	@DisplayName("사용자 FK 위반은 즉시 최종 실패로 기록하며 이미 저장한 알림과 확정 업무 결과를 보존한다")
 	void permanentGenerationFailureDoesNotUndoCommittedBusiness() {
@@ -240,6 +249,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextJob()).isFalse();
 	}
 
+	/** 검증 시나리오: 만료된 선점은 복구하고 이전 처리자의 생성·완료·실패 저장을 차단한다. */
 	@Test
 	@DisplayName("만료된 선점은 복구하고 이전 처리자의 생성·완료·실패 저장을 차단한다")
 	void recoversExpiredJobAndFencesOldWorker() {
@@ -262,6 +272,7 @@ class NotificationJobIntegrationTest {
 		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
 	}
 
+	/** 검증 시나리오: 서비스 실행 중 마지막 생성 이후 제한 시각을 지나도 완료를 확정하고 알림을 중복 생성하지 않는다. */
 	@ParameterizedTest
 	@ValueSource(ints = {59, 60, 61})
 	@DisplayName("서비스 실행 중 마지막 생성 이후 제한 시각을 지나도 완료를 확정하고 알림을 중복 생성하지 않는다")
@@ -290,6 +301,7 @@ class NotificationJobIntegrationTest {
 		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
 	}
 
+	/** 검증 시나리오: 첫·마지막 생성 시도도 재선점 전이면 제한 시각 이후 완료를 확정하고 재처리하지 않는다. */
 	@ParameterizedTest
 	@CsvSource({"1, 60", "1, 61", "4, 60", "4, 61"})
 	@DisplayName("첫·마지막 생성 시도도 재선점 전이면 제한 시각 이후 완료를 확정하고 재처리하지 않는다")
@@ -317,6 +329,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextJob()).isFalse();
 	}
 
+	/** 검증 시나리오: 계속 중단된 생성 작업도 선점 4회 후에는 무한 반복하지 않고 최종 실패로 남긴다. */
 	@Test
 	@DisplayName("계속 중단된 생성 작업도 선점 4회 후에는 무한 반복하지 않고 최종 실패로 남긴다")
 	void stopsAfterFourAbandonedClaims() {
@@ -335,6 +348,60 @@ class NotificationJobIntegrationTest {
 		assertThat(count("select attempt_count from notification_jobs where id = ?", bytes(id))).isEqualTo(4);
 	}
 
+	/** 검증 시나리오: 소진된 생성 선점은 기존 오류를 보존하고 기록이 없을 때만 기본 오류를 남긴다. */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"NOTIFICATION-006"})
+	@DisplayName("소진된 생성 선점은 기존 오류를 보존하고 기록이 없을 때만 기본 오류를 남긴다")
+	void preservesGenerationErrorOnExhaustion(String previousError) {
+		// given
+		UUID id = service.register(request("job-error-preservation", NOW, List.of(USER)));
+		for (int attempt = 1; attempt <= 4; attempt++) {
+			NotificationJob job = repository.claimNextJob(clock.instant()).orElseThrow();
+			if (attempt < 4) {
+				repository.failJob(job, clock.instant(), previousError);
+			}
+		}
+		clock.set(NOW.plusSeconds(60));
+
+		// when
+		assertThat(repository.claimNextJob(clock.instant())).isEmpty();
+
+		// then
+		assertThat(jobStatus(id)).isEqualTo("FAILED");
+		assertThat(jdbc.queryForObject("select last_error from notification_jobs where id = ?", String.class, bytes(id)))
+				.isEqualTo(previousError == null ? NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode() : previousError);
+	}
+
+	/** 검증 시나리오: 소진된 발송 선점은 기존 오류를 보존하고 기록이 없을 때만 기본 오류를 남긴다. */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"NOTIFICATION-006"})
+	@DisplayName("소진된 발송 선점은 기존 오류를 보존하고 기록이 없을 때만 기본 오류를 남긴다")
+	void preservesDeliveryErrorOnExhaustion(String previousError) {
+		// given
+		UUID id = service.register(request("delivery-error-preservation", NOW, List.of(USER)));
+		service.processNextJob();
+		UUID notification = notificationId(id, USER);
+		for (int attempt = 1; attempt <= 4; attempt++) {
+			NotificationDelivery delivery = repository.claimNextDelivery(clock.instant()).orElseThrow();
+			if (attempt < 4) {
+				repository.failDelivery(delivery, clock.instant(), previousError);
+			}
+		}
+		clock.set(NOW.plusSeconds(60));
+
+		// when
+		assertThat(repository.claimNextDelivery(clock.instant())).isEmpty();
+
+		// then
+		assertThat(count("select count(*) from notifications where id = ? and mock_delivery_status = 'FAILED' and is_read = false",
+				bytes(notification))).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select last_delivery_error from notifications where id = ?", String.class, bytes(notification)))
+				.isEqualTo(previousError == null ? NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode() : previousError);
+	}
+
+	/** 검증 시나리오: 소진된 생성 선점을 최종 실패로 남기고 같은 호출에서 다음 작업을 처리한다. */
 	@Test
 	@DisplayName("소진된 생성 선점을 최종 실패로 남기고 같은 호출에서 다음 작업을 처리한다")
 	void processesJobAfterExhaustedClaim() {
@@ -356,6 +423,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextJob()).isFalse();
 	}
 
+	/** 검증 시나리오: 소진된 발송 선점을 최종 실패로 남기고 같은 호출에서 다음 발송을 처리한다. */
 	@Test
 	@DisplayName("소진된 발송 선점을 최종 실패로 남기고 같은 호출에서 다음 발송을 처리한다")
 	void processesDeliveryAfterExhaustedClaim() {
@@ -380,6 +448,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextDelivery()).isFalse();
 	}
 
+	/** 검증 시나리오: 모의 발송만 10초·30초·60초 재시도하며 4번째 실패 이후 읽음·생성 결과를 유지한다. */
 	@Test
 	@DisplayName("모의 발송만 10초·30초·60초 재시도하며 4번째 실패 이후 읽음·생성 결과를 유지한다")
 	void exhaustsOnlyDeliveryRetriesWithoutChangingReadState() {
@@ -411,6 +480,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextDelivery()).isFalse();
 	}
 
+	/** 검증 시나리오: 발송 실패 후 성공해도 같은 알림만 갱신하고 미읽음을 유지한다. */
 	@Test
 	@DisplayName("발송 실패 후 성공해도 같은 알림만 갱신하고 미읽음을 유지한다")
 	void succeedsAfterDeliveryRetryWithoutDuplicatingNotification() {
@@ -432,6 +502,7 @@ class NotificationJobIntegrationTest {
 		assertThat(count("select delivery_attempt_count from notifications where id = ?", bytes(notification))).isEqualTo(2);
 	}
 
+	/** 검증 시나리오: 발송 제한 시각 이후라도 재선점 전 성공은 저장하고 다시 발송하지 않는다. */
 	@ParameterizedTest
 	@ValueSource(ints = {60, 61})
 	@DisplayName("발송 제한 시각 이후라도 재선점 전 성공은 저장하고 다시 발송하지 않는다")
@@ -458,6 +529,7 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextDelivery()).isFalse();
 	}
 
+	/** 검증 시나리오: 발송 선점도 장애 후 복구하며 이전 발송 차수의 늦은 결과 저장을 차단한다. */
 	@Test
 	@DisplayName("발송 선점도 장애 후 복구하며 이전 발송 차수의 늦은 결과 저장을 차단한다")
 	void recoversDeliveryAndFencesOldAttempt() {
@@ -476,6 +548,7 @@ class NotificationJobIntegrationTest {
 		assertThat(count("select count(*) from notifications where job_id = ? and mock_delivery_status = 'SENT' and is_read = false", bytes(id))).isEqualTo(1);
 	}
 
+	/** 검증 시나리오: 동일 발생 건의 동시 등록과 두 처리자의 실행은 작업·사용자 알림을 한 건씩만 만든다. */
 	@Test
 	@DisplayName("동일 발생 건의 동시 등록과 두 처리자의 실행은 작업·사용자 알림을 한 건씩만 만든다")
 	void concurrentRegistrationAndWorkersRemainIdempotent() throws Exception {
@@ -507,6 +580,7 @@ class NotificationJobIntegrationTest {
 		}
 	}
 
+	/** 검증 시나리오: 다른 트랜잭션이 잠근 작업은 기다리지 않고 다음 작업을 선점한다. */
 	@Test
 	@DisplayName("다른 트랜잭션이 잠근 작업은 기다리지 않고 다음 작업을 선점한다")
 	void skipsLockedJob() throws Exception {
@@ -541,6 +615,7 @@ class NotificationJobIntegrationTest {
 		}
 	}
 
+	/** 검증 시나리오: 문구의 따옴표·줄바꿈과 null 링크는 JSON 저장 후에도 보존한다. */
 	@Test
 	@DisplayName("문구의 따옴표·줄바꿈과 null 링크는 JSON 저장 후에도 보존한다")
 	void preservesEscapedTextAndNullableLinks() {
@@ -556,6 +631,7 @@ class NotificationJobIntegrationTest {
 		assertThat(jdbc.queryForObject("select link_url from notifications where job_id = ?", String.class, bytes(id))).isNull();
 	}
 
+	/** 검증 시나리오: 손상된 기존 작업 입력은 무한 선점하지 않고 입력 오류로 최종 실패 기록한다. */
 	@Test
 	@DisplayName("손상된 기존 작업 입력은 무한 선점하지 않고 입력 오류로 최종 실패 기록한다")
 	void recordsMalformedStoredPayloadAsFinalFailure() {
@@ -570,15 +646,18 @@ class NotificationJobIntegrationTest {
 		assertThat(service.processNextJob()).isFalse();
 	}
 
+	/** 각 시나리오에서 발생 키와 수신 대상을 지정할 유효한 알림 작업 입력을 만든다. */
 	private NotificationJobRequest request(String suffix, Instant scheduled, List<UUID> users) {
 		return new NotificationJobRequest(prefix + suffix, NotificationType.RESULT_CHANGED,
 				null, null, "제목", "내용", null, scheduled, users);
 	}
 
+	/** 테스트 작업의 최종 상태를 실제 DB에서 확인한다. */
 	private String jobStatus(UUID id) {
 		return jdbc.queryForObject("select status from notification_jobs where id = ?", String.class, bytes(id));
 	}
 
+	/** 작업과 수신자에 연결된 알림 ID를 찾아 후속 상태 검증에 사용한다. */
 	private UUID notificationId(UUID job, UUID user) {
 		return jdbc.queryForObject("select id from notifications where job_id = ? and user_id = ?",
 				(row, index) -> {
@@ -587,19 +666,23 @@ class NotificationJobIntegrationTest {
 				}, bytes(job), bytes(user));
 	}
 
+	/** 검증 대상 행의 수 또는 정수 값을 실제 테스트 DB에서 조회한다. */
 	private long count(String sql, Object... parameters) {
 		return jdbc.queryForObject(sql, Long.class, parameters);
 	}
 
+	/** 테스트 DB에 저장된 시각을 UTC로 읽어 선점·재시도 경계를 비교한다. */
 	private Instant timestamp(String sql, Object... parameters) {
 		LocalDateTime value = jdbc.queryForObject(sql, LocalDateTime.class, parameters);
 		return value == null ? null : value.toInstant(ZoneOffset.UTC);
 	}
 
+	/** DB 시각 비교에 사용할 UTC 날짜·시각을 만든다. */
 	private static LocalDateTime utc(Instant instant) {
 		return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
 	}
 
+	/** DB의 BINARY(16) 식별자와 비교할 수 있도록 UUID를 바이트 배열로 변환한다. */
 	private static byte[] bytes(UUID id) {
 		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
@@ -609,11 +692,13 @@ class NotificationJobIntegrationTest {
 	@ComponentScan(basePackages = {"com.getddo.core.notification", "com.getddo.db.notification"})
 	@Import({JpaAuditingConfig.class, MySqlTestConfiguration.class})
 	static class TestApplication {
+		/** 테스트가 선점과 재시도 경계 시각을 직접 제어할 수 있는 시계를 제공한다. */
 		@Bean
 		MutableClock clock() {
 			return new MutableClock(NOW);
 		}
 
+		/** 업무 시각 조회가 테스트 시계와 같은 값을 사용하도록 연결한다. */
 		@Bean
 		TimeProvider timeProvider(Clock clock) {
 			return new TimeProvider(clock);

@@ -18,6 +18,7 @@ public final class NotificationRetryPolicy {
 	private static final List<Duration> DELAYS = List.of(
 			Duration.ofSeconds(10), Duration.ofSeconds(30), Duration.ofSeconds(60));
 
+	/** 상태가 없는 재시도 정책 유틸리티의 인스턴스 생성을 막는다. */
 	private NotificationRetryPolicy() {
 	}
 
@@ -38,6 +39,7 @@ public final class NotificationRetryPolicy {
 				: NotificationProcessingErrorCode.PROCESSING_FAILED).getCode();
 	}
 
+	/** 자동 재시도가 허용된 DB 접근 오류와 모의 발송 일시 실패만 구분한다. */
 	private static boolean isTemporary(RuntimeException failure) {
 		return failure instanceof TransientDataAccessException
 				|| failure instanceof RecoverableDataAccessException
