@@ -29,6 +29,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -51,6 +52,7 @@ import com.getddo.db.ticket.MutableClock;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = NotificationJobIntegrationTest.TestApplication.class,
@@ -62,7 +64,7 @@ class NotificationJobIntegrationTest {
 	private static final UUID MISSING = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
 	@Autowired private NotificationJobService service;
-	@Autowired private NotificationJobRepository repository;
+	@MockitoSpyBean private NotificationJobRepository repository;
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private MutableClock clock;
 	@Autowired private PlatformTransactionManager transactionManager;
@@ -257,6 +259,34 @@ class NotificationJobIntegrationTest {
 		assertThat(repository.createNotification(current, request, USER, clock.instant())).isTrue();
 		repository.completeJob(current, clock.instant());
 		assertThat(jobStatus(id)).isEqualTo("COMPLETED");
+		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {59, 60, 61})
+	@DisplayName("서비스 실행 중 마지막 생성 이후 제한 시각을 지나도 완료를 확정하고 알림을 중복 생성하지 않는다")
+	void completesJobThroughServiceAcrossLeaseBoundary(int elapsedSeconds) {
+		// given
+		UUID id = service.register(request("service-slow-completion", NOW, List.of(USER)));
+		doAnswer(invocation -> {
+			// 실제 DB 생성과 선점 연장이 끝난 뒤 서비스의 완료 기록 전에 시각을 진행시킨다.
+			boolean created = (boolean) invocation.callRealMethod();
+			if (created) {
+				clock.set(NOW.plusSeconds(elapsedSeconds));
+			}
+			return created;
+		}).when(repository).createNotification(any(), any(), any(), any());
+
+		// when
+		assertThat(service.processNextJob()).isTrue();
+
+		// then
+		assertThat(clock.instant()).isEqualTo(NOW.plusSeconds(elapsedSeconds));
+		assertThat(jobStatus(id)).isEqualTo("COMPLETED");
+		assertThat(timestamp("select completed_at from notification_jobs where id = ?", bytes(id))).isEqualTo(clock.instant());
+		assertThat(count("select attempt_count from notification_jobs where id = ?", bytes(id))).isEqualTo(1);
+		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
+		assertThat(service.processNextJob()).isFalse();
 		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
 	}
 
