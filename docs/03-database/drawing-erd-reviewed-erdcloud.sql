@@ -1,8 +1,8 @@
 -- 추첨 ERD 리뷰 반영안 — ERDCloud 가져오기용 MySQL DDL.
 -- 작성일: 2026-10-04 / 상태: 검토 대기, 담당자 확인 전.
 -- 기준: erd-review-agent.md에 따른 검토 결과와 사용자 테이블별 검토.
--- 수정일: 2026-10-05 / 실패 이력 분리 및 취소 테이블의 nullable 실행 FK로 묶음 재추첨 표현.
--- 추첨 영역 7개와 외부 참조 4개 테이블. 모든 컬럼과 테이블에 한글 COMMENT 포함.
+-- 수정일: 2026-10-05 / 실패·취소 관계 정리 및 최초 후보 재사용을 위한 실행별 후보 연결 추가.
+-- 추첨 영역 8개와 외부 참조 4개 테이블. 모든 컬럼과 테이블에 한글 COMMENT 포함.
 -- 실제 DB 적용용 마이그레이션이 아니며, 기존 파일·API·확정 정책을 변경하지 않는다.
 -- 외부 테이블은 관계 표시를 위한 축약 참조이며 실제 운영 구조로 대체할 수 없다.
 -- 원격 최신 조회는 두 저장소 모두 GitHub DNS 오류로 실패했다. 로컬 문서 기준 제안이다.
@@ -65,6 +65,13 @@
 -- 마스킹·개인정보 파기 방식과 로그 추적 ID 발급·검색 연동은 기존 후속 확인 사항.
 -- 메모의 CHECK 및 서비스 조건은 SQL CHECK로 추가하지 않았다. 실제 적용 전 검증 필요.
 
+-- [반영 6] 최초 후보 상세 정보는 draw_candidates에 한 번 저장한다.
+-- draw_run_candidates의 복합 PK(draw_run_id, candidate_id)로 최초·재추첨 명단을 고정한다.
+-- 결과의 복합 FK는 draw_run_candidates를 참조해 실행에 등록된 후보만 선정하도록 한다.
+-- 후보 원본 실행 INITIAL·동일 이벤트·최초 후보 중복 생성 방지는 서비스에서 검증한다.
+-- READY 이후 연결 추가·수정·삭제 금지 및 실행 재시도 명단 재사용은 서비스에서 보장한다.
+-- 재추첨 후보는 모든 과거 SELECTED 당첨자(취소 포함)와 이후 제외 확정자를 제거한다.
+
 -- 이벤트 (외부 참조)
 CREATE TABLE `events` (
   `id` BINARY(16) NOT NULL COMMENT '이벤트 ID',
@@ -124,18 +131,26 @@ CREATE TABLE `draw_failures` (
 
 -- 추첨 대상자
 CREATE TABLE `draw_candidates` (
-  `id` BINARY(16) NOT NULL COMMENT '실행별 추첨 대상자 ID',
-  `draw_run_id` BINARY(16) NOT NULL COMMENT '후보를 고정한 추첨 실행 ID',
+  `id` BINARY(16) NOT NULL COMMENT '최초 추첨 후보 ID. 재추첨 실행에서도 재사용',
+  `draw_run_id` BINARY(16) NOT NULL COMMENT '후보 정보를 최초로 고정한 INITIAL 실행 ID',
   `participant_id` BINARY(16) NOT NULL COMMENT '원본 이벤트 응모자 관계 ID',
   `ticket_count` BIGINT NOT NULL COMMENT '해당 이벤트에서 접수 완료된 응모의 실제 누적 차감 수량. 재추첨은 최초 추첨 당시 값',
   `weight` BIGINT NOT NULL COMMENT '해당 응모자의 추첨 가중치. 현재 선형 가중치 정책의 정수 값. 추가 배율 없음.',
   `entry_snapshot` JSON NOT NULL COMMENT '가중치 산출 근거가 된 응모 기록 스냅샷. 근거 접수 건 ID·실제 차감량·접수 시각.',
-  `eligibility_snapshot` JSON NOT NULL COMMENT '후보 확정 당시 응모 자격과 제외 판단 스냅샷. 명단 확정 당시 자격·제외 판단 및 재추첨이면 최초 후보 ID.',
+  `eligibility_snapshot` JSON NOT NULL COMMENT '최초 후보 확정 당시 응모 자격과 제외 판단 스냅샷. 재추첨 시 복사하지 않음.',
   `created_at` DATETIME(6) NOT NULL COMMENT '후보 스냅샷 생성 시각 UTC',
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_draw_candidates_1` (`draw_run_id`, `participant_id`),
   UNIQUE KEY `idx_draw_candidates_2` (`id`, `draw_run_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='추첨 대상자 - 실행 하나에 포함된 응모자 한 명의 불변 스냅샷. CHECK: ticket_count>=0, weight>0. 재추첨은 최초 후보의 수량·가중치를 사용하고 현재 잔액으로 재계산하지 않음.';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='추첨 대상자 - 최초 추첨 후보 한 명의 불변 스냅샷. 실행별 참여 명단은 draw_run_candidates로 보존. CHECK: ticket_count>=0, weight>0. 재추첨은 최초 후보의 수량·가중치를 사용하고 현재 잔액으로 재계산하지 않음.';
+
+-- 추첨 실행별 후보
+CREATE TABLE `draw_run_candidates` (
+  `draw_run_id` BINARY(16) NOT NULL COMMENT '후보가 참여한 추첨 실행 ID. 최초 및 재추첨 실행',
+  `candidate_id` BINARY(16) NOT NULL COMMENT '재사용하는 최초 추첨 후보 ID',
+  PRIMARY KEY (`draw_run_id`, `candidate_id`),
+  KEY `idx_draw_run_candidates_candidate` (`candidate_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='추첨 실행별 후보 - 실행 하나에 참여한 최초 후보 하나의 연결. 상세 스냅샷을 복사하지 않음. 확정 후 연결 추가·수정·삭제 금지는 서비스에서 보장.';
 
 -- 추첨 결과
 CREATE TABLE `draw_results` (
@@ -237,8 +252,8 @@ ALTER TABLE `draw_results`
   REFERENCES `event_prizes` (`id`);
 
 ALTER TABLE `draw_results`
-  ADD CONSTRAINT `fk_drawing_review_11` FOREIGN KEY (`candidate_id`, `draw_run_id`)
-  REFERENCES `draw_candidates` (`id`, `draw_run_id`);
+  ADD CONSTRAINT `fk_drawing_review_11` FOREIGN KEY (`draw_run_id`, `candidate_id`)
+  REFERENCES `draw_run_candidates` (`draw_run_id`, `candidate_id`);
 
 ALTER TABLE `award_cancellations`
   ADD CONSTRAINT `fk_drawing_review_12` FOREIGN KEY (`draw_result_id`)
@@ -291,3 +306,11 @@ ALTER TABLE `draw_publications`
 -- 경품의 당시 이름·등수·인원은 해당 결과 실행의 rules_snapshot에서 조회한다.
 -- 변경 전후: revision N과 N-1의 명단을 경품·자리로 연결해 결과 ID 차이를 비교한다.
 -- 취소자는 award_cancellations로 식별하되 현재 취소와 과거 공개 명단 사실을 혼동하지 않음.
+
+ALTER TABLE `draw_run_candidates`
+  ADD CONSTRAINT `fk_drawing_links_run` FOREIGN KEY (`draw_run_id`)
+  REFERENCES `draw_runs` (`id`);
+
+ALTER TABLE `draw_run_candidates`
+  ADD CONSTRAINT `fk_drawing_links_candidate` FOREIGN KEY (`candidate_id`)
+  REFERENCES `draw_candidates` (`id`);
