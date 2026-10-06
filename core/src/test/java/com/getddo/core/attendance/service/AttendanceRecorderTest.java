@@ -41,6 +41,7 @@ import com.getddo.core.ticket.service.TicketGrantService;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.refEq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -230,7 +231,7 @@ class AttendanceRecorderTest {
 				Instant.parse("2026-09-30T15:00:00Z"), true);
 		when(attendanceRepository.findByUserIdAndDate(USER_ID, TODAY)).thenReturn(Optional.of(existing));
 		when(claimRepository.findByAttendanceId(existing.getId())).thenReturn(List.of(dailyClaim));
-		when(grantService.findGrant(new GrantSource(GrantSourceType.ATTENDANCE, dailyClaim.getId())))
+		when(grantService.findGrant(refEq(new GrantSource(GrantSourceType.ATTENDANCE, dailyClaim.getId()))))
 				.thenReturn(Optional.of(granted));
 		when(streakRepository.find(USER_ID, SEPTEMBER)).thenReturn(Optional.of(
 				new AttendanceStreak(UUID.randomUUID(), USER_ID, SET.getId(), SEPTEMBER, 3, TODAY)));
@@ -240,7 +241,8 @@ class AttendanceRecorderTest {
 		assertThat(receipt.isCreated()).isFalse();
 		assertThat(receipt.getAttendanceId()).isEqualTo(existing.getId());
 		assertThat(receipt.getConsecutiveDays()).isEqualTo(3);
-		assertThat(receipt.getRewards()).containsExactly(new AttendanceRewardReceipt(dailyClaim.getId(),
+		assertThat(receipt.getRewards()).usingRecursiveFieldByFieldElementComparator()
+				.containsExactly(new AttendanceRewardReceipt(dailyClaim.getId(),
 				AttendanceRewardType.DAILY, null, 1, granted.getGrantedAt(), granted.getExpiresAt()));
 		verify(attendanceRepository, never()).insert(any());
 		verify(grantService, never()).grant(any());

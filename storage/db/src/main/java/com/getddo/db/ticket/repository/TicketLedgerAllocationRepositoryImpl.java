@@ -11,8 +11,7 @@ import com.getddo.db.ticket.mapper.TicketLedgerMapper;
 /**
  * 원장 배분 저장소 구현.
  *
- * <p>복합 키를 직접 채우는 추가 전용 행이므로 {@code JpaRepository.save}의 {@code merge}(선행 SELECT) 대신
- * {@code persist}로 저장한다.</p>
+ * <p>추가만 하는 행이므로 {@code JpaRepository.save}의 {@code merge} 대신 {@code persist}로 저장한다.</p>
  */
 @Repository
 @RequiredArgsConstructor

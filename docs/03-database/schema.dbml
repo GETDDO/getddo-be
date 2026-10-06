@@ -206,6 +206,7 @@ Table event_prizes {
 }
 
 Table user_game_stats {
+  id binary(16) [pk, not null, note: '사용자별 게임 통계 ID']
   user_id binary(16) [not null, note: '사용자 ID']
   game_id binary(16) [not null, note: '게임 ID']
   best_score bigint [not null, default: 0, note: '개인 최고 점수']
@@ -215,7 +216,7 @@ Table user_game_stats {
 
   created_at datetime(6) [not null, note: '사용자별 게임 통계 최초 생성 시각 UTC']
   indexes {
-    (user_id, game_id) [pk]
+    (user_id, game_id) [unique]
   }
 
   // CHECK chk_game_stats: best_score >= 0 AND valid_play_count >= 0
@@ -223,13 +224,14 @@ Table user_game_stats {
 }
 
 Table ticket_ledger_allocations {
+  id binary(16) [pk, not null, note: '원장 배분 ID']
   ledger_id binary(16) [not null, note: '이번 사용·반환·만료·회수 거래 ID']
   source_credit_ledger_id binary(16) [not null, note: '수량 변동 대상 입금 GRANT 또는 REFUND 원장 ID']
   original_grant_id binary(16) [not null, note: '추적되는 최초 GRANT ID. 반환 재사용 후에도 유지']
   quantity bigint [not null, note: '출처별 수량 변동. 입금 잔여 계산 시 사용·만료·회수는 음수, 반환 입금은 양수']
   created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
-    (ledger_id, source_credit_ledger_id, original_grant_id) [pk]
+    (ledger_id, source_credit_ledger_id, original_grant_id) [unique]
   }
   Note: 'GRANT·REFUND 모두 생성 시 자기 입금의 양수 배분 행 생성. 사용·만료·회수는 해당 입금 출처에 음수 배분. 입금 잔여=해당 source_credit_ledger_id의 quantity 합계. 최초 지급별 회수 가능량=해당 original_grant_id의 quantity 합계. 반환은 새 REFUND 입금'
 }

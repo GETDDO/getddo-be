@@ -5,7 +5,6 @@ import java.time.YearMonth;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -16,7 +15,6 @@ import lombok.Getter;
  * 그래서 단계 보상은 연속이 끊겼다가 같은 달에 같은 일수에 다시 도달해도 한 번만 청구된다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class AttendanceRewardClaim {
 
 	/** 저장 전에는 null. */

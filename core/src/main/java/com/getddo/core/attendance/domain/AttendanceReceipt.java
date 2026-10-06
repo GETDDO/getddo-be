@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -16,7 +15,6 @@ import lombok.Getter;
  * 이때 {@code rewards}는 이번 호출에서 새로 지급했다는 뜻이 아니다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class AttendanceReceipt {
 
 	private final UUID attendanceId;

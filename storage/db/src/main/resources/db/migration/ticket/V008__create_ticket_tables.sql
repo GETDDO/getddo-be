@@ -64,12 +64,14 @@ CREATE TABLE `ticket_ledger` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `ticket_ledger_allocations` (
+  `id` BINARY(16) NOT NULL,
   `ledger_id` BINARY(16) NOT NULL,
   `source_credit_ledger_id` BINARY(16) NOT NULL,
   `original_grant_id` BINARY(16) NOT NULL,
   `quantity` BIGINT NOT NULL,
   `created_at` DATETIME(6) NOT NULL COMMENT '생성 시각 UTC',
-  PRIMARY KEY (`ledger_id`, `source_credit_ledger_id`, `original_grant_id`),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ticket_ledger_allocations_1` (`ledger_id`, `source_credit_ledger_id`, `original_grant_id`),
   CONSTRAINT `fk_ticket_ledger_allocations_1` FOREIGN KEY (`ledger_id`) REFERENCES `ticket_ledger` (`id`),
   CONSTRAINT `fk_ticket_ledger_allocations_2` FOREIGN KEY (`source_credit_ledger_id`) REFERENCES `ticket_ledger` (`id`),
   CONSTRAINT `fk_ticket_ledger_allocations_3` FOREIGN KEY (`original_grant_id`) REFERENCES `ticket_ledger` (`id`)

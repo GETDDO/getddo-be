@@ -3,7 +3,6 @@ package com.getddo.core.ticket.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -12,7 +11,6 @@ import lombok.Getter;
  * <p>현재는 지급(GRANT)에 필요한 값만 담는다. 차감·반환·회수 등에서 쓰는 참조는 해당 기능에서 추가한다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class TicketLedger {
 
 	/** 저장 전에는 null. */

@@ -3,12 +3,10 @@ package com.getddo.core.ticket.domain;
 import java.time.Instant;
 import java.util.List;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /** 내 응모권 지갑 조회 결과(T01). 사용 가능 잔액과 지갑 상태는 모두 같은 {@code serverTime} 기준이다. */
 @Getter
-@EqualsAndHashCode
 public final class MyTicketWallets {
 
 	private final long availableBalance;
