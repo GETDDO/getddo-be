@@ -7,7 +7,6 @@ import java.util.Base64;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import com.getddo.core.ticket.exception.TicketErrorCode;
@@ -20,7 +19,6 @@ import com.getddo.core.ticket.exception.TicketException;
  * 클라이언트에는 내용을 해석할 수 없는 문자열로 전달한다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class TicketLedgerCursor {
 
 	private static final String SEPARATOR = "|";
