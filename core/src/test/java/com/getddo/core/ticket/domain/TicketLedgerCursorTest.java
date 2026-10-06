@@ -29,7 +29,7 @@ class TicketLedgerCursorTest {
 		// when
 		TicketLedgerCursor decoded = TicketLedgerCursor.decode(cursor.encode());
 		// then
-		assertThat(decoded).isEqualTo(cursor);
+		assertThat(decoded).usingRecursiveComparison().isEqualTo(cursor);
 		assertThat(decoded.getCreatedAt()).isEqualTo(CREATED_AT);
 		assertThat(decoded.getId()).isEqualTo(ID);
 	}

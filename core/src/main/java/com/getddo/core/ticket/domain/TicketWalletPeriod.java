@@ -5,14 +5,12 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Objects;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import com.getddo.core.common.time.TimeProvider;
 
 /** 지갑을 구분하는 만료 묶음. 지갑 키 {@code (user_id, expiry_month)}의 월과 그 만료 시각이다. */
 @Getter
-@EqualsAndHashCode
 public final class TicketWalletPeriod {
 
 	/** 사용 가능한 마지막 KST 월의 1일. 지급월이 아니라 만료 묶음 구분값이다. */

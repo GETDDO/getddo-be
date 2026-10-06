@@ -72,27 +72,27 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 
 ## ERD
 
-[![GETDDO 전체 ERD](docs/assets/erd.png)](docs/assets/erd.png)
+[![GETDDO 전체 ERD](https://raw.githubusercontent.com/wiki/GETDDO/getddo-be/assets/erd-2026-10-02/full.png)](https://raw.githubusercontent.com/wiki/GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
 
-[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](docs/assets/erd.png)
+[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](https://raw.githubusercontent.com/wiki/GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
 
 ### 도메인별 ERD
 
-도메인을 선택하면 해당 테이블의 관계도와 연결된 도메인을 확인할 수 있습니다. 도메인별 문서는 현재 저장소의 DBML·Flyway SQL을 기준으로 합니다.
+도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
 
 | 도메인 | 테이블 수 | 내용 |
 | --- | ---: | --- |
-| [사용자](docs/03-database/erd/user.md) | 1 | 사용자 정보·역할·멤버십 |
-| [이벤트·응모](docs/03-database/erd/event.md) | 5 | 이벤트·경품·응모자·응모 요청·배너 |
-| [출석](docs/03-database/erd/attendance.md) | 5 | 일일·연속 출석과 보상 기록 |
-| [미션](docs/03-database/erd/mission.md) | 10 | 퀴즈·설문·제출·보상 기록 |
-| [게임](docs/03-database/erd/game.md) | 4 | 게임·플레이·통계·보상 기록 |
-| [보상 정책](docs/03-database/erd/reward.md) | 1 | 출석·미션·게임의 보상 정책 |
-| [응모권](docs/03-database/erd/ticket.md) | 5 | 지갑·원장·배분·반환·회수 |
-| [어뷰징 검토](docs/03-database/erd/abuse.md) | 1 | 의심 행위 탐지와 관리자 검토 |
-| [추첨·발표](docs/03-database/erd/drawing.md) | 6 | 추첨 실행·후보·결과·당첨·발표 |
-| [알림](docs/03-database/erd/notification.md) | 2 | 알림 생성 작업과 사용자 알림 |
-| [감사 로그](docs/03-database/erd/audit.md) | 1 | 변경 행위와 변경 전후 데이터 |
+| [사용자](https://github.com/GETDDO/getddo-be/wiki/ERD-user) | 1 | 사용자 정보·역할·멤버십 |
+| [이벤트·응모](https://github.com/GETDDO/getddo-be/wiki/ERD-event) | 5 | 이벤트·경품·응모자·응모 요청·배너 |
+| [출석](https://github.com/GETDDO/getddo-be/wiki/ERD-attendance) | 5 | 일일·연속 출석과 보상 기록 |
+| [미션](https://github.com/GETDDO/getddo-be/wiki/ERD-mission) | 10 | 퀴즈·설문·제출·보상 기록 |
+| [게임](https://github.com/GETDDO/getddo-be/wiki/ERD-game) | 4 | 게임·플레이·통계·보상 기록 |
+| [보상 정책](https://github.com/GETDDO/getddo-be/wiki/ERD-reward) | 1 | 출석·미션·게임의 보상 정책 |
+| [응모권](https://github.com/GETDDO/getddo-be/wiki/ERD-ticket) | 5 | 지갑·원장·배분·반환·회수 |
+| [어뷰징 검토](https://github.com/GETDDO/getddo-be/wiki/ERD-abuse) | 1 | 의심 행위 탐지와 관리자 검토 |
+| [추첨·발표](https://github.com/GETDDO/getddo-be/wiki/ERD-drawing) | 6 | 추첨 실행·후보·결과·당첨·발표 |
+| [알림](https://github.com/GETDDO/getddo-be/wiki/ERD-notification) | 2 | 알림 생성 작업과 사용자 알림 |
+| [감사 로그](https://github.com/GETDDO/getddo-be/wiki/ERD-audit) | 1 | 변경 행위와 변경 전후 데이터 |
 
 ## 패키지 구조
 

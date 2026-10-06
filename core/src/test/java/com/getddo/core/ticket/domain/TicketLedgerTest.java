@@ -52,7 +52,7 @@ class TicketLedgerTest {
 		// when
 		GrantResult result = saved.toGrantResult(true);
 		// then
-		assertThat(result).isEqualTo(new GrantResult(ledgerId, deposited.getId(), 1, 4, GRANTED_AT,
+		assertThat(result).usingRecursiveComparison().isEqualTo(new GrantResult(ledgerId, deposited.getId(), 1, 4, GRANTED_AT,
 				deposited.getExpiresAt(), true));
 	}
 
@@ -66,7 +66,8 @@ class TicketLedgerTest {
 		// when
 		TicketLedgerAllocation allocation = TicketLedgerAllocation.selfCredit(saved);
 		// then
-		assertThat(allocation).isEqualTo(new TicketLedgerAllocation(ledgerId, ledgerId, ledgerId, 2, GRANTED_AT));
+		assertThat(allocation).usingRecursiveComparison()
+				.isEqualTo(new TicketLedgerAllocation(ledgerId, ledgerId, ledgerId, 2, GRANTED_AT));
 	}
 
 	@Test

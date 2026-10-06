@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -13,7 +12,6 @@ import lombok.Getter;
  * <p>보상 수량은 1장 이상만 허용하므로 모든 보상은 지급 원장이 있고 {@code grantedAt}·{@code expiresAt}이 항상 있다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class AttendanceRewardReceipt {
 
 	private final UUID claimId;

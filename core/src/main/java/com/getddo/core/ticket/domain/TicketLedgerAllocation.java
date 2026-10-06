@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -15,7 +14,6 @@ import lombok.Getter;
  * 양수 배분 행을 함께 만든다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class TicketLedgerAllocation {
 
 	private final UUID ledgerId;

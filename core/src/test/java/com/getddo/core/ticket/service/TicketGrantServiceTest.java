@@ -43,6 +43,8 @@ import com.getddo.core.ticket.repository.TicketWalletRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.refEq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -202,7 +204,7 @@ class TicketGrantServiceTest {
 			// when
 			GrantResult result = service.grant(command(2));
 			// then
-			assertThat(result).isEqualTo(existing.toGrantResult(true));
+			assertThat(result).usingRecursiveComparison().isEqualTo(existing.toGrantResult(true));
 			verifyNoInteractions(walletRepository, allocationRepository);
 			assertThat(clock.reads()).isZero();
 		}
@@ -213,7 +215,7 @@ class TicketGrantServiceTest {
 			// given
 			TicketWallet locked = wallet(3, 4);
 			when(ledgerRepository.findByIdempotencyKey(SOURCE.idempotencyKey())).thenReturn(Optional.empty());
-			when(walletRepository.getOrCreateForUpdate(USER_ID, SEPTEMBER, NOW)).thenReturn(locked);
+			when(walletRepository.getOrCreateForUpdate(eq(USER_ID), refEq(SEPTEMBER), eq(NOW))).thenReturn(locked);
 			when(ledgerRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0)));
 			// when
 			GrantResult result = service.grant(command(2));
@@ -222,11 +224,11 @@ class TicketGrantServiceTest {
 
 			ArgumentCaptor<TicketWallet> savedWallet = ArgumentCaptor.forClass(TicketWallet.class);
 			verify(walletRepository).save(savedWallet.capture());
-			assertThat(savedWallet.getValue()).isEqualTo(locked.deposit(2));
+			assertThat(savedWallet.getValue()).usingRecursiveComparison().isEqualTo(locked.deposit(2));
 
 			ArgumentCaptor<TicketLedger> savedLedger = ArgumentCaptor.forClass(TicketLedger.class);
 			verify(ledgerRepository).save(savedLedger.capture());
-			assertThat(savedLedger.getValue())
+			assertThat(savedLedger.getValue()).usingRecursiveComparison()
 					.isEqualTo(TicketLedger.grant(locked.deposit(2), command(2), NOW));
 
 			ArgumentCaptor<TicketLedgerAllocation> savedAllocation =
@@ -275,7 +277,7 @@ class TicketGrantServiceTest {
 			// when
 			Optional<GrantResult> result = service.findGrant(SOURCE);
 			// then
-			assertThat(result).contains(existing.toGrantResult(true));
+			assertThat(result).get().usingRecursiveComparison().isEqualTo(existing.toGrantResult(true));
 			verifyNoInteractions(grantSourceRepository, walletRepository, allocationRepository);
 		}
 
