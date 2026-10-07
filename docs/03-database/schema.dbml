@@ -409,15 +409,18 @@ Table game_reward_claims {
   game_play_id binary(16) [not null, note: '유효 플레이 ID']
   reward_policy_id binary(16) [not null, note: '적용 정책 ID']
   reward_date date [not null, note: '게임별 일일 보상 기준 날짜 KST']
-  source_key varchar(160) [not null, note: '게임과 KST 날짜로 식별']
+  source_key varchar(160) [not null, note: '게임과 KST 날짜로 식별. 같은 플레이 재제출·정책 변경에도 새 보상 건으로 만들지 않음']
   ticket_count int [not null, note: '보상 수량']
   created_at datetime(6) [not null, note: '생성 시각 UTC']
 
   indexes {
     (id, user_id) [unique, name: 'uq_game_reward_claims_owner']
+    game_play_id [unique, name: 'uq_game_reward_claims_play']
     (user_id, source_key) [unique, name: 'uq_game_reward_claims_1']
     (user_id, game_id, reward_date) [unique, name: 'uq_game_reward_claims_2']
   }
+
+  Note: '같은 플레이의 보상 청구는 한 건이며, 사용자·게임·KST 보상일별 보상도 한 건. 중복 방지 키에 지급 등급이나 정책 ID를 추가하지 않음.'
 
   checks {
     `ticket_count = 1` [name: 'chk_game_claim_ticket']
@@ -949,7 +952,7 @@ Table tickets {
   attendance_reward_claim_id binary(16) [note: '최초 출석 지급 근거 ID. 다른 보상 종류이면 NULL. 같은 청구로 여러 장 지급 가능. 확정 후 변경 금지']
   mission_reward_claim_id binary(16) [note: '최초 미션 지급 근거 ID. 다른 보상 종류이면 NULL. 청구당 티켓 1장. 확정 후 변경 금지']
   game_reward_claim_id binary(16) [note: '최초 게임 지급 근거 ID. 다른 보상 종류이면 NULL. 청구당 티켓 1장. 확정 후 변경 금지']
-  grade tickets_grade_enum [note: '최초 지급 등급. 이후 불변. NULL은 기존 데이터 전환 등 미결정 영역이며 무등급 사용 허용을 뜻하지 않음']
+  grade tickets_grade_enum [note: '최초 지급 등급. 출석 BRONZE 고정, 게임·미션은 최초 확정한 무작위 등급. 새 지급은 등급 필수·이후 불변. NULL은 기존 데이터 전환 미결정 영역이며 무등급 사용 허용을 뜻하지 않음']
   status tickets_status_enum [not null, note: '현재 상태. 최초 사용 가능 / 반환 후 사용 가능 / 사용됨 / 만료 처리됨']
   expires_at datetime(6) [not null, note: '현재 만료 시각 UTC. 반환 성공 시 갱신']
   version bigint [not null, default: 1, note: '현재 변경 순번. 최초 지급 1, 변경마다 1 증가. 마지막 이력 버전과 일치']
@@ -961,10 +964,11 @@ Table tickets {
     game_reward_claim_id [unique, name: 'uq_tickets_2']
   }
 
-  Note: '현재 상태와 최초 지급 근거. 현재값·소유자·등급의 불변 조건과 티켓 이력 일치는 서비스 트랜잭션에서 보장. 반환·정정 원본은 ticket_histories에서 연결.'
+  Note: '현재 상태와 최초 지급 근거. 출석은 설정 수량만큼 브론즈 여러 장을 지급할 수 있으므로 출석 청구 ID에는 UNIQUE를 두지 않음. 미션·게임은 청구당 한 장 UNIQUE를 유지. 출석 등급 CHECK는 확정된 SILVER/GOLD를 거절하며, NULL 전환 정책은 미결정으로 유지하므로 새 지급의 등급 필수는 서비스에서 검증. 현재값·소유자·등급 불변과 티켓 이력 일치는 서비스 트랜잭션에서 보장. 반환·정정 원본은 ticket_histories에서 연결.'
 
   checks {
     `(attendance_reward_claim_id IS NOT NULL) + (mission_reward_claim_id IS NOT NULL) + (game_reward_claim_id IS NOT NULL) = 1` [name: 'chk_ticket_source']
+    `attendance_reward_claim_id IS NULL OR grade = 'BRONZE'` [name: 'chk_ticket_attendance_bronze']
     `version >= 1` [name: 'chk_ticket_version']
     `updated_at >= created_at` [name: 'chk_ticket_times']
   }
