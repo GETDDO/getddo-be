@@ -21,16 +21,40 @@ public final class ConcurrentTasks {
 	/**
 	 * 새 작업을 받지 않고 실행 중인 작업이 끝나기를 기다린다. 제한 시간 안에 끝나지 않으면 interrupt한 뒤 한 번 더 기다린다.
 	 *
+	 * <p>기다리는 도중 현재 스레드가 interrupt되어도 바로 돌아오지 않는다. 작업 스레드에 interrupt를 보내고 남은 제한
+	 * 시간 안에서 끝나기를 계속 기다린 뒤, 돌아오기 전에 현재 스레드의 interrupt 상태를 되돌려 놓는다.</p>
+	 *
 	 * @throws AssertionError 작업 스레드가 끝나지 않은 경우. 정리를 진행하면 다른 테스트가 오염되므로 실패로 알린다
 	 */
-	public static void shutdownAndAwait(ExecutorService executor) throws InterruptedException {
+	public static void shutdownAndAwait(ExecutorService executor) {
+		boolean interrupted = false;
+		boolean forced = false;
 		executor.shutdown();
-		if (executor.awaitTermination(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
-			return;
-		}
-		executor.shutdownNow();
-		if (!executor.awaitTermination(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
-			throw new AssertionError("동시성 테스트의 작업 스레드가 끝나지 않았다.");
+		long deadline = System.nanoTime() + TIMEOUT.toNanos();
+		try {
+			while (true) {
+				try {
+					if (executor.awaitTermination(Math.max(deadline - System.nanoTime(), 0), TimeUnit.NANOSECONDS)) {
+						return;
+					}
+					if (forced) {
+						throw new AssertionError("동시성 테스트의 작업 스레드가 끝나지 않았다.");
+					}
+					executor.shutdownNow();
+					forced = true;
+					deadline = System.nanoTime() + TIMEOUT.toNanos();
+				} catch (InterruptedException e) {
+					interrupted = true;
+					if (!forced) {
+						executor.shutdownNow();
+						forced = true;
+					}
+				}
+			}
+		} finally {
+			if (interrupted) {
+				Thread.currentThread().interrupt();
+			}
 		}
 	}
 }
