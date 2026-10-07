@@ -2,7 +2,7 @@
 // 44개 테이블. 기존 Flyway의 현재 구현을 나타내지 않으며 DB 적용 마이그레이션이 아님.
 // UNIQUE는 indexes, FK는 Ref, CHECK는 checks 블록에 명시. MySQL 생성식은 주석에 기록.
 // 티켓·추첨 근거 제약 및 서비스 검증 계약을 반영한 최신 설계.
-// 시각 UTC, 업무 날짜·월 KST. 회수 제외는 사용자 구두 변경 지시이며 공용 스펙 갱신 대기.
+// 시각 UTC, 업무 날짜·월 KST. 회수 기능은 2026-10-07 사용자 확정에 따라 이번 버전에서 제외. 공용 spec의 scope.md·ticket.md와 일치.
 
 Enum missions_mission_type_enum {
   SURVEY
