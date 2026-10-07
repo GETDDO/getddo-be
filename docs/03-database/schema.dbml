@@ -804,19 +804,14 @@ Table attendance_streaks {
 }
 
 Table event_entries {
-  id binary(16) [pk, not null, note: '개별 응모 ID']
+  id binary(16) [pk, not null, note: '클라이언트가 최초 요청 전에 발급한 응모 UUID. 같은 응모 재시도는 동일 ID, 새로운 추가 응모는 새 ID 사용. PK로 중복 저장 방지']
   participant_id binary(16) [not null, note: '접수 완료된 응모의 이벤트 참여자 ID']
   user_id binary(16) [not null, note: '사용자 ID']
-  idempotency_key varchar(100) [not null, note: '동일 요청 중복 처리 방지 키']
   requested_ticket_count int [not null, note: '요청한 응모권 차감 수량']
   deducted_ticket_count int [not null, default: 0, note: '실제 차감 응모권 수량']
   created_at datetime(6) [not null, note: '접수 완료된 응모의 처리 결과 기록 시각 UTC. 접수 성립·마감 판정은 차감과 함께 트랜잭션 확정 기준']
 
-  indexes {
-    (participant_id, idempotency_key) [unique, name: 'uq_event_entries_1']
-  }
-
-  Note: '성공 응모의 개별 기록. participant_id와 요청 키로 중복 요청 방지. 1회 제한 이벤트의 중복 응모는 제거된 single_entry_guard의 대체 보장 필요.'
+  Note: '성공 응모의 개별 기록. 같은 ID 재시도는 사용자·이벤트·요청 수량 일치를 확인하고 기존 결과를 반환하며 추가 차감하지 않음. 1회 제한 이벤트의 새 응모는 event_participants의 (event_id, user_id) UNIQUE에 따라 참가자 신규 생성에 성공한 요청만 저장. 참가자 생성·응모 저장·필요한 응모권 차감과 이력은 같은 트랜잭션으로 처리하며 참가자 중복 충돌 후 새 응모를 계속 저장하지 않음. 추가 응모는 기존 참가자를 사용하고 누적 상한을 참가자 행 잠금 등으로 검증. 응모 UUID 전달 API 계약과 실제 서비스 구현은 후속 반영 필요.'
 
   checks {
     `requested_ticket_count >= 0` [name: 'chk_entry_requested']
@@ -939,6 +934,10 @@ Table game_play_analyses {
   completed_at datetime(6) [note: '분석 성공 완료 시각 UTC']
   created_at datetime(6) [not null, note: '분석 작업 생성 시각 UTC']
   updated_at datetime(6) [not null, note: '최근 상태 변경 시각 UTC']
+
+  indexes {
+    (game_play_id, analyzer_version, input_hash) [unique, name: 'uq_game_play_analyses_input']
+  }
 
   checks {
     `(status = 'COMPLETED' AND verdict IS NOT NULL AND completed_at IS NOT NULL) OR (status <> 'COMPLETED' AND verdict IS NULL AND completed_at IS NULL)` [name: 'chk_analysis_result']
