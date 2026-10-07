@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import com.getddo.core.ticket.exception.TicketErrorCode;
@@ -18,7 +17,6 @@ import com.getddo.core.ticket.exception.TicketException;
  * {@code version}은 JPA 낙관적 잠금이 아니라 이 규칙을 위한 업무 값이며, 동시성은 지갑 행의 비관적 잠금으로 막는다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class TicketWallet {
 
 	private final UUID id;

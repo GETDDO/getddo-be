@@ -127,7 +127,7 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		GrantResult replayed = transaction.execute(status ->
 				grantService.grant(command(userId, GrantSourceType.MISSION, claimId, 2)));
 		// then
-		assertThat(replayed).isEqualTo(new GrantResult(first.getLedgerId(), first.getWalletId(), 2, 2,
+		assertThat(replayed).usingRecursiveComparison().isEqualTo(new GrantResult(first.getLedgerId(), first.getWalletId(), 2, 2,
 				first.getGrantedAt(), first.getExpiresAt(), true));
 		assertThat(ledgerCount(userId)).isEqualTo(1);
 		assertThat(allocationCount(userId)).isEqualTo(1);
@@ -258,8 +258,8 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		Optional<GrantResult> withoutTransaction = grantService.findGrant(source);
 		Optional<GrantResult> inTransaction = transaction.execute(status -> grantService.findGrant(source));
 		// then
-		assertThat(withoutTransaction).contains(expected);
-		assertThat(inTransaction).contains(expected);
+		assertThat(withoutTransaction).get().usingRecursiveComparison().isEqualTo(expected);
+		assertThat(inTransaction).get().usingRecursiveComparison().isEqualTo(expected);
 	}
 
 	private List<Long> ledgerVersions(UUID user) {

@@ -2,12 +2,10 @@ package com.getddo.core.ticket.domain;
 
 import java.time.Instant;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /** 응모권 이력 조회 조건(T02). 모든 조건은 선택이며 기간은 {@code [from, to)}로 적용한다. */
 @Getter
-@EqualsAndHashCode
 public final class TicketLedgerFilter {
 
 	private static final TicketLedgerFilter NONE = new TicketLedgerFilter(null, null, null);

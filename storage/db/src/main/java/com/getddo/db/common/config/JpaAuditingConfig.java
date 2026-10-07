@@ -1,6 +1,7 @@
 package com.getddo.db.common.config;
 
 import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Bean;
@@ -14,13 +15,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 public class JpaAuditingConfig {
 
 	/**
-	 * 감사 시각을 제공한다.
+	 * DATETIME(6) 저장 전후의 값이 같도록 마이크로초로 절삭한 감사 시각을 제공한다.
 	 *
 	 * @param clock 공통 시계
 	 * @return 호출 시점의 시각 공급자
 	 */
 	@Bean
 	public DateTimeProvider jpaAuditingDateTimeProvider(Clock clock) {
-		return () -> Optional.of(clock.instant());
+		return () -> Optional.of(clock.instant().truncatedTo(ChronoUnit.MICROS));
 	}
 }

@@ -8,6 +8,8 @@ GD-52의 요청 헤더와 Controller 사용법은 [시연용 사용자 문맥과
 
 추첨 API 리뷰의 경로·요청·응답과 결정 사항은 [SPEC 추첨 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md)로 이관했습니다. 백엔드 저장·트랜잭션의 판단 근거와 남은 설계 문제는 [추첨 저장 ADR](../04-decisions/0003-drawing-snapshots-and-publications.md)에 기록합니다.
 
+GD-55의 내부 Service 호출과 트랜잭션 규칙은 [감사 로그 기록 기능](audit-recording.md)에 정리합니다.
+
 ## 접속
 
 DB 연결 등 애플리케이션 실행 준비를 마친 뒤 `./gradlew :api:bootRun`으로 실행합니다.

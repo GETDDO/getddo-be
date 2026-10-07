@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.refEq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -166,11 +167,11 @@ class TicketQueryServiceTest {
 			// given
 			TicketLedgerCursor cursor = new TicketLedgerCursor(NOW, UUID.randomUUID());
 			TicketLedgerFilter filter = TicketLedgerFilter.of(TicketTransactionType.GRANT, null, NOW);
-			when(queryRepository.findLedger(USER_ID, filter, cursor, 21)).thenReturn(List.of());
+			when(queryRepository.findLedger(eq(USER_ID), eq(filter), refEq(cursor), eq(21))).thenReturn(List.of());
 			// when
 			service.getMyLedger(USER_ID, filter, new CursorQuery(cursor.encode(), 20));
 			// then
-			verify(queryRepository).findLedger(USER_ID, filter, cursor, 21);
+			verify(queryRepository).findLedger(eq(USER_ID), eq(filter), refEq(cursor), eq(21));
 			verify(queryRepository).countLedger(USER_ID, filter);
 		}
 

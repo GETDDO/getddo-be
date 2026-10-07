@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -15,7 +14,6 @@ import lombok.Getter;
  * {@code quantity}는 지급·반환이 양수, 차감·만료·회수가 음수다. {@code balanceAfter}는 해당 지갑의 처리 직후 잔액이다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class TicketTransactionView {
 
 	private final UUID id;
