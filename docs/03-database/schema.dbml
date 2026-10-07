@@ -923,6 +923,7 @@ Table game_reward_claims {
   ticket_count int [not null, note: '보상 수량. 현재 정책 1장']
   created_at datetime(6) [not null, note: '생성 시각 UTC']
   indexes {
+    game_play_id [unique]
     (user_id, source_key) [unique]
     (user_id, game_id, reward_date) [unique]
   }
