@@ -50,7 +50,7 @@ class MySqlMigrationTest {
 	}
 
 	@Test
-	@DisplayName("V001~V011의 기존 데이터를 유지하며 V012 인덱스를 적용하고 재실행을 확인한다")
+	@DisplayName("V001~V011의 44개 테이블과 기존 데이터를 유지하며 V012 인덱스를 적용하고 재실행을 확인한다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
@@ -62,9 +62,17 @@ class MySqlMigrationTest {
 		assertThat(flyway.info().pending()).isEmpty();
 		flyway.validate();
 		assertNullableDeletedAtColumn("events");
-		assertNullableDeletedAtColumn("banners");
 		assertEventListIndex();
 		assertExistingEventAndPrize();
+		try (Connection connection = connect();
+			Statement statement = connection.createStatement();
+			ResultSet rows = statement.executeQuery("""
+					select count(*) from information_schema.tables
+					where table_schema = database() and table_name <> 'flyway_schema_history'
+					""")) {
+			assertThat(rows.next()).isTrue();
+			assertThat(rows.getInt(1)).isEqualTo(44);
+		}
 	}
 
 	private static Connection connection() throws SQLException {
@@ -79,9 +87,9 @@ class MySqlMigrationTest {
 					       '2026-10-01 00:00:00','2026-10-01 00:00:00')
 					""");
 			statement.executeUpdate("""
-					insert into events(id,created_by,title,description,event_type,weighting_enabled,
+					insert into events(id,title,description,event_type,weighting_enabled,
 					                   membership_rule,starts_at,ends_at,status,created_at,updated_at)
-					values(UNHEX('00000000000000000000000000000002'),UNHEX('00000000000000000000000000000001'),
+					values(UNHEX('00000000000000000000000000000002'),
 					       '기존 이벤트','기존 설명','NO_TICKET',false,'excellent',
 					       '2026-10-10 00:00:00','2026-10-11 00:00:00','SCHEDULED',
 					       '2026-10-01 00:00:00','2026-10-01 00:00:00')
@@ -125,18 +133,76 @@ class MySqlMigrationTest {
 	}
 
 	@Test
-	@DisplayName("응모권 배분과 게임 통계는 BINARY(16) 단일 id PK이고 기존 복합 키 조합은 UNIQUE로 남는다")
-	void allocationAndGameStatsUseSingleIdPrimaryKey() throws SQLException {
+	@DisplayName("개별 응모권·이력과 게임 통계의 PK 및 중복 방지 UNIQUE를 확인한다")
+	void ticketsHistoriesAndGameStatsUseSingleIdPrimaryKey() throws SQLException {
 		// given
 		// when
 		// then
-		assertThat(idColumn("ticket_ledger_allocations")).containsExactly("binary(16)", "NO");
+		assertThat(idColumn("tickets")).containsExactly("binary(16)", "NO");
+		assertThat(idColumn("ticket_histories")).containsExactly("binary(16)", "NO");
 		assertThat(idColumn("user_game_stats")).containsExactly("binary(16)", "NO");
-		assertThat(indexColumns("ticket_ledger_allocations", "PRIMARY")).containsExactly("id");
-		assertThat(indexColumns("ticket_ledger_allocations", "uq_ticket_ledger_allocations_1"))
-				.containsExactly("ledger_id", "source_credit_ledger_id", "original_grant_id");
+		assertThat(indexColumns("tickets", "PRIMARY")).containsExactly("id");
+		assertThat(indexColumns("ticket_histories", "PRIMARY")).containsExactly("id");
+		assertThat(indexColumns("ticket_histories", "uq_ticket_histories_1"))
+				.containsExactly("ticket_id", "ticket_version");
+		assertThat(indexColumns("ticket_histories", "uq_ticket_histories_refund_source"))
+				.containsExactly("original_use_history_id");
+		assertThat(indexColumns("draw_run_candidates", "PRIMARY")).containsExactly("draw_run_id", "candidate_id");
+		assertThat(indexColumns("draw_publication_results", "PRIMARY"))
+				.containsExactly("publication_id", "draw_result_id");
 		assertThat(indexColumns("user_game_stats", "PRIMARY")).containsExactly("id");
 		assertThat(indexColumns("user_game_stats", "uq_user_game_stats_1")).containsExactly("user_id", "game_id");
+	}
+
+	@Test
+	@DisplayName("출석 응모권은 브론즈 및 지급 근거 소유자를 검증하고 이력 버전 중복을 거부한다")
+	void enforcesTicketSourceGradeAndHistoryVersion() throws SQLException {
+		try (Connection connection = connect()) {
+			execute(connection, """
+					insert into users (id, name, role, status, created_at, updated_at) values
+					(unhex('0199A0000000700080000000000000B1'), '티켓사용자', 'USER', 'ACTIVE', now(6), now(6)),
+					(unhex('0199A0000000700080000000000000B2'), '다른사용자', 'USER', 'ACTIVE', now(6), now(6))
+					""");
+			execute(connection, """
+					insert into reward_policies (id, created_by, reward_type, reward_ticket_count, effective_from, created_at)
+					values (unhex('0199A0000000700080000000000000B3'), unhex('0199A0000000700080000000000000B1'),
+					        'ATTENDANCE', 1, now(6), now(6))
+					""");
+			execute(connection, """
+					insert into attendances (id, user_id, attendance_date, created_at)
+					values (unhex('0199A0000000700080000000000000B4'), unhex('0199A0000000700080000000000000B1'),
+					        '2026-10-08', now(6))
+					""");
+			execute(connection, """
+					insert into attendance_reward_claims
+					(id, attendance_id, reward_policy_id, user_id, reward_type, reward_date, source_key, ticket_count, created_at)
+					values (unhex('0199A0000000700080000000000000B5'), unhex('0199A0000000700080000000000000B4'),
+					        unhex('0199A0000000700080000000000000B3'), unhex('0199A0000000700080000000000000B1'),
+					        'DAILY', '2026-10-08', '2026-10-08', 1, now(6))
+					""");
+			String insertTicket = """
+					insert into tickets (id, user_id, attendance_reward_claim_id, grade, status, expires_at, created_at, updated_at)
+					values (unhex(?), unhex(?), unhex('0199A0000000700080000000000000B5'), ?, 'AVAILABLE',
+					        '2026-11-01 00:00:00', now(6), now(6))
+					""";
+			assertThatThrownBy(() -> execute(connection, insertTicket, "0199A0000000700080000000000000B6",
+					"0199A0000000700080000000000000B1", "GOLD"))
+					.isInstanceOf(SQLException.class).hasMessageContaining("chk_ticket_attendance_bronze");
+			assertThatThrownBy(() -> execute(connection, insertTicket, "0199A0000000700080000000000000B6",
+					"0199A0000000700080000000000000B2", "BRONZE"))
+					.isInstanceOf(SQLIntegrityConstraintViolationException.class);
+			execute(connection, insertTicket, "0199A0000000700080000000000000B6",
+					"0199A0000000700080000000000000B1", "BRONZE");
+			String insertHistory = """
+					insert into ticket_histories (id, ticket_id, operation_type, ticket_version, status, expires_at, reason, created_at)
+					values (unhex(?), unhex('0199A0000000700080000000000000B6'), 'GRANT', 1, 'AVAILABLE',
+					        '2026-11-01 00:00:00', '출석 지급', now(6))
+					""";
+			execute(connection, insertHistory, "0199A0000000700080000000000000B7");
+			assertThatThrownBy(() -> execute(connection, insertHistory, "0199A0000000700080000000000000B8"))
+					.isInstanceOf(SQLIntegrityConstraintViolationException.class)
+					.hasMessageContaining("uq_ticket_histories_1");
+		}
 	}
 
 	@Test
