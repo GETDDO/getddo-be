@@ -62,21 +62,22 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 				""", bytes(userId), sourceKey);
 	}
 
-	/** 출석 청구마다 청구 수량만큼 응모권과 지급 이력이 있고, 응모권 합계가 청구 수량 합계와 같은지 확인한다. */
-	private void assertClaimsAndTicketsConsistent() {
+	/** 출석 청구마다 지급 원장이 정확히 하나 있고, 원장 합계가 지갑 잔액 합계와 같은지 확인한다. */
+	private void assertClaimsAndLedgerConsistent() {
+		long claims = count("select count(*) from attendance_reward_claims where user_id = ?", bytes(userId));
+		long ledger = count("select count(*) from ticket_ledger where user_id = ?", bytes(userId));
+		long claimsWithoutLedger = count("""
+				select count(*) from attendance_reward_claims c
+				left join ticket_ledger l on l.attendance_reward_claim_id = c.id
+				where c.user_id = ? and l.id is null
+				""", bytes(userId));
 		long claimTickets = count("select coalesce(sum(ticket_count), 0) from attendance_reward_claims where user_id = ?",
 				bytes(userId));
-		long tickets = count("select count(*) from tickets where user_id = ?", bytes(userId));
-		long histories = count("""
-				select count(*) from ticket_histories h join tickets t on t.id = h.ticket_id where t.user_id = ?
-				""", bytes(userId));
-		long claimsWithWrongTicketCount = count("""
-				select count(*) from attendance_reward_claims c
-				where c.user_id = ?
-				  and c.ticket_count <> (select count(*) from tickets t where t.attendance_reward_claim_id = c.id)
-				""", bytes(userId));
-		assertThat(claimsWithWrongTicketCount).isZero();
-		assertThat(tickets).isEqualTo(claimTickets).isEqualTo(histories);
+		long ledgerSum = count("select coalesce(sum(quantity), 0) from ticket_ledger where user_id = ?", bytes(userId));
+		long walletSum = count("select coalesce(sum(balance), 0) from ticket_wallets where user_id = ?", bytes(userId));
+		assertThat(ledger).isEqualTo(claims);
+		assertThat(claimsWithoutLedger).isZero();
+		assertThat(ledgerSum).isEqualTo(claimTickets).isEqualTo(walletSum);
 	}
 
 	@Test
@@ -99,11 +100,11 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isEqualTo(1);
 		assertThat(count("select count(*) from attendance_reward_claims where id = ? and source_key = '2026-09-15'",
 				bytes(claimId))).isEqualTo(1);
-		assertThat(count("select count(*) from tickets where attendance_reward_claim_id = ?", bytes(claimId)))
+		assertThat(count("select count(*) from ticket_ledger where attendance_reward_claim_id = ?", bytes(claimId)))
 				.isEqualTo(1);
 		assertThat(count("select consecutive_days from attendance_streaks where user_id = ?", bytes(userId)))
 				.isEqualTo(1);
-		assertClaimsAndTicketsConsistent();
+		assertClaimsAndLedgerConsistent();
 	}
 
 	@Test
@@ -121,8 +122,8 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		assertThat(repeated.getRewards()).usingRecursiveFieldByFieldElementComparator().containsExactlyElementsOf(first.getRewards());
 		assertThat(repeated.getCreatedAt()).isEqualTo(first.getCreatedAt());
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isEqualTo(1);
-		assertClaimsAndTicketsConsistent();
-		assertThat(count("select count(*) from tickets where user_id = ?", bytes(userId))).isEqualTo(1);
+		assertClaimsAndLedgerConsistent();
+		assertThat(count("select count(*) from ticket_ledger where user_id = ?", bytes(userId))).isEqualTo(1);
 	}
 
 	@Test
@@ -156,7 +157,7 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		assertThat(afterMidnight.getConsecutiveDays()).isEqualTo(1);
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isEqualTo(2);
 		assertThat(count("select count(*) from attendance_streaks where user_id = ?", bytes(userId))).isEqualTo(2);
-		assertClaimsAndTicketsConsistent();
+		assertClaimsAndLedgerConsistent();
 	}
 
 	@Test
@@ -177,8 +178,9 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 				select coalesce(sum(ticket_count), 0) from attendance_reward_claims
 				where user_id = ? and reward_type = 'STREAK'
 				""", bytes(userId))).isEqualTo(11);
-		assertClaimsAndTicketsConsistent();
-		assertThat(count("select count(*) from tickets where user_id = ?", bytes(userId))).isEqualTo(28 + 11);
+		assertClaimsAndLedgerConsistent();
+		assertThat(count("select coalesce(sum(balance), 0) from ticket_wallets where user_id = ?", bytes(userId)))
+				.isEqualTo(28 + 11);
 	}
 
 	@Test
@@ -194,7 +196,7 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		assertThat(again.getRewards()).extracting(AttendanceRewardReceipt::getRewardType)
 				.containsExactly(AttendanceRewardType.DAILY);
 		assertThat(streakClaims("2026-09:7")).isEqualTo(1);
-		assertClaimsAndTicketsConsistent();
+		assertClaimsAndLedgerConsistent();
 	}
 
 	@Test
@@ -223,7 +225,7 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 		assertThat(last.getConsecutiveDays()).isEqualTo(31);
 		assertThat(count("select consecutive_days from attendance_streaks where user_id = ?", bytes(userId)))
 				.isEqualTo(31);
-		assertClaimsAndTicketsConsistent();
+		assertClaimsAndLedgerConsistent();
 	}
 
 	@Test
@@ -240,7 +242,7 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 	}
 
 	@Test
-	@DisplayName("연속 출석 정책이 없으면 이미 저장한 출석까지 롤백되어 출석·청구·응모권이 남지 않는다")
+	@DisplayName("연속 출석 정책이 없으면 이미 저장한 출석까지 롤백되어 출석·청구·원장이 남지 않는다")
 	void rollsBackWithoutStreakPolicy() {
 		// given: 일일 정책만 있음
 		policies.dailyPolicy(adminId, 1, Instant.parse("2025-12-31T15:00:00Z"), null);
@@ -252,6 +254,6 @@ class AttendanceServiceIntegrationTest extends AttendanceIntegrationTestSupport 
 				.isEqualTo(AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isZero();
 		assertThat(count("select count(*) from attendance_reward_claims where user_id = ?", bytes(userId))).isZero();
-		assertThat(count("select count(*) from tickets where user_id = ?", bytes(userId))).isZero();
+		assertThat(count("select count(*) from ticket_ledger where user_id = ?", bytes(userId))).isZero();
 	}
 }

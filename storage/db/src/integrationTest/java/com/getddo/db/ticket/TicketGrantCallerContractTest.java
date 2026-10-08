@@ -46,8 +46,8 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 		// then
 		assertThatThrownBy(() -> grantService.grant(command(userId, GrantSourceType.MISSION, claimId, 1)))
 				.isInstanceOf(IllegalTransactionStateException.class);
-		assertThat(ticketCount(userId)).isZero();
-		assertThat(historyCount(userId)).isZero();
+		assertThat(walletCount(userId)).isZero();
+		assertThat(ledgerCount(userId)).isZero();
 	}
 
 	@Test
@@ -59,19 +59,20 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 		}
 		// when
 		Granted granted = transaction.execute(status -> {
-			PendingMissionClaim claim = new PendingMissionClaim(userId, parents, 1);
+			PendingMissionClaim claim = new PendingMissionClaim(userId, parents, 2);
 			entityManager.persist(claim);
 			// 아직 INSERT가 나가지 않았음을 같은 연결에서 확인한다
 			assertThat(count("select count(*) from mission_reward_claims where id = ?", bytes(claim.getId())))
 					.isZero();
 			return new Granted(claim.getId(),
-					grantService.grant(command(userId, GrantSourceType.MISSION, claim.getId(), 1)));
+					grantService.grant(command(userId, GrantSourceType.MISSION, claim.getId(), 2)));
 		});
 		// then
 		assertThat(granted.result().isReplayed()).isFalse();
-		UUID ticketClaimId = uuid(jdbc.queryForObject(
-				"select mission_reward_claim_id from tickets where user_id = ?", byte[].class, bytes(userId)));
-		assertThat(ticketClaimId).isEqualTo(granted.claimId());
+		UUID ledgerClaimId = uuid(jdbc.queryForObject(
+				"select mission_reward_claim_id from ticket_ledger where id = ?", byte[].class,
+				bytes(granted.result().getLedgerId())));
+		assertThat(ledgerClaimId).isEqualTo(granted.claimId());
 	}
 
 	@Test
@@ -92,35 +93,36 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 		});
 		// 새 트랜잭션에서 처음부터 다시 처리하면 사전 조회가 기존 청구를 찾아 기존 결과를 반환한다
 		GrantResult retried = completeMission(parents, () -> { });
-		assertThat(retried).usingRecursiveComparison().isEqualTo(new GrantResult(existing.getQuantity(),
-				existing.getGrade(), existing.getGrantedAt(), existing.getExpiresAt(), true));
+		assertThat(retried).usingRecursiveComparison().isEqualTo(new GrantResult(existing.getLedgerId(), existing.getWalletId(), existing.getQuantity(),
+				existing.getBalanceAfter(), existing.getGrantedAt(), existing.getExpiresAt(), true));
 		assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId)))
 				.isEqualTo(1);
-		assertThat(ticketCount(userId)).isEqualTo(1);
-		assertThat(historyCount(userId)).isEqualTo(1);
+		assertThat(ledgerCount(userId)).isEqualTo(1);
+		assertThat(walletVersion(existing.getWalletId())).isEqualTo(1);
 	}
 
 	@Test
-	@DisplayName("grant가 예외를 던지면 호출자 트랜잭션의 청구·응모권·이력이 모두 롤백된다")
+	@DisplayName("grant가 예외를 던지면 호출자 트랜잭션의 청구·지갑·원장·배분이 모두 롤백된다")
 	void grantFailureRollsBackCallerTransaction() {
 		// given
 		TicketGrantSeeds.MissionParents first = seeds.missionParents(userId);
-		TicketGrantSeeds.AttendanceParents second = seeds.attendanceParents(userId);
+		TicketGrantSeeds.MissionParents second = seeds.missionParents(userId);
 		// when
 		// then
 		assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
 			UUID granted = seeds.missionClaim(userId, first, 1);
 			grantService.grant(command(userId, GrantSourceType.MISSION, granted, 1));
 			// 청구는 2장인데 1장으로 요청해 불일치로 실패시킨다
-			UUID mismatched = seeds.attendanceClaim(userId, second, 2);
-			grantService.grant(command(userId, GrantSourceType.ATTENDANCE, mismatched, 1));
+			UUID mismatched = seeds.missionClaim(userId, second, 2);
+			grantService.grant(command(userId, GrantSourceType.MISSION, mismatched, 1));
 		}))
 				.isInstanceOf(TicketException.class)
 				.extracting(error -> ((TicketException) error).getErrorCode())
 				.isEqualTo(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);
 		assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId))).isZero();
-		assertThat(ticketCount(userId)).isZero();
-		assertThat(historyCount(userId)).isZero();
+		assertThat(walletCount(userId)).isZero();
+		assertThat(ledgerCount(userId)).isZero();
+		assertThat(allocationCount(userId)).isZero();
 	}
 
 	@Test
@@ -151,12 +153,14 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 
 			// 새 트랜잭션에서 처음부터 다시 처리하면 사전 조회가 기존 청구를 찾아 기존 결과를 반환한다
 			GrantResult retried = completeMission(parents, () -> { });
-			assertThat(retried).usingRecursiveComparison().isEqualTo(new GrantResult(winner.getQuantity(),
-					winner.getGrade(), winner.getGrantedAt(), winner.getExpiresAt(), true));
+			assertThat(retried).usingRecursiveComparison().isEqualTo(new GrantResult(winner.getLedgerId(), winner.getWalletId(), winner.getQuantity(),
+					winner.getBalanceAfter(), winner.getGrantedAt(), winner.getExpiresAt(), true));
 			assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId)))
 					.isEqualTo(1);
-			assertThat(ticketCount(userId)).isEqualTo(1);
-			assertThat(historyCount(userId)).isEqualTo(1);
+			assertThat(ledgerCount(userId)).isEqualTo(1);
+			assertThat(allocationCount(userId)).isEqualTo(1);
+			assertThat(walletBalance(winner.getWalletId())).isEqualTo(1);
+			assertThat(walletVersion(winner.getWalletId())).isEqualTo(1);
 		} finally {
 			releaseFirst.countDown();
 			ConcurrentTasks.shutdownAndAwait(executor);
@@ -164,18 +168,16 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 	}
 
 	@Test
-	@DisplayName("새 응모권과 이력의 ID는 UUID v7로 저장된다")
-	void idsAreUuidV7() {
+	@DisplayName("새 지갑의 ID는 UUID v7로 저장된다")
+	void walletIdIsUuidV7() {
 		// given
 		// when
-		grantNewMissionClaim(userId, 1);
+		GrantResult result = grantNewMissionClaim(userId, 1);
 		// then
-		UUID ticketId = uuid(jdbc.queryForObject("select id from tickets where user_id = ?", byte[].class,
+		UUID stored = uuid(jdbc.queryForObject("select id from ticket_wallets where user_id = ?", byte[].class,
 				bytes(userId)));
-		UUID historyId = uuid(jdbc.queryForObject("select id from ticket_histories where ticket_id = ?",
-				byte[].class, bytes(ticketId)));
-		assertThat(ticketId.version()).isEqualTo(7);
-		assertThat(historyId.version()).isEqualTo(7);
+		assertThat(stored).isEqualTo(result.getWalletId());
+		assertThat(stored.version()).isEqualTo(7);
 	}
 
 	/**

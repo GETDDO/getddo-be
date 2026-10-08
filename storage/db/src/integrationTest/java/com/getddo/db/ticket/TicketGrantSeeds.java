@@ -41,11 +41,12 @@ public class TicketGrantSeeds {
 		for (UUID user : users) {
 			byte[] id = bytes(user);
 			jdbc.update("""
-					delete h from ticket_histories h
-					join tickets t on t.id = h.ticket_id
-					where t.user_id = ?
+					delete a from ticket_ledger_allocations a
+					join ticket_ledger l on l.id = a.ledger_id
+					where l.user_id = ?
 					""", id);
-			jdbc.update("delete from tickets where user_id = ?", id);
+			jdbc.update("delete from ticket_ledger where user_id = ?", id);
+			jdbc.update("delete from ticket_wallets where user_id = ?", id);
 			jdbc.update("delete from mission_reward_claims where user_id = ?", id);
 			jdbc.update("delete from attendance_reward_claims where user_id = ?", id);
 			jdbc.update("delete from game_reward_claims where user_id = ?", id);
@@ -114,9 +115,11 @@ public class TicketGrantSeeds {
 				SEED_TIME, SEED_TIME.plusMonths(3), SEED_TIME, SEED_TIME);
 		UUID submissionId = UUID.randomUUID();
 		jdbc.update("""
-				insert into mission_submissions (id, mission_id, user_id, reward_policy_id, is_completed, created_at)
-				values (?, ?, ?, ?, true, ?)
-				""", bytes(submissionId), bytes(missionId), bytes(userId), bytes(policyId), SEED_TIME);
+				insert into mission_submissions (id, mission_id, user_id, reward_policy_id, idempotency_key,
+				  received_at, is_completed, created_at)
+				values (?, ?, ?, ?, ?, ?, true, ?)
+				""", bytes(submissionId), bytes(missionId), bytes(userId), bytes(policyId),
+				"submission-" + next(), SEED_TIME, SEED_TIME);
 		return new MissionParents(policyId, missionId, submissionId);
 	}
 
@@ -164,9 +167,9 @@ public class TicketGrantSeeds {
 		UUID policyId = rewardPolicy(userId, "GAME", gameId);
 		UUID playId = UUID.randomUUID();
 		jdbc.update("""
-				insert into game_plays (id, game_id, user_id, rule_version, created_at)
-				values (?, ?, ?, 'v1', ?)
-				""", bytes(playId), bytes(gameId), bytes(userId), SEED_TIME);
+				insert into game_plays (id, game_id, user_id, play_token, rule_version, status, created_at)
+				values (?, ?, ?, ?, 'v1', 'VALID', ?)
+				""", bytes(playId), bytes(gameId), bytes(userId), "play-" + next(), SEED_TIME);
 		return new GameParents(gameId, policyId, playId);
 	}
 

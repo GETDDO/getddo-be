@@ -184,11 +184,9 @@ class AttendanceConcurrencyTest extends AttendanceIntegrationTestSupport {
 		assertThat(count("select count(*) from attendances where user_id = ?", bytes(userId))).isEqualTo(1);
 		assertThat(count("select count(*) from attendance_reward_claims where user_id = ?", bytes(userId)))
 				.isEqualTo(1);
-		assertThat(count("select count(*) from tickets where user_id = ?", bytes(userId))).isEqualTo(1);
-		assertThat(count("""
-				select count(*) from ticket_histories h join tickets t on t.id = h.ticket_id
-				where t.user_id = ? and h.operation_type = 'GRANT'
-				""", bytes(userId))).isEqualTo(1);
+		assertThat(count("select count(*) from ticket_ledger where user_id = ?", bytes(userId))).isEqualTo(1);
+		assertThat(count("select coalesce(sum(balance), 0) from ticket_wallets where user_id = ?", bytes(userId)))
+				.isEqualTo(1);
 		assertThat(count("select consecutive_days from attendance_streaks where user_id = ?", bytes(userId)))
 				.isEqualTo(1);
 	}

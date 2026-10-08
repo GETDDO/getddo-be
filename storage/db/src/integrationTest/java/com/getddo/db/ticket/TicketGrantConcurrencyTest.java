@@ -10,18 +10,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSourceType;
 
+import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 응모권 지급이 동시에 일어나는 경우를 실제 MySQL 잠금으로 검증한다.
+ * 같은 지갑을 여러 트랜잭션이 동시에 갱신하는 경우를 실제 MySQL 잠금으로 검증한다.
  *
  * <p>순서가 중요한 테스트는 앞 트랜잭션이 지급 후 커밋 전에 멈춘 상태에서 뒤 트랜잭션이 실제로 잠금 대기에
  * 들어간 것({@link LockWaitProbe})을 확인한 뒤 앞 트랜잭션을 풀어 준다.</p>
@@ -30,12 +31,44 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 
 	private static final long WAIT_SECONDS = 30;
 
-	@Autowired
-	private EntityManager entityManager;
+	@Test
+	@DisplayName("같은 사용자·같은 월의 다른 청구 두 개를 동시에 지급하면 한 지갑에 합산되고 wallet_version이 겹치지 않는다")
+	void concurrentGrantsToExistingWallet() throws Exception {
+		// given: 이미 지갑이 있다
+		GrantResult existing = grantNewMissionClaim(userId, 1);
+		UUID claimA = committedGameClaim();
+		UUID claimB = committedGameClaim();
+		// when
+		List<Object> outcomes = runWhileFirstHoldsLock(claimA, claimB);
+		// then
+		assertThat(outcomes).allMatch(GrantResult.class::isInstance);
+		assertThat(walletCount(userId)).isEqualTo(1);
+		assertThat(walletBalance(existing.getWalletId())).isEqualTo(3);
+		assertThat(walletVersion(existing.getWalletId())).isEqualTo(3);
+		assertThat(ledgerVersions()).containsExactly(1L, 2L, 3L);
+	}
 
 	@Test
-	@DisplayName("같은 사용자의 서로 다른 청구 여러 개를 동시에 지급해도 서로 기다리지 않고 모두 지급된다")
-	void manyConcurrentGrantsAllSucceed() throws Exception {
+	@DisplayName("지갑이 없을 때 두 지급이 동시에 오면 지갑은 하나만 생기고 뒤 지급은 앞 지급의 커밋을 기다린다")
+	void concurrentGrantsCreateSingleWallet() throws Exception {
+		// given
+		UUID claimA = committedGameClaim();
+		UUID claimB = committedGameClaim();
+		// when
+		List<Object> outcomes = runWhileFirstHoldsLock(claimA, claimB);
+		// then
+		assertThat(outcomes).allMatch(GrantResult.class::isInstance);
+		GrantResult first = (GrantResult) outcomes.get(0);
+		GrantResult second = (GrantResult) outcomes.get(1);
+		assertThat(second.getWalletId()).isEqualTo(first.getWalletId());
+		assertThat(walletCount(userId)).isEqualTo(1);
+		assertThat(walletBalance(first.getWalletId())).isEqualTo(2);
+		assertThat(ledgerVersions()).containsExactly(1L, 2L);
+	}
+
+	@Test
+	@DisplayName("지갑이 없을 때 여러 지급이 한꺼번에 와도 지갑 하나에 모두 반영되고 wallet_version이 1부터 빠짐없이 이어진다")
+	void manyConcurrentGrantsCreateSingleWallet() throws Exception {
 		// given
 		int requests = 8;
 		List<UUID> claims = new ArrayList<>();
@@ -60,9 +93,10 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 				results.add(future.get(WAIT_SECONDS, TimeUnit.SECONDS));
 			}
 			// then
-			assertThat(results).allMatch(result -> !result.isReplayed() && result.getQuantity() == 1);
-			assertThat(ticketCount(userId)).isEqualTo(requests);
-			assertThat(historyCount(userId)).isEqualTo(requests);
+			assertThat(results).extracting(GrantResult::getWalletId).containsOnly(results.get(0).getWalletId());
+			assertThat(walletCount(userId)).isEqualTo(1);
+			assertThat(walletBalance(results.get(0).getWalletId())).isEqualTo(requests);
+			assertThat(ledgerVersions()).containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L);
 		} finally {
 			start.countDown();
 			ConcurrentTasks.shutdownAndAwait(executor);
@@ -70,21 +104,19 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 	}
 
 	@Test
-	@DisplayName("같은 청구를 동시에 지급하면 뒤 요청은 청구 잠금을 기다렸다가 앞 요청의 결과를 replayed=true로 받고 지급은 한 번이다")
+	@DisplayName("같은 청구를 동시에 지급하면 한쪽만 성공하고 다른 쪽은 롤백되어 지급은 한 번이다")
 	void sameClaimGrantedOnce() throws Exception {
 		// given
 		UUID claim = committedGameClaim();
-		// when: 앞 트랜잭션이 청구 행을 잠근 채 커밋 전에 멈추고, 뒤 트랜잭션이 같은 청구로 지급을 시도한다
+		// when: 두 트랜잭션 모두 멱등 조회에서 기존 원장을 못 본 채 진행한다
 		List<Object> outcomes = runWhileFirstHoldsLock(claim, claim);
 		// then
-		assertThat(outcomes.get(0)).isInstanceOf(GrantResult.class);
-		GrantResult first = (GrantResult) outcomes.get(0);
-		assertThat(first.isReplayed()).isFalse();
-		assertThat(outcomes.get(1)).isInstanceOf(GrantResult.class);
-		assertThat(outcomes.get(1)).usingRecursiveComparison().isEqualTo(
-				new GrantResult(1, first.getGrade(), first.getGrantedAt(), first.getExpiresAt(), true));
-		assertThat(ticketCount(userId)).isEqualTo(1);
-		assertThat(historyCount(userId)).isEqualTo(1);
+		GrantResult winner = (GrantResult) outcomes.get(0);
+		assertThat(outcomes.get(1)).isInstanceOf(DataIntegrityViolationException.class);
+		assertThat(ledgerCount(userId)).isEqualTo(1);
+		assertThat(allocationCount(userId)).isEqualTo(1);
+		assertThat(walletBalance(winner.getWalletId())).isEqualTo(1);
+		assertThat(walletVersion(winner.getWalletId())).isEqualTo(1);
 	}
 
 	/**
@@ -100,8 +132,6 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 		try {
 			Future<GrantResult> first = executor.submit(() -> transaction.execute(status -> {
 				GrantResult result = grantService.grant(command(userId, GrantSourceType.GAME, firstClaim, 1));
-				// INSERT는 flush 때 나간다. 커밋 전에 내보내 UNIQUE 항목 잠금을 쥔 채 멈춘다.
-				entityManager.flush();
 				firstGranted.countDown();
 				awaitQuietly(releaseFirst);
 				return result;
@@ -129,6 +159,11 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 	private UUID committedGameClaim() {
 		TicketGrantSeeds.GameParents game = seeds.gameParents(userId);
 		return seeds.gameClaim(userId, game, 1);
+	}
+
+	private List<Long> ledgerVersions() {
+		return jdbc.queryForList("select wallet_version from ticket_ledger where user_id = ? order by wallet_version",
+				Long.class, bytes(userId));
 	}
 
 	private static void awaitQuietly(CountDownLatch latch) {
