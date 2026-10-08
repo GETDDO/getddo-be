@@ -190,6 +190,17 @@ class TicketQueryServiceTest {
 		}
 
 		@Test
+		@DisplayName("요청 값으로 조회할 때 조회 개수 1은 허용하고 다음 페이지 확인용 한 건을 더해 2건을 조회한다")
+		void acceptsMinimumRequestSize() {
+			// given
+			when(queryRepository.findHistory(eq(USER_ID), any(), isNull(), eq(2))).thenReturn(List.of());
+			// when
+			service.getMyHistory(USER_ID, TicketHistoryFilter.none(), null, 1);
+			// then
+			verify(queryRepository).findHistory(eq(USER_ID), any(), isNull(), eq(2));
+		}
+
+		@Test
 		@DisplayName("요청 값으로 조회할 때 빈 커서는 TICKET-004로 거절한다")
 		void rejectsBlankRequestCursor() {
 			// given

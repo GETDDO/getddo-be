@@ -215,7 +215,8 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 		// then
 		assertThatThrownBy(() -> seeds.gameClaim(userId, game, 2)).isInstanceOf(DataAccessException.class);
 		seeds.gameClaim(userId, game, 1);
-		assertThatThrownBy(() -> seeds.gameClaim(userId, game, 1)).isInstanceOf(DataIntegrityViolationException.class);
+		assertThatThrownBy(() -> seeds.gameClaim(userId, game, 1)).isInstanceOf(DataIntegrityViolationException.class)
+				.hasMessageContaining("uq_game_reward_claims_play");
 	}
 
 	@Test

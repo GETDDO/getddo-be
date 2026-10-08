@@ -114,7 +114,7 @@ class TicketGrantServiceTest {
 			// then
 			assertErrorCode(() -> service.grant(mission), TicketErrorCode.TICKET_INVALID_GRANT);
 			assertErrorCode(() -> service.grant(game), TicketErrorCode.TICKET_INVALID_GRANT);
-			verifyNoInteractions(grantSourceRepository);
+			verifyNoInteractions(grantSourceRepository, ticketRepository, historyRepository, gradeDrawer);
 		}
 
 		@ParameterizedTest

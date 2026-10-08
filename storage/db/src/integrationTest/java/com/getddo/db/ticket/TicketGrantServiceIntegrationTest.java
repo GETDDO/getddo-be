@@ -163,7 +163,7 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 	}
 
 	@Test
-	@DisplayName("출석 응모권은 항상 브론즈이고 미션·게임 응모권은 세 등급 중 하나다")
+	@DisplayName("출석 응모권은 항상 브론즈이고 미션 응모권은 지급 결과의 등급이 그대로 저장된다")
 	void gradesFollowSourceType() {
 		// given
 		TicketGrantSeeds.AttendanceParents attendance = seeds.attendanceParents(userId);
@@ -175,7 +175,11 @@ class TicketGrantServiceIntegrationTest extends TicketIntegrationTestSupport {
 		GrantResult missionGrant = grantNewMissionClaim(userId, 1);
 		// then
 		assertThat(attendanceGrant.getGrade()).isEqualTo(TicketGrade.BRONZE);
-		assertThat(missionGrant.getGrade()).isIn((Object[]) TicketGrade.values());
+		assertThat(missionGrant.getGrade()).isNotNull();
+		assertThat(jdbc.queryForList("""
+				select t.grade from tickets t where t.mission_reward_claim_id is not null and t.user_id = ?
+				""", String.class, bytes(userId))).containsExactly(missionGrant.getGrade().name());
+		// 80/18/2 추첨 규칙은 RandomTicketGradeDrawerTest가 단위 수준에서 검증한다
 	}
 
 	@Test

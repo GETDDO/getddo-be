@@ -119,6 +119,7 @@ class TicketGrantCallerContractTest extends TicketIntegrationTestSupport {
 				.extracting(error -> ((TicketException) error).getErrorCode())
 				.isEqualTo(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);
 		assertThat(count("select count(*) from mission_reward_claims where user_id = ?", bytes(userId))).isZero();
+		assertThat(count("select count(*) from attendance_reward_claims where user_id = ?", bytes(userId))).isZero();
 		assertThat(ticketCount(userId)).isZero();
 		assertThat(historyCount(userId)).isZero();
 	}
