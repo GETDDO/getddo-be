@@ -1,7 +1,6 @@
 package com.getddo.db.ticket;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -18,7 +17,8 @@ import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceType;
-import com.getddo.core.ticket.domain.TicketWalletStatus;
+import com.getddo.core.ticket.domain.TicketGrade;
+import com.getddo.core.ticket.domain.TicketStatus;
 import com.getddo.core.ticket.service.TicketGrantService;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
@@ -79,41 +79,31 @@ abstract class TicketIntegrationTestSupport {
 		return jdbc.queryForObject(sql, Long.class, args);
 	}
 
-	protected long walletCount(UUID user) {
-		return count("select count(*) from ticket_wallets where user_id = ?", bytes(user));
+	protected long ticketCount(UUID user) {
+		return count("select count(*) from tickets where user_id = ?", bytes(user));
 	}
 
-	protected long ledgerCount(UUID user) {
-		return count("select count(*) from ticket_ledger where user_id = ?", bytes(user));
-	}
-
-	protected long allocationCount(UUID user) {
+	protected long historyCount(UUID user) {
 		return count("""
-				select count(*) from ticket_ledger_allocations a
-				join ticket_ledger l on l.id = a.ledger_id where l.user_id = ?
+				select count(*) from ticket_histories h
+				join tickets t on t.id = h.ticket_id where t.user_id = ?
 				""", bytes(user));
 	}
 
-	protected long walletBalance(UUID walletId) {
-		return count("select balance from ticket_wallets where id = ?", bytes(walletId));
-	}
-
-	protected long walletVersion(UUID walletId) {
-		return count("select version from ticket_wallets where id = ?", bytes(walletId));
-	}
-
-	/** 지급으로는 만들 수 없는 상태(만료 처리된 지갑 등)의 지갑을 직접 넣는다. 시각은 UTC 원값으로 저장한다. */
-	protected UUID insertWallet(UUID user, String expiryMonth, String expiresAt, long balance,
-			TicketWalletStatus status) {
+	/**
+	 * 지급으로는 만들 수 없는 상태(사용·만료 처리된 응모권 등)의 응모권을 미션 청구에 직접 넣는다.
+	 * 시각은 UTC 원값으로 저장한다.
+	 */
+	protected UUID insertTicket(UUID user, UUID missionClaimId, TicketGrade grade, TicketStatus status,
+			String expiresAt) {
 		UUID id = UUID.randomUUID();
 		LocalDateTime createdAt = LocalDateTime.parse("2026-07-01T00:00:00");
 		jdbc.update("""
-				insert into ticket_wallets (id, user_id, expiry_month, valid_from, expires_at, balance, status, version,
+				insert into tickets (id, user_id, mission_reward_claim_id, grade, status, expires_at, version,
 				  created_at, updated_at)
-				values (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
-				""", bytes(id), bytes(user), LocalDate.parse(expiryMonth), createdAt,
-				LocalDateTime.ofInstant(Instant.parse(expiresAt), ZoneOffset.UTC), balance, status.name(),
-				createdAt, createdAt);
+				values (?, ?, ?, ?, ?, ?, 1, ?, ?)
+				""", bytes(id), bytes(user), bytes(missionClaimId), grade.name(), status.name(),
+				LocalDateTime.ofInstant(Instant.parse(expiresAt), ZoneOffset.UTC), createdAt, createdAt);
 		return id;
 	}
 

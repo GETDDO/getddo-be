@@ -36,6 +36,7 @@ import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantSourceType;
+import com.getddo.core.ticket.domain.TicketGrade;
 import com.getddo.core.ticket.service.TicketGrantService;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,7 +101,7 @@ class AttendanceRecorderTest {
 	private void grantSucceeds() {
 		when(grantService.grant(any())).thenAnswer(invocation -> {
 			GrantCommand command = invocation.getArgument(0);
-			return new GrantResult(UUID.randomUUID(), UUID.randomUUID(), command.getQuantity(), 1, NOW,
+			return new GrantResult(command.getQuantity(), TicketGrade.BRONZE, NOW,
 					Instant.parse("2026-09-30T15:00:00Z"), false);
 		});
 	}
@@ -227,7 +228,7 @@ class AttendanceRecorderTest {
 		Attendance existing = saved(TODAY);
 		AttendanceRewardClaim dailyClaim = new AttendanceRewardClaim(UUID.randomUUID(), USER_ID, existing.getId(),
 				AttendanceRewardType.DAILY, DAILY.getId(), null, TODAY, null, "2026-09-07", 1);
-		GrantResult granted = new GrantResult(UUID.randomUUID(), UUID.randomUUID(), 1, 3, NOW,
+		GrantResult granted = new GrantResult(1, TicketGrade.BRONZE, NOW,
 				Instant.parse("2026-09-30T15:00:00Z"), true);
 		when(attendanceRepository.findByUserIdAndDate(USER_ID, TODAY)).thenReturn(Optional.of(existing));
 		when(claimRepository.findByAttendanceId(existing.getId())).thenReturn(List.of(dailyClaim));

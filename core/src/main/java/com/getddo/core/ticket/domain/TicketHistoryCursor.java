@@ -19,14 +19,14 @@ import com.getddo.core.ticket.exception.TicketException;
  * 클라이언트에는 내용을 해석할 수 없는 문자열로 전달한다.</p>
  */
 @Getter
-public final class TicketLedgerCursor {
+public final class TicketHistoryCursor {
 
 	private static final String SEPARATOR = "|";
 
 	private final Instant createdAt;
 	private final UUID id;
 
-	public TicketLedgerCursor(Instant createdAt, UUID id) {
+	public TicketHistoryCursor(Instant createdAt, UUID id) {
 		this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
 		this.id = Objects.requireNonNull(id, "id");
 	}
@@ -34,16 +34,16 @@ public final class TicketLedgerCursor {
 	/**
 	 * 클라이언트가 보낸 커서 문자열을 해석한다.
 	 *
-	 * @throws TicketException 형식이 올바르지 않은 경우 {@code TICKET_INVALID_LEDGER_QUERY}
+	 * @throws TicketException 형식이 올바르지 않은 경우 {@code TICKET_INVALID_HISTORY_QUERY}
 	 */
-	public static TicketLedgerCursor decode(String encoded) {
+	public static TicketHistoryCursor decode(String encoded) {
 		try {
 			String decoded = new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
 			int separator = decoded.indexOf(SEPARATOR);
 			if (separator < 0) {
 				throw invalid();
 			}
-			return new TicketLedgerCursor(
+			return new TicketHistoryCursor(
 					Instant.parse(decoded.substring(0, separator)),
 					UUID.fromString(decoded.substring(separator + 1)));
 		} catch (IllegalArgumentException | DateTimeParseException e) {
@@ -58,6 +58,6 @@ public final class TicketLedgerCursor {
 	}
 
 	private static TicketException invalid() {
-		return new TicketException(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
+		return new TicketException(TicketErrorCode.TICKET_INVALID_HISTORY_QUERY);
 	}
 }

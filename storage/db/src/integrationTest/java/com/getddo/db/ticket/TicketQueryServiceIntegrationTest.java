@@ -11,12 +11,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import com.getddo.core.common.pagination.CursorQuery;
 import com.getddo.core.common.pagination.CursorResult;
-import com.getddo.core.ticket.domain.GrantResult;
-import com.getddo.core.ticket.domain.MyTicketWallets;
-import com.getddo.core.ticket.domain.TicketLedgerFilter;
-import com.getddo.core.ticket.domain.TicketTransactionView;
-import com.getddo.core.ticket.domain.TicketWalletStatus;
-import com.getddo.core.ticket.domain.TicketWalletView;
+import com.getddo.core.ticket.domain.GrantSourceType;
+import com.getddo.core.ticket.domain.MyTickets;
+import com.getddo.core.ticket.domain.TicketGrade;
+import com.getddo.core.ticket.domain.TicketHistoryFilter;
+import com.getddo.core.ticket.domain.TicketHistoryView;
+import com.getddo.core.ticket.domain.TicketStatus;
 import com.getddo.core.ticket.exception.TicketErrorCode;
 import com.getddo.core.ticket.exception.TicketException;
 import com.getddo.core.ticket.service.TicketQueryService;
@@ -25,7 +25,7 @@ import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** GD-46 테스트 방법(지급 후 잔액, 만료 지갑 제외, 커서 이동 안정성)을 실제 MySQL에서 검증한다. */
+/** GD-46 테스트 방법(지급 후 보유 장수, 만료분 제외, 커서 이동 안정성)을 실제 MySQL에서 검증한다. */
 class TicketQueryServiceIntegrationTest extends TicketIntegrationTestSupport {
 
 	private static final Instant SEPTEMBER = Instant.parse("2026-09-15T03:00:00Z");
@@ -36,47 +36,46 @@ class TicketQueryServiceIntegrationTest extends TicketIntegrationTestSupport {
 	private TicketQueryService queryService;
 
 	@Test
-	@DisplayName("지급 후 사용 가능 잔액과 지갑 잔액이 원장 합계와 같다")
-	void balanceMatchesLedgerAfterGrants() {
+	@DisplayName("지급 후 보유 장수가 지급한 장수 합계와 같고 등급별 장수의 합과 같다")
+	void countMatchesGrants() {
 		// given
 		clock.set(SEPTEMBER);
-		GrantResult first = grantNewMissionClaim(userId, 2);
-		grantNewMissionClaim(userId, 3);
-		// when
-		MyTicketWallets result = queryService.getMyWallets(userId);
-		// then
-		long ledgerSum = count("select sum(quantity) from ticket_ledger where user_id = ?", bytes(userId));
-		assertThat(result.getAvailableBalance()).isEqualTo(ledgerSum).isEqualTo(5);
-		assertThat(result.getServerTime()).isEqualTo(SEPTEMBER);
-		assertThat(result.getWallets()).singleElement().satisfies(wallet -> {
-			assertThat(wallet.getId()).isEqualTo(first.getWalletId());
-			assertThat(wallet.getBalance()).isEqualTo(5);
-			assertThat(wallet.getStatus()).isEqualTo(TicketWalletStatus.ACTIVE);
-			assertThat(wallet.getExpiresAt()).isEqualTo(first.getExpiresAt());
-			assertThat(wallet.getValidFrom()).isEqualTo(first.getGrantedAt());
+		TicketGrantSeeds.AttendanceParents attendance = seeds.attendanceParents(userId);
+		transaction.executeWithoutResult(status -> {
+			UUID claim = seeds.attendanceClaim(userId, attendance, 3);
+			grantService.grant(command(userId, GrantSourceType.ATTENDANCE, claim, 3));
 		});
+		grantNewMissionClaim(userId, 1);
+		// when
+		MyTickets result = queryService.getMyTickets(userId);
+		// then
+		assertThat(result.getAvailableCount()).isEqualTo(4)
+				.isEqualTo(count("select count(*) from tickets where user_id = ?", bytes(userId)));
+		assertThat(result.getCountByGrade().values().stream().mapToLong(Long::longValue).sum()).isEqualTo(4);
+		assertThat(result.getCountByGrade().get(TicketGrade.BRONZE)).isGreaterThanOrEqualTo(3);
+		assertThat(result.getServerTime()).isEqualTo(SEPTEMBER);
 	}
 
 	@Test
-	@DisplayName("만료 처리 전이라도 만료 시각이 지난 지갑과 만료 처리된 지갑은 사용 가능 잔액에서 빠진다")
-	void excludesExpiredWallets() {
-		// given: 8월 지갑은 만료 처리됨, 9월 지갑은 만료 시각이 지났지만 아직 ACTIVE로 저장됨
-		UUID august = insertWallet(userId, "2026-08-01", "2026-08-31T15:00:00Z", 4, TicketWalletStatus.EXPIRED);
+	@DisplayName("만료 처리 전이라도 만료 시각이 지난 응모권과 만료 처리된 응모권은 보유 장수에서 빠진다")
+	void excludesExpiredTickets() {
+		// given: 8월분은 만료 처리됨, 9월분은 만료 시각이 지났지만 아직 AVAILABLE로 저장됨
+		insertTicket(userId, missionClaimOf(userId), TicketGrade.BRONZE, TicketStatus.EXPIRED,
+				"2026-08-31T15:00:00Z");
 		clock.set(SEPTEMBER);
-		GrantResult september = grantNewMissionClaim(userId, 2);
+		grantNewMissionClaim(userId, 1);
 		clock.set(OCTOBER_FIRST);
-		GrantResult october = grantNewMissionClaim(userId, 1);
+		grantNewMissionClaim(userId, 1);
 		// when
-		MyTicketWallets result = queryService.getMyWallets(userId);
+		MyTickets result = queryService.getMyTickets(userId);
 		// then
-		assertThat(result.getAvailableBalance()).isEqualTo(1);
+		assertThat(result.getAvailableCount()).isEqualTo(1);
 		assertThat(result.getServerTime()).isEqualTo(OCTOBER_FIRST);
-		assertThat(result.getWallets()).extracting(TicketWalletView::getId)
-				.containsExactly(october.getWalletId(), september.getWalletId(), august);
-		assertThat(result.getWallets()).extracting(TicketWalletView::getStatus).containsExactly(
-				TicketWalletStatus.ACTIVE, TicketWalletStatus.EXPIRED, TicketWalletStatus.EXPIRED);
-		assertThat(jdbc.queryForObject("select status from ticket_wallets where id = ?", String.class,
-				bytes(september.getWalletId()))).isEqualTo("ACTIVE");
+		assertThat(result.getHoldings()).singleElement().satisfies(holding ->
+				assertThat(holding.getExpiresAt()).isEqualTo(Instant.parse("2026-10-31T15:00:00Z")));
+		assertThat(jdbc.queryForObject("""
+				select count(*) from tickets where user_id = ? and status = 'AVAILABLE'
+				""", Long.class, bytes(userId))).isEqualTo(2L);
 	}
 
 	@Test
@@ -88,13 +87,13 @@ class TicketQueryServiceIntegrationTest extends TicketIntegrationTestSupport {
 			grantNewMissionClaim(userId, 1);
 		}
 		// when
-		List<TicketTransactionView> received = new ArrayList<>();
+		List<TicketHistoryView> received = new ArrayList<>();
 		List<Long> totals = new ArrayList<>();
 		String cursor = null;
 		int pages = 0;
 		do {
-			CursorResult<TicketTransactionView> page =
-					queryService.getMyLedger(userId, TicketLedgerFilter.none(), new CursorQuery(cursor, 2));
+			CursorResult<TicketHistoryView> page =
+					queryService.getMyHistory(userId, TicketHistoryFilter.none(), new CursorQuery(cursor, 2));
 			received.addAll(page.getItems());
 			totals.add(page.getTotalElements());
 			cursor = page.getNextCursor();
@@ -103,8 +102,8 @@ class TicketQueryServiceIntegrationTest extends TicketIntegrationTestSupport {
 		// then
 		assertThat(pages).isEqualTo(3);
 		assertThat(totals).containsOnly(5L);
-		assertThat(received).hasSize(5).extracting(TicketTransactionView::getId).doesNotHaveDuplicates();
-		assertThat(received).extracting(TicketTransactionView::getCreatedAt)
+		assertThat(received).hasSize(5).extracting(TicketHistoryView::getId).doesNotHaveDuplicates();
+		assertThat(received).extracting(TicketHistoryView::getCreatedAt)
 				.isSortedAccordingTo((a, b) -> b.compareTo(a));
 	}
 
@@ -115,9 +114,14 @@ class TicketQueryServiceIntegrationTest extends TicketIntegrationTestSupport {
 		CursorQuery page = new CursorQuery("broken", 20);
 		// when
 		// then
-		assertThatThrownBy(() -> queryService.getMyLedger(userId, TicketLedgerFilter.none(), page))
+		assertThatThrownBy(() -> queryService.getMyHistory(userId, TicketHistoryFilter.none(), page))
 				.isInstanceOf(TicketException.class)
 				.extracting(error -> ((TicketException) error).getErrorCode())
-				.isEqualTo(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
+				.isEqualTo(TicketErrorCode.TICKET_INVALID_HISTORY_QUERY);
+	}
+
+	private UUID missionClaimOf(UUID user) {
+		TicketGrantSeeds.MissionParents parents = seeds.missionParents(user);
+		return transaction.execute(status -> seeds.missionClaim(user, parents, 1));
 	}
 }
