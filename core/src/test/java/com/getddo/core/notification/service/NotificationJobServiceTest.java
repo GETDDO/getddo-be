@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.TransientDataAccessResourceException;
 
 import com.getddo.core.common.time.TimeProvider;
@@ -32,7 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class NotificationJobServiceTest {
 	private static final Instant NOW = Instant.parse("2026-10-01T00:00:00Z");
 	private static final UUID FIRST = UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -54,7 +56,7 @@ class NotificationJobServiceTest {
 	/** 검증 시나리오: 일부 사용자 생성 후 일시적 실패는 별도 실패 기록과 재시도로 넘긴다. */
 	@Test
 	@DisplayName("일부 사용자 생성 후 일시적 실패는 별도 실패 기록과 재시도로 넘긴다")
-	void recordsGenerationFailureWithoutSending() {
+	void recordsGenerationFailureWithoutSending(CapturedOutput output) {
 		// given
 		NotificationJobRequest request = request(List.of(FIRST, SECOND));
 		when(repository.claimNextJob(NOW)).thenReturn(Optional.of(JOB));
@@ -68,6 +70,8 @@ class NotificationJobServiceTest {
 		verify(repository).failJob(JOB, NOW.plusSeconds(10), "NOTIFICATION-005");
 		verify(repository, never()).completeJob(JOB, NOW);
 		verifyNoInteractions(sender);
+		assertThat(output.getOut()).contains(JOB.getId().toString(), "attempt=1",
+				TransientDataAccessResourceException.class.getName()).doesNotContain("private details", "제목", "내용");
 	}
 
 	/** 검증 시나리오: 선점이 교체되면 이전 처리자는 생성 완료나 실패를 덮어쓰지 않는다. */
@@ -139,6 +143,21 @@ class NotificationJobServiceTest {
 		// when / then
 		assertThat(service.processNextDelivery()).isTrue();
 		verify(repository).failDelivery(DELIVERY, null, "NOTIFICATION-003");
+	}
+
+	/** 검증 시나리오: 예상하지 못한 발송 오류도 원문 없이 추적하고 최종 실패로 기록한다. */
+	@Test
+	@DisplayName("발송 실패 로그는 알림 ID·차수·예외 유형만 남기고 원문을 노출하지 않는다")
+	void logsDeliveryFailureWithoutPrivateDetails(CapturedOutput output) {
+		// given
+		when(repository.claimNextDelivery(NOW)).thenReturn(Optional.of(DELIVERY));
+		when(sender.send(DELIVERY)).thenThrow(new IllegalArgumentException("private delivery details"));
+		// when
+		assertThat(service.processNextDelivery()).isTrue();
+		// then
+		verify(repository).failDelivery(DELIVERY, null, "NOTIFICATION-006");
+		assertThat(output.getOut()).contains(DELIVERY.getId().toString(), "attempt=1",
+				IllegalArgumentException.class.getName()).doesNotContain("private delivery details", "제목", "내용");
 	}
 
 	/** 각 시나리오에서 발생 키와 수신 대상을 지정할 유효한 알림 작업 입력을 만든다. */

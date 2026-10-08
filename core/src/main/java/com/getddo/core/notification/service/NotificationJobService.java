@@ -3,6 +3,8 @@ package com.getddo.core.notification.service;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ import com.getddo.core.notification.repository.NotificationJobRepository;
 @Service
 @RequiredArgsConstructor
 public class NotificationJobService {
+	private static final Log LOG = LogFactory.getLog(NotificationJobService.class);
 	private final NotificationJobRepository repository;
 	private final TimeProvider timeProvider;
 	private final MockNotificationSender sender;
@@ -54,6 +57,8 @@ public class NotificationJobService {
 			}
 			repository.completeJob(job, timeProvider.now());
 		} catch (RuntimeException failure) {
+			LOG.warn("Notification generation failed: jobId=" + job.getId()
+					+ ", attempt=" + job.getAttemptCount() + ", exceptionType=" + failure.getClass().getName());
 			repository.failJob(job, NotificationRetryPolicy.nextAttemptAt(
 					job.getAttemptCount(), timeProvider.now(), failure), NotificationRetryPolicy.errorCode(failure));
 		}
@@ -72,6 +77,8 @@ public class NotificationJobService {
 			}
 			repository.completeDelivery(delivery, timeProvider.now());
 		} catch (RuntimeException failure) {
+			LOG.warn("Notification delivery failed: notificationId=" + delivery.getId()
+					+ ", attempt=" + delivery.getAttemptCount() + ", exceptionType=" + failure.getClass().getName());
 			repository.failDelivery(delivery, NotificationRetryPolicy.nextAttemptAt(
 					delivery.getAttemptCount(), timeProvider.now(), failure), NotificationRetryPolicy.errorCode(failure));
 		}
