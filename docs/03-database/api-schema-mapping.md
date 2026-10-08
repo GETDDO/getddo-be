@@ -5,6 +5,8 @@
 
 공용 API 초안과 초기 스키마의 대응을 정리한다. 공용 요구사항과 도메인 정책은 `getddo-spec`을 따른다.
 
+2026-10-08 GD-93에서 V001~V011을 최신 [DBML](schema.dbml)의 44개 테이블로 교체했다. 아래 테이블 대응과 검토 항목은 교체 전 SQL의 기록이며 현재 스키마의 기준으로 사용하지 않는다. API·서비스 코드의 호환성 수정 및 대응표 재검토는 담당자의 후속 작업이다.
+
 2026-10-05 추첨 ERD 검토안은 이 문서의 V007 초기 정의와 구분한다. 갱신한 공용 계약은 [SPEC 추첨 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md)의 AD01~AD09이며, 후보 연결·결과 FK·실패·검증·공개 이력 설계는 [ADR-0003](../04-decisions/0003-drawing-snapshots-and-publications.md)과 ERD SQL 초안 (`drawing-erd-reviewed-erdcloud.sql`, 정리로 삭제됨; 작성 당시 내용은 Git 이력 참조)을 참고한다. 아래 매핑을 새 설계의 운영 반영 완료로 해석하지 않는다.
 
 ## 테이블 대응
