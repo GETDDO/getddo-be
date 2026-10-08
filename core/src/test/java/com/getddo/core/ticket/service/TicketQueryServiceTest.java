@@ -2,7 +2,6 @@ package com.getddo.core.ticket.service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -12,20 +11,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.getddo.core.common.pagination.CursorQuery;
 import com.getddo.core.common.pagination.CursorResult;
 import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.ticket.domain.MyTicketWallets;
-import com.getddo.core.ticket.domain.TicketLedgerCursor;
-import com.getddo.core.ticket.domain.TicketLedgerFilter;
-import com.getddo.core.ticket.domain.TicketTransactionType;
-import com.getddo.core.ticket.domain.TicketTransactionView;
-import com.getddo.core.ticket.domain.TicketWallet;
-import com.getddo.core.ticket.domain.TicketWalletStatus;
-import com.getddo.core.ticket.domain.TicketWalletView;
+import com.getddo.core.ticket.domain.MyTickets;
+import com.getddo.core.ticket.domain.TicketGrade;
+import com.getddo.core.ticket.domain.TicketHistoryCursor;
+import com.getddo.core.ticket.domain.TicketHistoryFilter;
+import com.getddo.core.ticket.domain.TicketHistoryView;
+import com.getddo.core.ticket.domain.TicketHolding;
+import com.getddo.core.ticket.domain.TicketOperationType;
+import com.getddo.core.ticket.domain.TicketStatus;
 import com.getddo.core.ticket.exception.TicketErrorCode;
 import com.getddo.core.ticket.exception.TicketException;
 import com.getddo.core.ticket.repository.TicketQueryRepository;
@@ -57,89 +58,69 @@ class TicketQueryServiceTest {
 		service = new TicketQueryService(queryRepository, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 	}
 
-	private static TicketWallet wallet(String expiryMonth, String expiresAt, long balance, TicketWalletStatus status) {
-		return new TicketWallet(UUID.randomUUID(), USER_ID, LocalDate.parse(expiryMonth),
-				Instant.parse("2026-08-01T00:00:00Z"), Instant.parse(expiresAt), balance, status, 1);
-	}
-
-	private static TicketTransactionView grant(Instant createdAt) {
-		return new TicketTransactionView(UUID.randomUUID(), UUID.randomUUID(), TicketTransactionType.GRANT, 1, 1, "보상",
-				createdAt, null, null, null, null, null, null, null, null);
+	private static TicketHistoryView grant(Instant createdAt) {
+		return new TicketHistoryView(UUID.randomUUID(), UUID.randomUUID(), TicketOperationType.GRANT,
+				TicketGrade.BRONZE, TicketStatus.AVAILABLE, createdAt.plusSeconds(3600), "보상", createdAt, null,
+				null, null, null, null, null, null);
 	}
 
 	private static void assertInvalidQuery(Runnable call) {
 		assertThatThrownBy(call::run)
 				.isInstanceOf(TicketException.class)
 				.extracting(error -> ((TicketException) error).getErrorCode())
-				.isEqualTo(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY);
+				.isEqualTo(TicketErrorCode.TICKET_INVALID_HISTORY_QUERY);
 	}
 
 	@Nested
-	@DisplayName("getMyWallets")
-	class GetMyWallets {
+	@DisplayName("getMyTickets")
+	class GetMyTickets {
 
 		@Test
-		@DisplayName("만료 시각이 지난 지갑은 ACTIVE로 저장돼 있어도 만료로 보여 주고 사용 가능 잔액에서 뺀다")
-		void excludesWalletsExpiredByTime() {
-			// given: 조회 시각은 10/1 09:30 KST. 9월 지갑은 방금 만료됐지만 만료 처리가 아직 안 됐다
-			TicketWallet october = wallet("2026-10-01", "2026-10-31T15:00:00Z", 2, TicketWalletStatus.ACTIVE);
-			TicketWallet septemberNotProcessed =
-					wallet("2026-09-01", "2026-09-30T15:00:00Z", 5, TicketWalletStatus.ACTIVE);
-			TicketWallet august = wallet("2026-08-01", "2026-08-31T15:00:00Z", 3, TicketWalletStatus.EXPIRED);
-			when(queryRepository.findWallets(USER_ID)).thenReturn(List.of(october, septemberNotProcessed, august));
+		@DisplayName("조회 시각을 한 번 구해 저장소에 넘기고 묶음으로 등급별 장수를 센다")
+		void countsByGrade() {
+			// given
+			TicketHolding bronze = new TicketHolding(TicketGrade.BRONZE, Instant.parse("2026-10-31T15:00:00Z"), 3);
+			TicketHolding gold = new TicketHolding(TicketGrade.GOLD, Instant.parse("2026-10-31T15:00:00Z"), 1);
+			when(queryRepository.findHoldings(USER_ID, NOW)).thenReturn(List.of(bronze, gold));
 			// when
-			MyTicketWallets result = service.getMyWallets(USER_ID);
+			MyTickets result = service.getMyTickets(USER_ID);
 			// then
 			assertThat(result.getServerTime()).isEqualTo(NOW);
-			assertThat(result.getAvailableBalance()).isEqualTo(2);
-			assertThat(result.getWallets()).extracting(TicketWalletView::getStatus).containsExactly(
-					TicketWalletStatus.ACTIVE, TicketWalletStatus.EXPIRED, TicketWalletStatus.EXPIRED);
-			assertThat(result.getWallets()).extracting(TicketWalletView::getBalance).containsExactly(2L, 5L, 3L);
-			assertThat(result.getWallets()).extracting(TicketWalletView::getId)
-					.containsExactly(october.getId(), septemberNotProcessed.getId(), august.getId());
+			assertThat(result.getAvailableCount()).isEqualTo(4);
+			assertThat(result.getCountByGrade()).containsEntry(TicketGrade.BRONZE, 3L)
+					.containsEntry(TicketGrade.SILVER, 0L).containsEntry(TicketGrade.GOLD, 1L);
+			assertThat(result.getHoldings()).containsExactly(bronze, gold);
 		}
 
 		@Test
-		@DisplayName("만료 시각과 조회 시각이 같으면 이미 만료된 것으로 본다")
-		void expiresAtBoundary() {
+		@DisplayName("보유한 응모권이 없으면 장수 0과 빈 목록이다")
+		void noTickets() {
 			// given
-			TicketWallet boundary = wallet("2026-09-01", NOW.toString(), 4, TicketWalletStatus.ACTIVE);
-			when(queryRepository.findWallets(USER_ID)).thenReturn(List.of(boundary));
+			when(queryRepository.findHoldings(USER_ID, NOW)).thenReturn(List.of());
 			// when
-			MyTicketWallets result = service.getMyWallets(USER_ID);
+			MyTickets result = service.getMyTickets(USER_ID);
 			// then
-			assertThat(result.getAvailableBalance()).isZero();
-			assertThat(result.getWallets().get(0).getStatus()).isEqualTo(TicketWalletStatus.EXPIRED);
-		}
-
-		@Test
-		@DisplayName("지갑이 없으면 사용 가능 잔액 0과 빈 목록이다")
-		void noWallets() {
-			// given
-			when(queryRepository.findWallets(USER_ID)).thenReturn(List.of());
-			// when
-			MyTicketWallets result = service.getMyWallets(USER_ID);
-			// then
-			assertThat(result.getAvailableBalance()).isZero();
-			assertThat(result.getWallets()).isEmpty();
+			assertThat(result.getAvailableCount()).isZero();
+			assertThat(result.getCountByGrade().values()).containsOnly(0L);
+			assertThat(result.getHoldings()).isEmpty();
 		}
 	}
 
 	@Nested
-	@DisplayName("getMyLedger")
-	class GetMyLedger {
+	@DisplayName("getMyHistory")
+	class GetMyHistory {
 
 		@Test
 		@DisplayName("요청보다 1건 더 조회해 다음 페이지가 있으면 마지막 항목의 커서를 돌려준다")
 		void returnsNextCursorWhenMoreRows() {
 			// given
-			List<TicketTransactionView> rows = List.of(grant(NOW), grant(NOW.minusSeconds(1)),
+			List<TicketHistoryView> rows = List.of(grant(NOW), grant(NOW.minusSeconds(1)),
 					grant(NOW.minusSeconds(2)));
-			when(queryRepository.findLedger(eq(USER_ID), any(), isNull(), eq(3))).thenReturn(rows);
-			when(queryRepository.countLedger(eq(USER_ID), any())).thenReturn(10L);
+			when(queryRepository.findHistory(eq(USER_ID), any(), isNull(), eq(3))).thenReturn(rows);
+			when(queryRepository.countHistory(eq(USER_ID), any())).thenReturn(10L);
 			// when
-			CursorResult<TicketTransactionView> result =
-					service.getMyLedger(USER_ID, TicketLedgerFilter.none(), new CursorQuery(null, 2));
+			CursorResult<TicketHistoryView> result =
+					service.getMyHistory(USER_ID, TicketHistoryFilter.none(), new CursorQuery(null, 2));
 			// then
 			assertThat(result.getItems()).containsExactly(rows.get(0), rows.get(1));
 			assertThat(result.getNextCursor()).isEqualTo(rows.get(1).cursor().encode());
@@ -150,12 +131,12 @@ class TicketQueryServiceTest {
 		@DisplayName("마지막 페이지면 다음 커서가 없다")
 		void lastPageHasNoCursor() {
 			// given
-			List<TicketTransactionView> rows = List.of(grant(NOW));
-			when(queryRepository.findLedger(eq(USER_ID), any(), isNull(), eq(3))).thenReturn(rows);
-			when(queryRepository.countLedger(eq(USER_ID), any())).thenReturn(1L);
+			List<TicketHistoryView> rows = List.of(grant(NOW));
+			when(queryRepository.findHistory(eq(USER_ID), any(), isNull(), eq(3))).thenReturn(rows);
+			when(queryRepository.countHistory(eq(USER_ID), any())).thenReturn(1L);
 			// when
-			CursorResult<TicketTransactionView> result =
-					service.getMyLedger(USER_ID, TicketLedgerFilter.none(), new CursorQuery(null, 2));
+			CursorResult<TicketHistoryView> result =
+					service.getMyHistory(USER_ID, TicketHistoryFilter.none(), new CursorQuery(null, 2));
 			// then
 			assertThat(result.getItems()).containsExactly(rows.get(0));
 			assertThat(result.getNextCursor()).isNull();
@@ -165,14 +146,14 @@ class TicketQueryServiceTest {
 		@DisplayName("받은 커서를 해석해 그 뒤부터 조회하고 조회 조건을 그대로 넘긴다")
 		void passesDecodedCursorAndFilter() {
 			// given
-			TicketLedgerCursor cursor = new TicketLedgerCursor(NOW, UUID.randomUUID());
-			TicketLedgerFilter filter = TicketLedgerFilter.of(TicketTransactionType.GRANT, null, NOW);
-			when(queryRepository.findLedger(eq(USER_ID), eq(filter), refEq(cursor), eq(21))).thenReturn(List.of());
+			TicketHistoryCursor cursor = new TicketHistoryCursor(NOW, UUID.randomUUID());
+			TicketHistoryFilter filter = TicketHistoryFilter.of(TicketOperationType.GRANT, null, NOW);
+			when(queryRepository.findHistory(eq(USER_ID), eq(filter), refEq(cursor), eq(21))).thenReturn(List.of());
 			// when
-			service.getMyLedger(USER_ID, filter, new CursorQuery(cursor.encode(), 20));
+			service.getMyHistory(USER_ID, filter, new CursorQuery(cursor.encode(), 20));
 			// then
-			verify(queryRepository).findLedger(eq(USER_ID), eq(filter), refEq(cursor), eq(21));
-			verify(queryRepository).countLedger(USER_ID, filter);
+			verify(queryRepository).findHistory(eq(USER_ID), eq(filter), refEq(cursor), eq(21));
+			verify(queryRepository).countHistory(USER_ID, filter);
 		}
 
 		@Test
@@ -182,7 +163,7 @@ class TicketQueryServiceTest {
 			CursorQuery page = new CursorQuery(null, 101);
 			// when
 			// then
-			assertInvalidQuery(() -> service.getMyLedger(USER_ID, TicketLedgerFilter.none(), page));
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, TicketHistoryFilter.none(), page));
 			verifyNoInteractions(queryRepository);
 		}
 
@@ -190,24 +171,67 @@ class TicketQueryServiceTest {
 		@DisplayName("조회 개수 100은 허용한다")
 		void allowsMaxSize() {
 			// given
-			when(queryRepository.findLedger(eq(USER_ID), any(), isNull(), anyInt())).thenReturn(List.of());
+			when(queryRepository.findHistory(eq(USER_ID), any(), isNull(), anyInt())).thenReturn(List.of());
 			// when
-			service.getMyLedger(USER_ID, TicketLedgerFilter.none(), new CursorQuery(null, 100));
+			service.getMyHistory(USER_ID, TicketHistoryFilter.none(), new CursorQuery(null, 100));
 			// then
-			verify(queryRepository).findLedger(eq(USER_ID), any(), isNull(), eq(101));
+			verify(queryRepository).findHistory(eq(USER_ID), any(), isNull(), eq(101));
+		}
+
+		@ParameterizedTest
+		@ValueSource(ints = {0, -1})
+		@DisplayName("요청 값으로 조회할 때 조회 개수가 1 미만이면 TICKET-004로 거절한다")
+		void rejectsNonPositiveRequestSize(int size) {
+			// given
+			// when
+			// then
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, TicketHistoryFilter.none(), null, size));
+			verifyNoInteractions(queryRepository);
+		}
+
+		@Test
+		@DisplayName("요청 값으로 조회할 때 조회 개수 1은 허용하고 다음 페이지 확인용 한 건을 더해 2건을 조회한다")
+		void acceptsMinimumRequestSize() {
+			// given
+			when(queryRepository.findHistory(eq(USER_ID), any(), isNull(), eq(2))).thenReturn(List.of());
+			// when
+			service.getMyHistory(USER_ID, TicketHistoryFilter.none(), null, 1);
+			// then
+			verify(queryRepository).findHistory(eq(USER_ID), any(), isNull(), eq(2));
+		}
+
+		@Test
+		@DisplayName("요청 값으로 조회할 때 빈 커서는 TICKET-004로 거절한다")
+		void rejectsBlankRequestCursor() {
+			// given
+			// when
+			// then
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, TicketHistoryFilter.none(), " ", 20));
+			verifyNoInteractions(queryRepository);
+		}
+
+		@Test
+		@DisplayName("요청 값으로 조회하면 같은 커서 조회로 이어진다")
+		void requestValuesUseCursorQuery() {
+			// given
+			when(queryRepository.findHistory(eq(USER_ID), any(), isNull(), eq(21))).thenReturn(List.of());
+			// when
+			service.getMyHistory(USER_ID, TicketHistoryFilter.none(), null, 20);
+			// then
+			verify(queryRepository).findHistory(eq(USER_ID), any(), isNull(), eq(21));
 		}
 
 		@Test
 		@DisplayName("시작 시각이 끝 시각보다 앞서지 않으면 거절한다")
 		void rejectsEmptyPeriod() {
 			// given
-			TicketLedgerFilter same = TicketLedgerFilter.of(null, NOW, NOW);
-			TicketLedgerFilter reversed = TicketLedgerFilter.of(null, NOW, NOW.minusSeconds(1));
+			TicketHistoryFilter same = TicketHistoryFilter.of(null, NOW, NOW);
+			TicketHistoryFilter reversed = TicketHistoryFilter.of(null, NOW, NOW.minusSeconds(1));
 			CursorQuery page = new CursorQuery(null, 20);
 			// when
 			// then
-			assertInvalidQuery(() -> service.getMyLedger(USER_ID, same, page));
-			assertInvalidQuery(() -> service.getMyLedger(USER_ID, reversed, page));
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, same, page));
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, reversed, page));
 			verifyNoInteractions(queryRepository);
 		}
 
@@ -218,7 +242,7 @@ class TicketQueryServiceTest {
 			CursorQuery page = new CursorQuery("not-a-cursor", 20);
 			// when
 			// then
-			assertInvalidQuery(() -> service.getMyLedger(USER_ID, TicketLedgerFilter.none(), page));
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, TicketHistoryFilter.none(), page));
 			verifyNoInteractions(queryRepository);
 		}
 
@@ -228,8 +252,8 @@ class TicketQueryServiceTest {
 			// given
 			// when
 			// then
-			assertInvalidQuery(() -> service.getMyLedger(USER_ID, null, new CursorQuery(null, 20)));
-			assertInvalidQuery(() -> service.getMyLedger(USER_ID, TicketLedgerFilter.none(), null));
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, null, new CursorQuery(null, 20)));
+			assertInvalidQuery(() -> service.getMyHistory(USER_ID, TicketHistoryFilter.none(), null));
 			verifyNoInteractions(queryRepository);
 		}
 	}

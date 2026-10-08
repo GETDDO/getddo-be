@@ -37,10 +37,10 @@ public class EventRegistrationService {
 
 	@Transactional
 	public RegisteredEvent register(EventRegistration registration) {
-		if (registration == null || registration.createdBy() == null) {
+		if (registration == null || registration.actorId() == null) {
 			throw new BusinessException(EventErrorCode.USER_CONTEXT_REQUIRED);
 		}
-		EventActorRepository.Actor actor = actorRepository.findById(registration.createdBy())
+		EventActorRepository.Actor actor = actorRepository.findById(registration.actorId())
 				.orElseThrow(() -> new BusinessException(EventErrorCode.USER_CONTEXT_REQUIRED));
 		if (!actor.active() || !actor.admin()) {
 			throw new BusinessException(EventErrorCode.ADMIN_REQUIRED);
@@ -53,7 +53,7 @@ public class EventRegistrationService {
 	}
 
 	private EventRegistration copyPrizes(EventRegistration registration) {
-		return new EventRegistration(registration.createdBy(), registration.title(), registration.description(),
+		return new EventRegistration(registration.actorId(), registration.title(), registration.description(),
 				registration.imageKey(), registration.eventType(), registration.weightingEnabled(),
 				registration.maxTicketsPerUser(), registration.membershipRule(), registration.startsAt(),
 				registration.endsAt(), List.copyOf(registration.prizes()));

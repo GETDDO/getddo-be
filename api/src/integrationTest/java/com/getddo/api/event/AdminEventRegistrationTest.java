@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.getddo.api.support.ApiIntegrationTest;
+import com.jayway.jsonpath.JsonPath;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -37,7 +38,7 @@ class AdminEventRegistrationTest {
 		long previousEvents = count("events");
 		long previousPrizes = count("event_prizes");
 
-		mvc.perform(post("/api/v1/admin/events")
+		String response = mvc.perform(post("/api/v1/admin/events")
 				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest()))
@@ -47,17 +48,21 @@ class AdminEventRegistrationTest {
 				.andExpect(jsonPath("$.data.status").value("SCHEDULED"))
 				.andExpect(jsonPath("$.data.startsAt").value("2099-09-30T09:00:00Z"))
 				.andExpect(jsonPath("$.data.publicationScheduledAt").value("2099-09-30T10:05:00Z"))
-				.andExpect(jsonPath("$.data.createdBy").value(adminId.toString()))
+				.andExpect(jsonPath("$.data.createdBy").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedFromStatus").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedAt").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.imageKey").value("events/autumn.png"))
 				.andExpect(jsonPath("$.data.prizes.length()").value(2))
 				.andExpect(jsonPath("$.data.prizes[0].rank").value(1))
 				.andExpect(jsonPath("$.data.prizes[1].rank").value(2))
 				.andExpect(jsonPath("$.data.prizes[0].id").exists())
-				.andExpect(jsonPath("$.data.prizeImages[0].imageKey").value("prizes/first.png"));
+				.andExpect(jsonPath("$.data.prizeImages[0].imageKey").value("prizes/first.png"))
+				.andReturn().getResponse().getContentAsString();
 
 		assertThat(count("events")).isEqualTo(previousEvents + 1);
 		assertThat(count("event_prizes")).isEqualTo(previousPrizes + 2);
-		assertThat(countPrizesForAdmin(adminId)).isEqualTo(2);
+		String eventId = JsonPath.read(response, "$.data.id");
+		assertThat(countPrizesForEvent(UUID.fromString(eventId))).isEqualTo(2);
 	}
 
 	@Test
@@ -269,14 +274,13 @@ class AdminEventRegistrationTest {
 		}
 	}
 
-	private long countPrizesForAdmin(UUID adminId) throws SQLException {
+	private long countPrizesForEvent(UUID eventId) throws SQLException {
 		try (Connection connection = dataSource.getConnection();
 				PreparedStatement statement = connection.prepareStatement("""
 				SELECT COUNT(*) FROM event_prizes p
-				JOIN events e ON e.id = p.event_id
-				WHERE e.created_by = UNHEX(REPLACE(?, '-', ''))
+				WHERE p.event_id = UNHEX(REPLACE(?, '-', ''))
 				""")) {
-			statement.setString(1, adminId.toString());
+			statement.setString(1, eventId.toString());
 			try (ResultSet result = statement.executeQuery()) {
 				result.next();
 				return result.getLong(1);
