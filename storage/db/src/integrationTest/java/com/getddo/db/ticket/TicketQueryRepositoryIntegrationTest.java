@@ -69,6 +69,22 @@ class TicketQueryRepositoryIntegrationTest extends TicketIntegrationTestSupport 
 	}
 
 	@Test
+	@DisplayName("반환 상태라도 만료 시각이 조회 시각 이전이거나 같으면 제외한다")
+	void excludesReturnedTicketsPastExpiry() {
+		// given
+		insertTicket(userId, missionClaimOf(userId), TicketGrade.BRONZE, TicketStatus.RETURNED, "2026-09-15T03:00:00Z");
+		insertTicket(userId, missionClaimOf(userId), TicketGrade.BRONZE, TicketStatus.RETURNED, "2026-09-14T03:00:00Z");
+		insertTicket(userId, missionClaimOf(userId), TicketGrade.BRONZE, TicketStatus.RETURNED, "2026-09-15T03:00:01Z");
+		// when
+		List<TicketHolding> holdings = transaction.execute(status -> queryRepository.findHoldings(userId, SEPTEMBER));
+		// then
+		assertThat(holdings).singleElement().satisfies(holding -> {
+			assertThat(holding.getExpiresAt()).isEqualTo(Instant.parse("2026-09-15T03:00:01Z"));
+			assertThat(holding.getCount()).isEqualTo(1);
+		});
+	}
+
+	@Test
 	@DisplayName("응모권이 없는 사용자는 빈 목록이다")
 	void noTickets() {
 		// given

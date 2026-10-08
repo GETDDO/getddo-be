@@ -65,4 +65,28 @@ class TicketTest {
 		assertThatThrownBy(() -> Ticket.issue(USER_ID, source, TicketGrade.BRONZE, EXPIRES_AT, null))
 				.isInstanceOf(NullPointerException.class);
 	}
+
+	@Test
+	@DisplayName("복원 경로도 같은 불변식을 검증해 출석 비브론즈·버전 0·시각 역전·필수 값 누락을 거절한다")
+	void constructorEnforcesInvariants() {
+		// given
+		GrantSource attendance = new GrantSource(GrantSourceType.ATTENDANCE, UUID.randomUUID());
+		GrantSource mission = new GrantSource(GrantSourceType.MISSION, UUID.randomUUID());
+		// when
+		// then
+		assertThatThrownBy(() -> new Ticket(UUID.randomUUID(), USER_ID, attendance, TicketGrade.GOLD,
+				TicketStatus.AVAILABLE, EXPIRES_AT, 1, ISSUED_AT, ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Ticket(UUID.randomUUID(), USER_ID, mission, TicketGrade.GOLD,
+				TicketStatus.AVAILABLE, EXPIRES_AT, 0, ISSUED_AT, ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Ticket(UUID.randomUUID(), USER_ID, mission, TicketGrade.GOLD,
+				TicketStatus.AVAILABLE, EXPIRES_AT, 1, ISSUED_AT, ISSUED_AT.minusSeconds(1)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Ticket(UUID.randomUUID(), USER_ID, mission, TicketGrade.GOLD,
+				null, EXPIRES_AT, 1, ISSUED_AT, ISSUED_AT))
+				.isInstanceOf(NullPointerException.class);
+		assertThat(new Ticket(UUID.randomUUID(), USER_ID, mission, TicketGrade.GOLD, TicketStatus.SPENT,
+				EXPIRES_AT, 3, ISSUED_AT, ISSUED_AT.plusSeconds(5)).getVersion()).isEqualTo(3);
+	}
 }

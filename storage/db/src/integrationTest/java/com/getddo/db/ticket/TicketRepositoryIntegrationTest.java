@@ -195,13 +195,13 @@ class TicketRepositoryIntegrationTest extends TicketIntegrationTestSupport {
 			UUID missionClaim = seeds.missionClaim(userId, mission, 1);
 			UUID attendanceClaim = seeds.attendanceClaim(userId, attendance, 3);
 			UUID gameClaim = seeds.gameClaim(userId, game, 1);
-			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.MISSION, missionClaim)))
+			assertThat(grantSourceRepository.findForUpdate(new GrantSource(GrantSourceType.MISSION, missionClaim)))
 					.get().usingRecursiveComparison().isEqualTo(new GrantSourceClaim(userId, 1));
-			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.ATTENDANCE, attendanceClaim)))
+			assertThat(grantSourceRepository.findForUpdate(new GrantSource(GrantSourceType.ATTENDANCE, attendanceClaim)))
 					.get().usingRecursiveComparison().isEqualTo(new GrantSourceClaim(userId, 3));
-			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.GAME, gameClaim)))
+			assertThat(grantSourceRepository.findForUpdate(new GrantSource(GrantSourceType.GAME, gameClaim)))
 					.get().usingRecursiveComparison().isEqualTo(new GrantSourceClaim(userId, 1));
-			assertThat(grantSourceRepository.find(new GrantSource(GrantSourceType.GAME, missionClaim)))
+			assertThat(grantSourceRepository.findForUpdate(new GrantSource(GrantSourceType.GAME, missionClaim)))
 					.isEmpty();
 		});
 	}

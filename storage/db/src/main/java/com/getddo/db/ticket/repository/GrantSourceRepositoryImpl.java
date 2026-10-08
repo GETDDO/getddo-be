@@ -25,11 +25,11 @@ import com.getddo.db.common.util.UuidBinary;
 public class GrantSourceRepositoryImpl implements GrantSourceRepository {
 
 	private static final String MISSION_CLAIM_SQL =
-			"select user_id, ticket_count from mission_reward_claims where id = :id";
+			"select user_id, ticket_count from mission_reward_claims where id = :id for update";
 	private static final String ATTENDANCE_CLAIM_SQL =
-			"select user_id, ticket_count from attendance_reward_claims where id = :id";
+			"select user_id, ticket_count from attendance_reward_claims where id = :id for update";
 	private static final String GAME_CLAIM_SQL =
-			"select user_id, ticket_count from game_reward_claims where id = :id";
+			"select user_id, ticket_count from game_reward_claims where id = :id for update";
 
 	private final EntityManager entityManager;
 
@@ -37,10 +37,10 @@ public class GrantSourceRepositoryImpl implements GrantSourceRepository {
 	 * {@inheritDoc}
 	 *
 	 * <p>호출자가 같은 트랜잭션에서 JPA로 저장했지만 아직 DB에 쓰지 않은 청구도 보이도록 먼저 flush한다.
-	 * 따라서 트랜잭션 안에서만 호출할 수 있다.</p>
+	 * 따라서 트랜잭션 안에서만 호출할 수 있다. 청구 행에 {@code FOR UPDATE} 잠금을 건다.</p>
 	 */
 	@Override
-	public Optional<GrantSourceClaim> find(GrantSource source) {
+	public Optional<GrantSourceClaim> findForUpdate(GrantSource source) {
 		entityManager.flush();
 		@SuppressWarnings("unchecked")
 		List<Object[]> rows = entityManager.createNativeQuery(claimSql(source.getType()))

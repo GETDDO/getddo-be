@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MyTicketsTest {
 
@@ -41,5 +42,20 @@ class MyTicketsTest {
 		assertThat(result.getAvailableCount()).isZero();
 		assertThat(result.getCountByGrade()).containsOnlyKeys(TicketGrade.values());
 		assertThat(result.getCountByGrade().values()).containsOnly(0L);
+	}
+
+	@Test
+	@DisplayName("보유 묶음은 등급·만료 시각이 없거나 장수가 1 미만이면 만들 수 없다")
+	void holdingRejectsInvalidValues() {
+		// given
+		// when
+		// then
+		assertThatThrownBy(() -> new TicketHolding(null, EXPIRES_AT, 1)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new TicketHolding(TicketGrade.BRONZE, null, 1))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new TicketHolding(TicketGrade.BRONZE, EXPIRES_AT, 0))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHolding(TicketGrade.BRONZE, EXPIRES_AT, -1))
+				.isInstanceOf(IllegalArgumentException.class);
 	}
 }

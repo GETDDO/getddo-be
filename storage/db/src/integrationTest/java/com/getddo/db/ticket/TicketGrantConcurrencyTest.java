@@ -14,7 +14,6 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import com.getddo.core.ticket.domain.GrantResult;
 import com.getddo.core.ticket.domain.GrantSourceType;
@@ -71,15 +70,19 @@ class TicketGrantConcurrencyTest extends TicketIntegrationTestSupport {
 	}
 
 	@Test
-	@DisplayName("같은 청구를 동시에 지급하면 한쪽만 성공하고 다른 쪽은 UNIQUE 위반으로 롤백되어 지급은 한 번이다")
+	@DisplayName("같은 청구를 동시에 지급하면 뒤 요청은 청구 잠금을 기다렸다가 앞 요청의 결과를 replayed=true로 받고 지급은 한 번이다")
 	void sameClaimGrantedOnce() throws Exception {
 		// given
 		UUID claim = committedGameClaim();
-		// when: 두 트랜잭션 모두 기존 응모권 조회에서 아무것도 못 본 채 진행한다
+		// when: 앞 트랜잭션이 청구 행을 잠근 채 커밋 전에 멈추고, 뒤 트랜잭션이 같은 청구로 지급을 시도한다
 		List<Object> outcomes = runWhileFirstHoldsLock(claim, claim);
 		// then
 		assertThat(outcomes.get(0)).isInstanceOf(GrantResult.class);
-		assertThat(outcomes.get(1)).isInstanceOf(DataIntegrityViolationException.class);
+		GrantResult first = (GrantResult) outcomes.get(0);
+		assertThat(first.isReplayed()).isFalse();
+		assertThat(outcomes.get(1)).isInstanceOf(GrantResult.class);
+		assertThat(outcomes.get(1)).usingRecursiveComparison().isEqualTo(
+				new GrantResult(1, first.getGrade(), first.getGrantedAt(), first.getExpiresAt(), true));
 		assertThat(ticketCount(userId)).isEqualTo(1);
 		assertThat(historyCount(userId)).isEqualTo(1);
 	}

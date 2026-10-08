@@ -108,7 +108,7 @@ class TicketQueryServiceTest {
 
 	@Nested
 	@DisplayName("getMyHistory")
-	class GetMyLedger {
+	class GetMyHistory {
 
 		@Test
 		@DisplayName("요청보다 1건 더 조회해 다음 페이지가 있으면 마지막 항목의 커서를 돌려준다")

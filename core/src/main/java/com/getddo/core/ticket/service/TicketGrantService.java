@@ -40,7 +40,9 @@ import com.getddo.core.ticket.repository.TicketRepository;
  *   <li>호출 순서는 <b>기존 청구 조회 → (없으면) 청구 INSERT → {@link #grant}</b>다.
  *       기존 청구가 있으면 {@code grant} 대신 {@link #findGrant}로 기존 결과를 반환한다.</li>
  *   <li>청구 INSERT와 지급은 한 트랜잭션이어야 한다. 그래야 보상 청구 기록과 응모권 지급 결과가 일치한다.</li>
- *   <li>청구 테이블의 UNIQUE는 동시 요청이 겹친 경우의 안전망이다. 위반이 나면 그 트랜잭션은
+ *   <li>{@code grant}는 청구 행을 쓰기 잠금으로 읽는다. 같은 청구의 지급이 동시에 오면 뒤 요청은 앞 요청이
+ *       커밋할 때까지 기다렸다가 기존 응모권을 보고 {@code replayed=true}로 같은 결과를 돌려받는다.</li>
+ *   <li>청구 테이블의 UNIQUE는 청구 INSERT가 겹친 경우의 안전망이다. 위반이 나면 그 트랜잭션은
  *       rollback-only이고 영속성 컨텍스트도 믿을 수 없으므로, 같은 트랜잭션에서 {@code findGrant}를
  *       잇지 않는다. 트랜잭션 전체를 롤백하고 새 트랜잭션에서 처음부터 다시 처리한다.</li>
  *   <li>청구 UNIQUE 위반은 청구 저장 시점이나 {@code grant} 호출 중에 나올 수 있다. JPA는 청구 INSERT를
@@ -144,9 +146,14 @@ public class TicketGrantService {
 		return source != null && source.getType() != null && source.getClaimId() != null;
 	}
 
-	/** 청구 행이 있고 사용자·수량이 요청과 같은지 확인한다. 사용자 존재는 청구의 FK가 보장한다. */
+	/**
+	 * 청구 행을 잠그고 사용자·수량이 요청과 같은지 확인한다. 사용자 존재는 청구의 FK가 보장한다.
+	 *
+	 * <p>같은 청구의 동시 지급은 이 잠금에서 줄을 서므로, 뒤 요청은 앞 요청이 커밋한 뒤 기존 응모권을 보고
+	 * 추가 지급 없이 같은 결과를 돌려받는다.</p>
+	 */
 	private void verifyClaim(GrantCommand command) {
-		GrantSourceClaim claim = grantSourceRepository.find(command.getSource())
+		GrantSourceClaim claim = grantSourceRepository.findForUpdate(command.getSource())
 				.orElseThrow(() -> new TicketException(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND));
 		if (!claim.getUserId().equals(command.getUserId()) || claim.getTicketCount() != command.getQuantity()) {
 			throw new TicketException(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);

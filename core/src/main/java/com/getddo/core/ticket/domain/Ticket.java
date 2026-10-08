@@ -30,6 +30,22 @@ public final class Ticket {
 
 	public Ticket(UUID id, UUID userId, GrantSource grantSource, TicketGrade grade, TicketStatus status,
 			Instant expiresAt, long version, Instant createdAt, Instant updatedAt) {
+		Objects.requireNonNull(userId, "userId");
+		Objects.requireNonNull(grantSource, "grantSource");
+		Objects.requireNonNull(grade, "grade");
+		Objects.requireNonNull(status, "status");
+		Objects.requireNonNull(expiresAt, "expiresAt");
+		Objects.requireNonNull(createdAt, "createdAt");
+		Objects.requireNonNull(updatedAt, "updatedAt");
+		if (version < 1) {
+			throw new IllegalArgumentException("응모권 버전은 1 이상이어야 한다.");
+		}
+		if (updatedAt.isBefore(createdAt)) {
+			throw new IllegalArgumentException("응모권 수정 시각은 생성 시각보다 빠를 수 없다.");
+		}
+		if (grantSource.getType() == GrantSourceType.ATTENDANCE && grade != TicketGrade.BRONZE) {
+			throw new IllegalArgumentException("출석 보상은 브론즈 응모권만 지급한다.");
+		}
 		this.id = id;
 		this.userId = userId;
 		this.grantSource = grantSource;
@@ -49,14 +65,7 @@ public final class Ticket {
 	 */
 	public static Ticket issue(UUID userId, GrantSource grantSource, TicketGrade grade, Instant expiresAt,
 			Instant issuedAt) {
-		Objects.requireNonNull(userId, "userId");
-		Objects.requireNonNull(grantSource, "grantSource");
-		Objects.requireNonNull(grade, "grade");
-		Objects.requireNonNull(expiresAt, "expiresAt");
 		Objects.requireNonNull(issuedAt, "issuedAt");
-		if (grantSource.getType() == GrantSourceType.ATTENDANCE && grade != TicketGrade.BRONZE) {
-			throw new IllegalArgumentException("출석 보상은 브론즈 응모권만 지급한다.");
-		}
 		return new Ticket(null, userId, grantSource, grade, TicketStatus.AVAILABLE, expiresAt, 1, issuedAt, issuedAt);
 	}
 }

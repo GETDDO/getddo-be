@@ -157,7 +157,7 @@ class TicketGrantServiceTest {
 		@DisplayName("청구 행이 없으면 거절한다")
 		void rejectsMissingClaim() {
 			// given
-			when(grantSourceRepository.find(MISSION)).thenReturn(Optional.empty());
+			when(grantSourceRepository.findForUpdate(MISSION)).thenReturn(Optional.empty());
 			// when
 			// then
 			assertErrorCode(() -> service.grant(command(MISSION, 1)), TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND);
@@ -168,7 +168,7 @@ class TicketGrantServiceTest {
 		@DisplayName("청구의 사용자가 요청과 다르면 기존 지급 조회 전에 거절한다")
 		void rejectsOtherUsersClaim() {
 			// given
-			when(grantSourceRepository.find(MISSION))
+			when(grantSourceRepository.findForUpdate(MISSION))
 					.thenReturn(Optional.of(new GrantSourceClaim(UUID.randomUUID(), 1)));
 			// when
 			// then
@@ -180,7 +180,7 @@ class TicketGrantServiceTest {
 		@DisplayName("청구의 수량이 요청과 다르면 거절한다")
 		void rejectsQuantityMismatch() {
 			// given
-			when(grantSourceRepository.find(ATTENDANCE)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 2)));
+			when(grantSourceRepository.findForUpdate(ATTENDANCE)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 2)));
 			// when
 			// then
 			assertErrorCode(() -> service.grant(command(ATTENDANCE, 1)), TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH);
@@ -196,7 +196,7 @@ class TicketGrantServiceTest {
 		@DisplayName("이미 지급된 청구면 추가로 만들지 않고 기존 결과를 replayed=true로 반환한다")
 		void replaysExistingGrant() {
 			// given
-			when(grantSourceRepository.find(MISSION)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 1)));
+			when(grantSourceRepository.findForUpdate(MISSION)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 1)));
 			Instant grantedAt = Instant.parse("2026-09-10T01:00:00Z");
 			when(ticketRepository.findGranted(MISSION)).thenReturn(
 					List.of(new GrantedTicket(UUID.randomUUID(), TicketGrade.SILVER, grantedAt, SEPTEMBER_END)));
@@ -217,7 +217,7 @@ class TicketGrantServiceTest {
 		@DisplayName("신규 지급은 시각을 한 번만 구하고 마이크로초로 잘라 응모권·이력·결과에 같은 값을 쓴다")
 		void grantsWithSingleGrantedAt() {
 			// given
-			when(grantSourceRepository.find(ATTENDANCE)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 2)));
+			when(grantSourceRepository.findForUpdate(ATTENDANCE)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 2)));
 			when(ticketRepository.findGranted(ATTENDANCE)).thenReturn(List.of());
 			when(gradeDrawer.draw(GrantSourceType.ATTENDANCE)).thenReturn(TicketGrade.BRONZE);
 			when(ticketRepository.saveAll(any())).thenAnswer(invocation -> withIds(invocation.getArgument(0)));
@@ -258,7 +258,7 @@ class TicketGrantServiceTest {
 		void drawsGradeOncePerGrant() {
 			// given
 			GrantSource game = new GrantSource(GrantSourceType.GAME, UUID.randomUUID());
-			when(grantSourceRepository.find(game)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 1)));
+			when(grantSourceRepository.findForUpdate(game)).thenReturn(Optional.of(new GrantSourceClaim(USER_ID, 1)));
 			when(ticketRepository.findGranted(game)).thenReturn(List.of());
 			when(gradeDrawer.draw(GrantSourceType.GAME)).thenReturn(TicketGrade.GOLD);
 			when(ticketRepository.saveAll(any())).thenAnswer(invocation -> withIds(invocation.getArgument(0)));
