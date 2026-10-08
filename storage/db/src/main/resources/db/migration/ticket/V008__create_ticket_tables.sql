@@ -1,116 +1,58 @@
 -- Source: docs/03-database/schema.dbml
+-- GD-93: Initial schema; version numbers retained by user request.
 -- Initial tables and foreign keys owned by ticket.
 
--- Allow forward and cyclic references while creating this empty schema.
-SET SESSION FOREIGN_KEY_CHECKS = 0;
-
-CREATE TABLE `ticket_wallets` (
-  `id` BINARY(16) NOT NULL,
-  `user_id` BINARY(16) NOT NULL,
-  `expiry_month` DATE NOT NULL,
-  `valid_from` DATETIME(6) NOT NULL,
-  `expires_at` DATETIME(6) NOT NULL,
-  `balance` BIGINT NOT NULL DEFAULT 0,
-  `status` ENUM('ACTIVE', 'EXPIRED') NOT NULL,
-  `version` BIGINT NOT NULL DEFAULT 0,
-  `created_at` DATETIME(6) NOT NULL,
-  `updated_at` DATETIME(6) NOT NULL,
-  CONSTRAINT `chk_wallet_balance` CHECK (balance >= 0),
+CREATE TABLE `tickets` (
+  `id` binary(16) NOT NULL COMMENT '응모권 한 장 ID. 반환과 재사용 후에도 유지',
+  `user_id` binary(16) NOT NULL COMMENT '소유 사용자 ID. 최초 확정 후 변경 금지',
+  `attendance_reward_claim_id` binary(16) COMMENT '최초 출석 지급 근거 ID. 다른 보상 종류이면 NULL. 같은 청구로 여러 장 지급 가능. 확정 후 변경 금지',
+  `mission_reward_claim_id` binary(16) COMMENT '최초 미션 지급 근거 ID. 다른 보상 종류이면 NULL. 청구당 티켓 1장. 확정 후 변경 금지',
+  `game_reward_claim_id` binary(16) COMMENT '최초 게임 지급 근거 ID. 다른 보상 종류이면 NULL. 청구당 티켓 1장. 확정 후 변경 금지',
+  `grade` ENUM ('BRONZE', 'SILVER', 'GOLD') NOT NULL COMMENT '최초 지급 등급. 출석 BRONZE 고정, 게임·미션은 최초 확정한 무작위 등급. 이후 불변. 기존 무등급 응모권은 없다고 가정하며 있다면 일괄 BRONZE로 전환',
+  `status` ENUM ('AVAILABLE', 'RETURNED', 'SPENT', 'EXPIRED') NOT NULL COMMENT '현재 상태. 최초 사용 가능 / 반환 후 사용 가능 / 사용됨 / 만료 처리됨',
+  `expires_at` datetime(6) NOT NULL COMMENT '현재 만료 시각 UTC. 반환 성공 시 갱신',
+  `version` bigint NOT NULL DEFAULT 1 COMMENT '현재 변경 순번. 최초 지급 1, 변경마다 1 증가. 마지막 이력 버전과 일치',
+  `created_at` datetime(6) NOT NULL COMMENT '최초 지급 시각 UTC. 변경 금지',
+  `updated_at` datetime(6) NOT NULL COMMENT '최근 업무 처리 시각 UTC. 현재값 갱신과 함께 반영',
+  CONSTRAINT `chk_ticket_source` CHECK ((attendance_reward_claim_id IS NOT NULL) + (mission_reward_claim_id IS NOT NULL) + (game_reward_claim_id IS NOT NULL) = 1),
+  CONSTRAINT `chk_ticket_attendance_bronze` CHECK (attendance_reward_claim_id IS NULL OR grade = 'BRONZE'),
+  CONSTRAINT `chk_ticket_version` CHECK (version >= 1),
+  CONSTRAINT `chk_ticket_times` CHECK (updated_at >= created_at),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ticket_wallets_1` (`user_id`, `expiry_month`),
-  UNIQUE KEY `uq_ticket_wallets_2` (`id`, `user_id`),
-  CONSTRAINT `fk_ticket_wallets_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+  UNIQUE KEY `uq_tickets_1` (`mission_reward_claim_id`),
+  UNIQUE KEY `uq_tickets_2` (`game_reward_claim_id`),
+  CONSTRAINT `fk_tickets_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `fk_tickets_2` FOREIGN KEY (`attendance_reward_claim_id`, `user_id`) REFERENCES `attendance_reward_claims` (`id`, `user_id`),
+  CONSTRAINT `fk_tickets_3` FOREIGN KEY (`mission_reward_claim_id`, `user_id`) REFERENCES `mission_reward_claims` (`id`, `user_id`),
+  CONSTRAINT `fk_tickets_4` FOREIGN KEY (`game_reward_claim_id`, `user_id`) REFERENCES `game_reward_claims` (`id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE `ticket_ledger` (
-  `id` BINARY(16) NOT NULL,
-  `wallet_id` BINARY(16) NOT NULL,
-  `actor_id` BINARY(16),
-  `event_entry_id` BINARY(16),
-  `mission_reward_claim_id` BINARY(16),
-  `attendance_reward_claim_id` BINARY(16),
-  `game_reward_claim_id` BINARY(16),
-  `recovery_target_id` BINARY(16),
-  `expires_at` DATETIME(6),
-  `refund_of_id` BINARY(16),
-  `related_ledger_id` BINARY(16),
-  `transaction_type` ENUM('GRANT', 'SPEND', 'REFUND', 'EXPIRE', 'REVOKE', 'CORRECTION') NOT NULL,
-  `quantity` BIGINT NOT NULL,
-  `idempotency_key` VARCHAR(160) NOT NULL,
-  `reason` TEXT NOT NULL,
-  `created_at` DATETIME(6) NOT NULL,
-  `balance_after` BIGINT NOT NULL,
-  `wallet_version` BIGINT NOT NULL,
-  `user_id` BINARY(16) NOT NULL,
-  CONSTRAINT `chk_ledger_sign` CHECK ((transaction_type IN ('GRANT','REFUND') AND quantity > 0) OR (transaction_type IN ('SPEND','EXPIRE','REVOKE') AND quantity < 0) OR (transaction_type = 'CORRECTION' AND quantity <> 0)),
-  CONSTRAINT `chk_ledger_balance_after` CHECK (balance_after >= 0),
-  CONSTRAINT `chk_ledger_refund_source` CHECK ((transaction_type = 'REFUND' AND refund_of_id IS NOT NULL) OR (transaction_type <> 'REFUND' AND refund_of_id IS NULL)),
-  CONSTRAINT `chk_ledger_recovery_source` CHECK (transaction_type <> 'REVOKE' OR recovery_target_id IS NOT NULL),
+CREATE TABLE `ticket_histories` (
+  `id` binary(16) NOT NULL COMMENT '응모권 한 장의 처리 이력 ID. 확정 후 수정·삭제 없이 보존',
+  `ticket_id` binary(16) NOT NULL COMMENT '처리 대상 응모권 ID. 한 티켓에 여러 버전의 이력이 누적됨',
+  `original_use_history_id` binary(16) COMMENT 'REFUND의 원본 USE 이력 ID. 동일 사용 이력은 한 번만 반환. 다른 유형 NULL',
+  `corrected_history_id` binary(16) COMMENT 'CORRECTION의 정정 대상 이력 ID. 같은 티켓의 과거 기록. 다른 유형 NULL. 원본 수정 없이 새 이력 추가',
+  `event_entry_id` binary(16) COMMENT 'USE 개별 응모 ID. 한 응모에 여러 티켓 사용 가능. 다른 처리 NULL',
+  `operation_type` ENUM ('GRANT', 'USE', 'REFUND', 'EXPIRE', 'CORRECTION') NOT NULL COMMENT '지급 / 사용 / 반환 / 만료 / 정정. 반환·정정은 해당 원본 이력에 연결',
+  `ticket_version` bigint NOT NULL COMMENT '처리 후 티켓 버전. 최초 GRANT 1, 이후 1씩 증가하는 이력 순서',
+  `status` ENUM ('AVAILABLE', 'RETURNED', 'SPENT', 'EXPIRED') NOT NULL COMMENT '처리 결과 상태. 해당 버전 처리 완료 당시 값이며 이후 변경하지 않음',
+  `expires_at` datetime(6) NOT NULL COMMENT '처리 결과 만료 시각 UTC. 해당 버전 완료 당시 값이며 이후 변경하지 않음',
+  `reason` text NOT NULL COMMENT '처리 사유. 원문 예외·개인정보·비밀값 저장 금지',
+  `created_at` datetime(6) NOT NULL COMMENT '실제 처리 시각 UTC. 반환 만료 계산의 기준',
+  CONSTRAINT `chk_history_refund_source` CHECK ((operation_type = 'REFUND' AND original_use_history_id IS NOT NULL) OR (operation_type <> 'REFUND' AND original_use_history_id IS NULL)),
+  CONSTRAINT `chk_history_correction_source` CHECK ((operation_type = 'CORRECTION' AND corrected_history_id IS NOT NULL) OR (operation_type <> 'CORRECTION' AND corrected_history_id IS NULL)),
+  CONSTRAINT `chk_history_no_self_refund` CHECK (original_use_history_id IS NULL OR original_use_history_id <> id),
+  CONSTRAINT `chk_history_no_self_correction` CHECK (corrected_history_id IS NULL OR corrected_history_id <> id),
+  CONSTRAINT `chk_history_version` CHECK ((operation_type = 'GRANT' AND ticket_version = 1) OR (operation_type <> 'GRANT' AND ticket_version >= 2)),
+  CONSTRAINT `chk_history_entry` CHECK ((operation_type = 'USE' AND event_entry_id IS NOT NULL) OR (operation_type <> 'USE' AND event_entry_id IS NULL)),
+  CONSTRAINT `chk_history_state` CHECK ((operation_type = 'GRANT' AND status = 'AVAILABLE') OR (operation_type = 'USE' AND status = 'SPENT') OR (operation_type = 'REFUND' AND status = 'RETURNED') OR (operation_type = 'EXPIRE' AND status = 'EXPIRED') OR operation_type = 'CORRECTION'),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ticket_ledger_1` (`idempotency_key`),
-  UNIQUE KEY `uq_ticket_ledger_refund_of` (`refund_of_id`),
-  UNIQUE KEY `uq_ticket_ledger_3` (`wallet_id`, `wallet_version`),
-  KEY `ticket_ledger_user_time_idx` (`user_id`, `created_at`),
-  CONSTRAINT `fk_ticket_ledger_1` FOREIGN KEY (`actor_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `fk_ticket_ledger_2` FOREIGN KEY (`event_entry_id`) REFERENCES `event_entries` (`id`),
-  CONSTRAINT `fk_ticket_ledger_3` FOREIGN KEY (`mission_reward_claim_id`) REFERENCES `mission_reward_claims` (`id`),
-  CONSTRAINT `fk_ticket_ledger_4` FOREIGN KEY (`attendance_reward_claim_id`) REFERENCES `attendance_reward_claims` (`id`),
-  CONSTRAINT `fk_ticket_ledger_5` FOREIGN KEY (`game_reward_claim_id`) REFERENCES `game_reward_claims` (`id`),
-  CONSTRAINT `fk_ticket_ledger_6` FOREIGN KEY (`recovery_target_id`) REFERENCES `ticket_recovery_targets` (`id`),
-  CONSTRAINT `fk_ticket_ledger_7` FOREIGN KEY (`refund_of_id`) REFERENCES `ticket_ledger` (`id`),
-  CONSTRAINT `fk_ticket_ledger_8` FOREIGN KEY (`related_ledger_id`) REFERENCES `ticket_ledger` (`id`),
-  CONSTRAINT `fk_ticket_ledger_9` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `fk_ticket_ledger_10` FOREIGN KEY (`wallet_id`, `user_id`) REFERENCES `ticket_wallets` (`id`, `user_id`)
+  UNIQUE KEY `uq_ticket_histories_ticket` (`id`, `ticket_id`),
+  UNIQUE KEY `uq_ticket_histories_refund_source` (`original_use_history_id`),
+  UNIQUE KEY `uq_ticket_histories_1` (`ticket_id`, `ticket_version`),
+  UNIQUE KEY `uq_ticket_histories_2` (`event_entry_id`, `ticket_id`),
+  CONSTRAINT `fk_ticket_histories_1` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`),
+  CONSTRAINT `fk_ticket_histories_2` FOREIGN KEY (`event_entry_id`) REFERENCES `event_entries` (`id`),
+  CONSTRAINT `fk_ticket_histories_3` FOREIGN KEY (`original_use_history_id`, `ticket_id`) REFERENCES `ticket_histories` (`id`, `ticket_id`),
+  CONSTRAINT `fk_ticket_histories_4` FOREIGN KEY (`corrected_history_id`, `ticket_id`) REFERENCES `ticket_histories` (`id`, `ticket_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE `ticket_ledger_allocations` (
-  `id` BINARY(16) NOT NULL,
-  `ledger_id` BINARY(16) NOT NULL,
-  `source_credit_ledger_id` BINARY(16) NOT NULL,
-  `original_grant_id` BINARY(16) NOT NULL,
-  `quantity` BIGINT NOT NULL,
-  `created_at` DATETIME(6) NOT NULL COMMENT '생성 시각 UTC',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ticket_ledger_allocations_1` (`ledger_id`, `source_credit_ledger_id`, `original_grant_id`),
-  CONSTRAINT `fk_ticket_ledger_allocations_1` FOREIGN KEY (`ledger_id`) REFERENCES `ticket_ledger` (`id`),
-  CONSTRAINT `fk_ticket_ledger_allocations_2` FOREIGN KEY (`source_credit_ledger_id`) REFERENCES `ticket_ledger` (`id`),
-  CONSTRAINT `fk_ticket_ledger_allocations_3` FOREIGN KEY (`original_grant_id`) REFERENCES `ticket_ledger` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE `ticket_refund_jobs` (
-  `id` BINARY(16) NOT NULL,
-  `spend_ledger_id` BINARY(16) NOT NULL,
-  `reason_type` ENUM('EVENT_CANCELED', 'PARTICIPANT_EXCLUDED') NOT NULL,
-  `reason` TEXT NOT NULL,
-  `status` ENUM('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED') NOT NULL,
-  `target_expires_at` DATETIME(6),
-  `attempt_count` INT NOT NULL DEFAULT 0,
-  `last_error` TEXT,
-  `created_at` DATETIME(6) NOT NULL,
-  `completed_at` DATETIME(6),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ticket_refund_jobs_1` (`spend_ledger_id`),
-  CONSTRAINT `fk_ticket_refund_jobs_1` FOREIGN KEY (`spend_ledger_id`) REFERENCES `ticket_ledger` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE `ticket_recovery_targets` (
-  `id` BINARY(16) NOT NULL,
-  `abuse_case_id` BINARY(16) NOT NULL,
-  `original_grant_id` BINARY(16) NOT NULL,
-  `target_quantity` BIGINT NOT NULL,
-  `decided_by` BINARY(16) NOT NULL,
-  `created_at` DATETIME(6) NOT NULL,
-  `reason` TEXT NOT NULL,
-  `status` ENUM('ACTIVE', 'SUPERSEDED') NOT NULL,
-  `supersedes_target_id` BINARY(16),
-  `active_guard` BINARY(16) GENERATED ALWAYS AS (CASE WHEN status = 'ACTIVE' THEN original_grant_id ELSE NULL END) STORED,
-  CONSTRAINT `chk_recovery_quantity` CHECK (target_quantity > 0),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ticket_recovery_targets_1` (`abuse_case_id`, `active_guard`),
-  CONSTRAINT `fk_ticket_recovery_targets_1` FOREIGN KEY (`abuse_case_id`) REFERENCES `abuse_cases` (`id`),
-  CONSTRAINT `fk_ticket_recovery_targets_2` FOREIGN KEY (`original_grant_id`) REFERENCES `ticket_ledger` (`id`),
-  CONSTRAINT `fk_ticket_recovery_targets_3` FOREIGN KEY (`decided_by`) REFERENCES `users` (`id`),
-  CONSTRAINT `fk_ticket_recovery_targets_4` FOREIGN KEY (`supersedes_target_id`) REFERENCES `ticket_recovery_targets` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-SET SESSION FOREIGN_KEY_CHECKS = 1;
