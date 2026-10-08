@@ -42,14 +42,14 @@ class MySqlMigrationTest {
 	}
 
 	@Test
-	@DisplayName("빈 MySQL에 V001~V012를 적용해 44개 테이블을 생성하고 재실행을 확인한다")
+	@DisplayName("빈 MySQL에 V001~V011의 44개 테이블을 적용하고 재실행을 확인한다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(appliedMigrations).isEqualTo(12);
+		assertThat(appliedMigrations).isEqualTo(11);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		flyway.validate();

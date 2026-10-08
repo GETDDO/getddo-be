@@ -37,11 +37,11 @@ public class EventPrizeEntity extends BaseUpdatableEntity {
 
 	public EventPrizeEntity(EventEntity event, EventRegistration.Prize prize) {
 		this.event = event;
-		rank = prize.getRank();
-		name = prize.getName();
-		description = prize.getDescription();
-		imageKey = prize.getImageKey();
-		winnerCount = prize.getWinnerCount();
+		rank = prize.rank();
+		name = prize.name();
+		description = prize.description();
+		imageKey = prize.imageKey();
+		winnerCount = prize.winnerCount();
 	}
 
 	public int getRank() { return rank; }

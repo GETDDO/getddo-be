@@ -65,17 +65,17 @@ public class EventEntity extends BaseUpdatableEntity {
 	}
 
 	public EventEntity(EventRegistration registration, EventStatus initialStatus) {
-		title = registration.getTitle();
-		description = registration.getDescription();
-		imageKey = registration.getImageKey();
-		eventType = registration.getEventType();
-		weightingEnabled = registration.isWeightingEnabled();
-		maxTicketsPerUser = registration.getMaxTicketsPerUser();
-		startsAt = registration.getStartsAt();
-		endsAt = registration.getEndsAt();
+		title = registration.title();
+		description = registration.description();
+		imageKey = registration.imageKey();
+		eventType = registration.eventType();
+		weightingEnabled = registration.weightingEnabled();
+		maxTicketsPerUser = registration.maxTicketsPerUser();
+		startsAt = registration.startsAt();
+		endsAt = registration.endsAt();
 		status = initialStatus;
-		membershipRule = registration.getMembershipRule();
-		registration.getPrizes().forEach(prize -> prizes.add(new EventPrizeEntity(this, prize)));
+		membershipRule = registration.membershipRule();
+		registration.prizes().forEach(prize -> prizes.add(new EventPrizeEntity(this, prize)));
 	}
 
 	public String getTitle() { return title; }
