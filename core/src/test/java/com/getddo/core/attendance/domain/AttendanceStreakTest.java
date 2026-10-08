@@ -68,8 +68,8 @@ class AttendanceStreakTest {
 		AttendanceStreak earlier = streak.attend(LocalDate.parse("2026-09-01"));
 		AttendanceStreak same = streak.attend(LocalDate.parse("2026-09-02"));
 		// then
-		assertThat(earlier).isEqualTo(streak);
-		assertThat(same).isEqualTo(streak);
+		assertThat(earlier).isSameAs(streak);
+		assertThat(same).isSameAs(streak);
 	}
 
 	@Test

@@ -57,7 +57,7 @@ class AttendanceRepositoryIntegrationTest extends AttendanceIntegrationTestSuppo
 				attendanceRepository.findByUserIdAndDate(userId, SEPT_15.plusDays(1)));
 		assertThat(saved.getId().version()).isEqualTo(7);
 		assertThat(saved.getCreatedAt()).isEqualTo(clock.instant());
-		assertThat(sameDay).contains(saved);
+		assertThat(sameDay).get().usingRecursiveComparison().isEqualTo(saved);
 		assertThat(nextDay).isEmpty();
 	}
 
@@ -89,7 +89,7 @@ class AttendanceRepositoryIntegrationTest extends AttendanceIntegrationTestSuppo
 		// then
 		AttendanceStreak reloaded = transaction.execute(status ->
 				streakRepository.findForUpdate(userId, SEPTEMBER).orElseThrow());
-		assertThat(reloaded).isEqualTo(updated);
+		assertThat(reloaded).usingRecursiveComparison().isEqualTo(updated);
 		assertThat(reloaded.getConsecutiveDays()).isEqualTo(2);
 		assertThat(reloaded.getLastAttendanceDate()).isEqualTo(SEPT_15.plusDays(1));
 		assertThat(reloaded.getPolicySetId()).isEqualTo(setId);
@@ -149,8 +149,8 @@ class AttendanceRepositoryIntegrationTest extends AttendanceIntegrationTestSuppo
 				policyRepository.findDailyPolicy(october));
 		// then
 		assertThat(beforeSeptember).isEmpty();
-		assertThat(inSeptember).contains(new DailyRewardPolicy(old, 1));
-		assertThat(atOctober).contains(new DailyRewardPolicy(newer, 2));
+		assertThat(inSeptember).get().usingRecursiveComparison().isEqualTo(new DailyRewardPolicy(old, 1));
+		assertThat(atOctober).get().usingRecursiveComparison().isEqualTo(new DailyRewardPolicy(newer, 2));
 	}
 
 	@Test
@@ -176,6 +176,6 @@ class AttendanceRepositoryIntegrationTest extends AttendanceIntegrationTestSuppo
 		assertThat(september.orElseThrow().getMilestones()).extracting(StreakMilestone::getRewardTicketCount)
 				.containsExactly(1, 3, 7);
 		assertThat(november).map(StreakPolicySet::getId).contains(october);
-		assertThat(byId).isEqualTo(september);
+		assertThat(byId).get().usingRecursiveComparison().isEqualTo(september.orElseThrow());
 	}
 }
