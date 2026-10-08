@@ -128,7 +128,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void noTicketEventUsesNoWeightingAndNoTicketLimit() {
 		EventRegistration source = validRegistration();
-		EventRegistration noTicket = new EventRegistration(source.getCreatedBy(), source.getTitle(),
+		EventRegistration noTicket = new EventRegistration(source.getActorId(), source.getTitle(),
 				source.getDescription(), source.getImageKey(), EventType.NO_TICKET, false,
 				null, source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(), source.getPrizes());
 
@@ -140,7 +140,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void adminCanRegisterUnlimitedWeightedEventRegardlessOfPeriod() {
 		EventRegistration source = validRegistration();
-		EventRegistration unlimited = new EventRegistration(source.getCreatedBy(), source.getTitle(),
+		EventRegistration unlimited = new EventRegistration(source.getActorId(), source.getTitle(),
 				source.getDescription(), source.getImageKey(), EventType.TICKET, true,
 				null, source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(), source.getPrizes());
 
@@ -152,7 +152,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void duplicatePrizeRankFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration duplicate = new EventRegistration(source.getCreatedBy(), source.getTitle(),
+		EventRegistration duplicate = new EventRegistration(source.getActorId(), source.getTitle(),
 				source.getDescription(), source.getImageKey(), source.getEventType(), source.isWeightingEnabled(),
 				source.getMaxTicketsPerUser(), source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(),
 				List.of(source.getPrizes().getFirst(),
@@ -168,7 +168,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void incompatibleTicketRuleFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration invalid = new EventRegistration(source.getCreatedBy(), source.getTitle(),
+		EventRegistration invalid = new EventRegistration(source.getActorId(), source.getTitle(),
 				source.getDescription(), source.getImageKey(), EventType.NO_TICKET, true,
 				5, source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(), source.getPrizes());
 
@@ -189,7 +189,7 @@ class EventRegistrationServiceTest {
 
 		// when / then
 		for (List<EventRegistration.Prize> prizes : invalidLists) {
-			EventRegistration invalid = new EventRegistration(source.getCreatedBy(), source.getTitle(),
+			EventRegistration invalid = new EventRegistration(source.getActorId(), source.getTitle(),
 					source.getDescription(), source.getImageKey(), source.getEventType(), source.isWeightingEnabled(),
 					source.getMaxTicketsPerUser(), source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(),
 					prizes);
@@ -264,7 +264,7 @@ class EventRegistrationServiceTest {
 	private EventRegistration withDescriptions(String description, String prizeDescription) {
 		EventRegistration source = validRegistration();
 		EventRegistration.Prize prize = source.getPrizes().getFirst();
-		return new EventRegistration(source.getCreatedBy(), source.getTitle(), description, source.getImageKey(),
+		return new EventRegistration(source.getActorId(), source.getTitle(), description, source.getImageKey(),
 				source.getEventType(), source.isWeightingEnabled(), source.getMaxTicketsPerUser(), source.getMembershipRule(),
 				source.getStartsAt(), source.getEndsAt(),
 				List.of(new EventRegistration.Prize(prize.getRank(), prize.getName(), prizeDescription,
@@ -280,7 +280,7 @@ class EventRegistrationServiceTest {
 	}
 
 	private EventRegistration withPeriod(EventRegistration source, Instant startsAt, Instant endsAt) {
-		return new EventRegistration(source.getCreatedBy(), source.getTitle(), source.getDescription(), source.getImageKey(),
+		return new EventRegistration(source.getActorId(), source.getTitle(), source.getDescription(), source.getImageKey(),
 				source.getEventType(), source.isWeightingEnabled(), source.getMaxTicketsPerUser(), source.getMembershipRule(),
 				startsAt, endsAt, source.getPrizes());
 	}

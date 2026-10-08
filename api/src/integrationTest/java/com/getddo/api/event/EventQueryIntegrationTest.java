@@ -99,14 +99,14 @@ class EventQueryIntegrationTest {
 			request(admin, "/api/v1/admin/events/" + event)
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.data.id").value(event.toString()))
-					.andExpect(jsonPath("$.data.createdBy").value(admin.toString()))
+					.andExpect(jsonPath("$.data.createdBy").doesNotHaveJsonPath())
 					.andExpect(jsonPath("$.data.startsAt").value(startsAt))
 					.andExpect(jsonPath("$.data.endsAt").value(endsAt))
 					.andExpect(jsonPath("$.data.createdAt").value(startsAt))
 					.andExpect(jsonPath("$.data.updatedAt").value(endsAt))
 					.andExpect(jsonPath("$.data.maxTicketsPerUser").value(nullValue()))
-					.andExpect(jsonPath("$.data.suspendedFromStatus").value(nullValue()))
-					.andExpect(jsonPath("$.data.suspendedAt").value(nullValue()))
+					.andExpect(jsonPath("$.data.suspendedFromStatus").doesNotHaveJsonPath())
+					.andExpect(jsonPath("$.data.suspendedAt").doesNotHaveJsonPath())
 					.andExpect(jsonPath("$.data.canceledAt").value(nullValue()))
 					.andExpect(jsonPath("$.data.imageKey").value(nullValue()))
 					.andExpect(jsonPath("$.data.prizes[0].id").value(prize.toString()))
@@ -141,16 +141,15 @@ class EventQueryIntegrationTest {
 	@DisplayName("사용자·관리자 상세는 등수순 경품·UTC 시각을 반환하고 사용자에게 관리 정보를 노출하지 않는다")
 	void detailProvidesSortedPrizesAndSeparatesPublicFields() throws Exception {
 		// given
-		UUID event = insertEvent(prefix, "SUSPENDED", "TICKET", "vip", "2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
+		UUID event = insertEvent(prefix, "CANCELED", "TICKET", "vip", "2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
 		UUID second = insertPrize(event, 2, 3);
 		UUID first = insertPrize(event, 1, 1);
-		jdbc.update("update events set suspended_from_status='OPEN', suspended_at=?, canceled_at=? where id=?",
-				at("2099-10-06T00:00:00Z"), at("2099-10-07T00:00:00Z"), bytes(event));
+		jdbc.update("update events set canceled_at=? where id=?", at("2099-10-07T00:00:00Z"), bytes(event));
 		// when / then
 		request(user, "/api/v1/events/" + event)
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.id").value(event.toString()))
-				.andExpect(jsonPath("$.data.status").value("SUSPENDED"))
+				.andExpect(jsonPath("$.data.status").value("CANCELED"))
 				.andExpect(jsonPath("$.data.description").value("상세 설명"))
 				.andExpect(jsonPath("$.data.startsAt").value("2099-10-05T00:00:00Z"))
 				.andExpect(jsonPath("$.data.publicationScheduledAt").value("2099-10-15T00:05:00Z"))
@@ -163,14 +162,17 @@ class EventQueryIntegrationTest {
 				.andExpect(jsonPath("$.data.prizes[0].imageUrl").value(nullValue()))
 				.andExpect(jsonPath("$.data.prizes[0].imageKey").doesNotExist())
 				.andExpect(jsonPath("$.data.imageKey").doesNotExist())
-				.andExpect(jsonPath("$.data.createdBy").doesNotExist())
-				.andExpect(jsonPath("$.data.suspendedAt").doesNotExist());
+				.andExpect(jsonPath("$.data.createdBy").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedFromStatus").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedAt").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.canceledAt").doesNotHaveJsonPath());
 		request(admin, "/api/v1/admin/events/" + event)
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.createdBy").value(admin.toString()))
+				.andExpect(jsonPath("$.data.status").value("CANCELED"))
+				.andExpect(jsonPath("$.data.createdBy").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.imageKey").value("events/image.png"))
-				.andExpect(jsonPath("$.data.suspendedFromStatus").value("OPEN"))
-				.andExpect(jsonPath("$.data.suspendedAt").value("2099-10-06T00:00:00Z"))
+				.andExpect(jsonPath("$.data.suspendedFromStatus").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedAt").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.canceledAt").value("2099-10-07T00:00:00Z"))
 				.andExpect(jsonPath("$.data.prizeImages[0].prizeId").value(first.toString()))
 				.andExpect(jsonPath("$.data.prizeImages[0].imageKey").value("prizes/image.png"));
@@ -399,7 +401,7 @@ class EventQueryIntegrationTest {
 				.andExpect(jsonPath("$.data.items[0].status").value("REDRAWING"));
 		request(admin, "/api/v1/admin/events/" + published).andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.status").value("REDRAWING"));
-		assertThat(jdbc.queryForObject("select count(*) from publications where event_id=?", Integer.class, bytes(published))).isOne();
+		assertThat(jdbc.queryForObject("select count(*) from draw_publications where event_id=?", Integer.class, bytes(published))).isOne();
 	}
 
 	@Test
@@ -469,7 +471,7 @@ class EventQueryIntegrationTest {
 		// given / when / then
 		for (String path : new String[]{"/api/v1/events", "/api/v1/admin/events"}) {
 			for (String[] param : new String[][]{{"page", "0"}, {"size", "0"}, {"size", "101"},
-					{"page", "abc"}, {"status", "INVALID"}, {"eventType", "INVALID"}}) {
+					{"page", "abc"}, {"status", "INVALID"}, {"status", "SUSPENDED"}, {"eventType", "INVALID"}}) {
 				request(admin, get(path).param(param[0], param[1])).andExpect(status().isBadRequest());
 			}
 			request(admin, path + "/invalid").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-005"));
@@ -513,10 +515,10 @@ class EventQueryIntegrationTest {
 
 	private void insertEvent(UUID id, String title, String state, String type, String membership, String from, String to) {
 		jdbc.update("""
-				insert into events(id,created_by,title,description,image_key,event_type,weighting_enabled,
+				insert into events(id,title,description,image_key,event_type,weighting_enabled,
 				max_tickets_per_user,membership_rule,starts_at,ends_at,status,created_at,updated_at)
-				values(?,?,?,'상세 설명','events/image.png',?,?,?,?,?,?,?,?,?)
-				""", bytes(id), bytes(admin), title, type, "TICKET".equals(type), "TICKET".equals(type) ? 5 : null,
+				values(?,?,'상세 설명','events/image.png',?,?,?,?,?,?,?,?,?)
+				""", bytes(id), title, type, "TICKET".equals(type), "TICKET".equals(type) ? 5 : null,
 				membership, at(from), at(to), state, at(CREATED_AT), at(CREATED_AT));
 	}
 
@@ -532,12 +534,14 @@ class EventQueryIntegrationTest {
 	private void insertPublication(UUID event) {
 		UUID run = UUID.randomUUID();
 		jdbc.update("""
-				insert into draw_runs(id,event_id,run_number,idempotency_key,execution_type,status,created_at)
-				values(?,?,1,?,'AUTO','CONFIRMED',?)
-				""", bytes(run), bytes(event), run.toString(), at(CREATED_AT));
+				insert into draw_runs(id,event_id,run_number,draw_type,status,algorithm_version,
+				                     rules_snapshot,snapshot_fixed_at,confirmed_at,created_at)
+				values(?,?,0,'INITIAL','CONFIRMED','query-test-v1','{}',?,?,?)
+				""", bytes(run), bytes(event), at(CREATED_AT), at(CREATED_AT), at(CREATED_AT));
 		jdbc.update("""
-				insert into publications(id,event_id,draw_run_id,published_by,updated_at,published_at) values(?,?,?,?,?,?)
-				""", bytes(UUID.randomUUID()), bytes(event), bytes(run), bytes(admin), at(CREATED_AT), at(CREATED_AT));
+				insert into draw_publications(id,event_id,source_draw_id,revision,publication_type,published_at)
+				values(?,?,?,1,'INITIAL',?)
+				""", bytes(UUID.randomUUID()), bytes(event), bytes(run), at(CREATED_AT));
 	}
 
 	private static LocalDateTime at(String value) {

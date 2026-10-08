@@ -13,7 +13,5 @@ import lombok.RequiredArgsConstructor;
 public final class EventView {
 	private final RegisteredEvent details;
 	private final EventStatus publicStatus;
-	private final EventStatus suspendedFromStatus;
-	private final Instant suspendedAt;
 	private final Instant canceledAt;
 }

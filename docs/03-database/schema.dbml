@@ -887,10 +887,6 @@ Table events {
   deleted_at datetime(6) [note: '논리 삭제 시각 UTC']
   membership_rule events_membership_rule_enum [not null, note: 'excellent=우수 / vip=VIP / vvip=VVIP']
 
-  indexes {
-    (deleted_at, created_at, id) [name: 'idx_events_list']
-  }
-
   checks {
     `max_tickets_per_user IS NULL OR max_tickets_per_user > 0` [name: 'chk_event_ticket_limit']
     `ends_at > starts_at` [name: 'chk_event_dates']

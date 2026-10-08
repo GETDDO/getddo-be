@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 @EqualsAndHashCode
 public final class RegisteredEvent {
 	private final UUID id;
-	private final UUID createdBy;
 	private final String title;
 	private final String description;
 	private final String imageKey;
@@ -29,7 +28,6 @@ public final class RegisteredEvent {
 	private final List<Prize> prizes;
 
 	public RegisteredEvent(UUID id,
-			UUID createdBy,
 			String title,
 			String description,
 			String imageKey,
@@ -44,7 +42,6 @@ public final class RegisteredEvent {
 			Instant updatedAt,
 			List<Prize> prizes) {
 		this.id = id;
-		this.createdBy = createdBy;
 		this.title = title;
 		this.description = description;
 		this.imageKey = imageKey;

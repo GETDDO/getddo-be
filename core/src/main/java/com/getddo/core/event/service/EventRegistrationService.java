@@ -34,10 +34,10 @@ public class EventRegistrationService {
 
 	@Transactional
 	public RegisteredEvent register(EventRegistration registration) {
-		if (registration == null || registration.getCreatedBy() == null) {
+		if (registration == null || registration.getActorId() == null) {
 			throw new EventException(EventErrorCode.USER_CONTEXT_REQUIRED);
 		}
-		EventActorRepository.Actor actor = actorRepository.findById(registration.getCreatedBy())
+		EventActorRepository.Actor actor = actorRepository.findById(registration.getActorId())
 				.orElseThrow(() -> new EventException(EventErrorCode.USER_CONTEXT_REQUIRED));
 		if (!actor.isActive() || !actor.isAdmin()) {
 			throw new EventException(EventErrorCode.ADMIN_REQUIRED);
@@ -80,7 +80,7 @@ public class EventRegistrationService {
 
 	/** 저장·기간 검증·초기 상태 판정에 동일한 마이크로초 정밀도의 시각을 사용한다. */
 	private EventRegistration normalizePeriod(EventRegistration registration) {
-		return new EventRegistration(registration.getCreatedBy(), registration.getTitle(), registration.getDescription(),
+		return new EventRegistration(registration.getActorId(), registration.getTitle(), registration.getDescription(),
 				registration.getImageKey(), registration.getEventType(), registration.isWeightingEnabled(),
 				registration.getMaxTicketsPerUser(), registration.getMembershipRule(),
 				registration.getStartsAt() == null ? null : registration.getStartsAt().truncatedTo(ChronoUnit.MICROS),

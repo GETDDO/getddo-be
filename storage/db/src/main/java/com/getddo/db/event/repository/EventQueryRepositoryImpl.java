@@ -35,15 +35,15 @@ import com.getddo.db.common.util.UuidBinary;
 public class EventQueryRepositoryImpl implements EventQueryRepository {
 	private static final String PUBLIC_STATUS = """
 			case when e.status = 'REDRAWING'
-				then case when exists (select 1 from publications p where p.event_id = e.id)
+				then case when exists (select 1 from draw_publications p where p.event_id = e.id)
 					then 'PUBLISHED' else 'DRAW_CONFIRMED' end
 				else e.status end
 			""";
 	private static final String SELECT = """
-			select e.id, e.created_by, e.title, e.description, e.image_key, e.event_type,
+			select e.id, e.title, e.description, e.image_key, e.event_type,
 			       e.weighting_enabled, e.max_tickets_per_user, e.membership_rule,
 			       e.starts_at, e.ends_at, e.status, e.created_at, e.updated_at,
-			       e.suspended_from_status, e.suspended_at, e.canceled_at,
+			       e.canceled_at,
 			""" + PUBLIC_STATUS + " as public_status from events e";
 	private final NamedParameterJdbcTemplate jdbc;
 
@@ -129,26 +129,23 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 
 	private static EventView toView(ResultSet row) throws SQLException {
 		RegisteredEvent details = new RegisteredEvent(UuidBinary.fromBytes(row.getBytes("id")),
-				UuidBinary.fromBytes(row.getBytes("created_by")), row.getString("title"),
+				row.getString("title"),
 				row.getString("description"), row.getString("image_key"),
 				EventType.valueOf(row.getString("event_type")), row.getBoolean("weighting_enabled"),
 				row.getObject("max_tickets_per_user", Integer.class), MembershipRule.valueOf(row.getString("membership_rule")),
 				instant(row, "starts_at"), instant(row, "ends_at"), EventStatus.valueOf(row.getString("status")),
 				instant(row, "created_at"), instant(row, "updated_at"), List.of());
-		String suspendedFrom = row.getString("suspended_from_status");
 		return new EventView(details, EventStatus.valueOf(row.getString("public_status")),
-				suspendedFrom == null ? null : EventStatus.valueOf(suspendedFrom),
-				instant(row, "suspended_at"), instant(row, "canceled_at"));
+				instant(row, "canceled_at"));
 	}
 
 	private static EventView withPrizes(EventView view, List<RegisteredEvent.Prize> prizes) {
 		RegisteredEvent event = view.getDetails();
-		RegisteredEvent details = new RegisteredEvent(event.getId(), event.getCreatedBy(), event.getTitle(),
+		RegisteredEvent details = new RegisteredEvent(event.getId(), event.getTitle(),
 				event.getDescription(), event.getImageKey(), event.getEventType(), event.isWeightingEnabled(),
 				event.getMaxTicketsPerUser(), event.getMembershipRule(), event.getStartsAt(), event.getEndsAt(),
 				event.getStatus(), event.getCreatedAt(), event.getUpdatedAt(), prizes);
-		return new EventView(details, view.getPublicStatus(), view.getSuspendedFromStatus(),
-				view.getSuspendedAt(), view.getCanceledAt());
+		return new EventView(details, view.getPublicStatus(), view.getCanceledAt());
 	}
 
 	/** DATETIME에는 시간대가 없으므로 JDBC 기본 시간대에 의존하지 않고 UTC로 해석한다. */

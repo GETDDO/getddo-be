@@ -80,7 +80,7 @@ class EventResponseContractTest {
 	@DisplayName("사용자 목록·상세는 공개 상태와 발표 시각을 반환하고 관리 필드를 숨긴다")
 	void publicResponsesPreserveTheirContract() throws Exception {
 		// given
-		EventView view = new EventView(event(EventStatus.REDRAWING), EventStatus.PUBLISHED, null, null, null);
+		EventView view = new EventView(event(EventStatus.REDRAWING), EventStatus.PUBLISHED, null);
 		when(queries.findUserEvents(any(), anyInt(), anyInt(), any()))
 				.thenReturn(new PageResult<>(List.of(view), 1, 20, 1));
 		when(queries.findUserEvent(actor, EVENT_ID)).thenReturn(view);
@@ -92,6 +92,9 @@ class EventResponseContractTest {
 				.andExpect(jsonPath("$.data.items[0].serverTime").value(NOW.toString()))
 				.andExpect(jsonPath("$.data.items[0].imageUrl").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[0].imageKey").doesNotExist())
+				.andExpect(jsonPath("$.data.items[0].createdBy").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.items[0].suspendedFromStatus").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.items[0].suspendedAt").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.items[0].prizes").doesNotExist());
 		mvc.perform(get("/api/v1/events/" + EVENT_ID).header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN"))
 				.andExpect(status().isOk())
@@ -108,16 +111,16 @@ class EventResponseContractTest {
 				.andExpect(jsonPath("$.data.prizes[0].description").value(nullValue()))
 				.andExpect(jsonPath("$.data.prizes[0].imageUrl").value(nullValue()))
 				.andExpect(jsonPath("$.data.prizes[0].imageKey").doesNotExist())
-				.andExpect(jsonPath("$.data.createdBy").doesNotExist())
-				.andExpect(jsonPath("$.data.suspendedAt").doesNotExist());
+				.andExpect(jsonPath("$.data.createdBy").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedFromStatus").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedAt").doesNotHaveJsonPath());
 	}
 
 	@Test
-	@DisplayName("관리자 목록·상세는 실제 상태·중단 정보와 이벤트·경품 이미지 키를 유지한다")
+	@DisplayName("관리자 목록·상세는 실제 상태와 이미지 키를 유지하고 작성자·중단 필드를 제공하지 않는다")
 	void adminResponsesPreserveTheirContract() throws Exception {
 		// given
-		EventView view = new EventView(event(EventStatus.REDRAWING), EventStatus.PUBLISHED,
-				EventStatus.OPEN, NOW, null);
+		EventView view = new EventView(event(EventStatus.REDRAWING), EventStatus.PUBLISHED, null);
 		when(queries.findAdminEvents(any(), anyInt(), anyInt(), any()))
 				.thenReturn(new PageResult<>(List.of(view), 1, 20, 1));
 		when(queries.findAdminEvent(actor, EVENT_ID)).thenReturn(view);
@@ -128,11 +131,11 @@ class EventResponseContractTest {
 					.andExpect(status().isOk())
 					.andExpect(jsonPath(root + ".status").value("REDRAWING"))
 					.andExpect(jsonPath(root + ".imageKey").value("events/image.png"))
-					.andExpect(jsonPath(root + ".createdBy").value(ACTOR_ID.toString()))
+					.andExpect(jsonPath(root + ".createdBy").doesNotHaveJsonPath())
 					.andExpect(jsonPath(root + ".createdAt").value(NOW.toString()))
 					.andExpect(jsonPath(root + ".updatedAt").value(NOW.toString()))
-					.andExpect(jsonPath(root + ".suspendedFromStatus").value("OPEN"))
-					.andExpect(jsonPath(root + ".suspendedAt").value(NOW.toString()))
+					.andExpect(jsonPath(root + ".suspendedFromStatus").doesNotHaveJsonPath())
+					.andExpect(jsonPath(root + ".suspendedAt").doesNotHaveJsonPath())
 					.andExpect(jsonPath(root + ".canceledAt").value(nullValue()))
 					.andExpect(jsonPath(root + ".publicationScheduledAt").value("2026-10-03T09:05:00Z"))
 					.andExpect(jsonPath(root + ".prizes[0].winnerCount").value(3))
@@ -159,7 +162,7 @@ class EventResponseContractTest {
 	}
 
 	@Test
-	@DisplayName("등록 응답은 저장된 이벤트·경품과 운영 메타데이터의 null 값을 유지한다")
+	@DisplayName("등록 응답은 이벤트·경품과 취소 시각을 유지하고 작성자·중단 필드를 제공하지 않는다")
 	void registrationResponsePreservesItsContract() throws Exception {
 		// given
 		when(registrations.register(any())).thenReturn(event(EventStatus.SCHEDULED));
@@ -180,8 +183,9 @@ class EventResponseContractTest {
 				.andExpect(jsonPath("$.data.weightingEnabled").value(true))
 				.andExpect(jsonPath("$.data.membershipRule").value("vip"))
 				.andExpect(jsonPath("$.data.maxTicketsPerUser").value(nullValue()))
-				.andExpect(jsonPath("$.data.suspendedFromStatus").value(nullValue()))
-				.andExpect(jsonPath("$.data.suspendedAt").value(nullValue()))
+				.andExpect(jsonPath("$.data.createdBy").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedFromStatus").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedAt").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.canceledAt").value(nullValue()))
 				.andExpect(jsonPath("$.data.prizes[0].name").value("경품"))
 				.andExpect(jsonPath("$.data.prizes[0].winnerCount").value(3))
@@ -216,7 +220,7 @@ class EventResponseContractTest {
 	}
 
 	private static RegisteredEvent event(EventStatus status) {
-		return new RegisteredEvent(EVENT_ID, ACTOR_ID, "이벤트", "이벤트 설명", "events/image.png",
+		return new RegisteredEvent(EVENT_ID, "이벤트", "이벤트 설명", "events/image.png",
 				EventType.TICKET, true, null, MembershipRule.vip, STARTS_AT, ENDS_AT, status, NOW, NOW,
 				List.of(new RegisteredEvent.Prize(PRIZE_ID, 2, "경품", null, "prizes/image.png", 3)));
 	}

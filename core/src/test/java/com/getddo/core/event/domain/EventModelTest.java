@@ -48,14 +48,14 @@ class EventModelTest {
 		var prizes = new ArrayList<>(List.of(new RegisteredEvent.Prize(ID, 1, "경품", null, null, 2)));
 		RegisteredEvent event = registered(prizes);
 		RegisteredEvent sameValue = registered(List.of(new RegisteredEvent.Prize(ID, 1, "경품", null, null, 2)));
-		EventView view = new EventView(event, EventStatus.SCHEDULED, null, null, null);
+		EventView view = new EventView(event, EventStatus.SCHEDULED, null);
 
 		// when
 		prizes.clear();
 
 		// then
 		assertThat(event).isEqualTo(sameValue).hasSameHashCodeAs(sameValue);
-		assertThat(view).isEqualTo(new EventView(sameValue, EventStatus.SCHEDULED, null, null, null));
+		assertThat(view).isEqualTo(new EventView(sameValue, EventStatus.SCHEDULED, null));
 		assertThat(view.getDetails().getPrizes()).hasSize(1);
 		assertThatThrownBy(() -> view.getDetails().getPrizes().clear()).isInstanceOf(UnsupportedOperationException.class);
 	}
@@ -66,7 +66,7 @@ class EventModelTest {
 	}
 
 	private RegisteredEvent registered(List<RegisteredEvent.Prize> prizes) {
-		return new RegisteredEvent(ID, ID, "이벤트", "설명", null, EventType.NO_TICKET, false, null,
+		return new RegisteredEvent(ID, "이벤트", "설명", null, EventType.NO_TICKET, false, null,
 				MembershipRule.excellent, Instant.EPOCH, Instant.EPOCH.plusSeconds(60), EventStatus.SCHEDULED,
 				Instant.EPOCH, Instant.EPOCH, prizes);
 	}
