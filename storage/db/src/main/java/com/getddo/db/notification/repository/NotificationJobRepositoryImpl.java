@@ -47,15 +47,15 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	public UUID register(NotificationJobRequest request, Instant now) {
 		String recipients = request.getRecipientIds().stream().map(id -> "\"" + id + "\"")
 				.collect(Collectors.joining(",", "[", "]"));
-		UUID target = request.getRecipientIds().size() == 1 ? request.getRecipientIds().getFirst() : null;
 		jdbc.update("""
 			insert into notification_jobs
-			(id, event_id, publication_id, target_user_id, payload, occurrence_key,
+			(id, event_id, payload, occurrence_key,
 			 notification_type, status, scheduled_at, created_at)
-			values (?, ?, ?, ?, json_object('version', 1, 'title', ?, 'body', ?, 'linkUrl', ?,
+			values (?, ?, json_object('version', 1, 'publicationId', ?, 'title', ?, 'body', ?, 'linkUrl', ?,
 			 'recipientIds', cast(? as json)), ?, ?, ?, ?, ?)
 			on duplicate key update id = id
-			""", bytes(newId()), bytes(request.getEventId()), bytes(request.getPublicationId()), bytes(target),
+			""", bytes(newId()), bytes(request.getEventId()),
+				request.getPublicationId() == null ? null : request.getPublicationId().toString(),
 				request.getTitle(), request.getBody(), request.getLinkUrl(), recipients,
 				request.getOccurrenceKey(), request.getType().name(), NotificationJobStatus.PENDING.name(),
 				time(request.getScheduledAt()), time(now));
@@ -118,7 +118,9 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			""" + (lockingRead ? " for share of j" : ""),
 				(row, index) -> UUID.fromString(row.getString("user_id")), bytes(jobId));
 		return jdbc.queryForObject("""
-			select occurrence_key, notification_type, event_id, publication_id, scheduled_at,
+			select occurrence_key, notification_type, event_id, scheduled_at,
+			if(json_type(json_extract(payload, '$.publicationId')) = 'NULL', null,
+			 json_unquote(json_extract(payload, '$.publicationId'))) as publication_id,
 			json_extract(payload, '$.version') as payload_version,
 			json_type(json_extract(payload, '$.recipientIds')) as recipient_type,
 			json_unquote(json_extract(payload, '$.title')) as title,
@@ -130,9 +132,10 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 				if (row.getInt("payload_version") != 1 || !"ARRAY".equals(row.getString("recipient_type"))) {
 					throw new NotificationProcessingException(NotificationProcessingErrorCode.INVALID_JOB);
 				}
+				String publicationId = row.getString("publication_id");
 				return new NotificationJobRequest(row.getString("occurrence_key"),
 						NotificationType.valueOf(row.getString("notification_type")), uuid(row.getBytes("event_id")),
-						uuid(row.getBytes("publication_id")), row.getString("title"), row.getString("body"),
+						publicationId == null ? null : UUID.fromString(publicationId), row.getString("title"), row.getString("body"),
 						row.getString("link_url"), instant(row, "scheduled_at"), recipients);
 			}, bytes(jobId));
 	}

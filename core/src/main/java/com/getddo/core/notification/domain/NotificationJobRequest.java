@@ -27,6 +27,7 @@ public final class NotificationJobRequest {
 	private final String occurrenceKey;
 	private final NotificationType type;
 	private final UUID eventId;
+	/** 발표 근거 ID. 작업 테이블의 독립 컬럼 대신 payload에 보존한다. */
 	private final UUID publicationId;
 	private final String title;
 	private final String body;

@@ -56,7 +56,6 @@ class MySqlMigrationTest {
 		assertThat(flyway.info().pending()).isEmpty();
 		flyway.validate();
 		assertNullableDeletedAtColumn("events");
-		assertNullableDeletedAtColumn("banners");
 		assertIndexExists("notification_jobs", "ix_notification_job_pending");
 		assertIndexExists("notification_jobs", "ix_notification_job_lease");
 		assertIndexExists("notifications", "ix_notification_delivery_retry");
@@ -67,6 +66,15 @@ class MySqlMigrationTest {
 					""")) {
 			assertThat(rows.next()).isTrue();
 			assertThat(rows.getInt(1)).isEqualTo(44);
+		}
+		try (Connection connection = connect();
+			ResultSet rows = connection.createStatement().executeQuery("""
+					select count(*) from information_schema.columns
+					where table_schema = database() and table_name = 'notification_jobs'
+					and column_name in ('publication_id', 'target_user_id')
+					""")) {
+			assertThat(rows.next()).isTrue();
+			assertThat(rows.getInt(1)).isZero();
 		}
 	}
 

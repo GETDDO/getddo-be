@@ -46,6 +46,12 @@ import com.getddo.core.notification.exception.NotificationProcessingException;
 import com.getddo.core.notification.repository.NotificationJobRepository;
 import com.getddo.core.notification.service.MockNotificationSender;
 import com.getddo.core.notification.service.NotificationJobService;
+import com.getddo.core.notification.service.NotificationService;
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.user.domain.Membership;
+import com.getddo.core.user.domain.User;
+import com.getddo.core.user.domain.UserRole;
+import com.getddo.core.user.domain.UserStatus;
 import com.getddo.db.common.config.JpaAuditingConfig;
 import com.getddo.db.support.MySqlTestConfiguration;
 import com.getddo.db.ticket.MutableClock;
@@ -65,6 +71,7 @@ class NotificationJobIntegrationTest {
 	private static final UUID MISSING = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
 	@Autowired private NotificationJobService service;
+	@Autowired private NotificationService notificationService;
 	@MockitoSpyBean private NotificationJobRepository repository;
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private MutableClock clock;
@@ -120,6 +127,72 @@ class NotificationJobIntegrationTest {
 				.extracting(error -> ((NotificationProcessingException) error).getErrorCode())
 				.isEqualTo(NotificationProcessingErrorCode.OCCURRENCE_CONFLICT);
 		assertThat(repository.findRequest(id)).isEqualTo(request);
+	}
+
+	@Test
+	@DisplayName("발표 ID는 삭제된 컬럼 대신 payload에 보존하며 같은 키의 다른 발표는 거절한다")
+	void preservesPublicationInPayloadAndRejectsChangedPublication() {
+		UUID publicationId = UUID.randomUUID();
+		NotificationJobRequest request = new NotificationJobRequest(prefix + "publication",
+				NotificationType.RESULT_PUBLISHED, null, publicationId, "결과 발표", "내용", null,
+				NOW, List.of(USER));
+
+		UUID id = service.register(request);
+
+		assertThat(repository.findRequest(id)).isEqualTo(request);
+		assertThat(service.register(request)).isEqualTo(id);
+		assertThat(jdbc.queryForObject("""
+			select json_unquote(json_extract(payload, '$.publicationId'))
+			from notification_jobs where id = ?
+			""", String.class, bytes(id))).isEqualTo(publicationId.toString());
+		assertThatThrownBy(() -> service.register(new NotificationJobRequest(request.getOccurrenceKey(),
+				request.getType(), null, UUID.randomUUID(), request.getTitle(), request.getBody(), null,
+				NOW, request.getRecipientIds())))
+				.isInstanceOf(NotificationProcessingException.class)
+				.extracting(error -> ((NotificationProcessingException) error).getErrorCode())
+				.isEqualTo(NotificationProcessingErrorCode.OCCURRENCE_CONFLICT);
+		assertThat(service.processNextJob()).isTrue();
+		assertThat(count("select count(*) from notifications where job_id = ? and user_id = ?",
+				bytes(id), bytes(USER))).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("발표 ID 필드가 없는 기존 payload도 읽고 처리한다")
+	void processesPayloadWithoutPublicationField() {
+		NotificationJobRequest request = request("old-payload", NOW, List.of(USER));
+		UUID id = service.register(request);
+		jdbc.update("update notification_jobs set payload = json_remove(payload, '$.publicationId') where id = ?",
+				bytes(id));
+
+		assertThat(repository.findRequest(id)).isEqualTo(request);
+		assertThat(service.register(request)).isEqualTo(id);
+		assertThat(service.processNextJob()).isTrue();
+		assertThat(count("select count(*) from notifications where job_id = ?", bytes(id))).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("새 스키마에서 생성한 알림도 본인 조회·개별 읽음·전체 읽음과 소유권 검사를 유지한다")
+	void generatedNotificationsRemainQueryableAndReadableByOwner() {
+		UUID firstJob = service.register(request("read-first", NOW, List.of(USER, OTHER)));
+		service.register(request("read-second", NOW, List.of(USER)));
+		assertThat(service.processNextJob()).isTrue();
+		assertThat(service.processNextJob()).isTrue();
+		User user = new User(USER, "알림 테스트", UserRole.USER, UserStatus.ACTIVE, Membership.VIP,
+				null, null, null, null, NOW, NOW);
+
+		var unread = notificationService.findMine(user, null, 20, false);
+		assertThat(unread.getTotalElements()).isEqualTo(2);
+		assertThat(unread.getItems()).hasSize(2);
+		assertThat(unread.getItems()).allMatch(notification -> !notification.isRead());
+		assertThatThrownBy(() -> notificationService.markRead(user, notificationId(firstJob, OTHER)))
+				.isInstanceOf(BusinessException.class);
+		assertThat(notificationService.markRead(user, notificationId(firstJob, USER)))
+				.isEqualTo(notificationId(firstJob, USER));
+		assertThat(notificationService.markAllRead(user)).isEqualTo(1);
+		assertThat(notificationService.markAllRead(user)).isZero();
+		assertThat(notificationService.findMine(user, null, 20, false).getItems()).isEmpty();
+		assertThat(count("select count(*) from notifications where user_id = ? and is_read = false",
+				bytes(OTHER))).isEqualTo(1);
 	}
 
 	/** 검증 시나리오: 업무 트랜잭션이 롤백되면 발생 건의 작업도 남지 않는다. */
