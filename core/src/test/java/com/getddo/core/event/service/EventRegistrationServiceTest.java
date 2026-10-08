@@ -73,7 +73,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void noTicketEventUsesNoWeightingAndNoTicketLimit() {
 		EventRegistration source = validRegistration();
-		EventRegistration noTicket = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration noTicket = new EventRegistration(source.actorId(), source.title(),
 				source.description(), source.imageKey(), EventType.NO_TICKET, false,
 				null, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
 
@@ -85,7 +85,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void adminCanRegisterUnlimitedWeightedEventRegardlessOfPeriod() {
 		EventRegistration source = validRegistration();
-		EventRegistration unlimited = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration unlimited = new EventRegistration(source.actorId(), source.title(),
 				source.description(), source.imageKey(), EventType.TICKET, true,
 				null, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
 
@@ -97,7 +97,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void duplicatePrizeRankFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration duplicate = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration duplicate = new EventRegistration(source.actorId(), source.title(),
 				source.description(), source.imageKey(), source.eventType(), source.weightingEnabled(),
 				source.maxTicketsPerUser(), source.membershipRule(), source.startsAt(), source.endsAt(),
 				List.of(source.prizes().getFirst(),
@@ -113,7 +113,7 @@ class EventRegistrationServiceTest {
 	@Test
 	void incompatibleTicketRuleFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration invalid = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration invalid = new EventRegistration(source.actorId(), source.title(),
 				source.description(), source.imageKey(), EventType.NO_TICKET, true,
 				5, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
 
@@ -188,7 +188,7 @@ class EventRegistrationServiceTest {
 	private EventRegistration withDescriptions(String description, String prizeDescription) {
 		EventRegistration source = validRegistration();
 		EventRegistration.Prize prize = source.prizes().getFirst();
-		return new EventRegistration(source.createdBy(), source.title(), description, source.imageKey(),
+		return new EventRegistration(source.actorId(), source.title(), description, source.imageKey(),
 				source.eventType(), source.weightingEnabled(), source.maxTicketsPerUser(), source.membershipRule(),
 				source.startsAt(), source.endsAt(),
 				List.of(new EventRegistration.Prize(prize.rank(), prize.name(), prizeDescription,
@@ -204,7 +204,7 @@ class EventRegistrationServiceTest {
 	}
 
 	private EventRegistration withPeriod(EventRegistration source, Instant startsAt, Instant endsAt) {
-		return new EventRegistration(source.createdBy(), source.title(), source.description(), source.imageKey(),
+		return new EventRegistration(source.actorId(), source.title(), source.description(), source.imageKey(),
 				source.eventType(), source.weightingEnabled(), source.maxTicketsPerUser(), source.membershipRule(),
 				startsAt, endsAt, source.prizes());
 	}

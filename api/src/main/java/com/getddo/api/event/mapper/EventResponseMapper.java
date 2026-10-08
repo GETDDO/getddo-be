@@ -15,8 +15,6 @@ public interface EventResponseMapper {
 	@Mapping(target = "imageUrl", ignore = true)
 	@Mapping(target = "publicationScheduledAt",
 			expression = "java(event.endsAt().plus(5, java.time.temporal.ChronoUnit.MINUTES))")
-	@Mapping(target = "suspendedFromStatus", ignore = true)
-	@Mapping(target = "suspendedAt", ignore = true)
 	@Mapping(target = "canceledAt", ignore = true)
 	@Mapping(target = "prizeImages", source = "event.prizes")
 	AdminEventResponse toResponse(RegisteredEvent event, Instant serverTime);

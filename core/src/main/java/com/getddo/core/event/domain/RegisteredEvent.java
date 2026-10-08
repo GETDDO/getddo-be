@@ -7,7 +7,6 @@ import java.util.UUID;
 /** 저장이 완료된 이벤트와 경품 등록 결과. */
 public record RegisteredEvent(
 		UUID id,
-		UUID createdBy,
 		String title,
 		String description,
 		String imageKey,

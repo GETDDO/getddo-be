@@ -24,11 +24,8 @@ public record AdminEventResponse(
 		Integer maxTicketsPerUser,
 		List<Prize> prizes,
 		String imageKey,
-		UUID createdBy,
 		Instant createdAt,
 		Instant updatedAt,
-		EventStatus suspendedFromStatus,
-		Instant suspendedAt,
 		Instant canceledAt,
 		List<PrizeImage> prizeImages
 ) {
