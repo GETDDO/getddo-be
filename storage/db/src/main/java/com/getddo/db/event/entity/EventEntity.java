@@ -3,7 +3,6 @@ package com.getddo.db.event.entity;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -23,9 +22,6 @@ import com.getddo.db.common.entity.BaseUpdatableEntity;
 @Entity
 @Table(name = "events")
 public class EventEntity extends BaseUpdatableEntity {
-	@Column(name = "created_by", nullable = false, updatable = false, length = 16)
-	private UUID createdBy;
-
 	@Column(name = "title", nullable = false, length = 200)
 	private String title;
 
@@ -69,21 +65,19 @@ public class EventEntity extends BaseUpdatableEntity {
 	}
 
 	public EventEntity(EventRegistration registration, EventStatus initialStatus) {
-		createdBy = registration.createdBy();
-		title = registration.title();
-		description = registration.description();
-		imageKey = registration.imageKey();
-		eventType = registration.eventType();
-		weightingEnabled = registration.weightingEnabled();
-		maxTicketsPerUser = registration.maxTicketsPerUser();
-		startsAt = registration.startsAt();
-		endsAt = registration.endsAt();
+		title = registration.getTitle();
+		description = registration.getDescription();
+		imageKey = registration.getImageKey();
+		eventType = registration.getEventType();
+		weightingEnabled = registration.isWeightingEnabled();
+		maxTicketsPerUser = registration.getMaxTicketsPerUser();
+		startsAt = registration.getStartsAt();
+		endsAt = registration.getEndsAt();
 		status = initialStatus;
-		membershipRule = registration.membershipRule();
-		registration.prizes().forEach(prize -> prizes.add(new EventPrizeEntity(this, prize)));
+		membershipRule = registration.getMembershipRule();
+		registration.getPrizes().forEach(prize -> prizes.add(new EventPrizeEntity(this, prize)));
 	}
 
-	public UUID getCreatedBy() { return createdBy; }
 	public String getTitle() { return title; }
 	public String getDescription() { return description; }
 	public String getImageKey() { return imageKey; }

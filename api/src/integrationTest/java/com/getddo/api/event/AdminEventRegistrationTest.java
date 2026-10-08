@@ -12,6 +12,8 @@ import javax.sql.DataSource;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,6 +22,7 @@ import com.getddo.api.support.ApiIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,7 +40,7 @@ class AdminEventRegistrationTest {
 		long previousEvents = count("events");
 		long previousPrizes = count("event_prizes");
 
-		mvc.perform(post("/api/v1/admin/events")
+		String response = mvc.perform(post("/api/v1/admin/events")
 				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest()))
@@ -47,17 +50,21 @@ class AdminEventRegistrationTest {
 				.andExpect(jsonPath("$.data.status").value("SCHEDULED"))
 				.andExpect(jsonPath("$.data.startsAt").value("2099-09-30T09:00:00Z"))
 				.andExpect(jsonPath("$.data.publicationScheduledAt").value("2099-09-30T10:05:00Z"))
-				.andExpect(jsonPath("$.data.createdBy").value(adminId.toString()))
+				.andExpect(jsonPath("$.data.createdBy").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedFromStatus").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.suspendedAt").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.imageKey").value("events/autumn.png"))
 				.andExpect(jsonPath("$.data.prizes.length()").value(2))
 				.andExpect(jsonPath("$.data.prizes[0].rank").value(1))
 				.andExpect(jsonPath("$.data.prizes[1].rank").value(2))
 				.andExpect(jsonPath("$.data.prizes[0].id").exists())
-				.andExpect(jsonPath("$.data.prizeImages[0].imageKey").value("prizes/first.png"));
+				.andExpect(jsonPath("$.data.prizeImages[0].imageKey").value("prizes/first.png"))
+				.andReturn().getResponse().getContentAsString();
+		String eventId = com.jayway.jsonpath.JsonPath.read(response, "$.data.id");
 
 		assertThat(count("events")).isEqualTo(previousEvents + 1);
 		assertThat(count("event_prizes")).isEqualTo(previousPrizes + 2);
-		assertThat(countPrizesForAdmin(adminId)).isEqualTo(2);
+		assertThat(countPrizesForEvent(UUID.fromString(eventId))).isEqualTo(2);
 	}
 
 	@Test
@@ -111,6 +118,60 @@ class AdminEventRegistrationTest {
 
 		assertThat(count("events")).isEqualTo(previousEvents);
 		assertThat(count("event_prizes")).isEqualTo(previousPrizes);
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"2099-10-01T00:00:00.000000001Z,2099-10-01T00:00:00.000000002Z",
+			"2099-10-01T00:00:00.000000501Z,2099-10-01T00:00:00.000000999Z",
+			"+10000-10-01T00:00:00Z,+10000-10-02T00:00:00Z",
+			"1000-01-01T00:00:00+09:00,1000-01-02T00:00:00+09:00",
+			"9999-12-31T23:00:00-09:00,9999-12-31T23:30:00-09:00",
+			"9999-12-31T23:59:59Z,9999-12-31T23:59:59.500000Z"
+	})
+	@DisplayName("UTC 저장 범위·정밀도에 맞지 않는 기간은 400을 반환하고 이벤트·경품을 저장하지 않는다")
+	void unstorablePeriodsAreBadRequestsWithoutAnyWrite(String startsAt, String endsAt) throws Exception {
+		// given
+		UUID adminId = insertUser("ADMIN");
+		long previousEvents = count("events");
+		long previousPrizes = count("event_prizes");
+
+		// when / then
+		mvc.perform(post("/api/v1/admin/events")
+				.header("X-User-ID", adminId).header("X-User-Role", "ADMIN")
+				.contentType(MediaType.APPLICATION_JSON).content(requestWithPeriod(startsAt, endsAt)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("EVENT-002"));
+		assertThat(count("events")).isEqualTo(previousEvents);
+		assertThat(count("event_prizes")).isEqualTo(previousPrizes);
+	}
+
+	@Test
+	@DisplayName("나노초 입력은 마이크로초로 정규화해 등록 응답·DB·상세 조회가 같은 시각을 제공한다")
+	void storesAndReadsNormalizedMicrosecondPeriod() throws Exception {
+		// given
+		UUID adminId = insertUser("ADMIN");
+		String startsAt = "2099-10-01T09:00:00.123456Z";
+		String endsAt = "2099-10-01T10:00:00.654321Z";
+
+		// when
+		String body = mvc.perform(post("/api/v1/admin/events")
+				.header("X-User-ID", adminId).header("X-User-Role", "ADMIN")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestWithPeriod("2099-10-01T18:00:00.123456789+09:00",
+						"2099-10-01T19:00:00.654321987+09:00")))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.data.startsAt").value(startsAt))
+				.andExpect(jsonPath("$.data.endsAt").value(endsAt))
+				.andReturn().getResponse().getContentAsString();
+		String eventId = com.jayway.jsonpath.JsonPath.read(body, "$.data.id");
+
+		// then: 상세 조회는 DB에서 시각을 다시 읽는다.
+		mvc.perform(get("/api/v1/admin/events/" + eventId)
+				.header("X-User-ID", adminId).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.startsAt").value(startsAt))
+				.andExpect(jsonPath("$.data.endsAt").value(endsAt));
 	}
 
 	@Test
@@ -179,13 +240,15 @@ class AdminEventRegistrationTest {
 
 		try {
 			// when / then
-			mvc.perform(post("/api/v1/admin/events")
+			Exception failure = mvc.perform(post("/api/v1/admin/events")
 					.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(validRequest().replace("경품 A", failingPrizeName)))
 					.andExpect(status().isInternalServerError())
-					.andExpect(jsonPath("$.code").value("COMMON-001"));
+					.andExpect(jsonPath("$.code").value("COMMON-001"))
+					.andReturn().getResolvedException();
 
+			assertThat(failure).hasStackTraceContaining(constraintName);
 			assertThat(count("events")).isEqualTo(previousEvents);
 			assertThat(count("event_prizes")).isEqualTo(previousPrizes);
 		} finally {
@@ -246,6 +309,11 @@ class AdminEventRegistrationTest {
 						"\"name\": \"경품 A\", \"description\": \"" + prizeDescription + "\"");
 	}
 
+	private String requestWithPeriod(String startsAt, String endsAt) {
+		return validRequest().replace("2099-09-30T18:00:00+09:00", startsAt)
+				.replace("2099-09-30T19:00:00+09:00", endsAt);
+	}
+
 	private UUID insertUser(String role) throws SQLException {
 		UUID id = UUID.randomUUID();
 		try (Connection connection = dataSource.getConnection();
@@ -269,14 +337,13 @@ class AdminEventRegistrationTest {
 		}
 	}
 
-	private long countPrizesForAdmin(UUID adminId) throws SQLException {
+	private long countPrizesForEvent(UUID eventId) throws SQLException {
 		try (Connection connection = dataSource.getConnection();
 				PreparedStatement statement = connection.prepareStatement("""
 				SELECT COUNT(*) FROM event_prizes p
-				JOIN events e ON e.id = p.event_id
-				WHERE e.created_by = UNHEX(REPLACE(?, '-', ''))
+				WHERE p.event_id = UNHEX(REPLACE(?, '-', ''))
 				""")) {
-			statement.setString(1, adminId.toString());
+			statement.setString(1, eventId.toString());
 			try (ResultSet result = statement.executeQuery()) {
 				result.next();
 				return result.getLong(1);
