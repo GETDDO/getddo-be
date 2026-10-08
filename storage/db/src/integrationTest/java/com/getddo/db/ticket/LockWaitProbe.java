@@ -14,8 +14,11 @@ import org.testcontainers.mysql.MySQLContainer;
  * InnoDB에서 잠금을 기다리는 트랜잭션 수를 확인한다.
  *
  * <p>동시성 테스트가 "다른 트랜잭션이 실제로 잠금에 막혀 있는 순간"을 기다린 뒤 다음 단계로 넘어가게 해
- * 실행 순서를 재현 가능하게 만든다. {@code information_schema.innodb_trx}는 PROCESS 권한이 필요하므로
- * 테스트 컨테이너의 root 계정으로 읽는다.</p>
+ * 실행 순서를 재현 가능하게 만든다.</p>
+ *
+ * <p>{@code performance_schema.data_lock_waits}로 센다. {@code information_schema.innodb_trx}는 마지막 조회 후 0.1초가
+ * 지나야 캐시를 갱신하므로, 짧은 간격으로 조회하면 잠금 대기가 생기기 전의 상태를 계속 읽어 시간 초과로 실패할 수 있다.
+ * {@code performance_schema}는 테스트 컨테이너의 root 계정으로 읽는다.</p>
  */
 public class LockWaitProbe {
 
@@ -35,7 +38,7 @@ public class LockWaitProbe {
 				Statement statement = root.createStatement()) {
 			while (Instant.now().isBefore(deadline)) {
 				try (ResultSet rows = statement.executeQuery(
-						"select count(*) from information_schema.innodb_trx where trx_state = 'LOCK WAIT'")) {
+						"select count(distinct requesting_engine_transaction_id) from performance_schema.data_lock_waits")) {
 					rows.next();
 					if (rows.getInt(1) >= expected) {
 						return;
