@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,11 +37,11 @@ public class EventRegistrationService {
 	}
 
 	@Transactional
-	public RegisteredEvent register(EventRegistration registration) {
-		if (registration == null || registration.createdBy() == null) {
+	public RegisteredEvent register(UUID adminId, EventRegistration registration) {
+		if (adminId == null || registration == null) {
 			throw new BusinessException(EventErrorCode.USER_CONTEXT_REQUIRED);
 		}
-		EventActorRepository.Actor actor = actorRepository.findById(registration.createdBy())
+		EventActorRepository.Actor actor = actorRepository.findById(adminId)
 				.orElseThrow(() -> new BusinessException(EventErrorCode.USER_CONTEXT_REQUIRED));
 		if (!actor.active() || !actor.admin()) {
 			throw new BusinessException(EventErrorCode.ADMIN_REQUIRED);
@@ -53,7 +54,7 @@ public class EventRegistrationService {
 	}
 
 	private EventRegistration copyPrizes(EventRegistration registration) {
-		return new EventRegistration(registration.createdBy(), registration.title(), registration.description(),
+		return new EventRegistration(registration.title(), registration.description(),
 				registration.imageKey(), registration.eventType(), registration.weightingEnabled(),
 				registration.maxTicketsPerUser(), registration.membershipRule(), registration.startsAt(),
 				registration.endsAt(), List.copyOf(registration.prizes()));

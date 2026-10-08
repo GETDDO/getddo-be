@@ -2,11 +2,9 @@ package com.getddo.core.event.domain;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 /** 이벤트와 경품을 한 번에 등록하기 위한 업무 입력. */
 public record EventRegistration(
-		UUID createdBy,
 		String title,
 		String description,
 		String imageKey,

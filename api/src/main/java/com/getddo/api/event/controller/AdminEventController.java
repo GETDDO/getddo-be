@@ -36,7 +36,7 @@ public class AdminEventController {
 			@CurrentUser User user,
 			@Valid @RequestBody EventWriteRequest request) {
 		AdminEventResponse response = responseMapper.toResponse(
-				registrationService.register(request.toRegistration(user.id())), timeProvider.now());
+				registrationService.register(user.id(), request.toRegistration()), timeProvider.now());
 		return ResponseEntity.status(HttpStatus.CREATED).body(ResponseEnvelope.success(response));
 	}
 }

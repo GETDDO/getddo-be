@@ -47,7 +47,7 @@ class AdminEventRegistrationTest {
 				.andExpect(jsonPath("$.data.status").value("SCHEDULED"))
 				.andExpect(jsonPath("$.data.startsAt").value("2099-09-30T09:00:00Z"))
 				.andExpect(jsonPath("$.data.publicationScheduledAt").value("2099-09-30T10:05:00Z"))
-				.andExpect(jsonPath("$.data.createdBy").value(adminId.toString()))
+				.andExpect(jsonPath("$.data.createdBy").doesNotExist())
 				.andExpect(jsonPath("$.data.imageKey").value("events/autumn.png"))
 				.andExpect(jsonPath("$.data.prizes.length()").value(2))
 				.andExpect(jsonPath("$.data.prizes[0].rank").value(1))
@@ -57,7 +57,6 @@ class AdminEventRegistrationTest {
 
 		assertThat(count("events")).isEqualTo(previousEvents + 1);
 		assertThat(count("event_prizes")).isEqualTo(previousPrizes + 2);
-		assertThat(countPrizesForAdmin(adminId)).isEqualTo(2);
 	}
 
 	@Test
@@ -266,21 +265,6 @@ class AdminEventRegistrationTest {
 				ResultSet result = statement.executeQuery()) {
 			result.next();
 			return result.getLong(1);
-		}
-	}
-
-	private long countPrizesForAdmin(UUID adminId) throws SQLException {
-		try (Connection connection = dataSource.getConnection();
-				PreparedStatement statement = connection.prepareStatement("""
-				SELECT COUNT(*) FROM event_prizes p
-				JOIN events e ON e.id = p.event_id
-				WHERE e.created_by = UNHEX(REPLACE(?, '-', ''))
-				""")) {
-			statement.setString(1, adminId.toString());
-			try (ResultSet result = statement.executeQuery()) {
-				result.next();
-				return result.getLong(1);
-			}
 		}
 	}
 

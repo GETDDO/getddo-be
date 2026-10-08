@@ -29,8 +29,8 @@ public record EventWriteRequest(
 		@NotNull OffsetDateTime endsAt,
 		@NotEmpty List<@NotNull @Valid PrizeWrite> prizes
 ) {
-	public EventRegistration toRegistration(UUID createdBy) {
-		return new EventRegistration(createdBy, title, description, imageKey, eventType,
+	public EventRegistration toRegistration() {
+		return new EventRegistration(title, description, imageKey, eventType,
 				Boolean.TRUE.equals(weightingEnabled), maxTicketsPerUser, membershipRule,
 				startsAt == null ? null : startsAt.toInstant(), endsAt == null ? null : endsAt.toInstant(),
 				prizes == null ? null : prizes.stream().map(PrizeWrite::toPrize).toList());

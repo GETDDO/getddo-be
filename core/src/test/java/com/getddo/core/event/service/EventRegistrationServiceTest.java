@@ -52,7 +52,7 @@ class EventRegistrationServiceTest {
 	void validRegistrationPassesScheduledEventAndAllPrizesToRepository() {
 		EventRegistration registration = validRegistration();
 
-		service.register(registration);
+		service.register(ADMIN_ID, registration);
 
 		verify(events).create(registration, EventStatus.SCHEDULED);
 	}
@@ -63,8 +63,8 @@ class EventRegistrationServiceTest {
 		EventRegistration open = withPeriod(source, NOW.minusSeconds(1), NOW.plusSeconds(1));
 		EventRegistration closed = withPeriod(source, NOW.minusSeconds(2), NOW);
 
-		service.register(open);
-		service.register(closed);
+		service.register(ADMIN_ID, open);
+		service.register(ADMIN_ID, closed);
 
 		verify(events).create(open, EventStatus.OPEN);
 		verify(events).create(closed, EventStatus.CLOSED);
@@ -73,11 +73,11 @@ class EventRegistrationServiceTest {
 	@Test
 	void noTicketEventUsesNoWeightingAndNoTicketLimit() {
 		EventRegistration source = validRegistration();
-		EventRegistration noTicket = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration noTicket = new EventRegistration(source.title(),
 				source.description(), source.imageKey(), EventType.NO_TICKET, false,
 				null, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
 
-		service.register(noTicket);
+		service.register(ADMIN_ID, noTicket);
 
 		verify(events).create(noTicket, EventStatus.SCHEDULED);
 	}
@@ -85,11 +85,11 @@ class EventRegistrationServiceTest {
 	@Test
 	void adminCanRegisterUnlimitedWeightedEventRegardlessOfPeriod() {
 		EventRegistration source = validRegistration();
-		EventRegistration unlimited = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration unlimited = new EventRegistration(source.title(),
 				source.description(), source.imageKey(), EventType.TICKET, true,
 				null, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
 
-		service.register(unlimited);
+		service.register(ADMIN_ID, unlimited);
 
 		verify(events).create(unlimited, EventStatus.SCHEDULED);
 	}
@@ -97,13 +97,13 @@ class EventRegistrationServiceTest {
 	@Test
 	void duplicatePrizeRankFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration duplicate = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration duplicate = new EventRegistration(source.title(),
 				source.description(), source.imageKey(), source.eventType(), source.weightingEnabled(),
 				source.maxTicketsPerUser(), source.membershipRule(), source.startsAt(), source.endsAt(),
 				List.of(source.prizes().getFirst(),
 						new EventRegistration.Prize(1, "다른 경품", null, null, 2)));
 
-		assertThatThrownBy(() -> service.register(duplicate))
+		assertThatThrownBy(() -> service.register(ADMIN_ID, duplicate))
 				.isInstanceOf(BusinessException.class)
 				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_PRIZES));
@@ -113,11 +113,11 @@ class EventRegistrationServiceTest {
 	@Test
 	void incompatibleTicketRuleFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration invalid = new EventRegistration(source.createdBy(), source.title(),
+		EventRegistration invalid = new EventRegistration(source.title(),
 				source.description(), source.imageKey(), EventType.NO_TICKET, true,
 				5, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
 
-		assertThatThrownBy(() -> service.register(invalid))
+		assertThatThrownBy(() -> service.register(ADMIN_ID, invalid))
 				.isInstanceOf(BusinessException.class)
 				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_CONFIGURATION));
@@ -128,7 +128,7 @@ class EventRegistrationServiceTest {
 	void nonAdminCannotRegister() {
 		when(actors.findById(ADMIN_ID)).thenReturn(Optional.of(new EventActorRepository.Actor(true, false)));
 
-		assertThatThrownBy(() -> service.register(validRegistration()))
+		assertThatThrownBy(() -> service.register(ADMIN_ID, validRegistration()))
 				.isInstanceOf(BusinessException.class)
 				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.ADMIN_REQUIRED));
@@ -144,7 +144,7 @@ class EventRegistrationServiceTest {
 		EventRegistration registration = withDescriptions(description, description);
 
 		// when
-		service.register(registration);
+		service.register(ADMIN_ID, registration);
 
 		// then
 		verify(events).create(registration, EventStatus.SCHEDULED);
@@ -158,7 +158,7 @@ class EventRegistrationServiceTest {
 		EventRegistration registration = withDescriptions(descriptionAtTextLimit(unit) + "x", null);
 
 		// when / then
-		assertThatThrownBy(() -> service.register(registration))
+		assertThatThrownBy(() -> service.register(ADMIN_ID, registration))
 				.isInstanceOf(BusinessException.class)
 				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_DETAILS));
@@ -173,7 +173,7 @@ class EventRegistrationServiceTest {
 		EventRegistration registration = withDescriptions("이벤트 설명", descriptionAtTextLimit(unit) + "x");
 
 		// when / then
-		assertThatThrownBy(() -> service.register(registration))
+		assertThatThrownBy(() -> service.register(ADMIN_ID, registration))
 				.isInstanceOf(BusinessException.class)
 				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_PRIZES));
@@ -188,7 +188,7 @@ class EventRegistrationServiceTest {
 	private EventRegistration withDescriptions(String description, String prizeDescription) {
 		EventRegistration source = validRegistration();
 		EventRegistration.Prize prize = source.prizes().getFirst();
-		return new EventRegistration(source.createdBy(), source.title(), description, source.imageKey(),
+		return new EventRegistration(source.title(), description, source.imageKey(),
 				source.eventType(), source.weightingEnabled(), source.maxTicketsPerUser(), source.membershipRule(),
 				source.startsAt(), source.endsAt(),
 				List.of(new EventRegistration.Prize(prize.rank(), prize.name(), prizeDescription,
@@ -196,7 +196,7 @@ class EventRegistrationServiceTest {
 	}
 
 	private EventRegistration validRegistration() {
-		return new EventRegistration(ADMIN_ID, "가을 이벤트", "경품 응모", null,
+		return new EventRegistration("가을 이벤트", "경품 응모", null,
 				EventType.TICKET, true, 5, MembershipRule.vip,
 				NOW.plusSeconds(3600), NOW.plusSeconds(7200),
 				List.of(new EventRegistration.Prize(1, "경품 A", null, null, 1),
@@ -204,7 +204,7 @@ class EventRegistrationServiceTest {
 	}
 
 	private EventRegistration withPeriod(EventRegistration source, Instant startsAt, Instant endsAt) {
-		return new EventRegistration(source.createdBy(), source.title(), source.description(), source.imageKey(),
+		return new EventRegistration(source.title(), source.description(), source.imageKey(),
 				source.eventType(), source.weightingEnabled(), source.maxTicketsPerUser(), source.membershipRule(),
 				startsAt, endsAt, source.prizes());
 	}
