@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +42,7 @@ class ConcurrentTasksTest {
 	@DisplayName("기다리는 중 interrupt되어도 작업이 끝날 때까지 기다리고 interrupt 상태를 되돌린다")
 	void keepsWaitingWhenInterruptedAndRestoresInterruptStatus() throws Exception {
 		// given: interrupt를 무시하고 해제될 때까지 도는 작업, 호출 스레드는 이미 interrupt된 상태
-		ExecutorService executor = Executors.newSingleThreadExecutor();
+		SignalingExecutor executor = new SignalingExecutor();
 		CountDownLatch started = new CountDownLatch(1);
 		CountDownLatch release = new CountDownLatch(1);
 		AtomicBoolean finished = new AtomicBoolean();
@@ -56,22 +59,46 @@ class ConcurrentTasksTest {
 			finished.set(true);
 		});
 		assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+		// 도우미가 interrupt를 받은 뒤 두 번째 awaitTermination에 들어간 것을 확인한 다음에만 작업을 푼다.
+		// 신호가 시간 안에 오지 않아도 정리를 위해 작업은 풀고, 신호 여부는 아래에서 검증한다.
+		AtomicBoolean signaled = new AtomicBoolean();
 		Thread releaser = new Thread(() -> {
 			try {
-				Thread.sleep(300);
+				signaled.set(executor.secondAwaitEntered.await(5, TimeUnit.SECONDS));
 			} catch (InterruptedException ignored) {
 				// 해제 스레드는 interrupt되지 않는다
+			} finally {
+				release.countDown();
 			}
-			release.countDown();
 		});
 		releaser.start();
 		Thread.currentThread().interrupt();
 		// when
 		ConcurrentTasks.shutdownAndAwait(executor);
 		// then
+		releaser.join();
+		assertThat(signaled).as("도우미가 interrupt 뒤 두 번째 awaitTermination에 들어갔다").isTrue();
 		assertThat(finished).as("interrupt로 바로 돌아오지 않고 작업 종료를 기다린다").isTrue();
 		assertThat(executor.isTerminated()).isTrue();
 		assertThat(Thread.interrupted()).as("호출 스레드의 interrupt 상태가 복원된다").isTrue();
-		releaser.join();
+	}
+
+	/** {@code awaitTermination}의 두 번째 호출 진입을 알리는 테스트용 실행기. */
+	private static final class SignalingExecutor extends ThreadPoolExecutor {
+
+		private final CountDownLatch secondAwaitEntered = new CountDownLatch(1);
+		private final AtomicInteger awaitCalls = new AtomicInteger();
+
+		SignalingExecutor() {
+			super(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+		}
+
+		@Override
+		public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+			if (awaitCalls.incrementAndGet() == 2) {
+				secondAwaitEntered.countDown();
+			}
+			return super.awaitTermination(timeout, unit);
+		}
 	}
 }
