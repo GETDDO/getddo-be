@@ -9,12 +9,12 @@ class TicketErrorCodeTest {
 
 	@Test
 	@DisplayName("이력 조회 조건 오류는 TICKET-004, 400이다")
-	void ledgerQueryError() {
+	void historyQueryError() {
 		// given
 		// when
 		// then
-		assertThat(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY.getCode()).isEqualTo("TICKET-004");
-		assertThat(TicketErrorCode.TICKET_INVALID_LEDGER_QUERY.getStatus()).isEqualTo(400);
+		assertThat(TicketErrorCode.TICKET_INVALID_HISTORY_QUERY.getCode()).isEqualTo("TICKET-004");
+		assertThat(TicketErrorCode.TICKET_INVALID_HISTORY_QUERY.getStatus()).isEqualTo(400);
 	}
 
 	@Test
@@ -29,15 +29,5 @@ class TicketErrorCodeTest {
 		assertThat(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND.getStatus()).isEqualTo(404);
 		assertThat(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH.getCode()).isEqualTo("TICKET-003");
 		assertThat(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH.getStatus()).isEqualTo(409);
-	}
-
-	@Test
-	@DisplayName("만료된 지갑 입금 오류는 TICKET-005, 409이다")
-	void walletExpiredError() {
-		// given
-		// when
-		// then
-		assertThat(TicketErrorCode.TICKET_WALLET_EXPIRED.getCode()).isEqualTo("TICKET-005");
-		assertThat(TicketErrorCode.TICKET_WALLET_EXPIRED.getStatus()).isEqualTo(409);
 	}
 }

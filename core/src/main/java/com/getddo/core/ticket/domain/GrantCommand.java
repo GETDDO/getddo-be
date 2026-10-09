@@ -7,7 +7,7 @@ import lombok.Getter;
 /**
  * 응모권 지급 요청.
  *
- * <p>지급 시각·만료 시각·지갑·멱등키는 호출자가 넘기지 않고 서비스가 정한다.
+ * <p>지급 시각·만료 시각·등급은 호출자가 넘기지 않고 서비스가 정한다.
  * 값의 유효성은 {@code TicketGrantService.grant}가 검증한다.</p>
  */
 @Getter
