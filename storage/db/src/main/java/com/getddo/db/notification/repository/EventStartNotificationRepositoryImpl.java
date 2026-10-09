@@ -18,13 +18,19 @@ import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.notification.domain.EventStartNotification;
 import com.getddo.core.notification.repository.EventStartNotificationRepository;
 
-/** 이벤트와 사용자는 변경하지 않고, 기존 알림 작업의 존재 여부로 중복 예약 실행을 막는다. */
+/** 이벤트와 사용자는 변경하지 않고, 기존 시작 작업을 조회해 불필요한 재등록을 줄인다. */
 @Repository
 @RequiredArgsConstructor
 public class EventStartNotificationRepositoryImpl implements EventStartNotificationRepository {
 	private final JdbcTemplate jdbc;
 
-	/** 서비스 트랜잭션 안에서만 잠금을 획득해 작업 등록까지 이벤트 상태·일정을 보호한다. */
+	/**
+	 * 서비스 트랜잭션에서 이벤트 상태·일정을 보호하고 동시 처리자의 재등록 시도를 줄인다.
+	 *
+	 * <p>NOT EXISTS가 이벤트 행 잠금 획득 전에 읽은 뷰에서는 다른 처리자가 커밋한 작업을
+	 * 보지 못해 후보를 다시 반환할 수 있다. 최종 작업 중복 방지는 occurrence_key UNIQUE와
+	 * 멱등 등록이 담당한다. 같은 입력은 기존 ID를 반환하고, 다른 입력은 OCCURRENCE_CONFLICT로 거절한다.</p>
+	 */
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Optional<EventStartNotification> findNextDueEvent(Instant now, Instant latestStart) {
