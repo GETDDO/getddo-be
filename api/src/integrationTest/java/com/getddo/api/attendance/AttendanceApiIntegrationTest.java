@@ -57,11 +57,10 @@ class AttendanceApiIntegrationTest {
 	void clean() {
 		byte[] user = bytes(USER);
 		jdbc.update("""
-				delete a from ticket_ledger_allocations a join ticket_ledger l on l.id = a.ledger_id
-				where l.user_id = ?
+				delete h from ticket_histories h join tickets t on t.id = h.ticket_id
+				where t.user_id = ?
 				""", user);
-		jdbc.update("delete from ticket_ledger where user_id = ?", user);
-		jdbc.update("delete from ticket_wallets where user_id = ?", user);
+		jdbc.update("delete from tickets where user_id = ?", user);
 		jdbc.update("delete from attendance_reward_claims where user_id = ?", user);
 		jdbc.update("delete from attendance_streaks where user_id = ?", user);
 		jdbc.update("delete from attendances where user_id = ?", user);
@@ -99,8 +98,11 @@ class AttendanceApiIntegrationTest {
 		assertThat(count("select count(*) from attendance_reward_claims where user_id = ?")).isEqualTo(1);
 		assertThat(jdbc.queryForObject("select bin_to_uuid(id) from attendance_reward_claims where user_id = ?",
 				String.class, bytes(USER))).isEqualTo(created.path("rewards").path(0).path("claimId").asString());
-		assertThat(count("select count(*) from ticket_ledger where user_id = ?")).isEqualTo(1);
-		assertThat(count("select coalesce(sum(balance), 0) from ticket_wallets where user_id = ?")).isEqualTo(2);
+		assertThat(count("select count(*) from tickets where user_id = ?")).isEqualTo(2);
+		assertThat(count("""
+				select count(*) from ticket_histories h join tickets t on t.id = h.ticket_id
+				where t.user_id = ? and h.operation_type = 'GRANT'
+				""")).isEqualTo(2);
 	}
 
 	@Test
@@ -134,7 +136,7 @@ class AttendanceApiIntegrationTest {
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.code").value("ATTENDANCE-001"));
 		assertThat(count("select count(*) from attendances where user_id = ?")).isZero();
-		assertThat(count("select count(*) from ticket_ledger where user_id = ?")).isZero();
+		assertThat(count("select count(*) from tickets where user_id = ?")).isZero();
 	}
 
 	@Test
