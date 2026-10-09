@@ -1,6 +1,7 @@
 package com.getddo.core.event.service;
 
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -147,6 +148,21 @@ class EventQueryServiceTest {
 			assertError(() -> service.findAdminEvents(user, 1, 20,
 					new AdminEventQuery(null, null, null, null, value)), EventErrorCode.INVALID_QUERY);
 		}
+		verifyNoInteractions(events);
+	}
+
+	@Test
+	@DisplayName("검색 종료일의 다음 날 계산이 넘치면 업무 오류에 원인 예외를 보존한다")
+	void preservesDateCalculationFailureCause() {
+		// given
+		user = user(UserRole.ADMIN, UserStatus.ACTIVE, null);
+		AdminEventQuery query = new AdminEventQuery(null, null, null, null, LocalDate.MAX);
+		// when / then
+		assertThatThrownBy(() -> service.findAdminEvents(user, 1, 20, query))
+				.isInstanceOfSatisfying(EventException.class, exception -> {
+					assertThat(exception.getErrorCode()).isEqualTo(EventErrorCode.INVALID_QUERY);
+					assertThat(exception.getCause()).isInstanceOf(DateTimeException.class);
+				});
 		verifyNoInteractions(events);
 	}
 

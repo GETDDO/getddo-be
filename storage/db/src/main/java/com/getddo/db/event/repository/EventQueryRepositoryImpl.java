@@ -75,7 +75,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 	private static String where(EventQueryFilter filter, boolean publicView, Map<String, Object> parameters) {
 		StringBuilder where = new StringBuilder(" where e.deleted_at is null");
 		if (filter.getStatus() != null) {
-			where.append(" and (").append(publicView ? PUBLIC_STATUS : "e.status").append(") = :status");
+			where.append(" and (").append(statusCondition(filter.getStatus(), publicView)).append(")");
 			parameters.put("status", filter.getStatus().name());
 		}
 		if (filter.getEventType() != null) {
@@ -101,6 +101,24 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 			parameters.put("to", LocalDateTime.ofInstant(filter.getTo(), ZoneOffset.UTC));
 		}
 		return where.toString();
+	}
+
+	/** 상태 컬럼을 직접 비교하고 재추첨의 공개 상태만 발표 기록으로 판정한다. */
+	private static String statusCondition(EventStatus status, boolean publicView) {
+		if (!publicView) {
+			return "e.status = :status";
+		}
+		return switch (status) {
+			case PUBLISHED -> """
+					e.status = :status or (e.status = 'REDRAWING' and exists (
+						select 1 from draw_publications p where p.event_id = e.id))
+					""";
+			case DRAW_CONFIRMED -> """
+					e.status = :status or (e.status = 'REDRAWING' and not exists (
+						select 1 from draw_publications p where p.event_id = e.id))
+					""";
+			default -> "e.status = :status and e.status <> 'REDRAWING'";
+		};
 	}
 
 	private List<EventView> attachPrizes(List<EventView> events) {

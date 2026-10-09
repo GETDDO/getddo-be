@@ -60,6 +60,19 @@ class EventModelTest {
 		assertThatThrownBy(() -> view.getDetails().getPrizes().clear()).isInstanceOf(UnsupportedOperationException.class);
 	}
 
+	@Test
+	@DisplayName("조회 모델은 상세와 공개 상태가 없으면 생성을 거절하고 취소 시각은 선택 값으로 둔다")
+	void viewRequiresDetailsAndPublicStatus() {
+		// given
+		RegisteredEvent event = registered(List.of());
+		// when / then
+		assertThatThrownBy(() -> new EventView(null, EventStatus.SCHEDULED, null))
+				.isInstanceOf(NullPointerException.class).hasMessage("details");
+		assertThatThrownBy(() -> new EventView(event, null, null))
+				.isInstanceOf(NullPointerException.class).hasMessage("publicStatus");
+		assertThat(new EventView(event, EventStatus.SCHEDULED, null).getCanceledAt()).isNull();
+	}
+
 	private EventRegistration registration(List<EventRegistration.Prize> prizes) {
 		return new EventRegistration(ID, "이벤트", "설명", null, EventType.NO_TICKET, false, null,
 				MembershipRule.excellent, Instant.EPOCH, Instant.EPOCH.plusSeconds(60), prizes);

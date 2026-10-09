@@ -7,4 +7,9 @@ public class EventException extends BusinessException {
 	public EventException(EventErrorCode errorCode) {
 		super(errorCode);
 	}
+
+	public EventException(EventErrorCode errorCode, Throwable cause) {
+		super(errorCode);
+		initCause(cause);
+	}
 }

@@ -81,7 +81,7 @@ public class EventQueryService {
 			return new EventQueryFilter(query.getStatus(), query.getEventType(), null, query.getKeyword(), from, to);
 		} catch (DateTimeException exception) {
 			// HTTP 외의 호출에서도 날짜 계산 범위 초과를 업무 오류로 처리한다.
-			throw new EventException(EventErrorCode.INVALID_QUERY);
+			throw new EventException(EventErrorCode.INVALID_QUERY, exception);
 		}
 	}
 

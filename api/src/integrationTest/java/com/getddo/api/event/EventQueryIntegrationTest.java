@@ -22,6 +22,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.api.support.ApiIntegrationTest;
+import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.event.domain.EventQueryFilter;
+import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.repository.EventQueryRepository;
 import com.jayway.jsonpath.JsonPath;
 import org.springframework.http.MediaType;
 
@@ -38,6 +42,7 @@ class EventQueryIntegrationTest {
 	private static final String CREATED_AT = "2199-01-01T00:00:00Z";
 	@Autowired private MockMvc mvc;
 	@Autowired private JdbcTemplate jdbc;
+	@Autowired private EventQueryRepository events;
 	private UUID admin;
 	private UUID user;
 	private String prefix;
@@ -402,6 +407,40 @@ class EventQueryIntegrationTest {
 		request(admin, "/api/v1/admin/events/" + published).andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.status").value("REDRAWING"));
 		assertThat(jdbc.queryForObject("select count(*) from draw_publications where event_id=?", Integer.class, bytes(published))).isOne();
+	}
+
+	@ParameterizedTest
+	@CsvSource({"SCHEDULED,1", "OPEN,1", "CLOSED,1", "DRAW_CONFIRMED,2", "PUBLISHED,2",
+			"CANCELED,1", "REDRAWING,0", "NO_ENTRANTS,1", "NO_ELIGIBLE_ENTRANTS,1"})
+	@DisplayName("사용자 상태 검색의 목록과 건수는 실제 상태·재추첨 공개 상태를 함께 반영하고 삭제 행은 제외한다")
+	void publicStatusFiltersIncludeDirectAndRedrawingStates(EventStatus filterStatus, int addedCount) {
+		// given
+		for (EventStatus state : EventStatus.values()) {
+			if (state != EventStatus.REDRAWING) {
+				insertEvent(prefix + "-" + state, state.name(), "TICKET", "vip",
+						"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
+			}
+		}
+		UUID published = insertEvent(prefix + "-published-redraw", "REDRAWING", "TICKET", "vip",
+				"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
+		insertPublication(published);
+		insertEvent(prefix + "-waiting-redraw", "REDRAWING", "TICKET", "vip",
+				"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
+		for (String state : new String[]{"PUBLISHED", "DRAW_CONFIRMED", "REDRAWING"}) {
+			UUID deleted = insertEvent(prefix + "-deleted-" + state, state, "TICKET", "vip",
+					"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
+			if ("REDRAWING".equals(state)) {
+				insertPublication(deleted);
+			}
+			jdbc.update("update events set deleted_at = ? where id = ?", at(CREATED_AT), bytes(deleted));
+		}
+		// when: 고유 제목 조건으로 현재 테스트의 행만 검증한다.
+		var result = events.findAll(new EventQueryFilter(filterStatus, null, null, prefix, null, null),
+				new PageQuery(1, 20), true);
+		// then
+		assertThat(result.getTotalElements()).isEqualTo(addedCount);
+		assertThat(result.getItems()).hasSize(addedCount)
+				.allSatisfy(event -> assertThat(event.getPublicStatus()).isEqualTo(filterStatus));
 	}
 
 	@Test
