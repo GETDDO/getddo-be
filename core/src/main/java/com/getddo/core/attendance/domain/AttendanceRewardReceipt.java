@@ -9,7 +9,7 @@ import lombok.Getter;
 /**
  * 출석 보상 한 건의 지급 결과. API 응답의 {@code RewardReceipt}에 대응한다.
  *
- * <p>보상 수량은 1장 이상만 허용하므로 모든 보상은 지급 원장이 있고 {@code grantedAt}·{@code expiresAt}이 항상 있다.</p>
+ * <p>보상 수량은 1장 이상만 허용하므로 모든 보상은 지급 이력이 있고 {@code grantedAt}·{@code expiresAt}이 항상 있다.</p>
  */
 @Getter
 public final class AttendanceRewardReceipt {
