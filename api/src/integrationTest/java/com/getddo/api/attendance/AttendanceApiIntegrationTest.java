@@ -98,6 +98,19 @@ class AttendanceApiIntegrationTest {
 		assertThat(count("select count(*) from attendance_reward_claims where user_id = ?")).isEqualTo(1);
 		assertThat(jdbc.queryForObject("select bin_to_uuid(id) from attendance_reward_claims where user_id = ?",
 				String.class, bytes(USER))).isEqualTo(created.path("rewards").path(0).path("claimId").asString());
+		assertThat(created.path("attendanceId").asString()).isEqualTo(jdbc.queryForObject(
+				"select bin_to_uuid(id) from attendances where user_id = ?", String.class, bytes(USER)));
+		String grantedAt = created.path("rewards").path(0).path("grantedAt").asString();
+		String expiresAt = created.path("rewards").path(0).path("expiresAt").asString();
+		assertThat(grantedAt).isEqualTo("2026-09-15T03:00:00Z");
+		assertThat(expiresAt).isEqualTo("2026-09-30T15:00:00Z");
+		assertThat(jdbc.queryForList("""
+				select date_format(h.created_at, '%Y-%m-%dT%H:%i:%sZ') from ticket_histories h
+				join tickets t on t.id = h.ticket_id where t.user_id = ?
+				""", String.class, bytes(USER))).containsOnly(grantedAt);
+		assertThat(jdbc.queryForList("""
+				select date_format(expires_at, '%Y-%m-%dT%H:%i:%sZ') from tickets where user_id = ?
+				""", String.class, bytes(USER))).containsOnly(expiresAt);
 		assertThat(count("select count(*) from tickets where user_id = ?")).isEqualTo(2);
 		assertThat(count("""
 				select count(*) from ticket_histories h join tickets t on t.id = h.ticket_id
