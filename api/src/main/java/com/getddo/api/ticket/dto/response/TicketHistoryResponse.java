@@ -34,7 +34,7 @@ public record TicketHistoryResponse(UUID id, UUID ticketId, TicketOperationType 
 		UUID correctedHistoryId) {
 
 	/**
-	 * 이력 한 건을 응모 응답으로 옮긴다.
+	 * 이력 한 건을 이력 응답으로 옮긴다.
 	 *
 	 * @param view 서비스가 반환한 이력
 	 * @return 공개 필드만 담은 응답 DTO
