@@ -88,7 +88,7 @@ class TicketApiIntegrationTest {
 		// given: seed()가 본인 응모권(사용 가능 3장, 만료 1장)과 타인 응모권을 준비한다.
 
 		// when / then
-		mvc.perform(get("/api/v1/tickets/wallets/me").headers(userHeaders(USER)))
+		mvc.perform(get("/api/v1/tickets/me").headers(userHeaders(USER)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.availableCount").value(3))
@@ -106,7 +106,7 @@ class TicketApiIntegrationTest {
 		// given: seed()가 본인 지급 이력 4건과 타인 지급 이력 1건을 준비한다.
 
 		// when / then
-		String body = mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(USER)).param("size", "2"))
+		String body = mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(USER)).param("size", "2"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(4))
 				.andExpect(jsonPath("$.data.items[0].id").value(NEWEST.toString()))
@@ -118,7 +118,7 @@ class TicketApiIntegrationTest {
 				.andReturn().getResponse().getContentAsString();
 		String cursor = mapper.readTree(body).path("data").path("nextCursor").asString();
 		assertThat(cursor).isNotBlank();
-		mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(USER))
+		mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(USER))
 						.param("size", "2").param("cursor", cursor))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items.length()").value(2))
@@ -133,12 +133,12 @@ class TicketApiIntegrationTest {
 		// given: seed()가 8/31·9/1·9/2·9/3 01:00Z 지급 이력을 준비한다.
 
 		// when / then
-		mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(USER))
+		mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(USER))
 						.param("from", "2026-09-02T10:00:00+09:00").param("to", "2026-09-03T01:00:00Z"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(1))
 				.andExpect(jsonPath("$.data.items[0].id").value(MIDDLE.toString()));
-		mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(USER)).param("transactionType", "USE"))
+		mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(USER)).param("operationType", "USE"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(0))
 				.andExpect(jsonPath("$.data.items").isEmpty());
@@ -151,15 +151,15 @@ class TicketApiIntegrationTest {
 
 		// when / then
 		for (String[] parameter : new String[][] {{"size", "0"}, {"size", "101"}, {"cursor", "bad cursor"}}) {
-			mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(USER)).param(parameter[0], parameter[1]))
+			mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(USER)).param(parameter[0], parameter[1]))
 					.andExpect(status().isBadRequest())
 					.andExpect(jsonPath("$.code").value("TICKET-004"));
 		}
-		mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(USER))
+		mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(USER))
 						.param("from", "2026-09-03T00:00:00Z").param("to", "2026-09-02T00:00:00Z"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("TICKET-004"));
-		mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(USER)).param("from", "2026-09-01T00:00:00"))
+		mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(USER)).param("from", "2026-09-01T00:00:00"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("COMMON-005"));
 	}
@@ -170,10 +170,10 @@ class TicketApiIntegrationTest {
 		// given: seed()가 사용자를 준비한다.
 
 		// when / then
-		mvc.perform(get("/api/v1/tickets/wallets/me"))
+		mvc.perform(get("/api/v1/tickets/me"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("USER-003"));
-		mvc.perform(get("/api/v1/tickets/ledger/me").headers(userHeaders(UUID.randomUUID())))
+		mvc.perform(get("/api/v1/tickets/histories/me").headers(userHeaders(UUID.randomUUID())))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("USER-002"));
 	}

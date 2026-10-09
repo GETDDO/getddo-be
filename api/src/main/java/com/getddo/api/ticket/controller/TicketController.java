@@ -38,7 +38,7 @@ public class TicketController {
 	 * @param user 공통 MVC에서 확인한 등록 사용자
 	 * @return 사용 가능 장수, 등급별 장수, 등급·만료 시각별 묶음, 서버 시각
 	 */
-	@GetMapping("/wallets/me")
+	@GetMapping("/me")
 	public ResponseEnvelope<MyTicketsResponse> findMyTickets(@CurrentUser(membershipRequired = false) User user) {
 		return ResponseEnvelope.success(MyTicketsResponse.from(service.getMyTickets(user.id())));
 	}
@@ -51,20 +51,20 @@ public class TicketController {
 	 * @param user 공통 MVC에서 확인한 등록 사용자
 	 * @param cursor 이전 응답의 nextCursor. 첫 조회에서는 생략
 	 * @param size 조회할 최대 건수. 기본 20, 허용 범위 1~100
-	 * @param transactionType 처리 유형 필터. 생략하면 전체
+	 * @param operationType 처리 유형 필터. 생략하면 전체
 	 * @param from 시작 시각(포함). 생략하면 제한 없음
 	 * @param to 끝 시각(제외). 생략하면 제한 없음
 	 * @return 이력 목록과 다음 커서, 조회 조건에 맞는 전체 건수
 	 */
-	@GetMapping("/ledger/me")
+	@GetMapping("/histories/me")
 	public ResponseEnvelope<CursorResult<TicketHistoryResponse>> findMyHistory(
 			@CurrentUser(membershipRequired = false) User user,
 			@RequestParam(required = false) String cursor,
 			@RequestParam(defaultValue = "20") int size,
-			@RequestParam(required = false) TicketOperationType transactionType,
+			@RequestParam(required = false) TicketOperationType operationType,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
-		TicketHistoryFilter filter = TicketHistoryFilter.of(transactionType,
+		TicketHistoryFilter filter = TicketHistoryFilter.of(operationType,
 				from == null ? null : from.toInstant(), to == null ? null : to.toInstant());
 		return ResponseEnvelope.success(
 				service.getMyHistory(user.id(), filter, cursor, size).map(TicketHistoryResponse::from));

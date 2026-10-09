@@ -81,7 +81,7 @@ class TicketControllerTest {
 				new TicketHolding(TicketGrade.GOLD, Instant.parse("2026-10-31T15:00:00Z"), 1)), NOW));
 
 		// when / then
-		mvc.perform(selected(get("/api/v1/tickets/wallets/me")))
+		mvc.perform(selected(get("/api/v1/tickets/me")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.availableCount").value(4))
 				.andExpect(jsonPath("$.data.serverTime").value("2026-09-15T03:00:00Z"))
@@ -107,8 +107,8 @@ class TicketControllerTest {
 				.thenReturn(new CursorResult<>(List.of(grant), "after-grant", 7));
 
 		// when / then
-		mvc.perform(selected(get("/api/v1/tickets/ledger/me"))
-						.param("cursor", "next-page").param("size", "10").param("transactionType", "GRANT")
+		mvc.perform(selected(get("/api/v1/tickets/histories/me"))
+						.param("cursor", "next-page").param("size", "10").param("operationType", "GRANT")
 						.param("from", "2026-09-01T00:00:00+09:00").param("to", "2026-10-01T00:00:00Z"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items[0].id").value(grant.getId().toString()))
@@ -138,7 +138,7 @@ class TicketControllerTest {
 				.thenReturn(new CursorResult<>(List.of(), null, 0));
 
 		// when / then
-		mvc.perform(selected(get("/api/v1/tickets/ledger/me")))
+		mvc.perform(selected(get("/api/v1/tickets/histories/me")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items").isEmpty())
 				.andExpect(jsonPath("$.data.nextCursor").value(nullValue()))
@@ -158,20 +158,20 @@ class TicketControllerTest {
 				.thenThrow(new TicketException(TicketErrorCode.TICKET_INVALID_HISTORY_QUERY));
 
 		// when / then
-		mvc.perform(selected(get("/api/v1/tickets/ledger/me")).param("size", "0"))
+		mvc.perform(selected(get("/api/v1/tickets/histories/me")).param("size", "0"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("TICKET-004"));
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"transactionType=PURCHASE", "from=2026-09-01T00:00:00", "to=yesterday", "size=many"})
+	@ValueSource(strings = {"operationType=PURCHASE", "from=2026-09-01T00:00:00", "to=yesterday", "size=many"})
 	@DisplayName("처리 유형·시각·개수를 해석할 수 없으면 서비스를 부르지 않고 400 COMMON-005로 응답한다")
 	void rejectsUnparsableParameters(String parameter) throws Exception {
 		// given
 		String[] pair = parameter.split("=", 2);
 
 		// when / then
-		mvc.perform(selected(get("/api/v1/tickets/ledger/me")).param(pair[0], pair[1]))
+		mvc.perform(selected(get("/api/v1/tickets/histories/me")).param(pair[0], pair[1]))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("COMMON-005"));
 		verifyNoInteractions(service);
@@ -182,10 +182,10 @@ class TicketControllerTest {
 	void requiresUserHeaders() throws Exception {
 		// given
 		// when / then
-		mvc.perform(get("/api/v1/tickets/wallets/me"))
+		mvc.perform(get("/api/v1/tickets/me"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("USER-003"));
-		mvc.perform(get("/api/v1/tickets/ledger/me"))
+		mvc.perform(get("/api/v1/tickets/histories/me"))
 				.andExpect(status().isUnauthorized());
 		verifyNoInteractions(service);
 	}
