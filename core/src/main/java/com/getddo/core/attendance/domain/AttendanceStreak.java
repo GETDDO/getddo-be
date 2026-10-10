@@ -1,6 +1,7 @@
 package com.getddo.core.attendance.domain;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -9,7 +10,7 @@ import lombok.Getter;
 /**
  * 사용자의 월별 연속 출석 현황.
  *
- * <p>연속 일수는 같은 KST 기준월 안에서만 센다. 매월 1일에는 새 현황으로 시작하고, 전날 출석하지 않았으면 1로 돌아간다.
+ * <p>연속 일수는 같은 KST 기준월 안에서만 센다. 매월 1일에는 새 현황으로 시작하고, 하루라도 빠지면 1로 돌아간다.
  * 그 달에 처음 적용한 연속 출석 정책 묶음을 월말까지 유지한다.</p>
  */
 @Getter
@@ -43,21 +44,24 @@ public final class AttendanceStreak {
 	}
 
 	/**
-	 * 같은 달의 새 출석을 반영한 현황을 반환한다. 이 객체는 바꾸지 않는다.
+	 * 그 달의 출석 날짜로 현황을 다시 계산해 반환한다. 이 객체는 바꾸지 않는다.
 	 *
-	 * <p>전날 출석했으면 1을 더하고, 하루라도 빠졌으면 1부터 다시 센다. 자정 전후 요청이 거꾸로 처리되어 마지막 반영일보다
-	 * 이르거나 같은 날짜가 오면 연속 일수를 바꾸지 않는다.</p>
+	 * <p>연속 일수는 마지막 출석일로 끝나는 연속 구간의 길이다. 요청이 처리된 순서가 아니라 출석 기록만으로 정하므로,
+	 * 자정 전후 요청이 거꾸로 커밋되어도 순서대로 처리했을 때와 같은 결과가 된다.</p>
 	 *
-	 * @throws IllegalArgumentException 다른 달의 날짜인 경우
+	 * @param sortedAttendedDates 그 달의 출석 KST 날짜(오름차순). 비어 있으면 안 된다
+	 * @throws IllegalArgumentException 날짜가 없거나 다른 달의 날짜가 있는 경우
 	 */
-	public AttendanceStreak attend(LocalDate attendanceDate) {
-		if (!attendanceDate.withDayOfMonth(1).equals(streakMonth)) {
+	public AttendanceStreak recalculate(List<LocalDate> sortedAttendedDates) {
+		if (sortedAttendedDates.isEmpty()) {
+			throw new IllegalArgumentException("출석 날짜가 있어야 연속 현황을 계산할 수 있다.");
+		}
+		if (sortedAttendedDates.stream().anyMatch(date -> !date.withDayOfMonth(1).equals(streakMonth))) {
 			throw new IllegalArgumentException("연속 출석은 같은 달 안에서만 이어진다.");
 		}
-		if (!attendanceDate.isAfter(lastAttendanceDate)) {
-			return this;
-		}
-		int days = attendanceDate.equals(lastAttendanceDate.plusDays(1)) ? consecutiveDays + 1 : 1;
-		return new AttendanceStreak(id, userId, policySetId, streakMonth, days, attendanceDate);
+		List<ConsecutiveRuns.Run> runs = ConsecutiveRuns.of(sortedAttendedDates);
+		ConsecutiveRuns.Run last = runs.get(runs.size() - 1);
+		LocalDate lastDate = last.start().plusDays(last.length() - 1L);
+		return new AttendanceStreak(id, userId, policySetId, streakMonth, last.length(), lastDate);
 	}
 }

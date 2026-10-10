@@ -1,9 +1,10 @@
 package com.getddo.core.attendance.domain;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 import lombok.Getter;
@@ -26,11 +27,22 @@ public final class StreakPolicySet {
 	}
 
 	/**
-	 * 연속 일수가 정확히 도달한 단계를 찾는다. 연속 일수는 하루에 1씩 늘어나므로 도달한 날에만 해당한다.
+	 * 출석 날짜에서 각 단계에 처음 도달한 날짜를 찾는다. 단계 일수 이상 이어진 첫 연속 구간의 그 일수째 날이다.
+	 * 연속이 끊긴 뒤 다시 도달해도 이미 도달한 단계는 처음 도달한 날짜 하나만 돌려준다.
 	 *
-	 * @return 도달한 단계. 없으면 빈 값
+	 * @param sortedDates 그 달의 출석 KST 날짜(오름차순)
+	 * @return 도달한 단계, 단계 일수 오름차순. 도달한 단계가 없으면 빈 목록
 	 */
-	public Optional<StreakMilestone> milestoneReachedAt(int consecutiveDays) {
-		return milestones.stream().filter(milestone -> milestone.getMilestoneDays() == consecutiveDays).findFirst();
+	public List<ReachedMilestone> reachedBy(List<LocalDate> sortedDates) {
+		List<ConsecutiveRuns.Run> runs = ConsecutiveRuns.of(sortedDates);
+		List<ReachedMilestone> reached = new ArrayList<>();
+		for (StreakMilestone milestone : milestones) {
+			runs.stream()
+					.filter(run -> run.length() >= milestone.getMilestoneDays())
+					.findFirst()
+					.ifPresent(run -> reached.add(new ReachedMilestone(milestone,
+							run.start().plusDays(milestone.getMilestoneDays() - 1L))));
+		}
+		return List.copyOf(reached);
 	}
 }

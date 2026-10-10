@@ -2,7 +2,6 @@ package com.getddo.core.attendance.domain;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
@@ -62,22 +61,5 @@ class AttendanceRewardClaimTest {
 		// then
 		assertThatNullPointerException().isThrownBy(() ->
 				AttendanceRewardClaim.daily(unsaved, new DailyRewardPolicy(UUID.randomUUID(), 1)));
-	}
-
-	@Test
-	@DisplayName("연속 일수가 단계 일수와 정확히 같은 날에만 그 단계에 도달한다")
-	void milestoneReachedOnlyOnExactDay() {
-		// given
-		StreakPolicySet set = new StreakPolicySet(UUID.randomUUID(), List.of(
-				new StreakMilestone(UUID.randomUUID(), 28, 7),
-				new StreakMilestone(UUID.randomUUID(), 7, 1),
-				new StreakMilestone(UUID.randomUUID(), 14, 3)));
-		// when
-		// then
-		assertThat(set.getMilestones()).extracting(StreakMilestone::getMilestoneDays).containsExactly(7, 14, 28);
-		assertThat(set.milestoneReachedAt(7)).map(StreakMilestone::getRewardTicketCount).contains(1);
-		assertThat(set.milestoneReachedAt(14)).map(StreakMilestone::getRewardTicketCount).contains(3);
-		assertThat(set.milestoneReachedAt(8)).isEmpty();
-		assertThat(set.milestoneReachedAt(31)).isEmpty();
 	}
 }
