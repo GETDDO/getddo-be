@@ -1,6 +1,6 @@
 # 추첨 실행·후보 스냅샷 저장
 
-- 상태: 검토 대기 — Codex 작성, 담당자 확인 전
+- 상태: 응모 수량·이벤트 잠금·후보 확정 경계 합의 확인 — JPA 보완 구현은 검토 대기
 - 구현 범위: GD-84 최초 실행과 후보·조건 스냅샷 확정
 - 기준: [통합 ERD](schema.dbml), [공용 추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [ADR-014](https://github.com/GETDDO/getddo-spec/blob/main/03-decisions/014-random-ticket-grades.md)
 - 사용자 확인: 사용 이력에서 등급별 장수 집계, 응모별 검증 후 누적 대조, D 구현을 기다리지 않고 추첨 측 구현, 대상 없는 두 정상 종료 상태 추가.
@@ -25,6 +25,15 @@
 - D 담당 응모 흐름·제외 확정 흐름도 기존 합의에 따라 이벤트부터 잠가야 한다. 이 작업에서 그 담당 코드를 대신 구현하거나 변경하지 않는다. 실제 응모·차감 서비스와의 경합 검증은 해당 구현 반영 후 추가한다.
 
 ## 스냅샷과 불변성
+
+### JPA 영속성 — GD-84 2026-10-10 보완
+
+- `DrawRunEntity`, `DrawCandidateEntity`는 공통 `BaseEntity`의 UUID v7와 생성 시각 Auditing을 사용한다. 실행의 확정·시작·결과 확정 시각은 별도 `Instant` 필드다. `updated_at`이 없는 실제 테이블에 맞춰 `BaseUpdatableEntity`를 상속하지 않는다.
+- 실행 종류·상태는 문자열 enum, UUID는 `BINARY(16)`, 스냅샷 문자열은 Hibernate JSON 타입으로 매핑한다. DB에는 문자열로 감싼 JSON이 아니라 JSON 객체를 저장하며 core 모델 변환은 `DrawSnapshotMapper`에서 수행한다.
+- `DrawRunCandidateId`의 `(draw_run_id, candidate_id)` 복합 식별자와 `@MapsId` 연관관계로 실행·후보 FK를 매핑한다. 실행별 차수와 최초 실행별 참가자 UNIQUE는 Flyway 스키마와 같은 이름·컬럼으로 선언한다. 이벤트·참가자 등 다른 담당 영역의 참조는 기존 관례에 따라 UUID 값으로 두고 FK 검증은 실제 DB 제약이 담당한다.
+- `DrawSnapshotRepositoryImpl`은 JPA 저장소를 통해 실행·최초 후보·실행별 연결을 저장하고 연결된 후보만 조회한다. PREPARING → 후보 → 연결 → 입력 확정 순서로 flush하며 같은 서비스 트랜잭션에서 커밋·롤백한다. 후보와 연결은 불변 엔티티이며, 실행 입력은 PREPARING에서 한 번만 확정한다.
+- `DrawSnapshotSourceReader`는 기존 이벤트 `FOR UPDATE`와 응모자·응모·USE 이력 조회 SQL만 재사용한다. JDBC로 추첨 테이블을 저장하거나 조회하는 중복 경로는 없다. 다른 담당자의 엔티티·원본 데이터 모델·잠금 순서를 변경하지 않는다.
+- 기존 V007·V016과 DB 구조를 유지한다. JPA 매핑 자체를 위한 새 마이그레이션은 필요하지 않다. `draw_results` 엔티티는 GD-85 범위다.
 
 한 트랜잭션에서 PREPARING 실행, `draw_candidates`의 최초 후보 상세 정보, `draw_run_candidates`의 최초 실행별 후보 연결을 저장하고 READY로 전환한다. 중간 저장 실패 시 실행과 후보·연결이 모두 롤백된다.
 
