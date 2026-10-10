@@ -46,7 +46,7 @@ jobs:
           title = os.environ["PR_TITLE"]
           valid_title = re.fullmatch(pattern, title) is not None
           if is_worklog_branch:
-              valid_title = valid_title or re.fullmatch(r"\[docs\] \S[^\r\n]*", title) is not None
+              valid_title = valid_title or re.fullmatch(r"\[docs\] (?!GD-)\S[^\r\n]*", title) is not None
 
           if not valid_title:
               print("::error::PR 제목은 [타입] GD-번호 작업 설명 형식이어야 합니다. "
