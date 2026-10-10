@@ -30,4 +30,22 @@ class TicketErrorCodeTest {
 		assertThat(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH.getCode()).isEqualTo("TICKET-003");
 		assertThat(TicketErrorCode.TICKET_GRANT_SOURCE_MISMATCH.getStatus()).isEqualTo(409);
 	}
+
+	@Test
+	@DisplayName("차감·반환 오류의 코드와 HTTP 상태는 TICKET-005부터 009까지 정해진 값이다")
+	void useAndRefundCodes() {
+		// given
+		// when
+		// then
+		assertThat(TicketErrorCode.TICKET_INVALID_USE.getCode()).isEqualTo("TICKET-005");
+		assertThat(TicketErrorCode.TICKET_INVALID_USE.getStatus()).isEqualTo(400);
+		assertThat(TicketErrorCode.TICKET_INSUFFICIENT.getCode()).isEqualTo("TICKET-006");
+		assertThat(TicketErrorCode.TICKET_INSUFFICIENT.getStatus()).isEqualTo(409);
+		assertThat(TicketErrorCode.TICKET_USE_NOT_FOUND.getCode()).isEqualTo("TICKET-007");
+		assertThat(TicketErrorCode.TICKET_USE_NOT_FOUND.getStatus()).isEqualTo(404);
+		assertThat(TicketErrorCode.TICKET_USE_MISMATCH.getCode()).isEqualTo("TICKET-008");
+		assertThat(TicketErrorCode.TICKET_USE_MISMATCH.getStatus()).isEqualTo(409);
+		assertThat(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH.getCode()).isEqualTo("TICKET-009");
+		assertThat(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH.getStatus()).isEqualTo(409);
+	}
 }

@@ -13,4 +13,9 @@ public interface TicketHistoryJpaRepository extends JpaRepository<TicketHistoryE
 
 	List<TicketHistoryEntity> findByTicketIdInAndOperationType(Collection<UUID> ticketIds,
 			TicketOperationType operationType);
+
+	List<TicketHistoryEntity> findByEventEntryIdAndOperationTypeOrderByTicketId(UUID eventEntryId,
+			TicketOperationType operationType);
+
+	List<TicketHistoryEntity> findByOriginalUseHistoryIdInOrderByTicketId(Collection<UUID> originalUseHistoryIds);
 }

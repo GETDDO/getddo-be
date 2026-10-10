@@ -87,4 +87,12 @@ public class TicketEntity {
 		this.createdAt = createdAt;
 		this.updatedAt = updatedAt;
 	}
+
+	/** 사용·반환·만료 처리가 바꾸는 값만 한꺼번에 반영한다. 등급·소유자·청구·생성 시각은 바꾸지 않는다. */
+	public void applyTransition(TicketStatus status, Instant expiresAt, long version, Instant updatedAt) {
+		this.status = status;
+		this.expiresAt = expiresAt;
+		this.version = version;
+		this.updatedAt = updatedAt;
+	}
 }
