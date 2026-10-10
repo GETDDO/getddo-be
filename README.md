@@ -15,7 +15,7 @@
 
 GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫폼**입니다. 출석·미션·게임으로 응모권을 모으고, 이벤트에 응모한 뒤 추첨 결과를 확인하는 흐름을 제공합니다.
 
-이 저장소는 GETDDO의 백엔드입니다. 응모권 잔액과 이력의 정합성, 중복 요청 방지, 추첨 후보·조건·결과 보존을 중심으로 개발하고 있습니다. 가상 사용자와 더미 데이터로 시연하며, 외부 알림 발송은 모의 처리합니다.
+이 저장소는 GETDDO의 백엔드입니다. 보유 응모권과 이력의 정합성, 중복 요청 방지, 추첨 후보·조건·결과 보존을 중심으로 개발하고 있습니다. 가상 사용자와 더미 데이터로 시연하며, 외부 알림 발송은 모의 처리합니다.
 
 프로젝트의 목표와 범위는 [공용 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/README.md)을 기준으로 합니다.
 
@@ -40,7 +40,7 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 | 기능 | 내용 |
 | --- | --- |
 | 출석·미션·게임 | 일일·연속 출석, 퀴즈·설문, 게임 수행에 따른 응모권 보상 |
-| 응모권 관리 | 응모권 잔액과 지급·차감·반환·회수·만료 이력 관리 |
+| 응모권 관리 | 보유 응모권과 지급·차감·반환·정정·만료 이력 관리 |
 | 이벤트·응모 | 이벤트와 경품 조회, 응모 조건 검증, 응모 접수와 내 응모 내역 조회 |
 | 참여 검토·추첨 | 어뷰징 의심 건 검토, 추첨 후보·조건 보존, 가중치 추첨과 결과 발표 |
 | 백오피스 | 이벤트·경품·배너·보상 정책 운영, 사용자·응모·감사 로그 조회 |
@@ -88,7 +88,7 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 | [미션](https://github.com/GETDDO/getddo-be/wiki/ERD-mission) | 10 | 퀴즈·설문·제출·보상 기록 |
 | [게임](https://github.com/GETDDO/getddo-be/wiki/ERD-game) | 4 | 게임·플레이·통계·보상 기록 |
 | [보상 정책](https://github.com/GETDDO/getddo-be/wiki/ERD-reward) | 1 | 출석·미션·게임의 보상 정책 |
-| [응모권](https://github.com/GETDDO/getddo-be/wiki/ERD-ticket) | 5 | 지갑·원장·배분·반환·회수 |
+| [응모권](https://github.com/GETDDO/getddo-be/wiki/ERD-ticket) | 2 | 응모권 한 장의 현재 상태와 처리 이력 |
 | [어뷰징 검토](https://github.com/GETDDO/getddo-be/wiki/ERD-abuse) | 1 | 의심 행위 탐지와 관리자 검토 |
 | [추첨·발표](https://github.com/GETDDO/getddo-be/wiki/ERD-drawing) | 6 | 추첨 실행·후보·결과·당첨·발표 |
 | [알림](https://github.com/GETDDO/getddo-be/wiki/ERD-notification) | 2 | 알림 생성 작업과 사용자 알림 |
@@ -175,7 +175,7 @@ docker compose up --build -d
 
 앱은 `http://localhost:8080`, MySQL 8.4는 `localhost:3306`에서 접근할 수 있습니다. Compose는 `local` Spring 프로필을 활성화하고, `application-local.yaml`에 정의된 MySQL JDBC 연결에 DB 환경변수를 전달합니다. MySQL 데이터는 Compose 볼륨에 유지됩니다. 종료할 때는 `docker compose down`을 사용합니다.
 
-앱 시작 시 Flyway가 `storage:db`의 도메인별 SQL V001~V011·V014를 버전 순서대로 적용합니다. V001~V011은 44개 테이블을 생성하고 V014는 알림 작업·발송 재시도 조회용 인덱스를 추가합니다. 이벤트의 논리 삭제 시각, 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
+앱 시작 시 Flyway가 `storage:db`의 도메인별 SQL V001~V011·V014·V016를 버전 순서대로 적용합니다. V001~V011은 44개 테이블을 생성하고 V014는 알림 작업·발송 재시도 조회용 인덱스를, V016은 최초 추첨의 대상 없는 정상 종료 상태를 추가합니다. 이벤트의 논리 삭제 시각, 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
 
 ### 터미널
 

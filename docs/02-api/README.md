@@ -21,7 +21,7 @@ DB 연결 등 애플리케이션 실행 준비를 마친 뒤 `./gradlew :api:boo
 | OpenAPI JSON | <http://localhost:8080/v3/api-docs> |
 
 Swagger UI 진입 주소는 `/swagger-ui/index.html`로 이동합니다.
-현재 사용자·알림·관리자 이벤트 Controller의 API가 표시됩니다. `@CurrentUser User`를 받는 API에는 공통 사용자 헤더 입력란이 자동으로 추가됩니다.
+현재 사용자·알림·관리자 이벤트·응모권 조회·출석 Controller의 API가 표시됩니다. `@CurrentUser User`를 받는 API에는 공통 사용자 헤더 입력란이 자동으로 추가됩니다.
 
 ## 자동 문서 생성
 

@@ -1,5 +1,6 @@
 package com.getddo.core.attendance.repository;
 
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,6 +16,15 @@ public interface AttendanceRewardClaimRepository {
 	 * @return 일일 보상이 먼저, 단계 보상은 단계 일수 오름차순
 	 */
 	List<AttendanceRewardClaim> findByAttendanceId(UUID attendanceId);
+
+	/**
+	 * 사용자가 해당 월에 받은 연속 출석 단계 보상 청구를 조회한다.
+	 *
+	 * @param userId 사용자 ID
+	 * @param month  청구 기준일이 속한 KST 월
+	 * @return 단계 일수 오름차순. 없으면 빈 목록
+	 */
+	List<AttendanceRewardClaim> findStreakClaims(UUID userId, YearMonth month);
 
 	/**
 	 * 같은 중복 방지 키의 청구가 이미 있는지 확인한다. 같은 달 같은 단계 보상을 다시 청구하지 않으려고 쓴다.
