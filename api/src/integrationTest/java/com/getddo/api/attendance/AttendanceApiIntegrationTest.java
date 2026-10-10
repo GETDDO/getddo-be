@@ -26,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.getddo.api.support.ApiIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -85,6 +86,8 @@ class AttendanceApiIntegrationTest {
 				.andExpect(jsonPath("$.data.consecutiveDays").value(1))
 				.andExpect(jsonPath("$.data.rewards.length()").value(1))
 				.andExpect(jsonPath("$.data.rewards[0].ticketCount").value(2))
+				.andExpect(jsonPath("$.data.rewards[0].rewardType").value("DAILY"))
+				.andExpect(jsonPath("$.data.rewards[0].milestoneDays").value(org.hamcrest.Matchers.nullValue()))
 				.andReturn().getResponse().getContentAsString();
 		JsonNode created = mapper.readTree(first).path("data");
 
@@ -166,6 +169,110 @@ class AttendanceApiIntegrationTest {
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("USER-002"));
 		assertThat(count("select count(*) from attendances where user_id = ?")).isZero();
+	}
+
+	@Test
+	@DisplayName("AT01은 출석 전에는 attended=false·연속 0이고 일일 보상 수량과 단계 3개, 다음 KST 자정을 돌려준다")
+	void todayBeforeAttending() throws Exception {
+		// given
+		seedPolicies();
+
+		// when / then
+		mvc.perform(get("/api/v1/attendances/today").headers(userHeaders(USER)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.attendanceDate").value("2026-09-15"))
+				.andExpect(jsonPath("$.data.attended").value(false))
+				.andExpect(jsonPath("$.data.consecutiveDays").value(0))
+				.andExpect(jsonPath("$.data.dailyRewardTicketCount").value(2))
+				.andExpect(jsonPath("$.data.nextResetAt").value("2026-09-15T15:00:00Z"))
+				.andExpect(jsonPath("$.data.serverTime").value("2026-09-15T03:00:00Z"))
+				.andExpect(jsonPath("$.data.milestones.length()").value(3))
+				.andExpect(jsonPath("$.data.milestones[0].milestoneDays").value(7))
+				.andExpect(jsonPath("$.data.milestones[0].rewardTicketCount").value(1))
+				.andExpect(jsonPath("$.data.milestones[0].claimed").value(false))
+				.andExpect(jsonPath("$.data.milestones[2].milestoneDays").value(28))
+				.andExpect(jsonPath("$.data.milestones[2].rewardTicketCount").value(7));
+	}
+
+	@Test
+	@DisplayName("AT01은 출석한 뒤에는 attended=true·연속 1이고 AT03은 그 달 출석 날짜에 오늘을 포함한다")
+	void todayAndMonthAfterAttending() throws Exception {
+		// given
+		seedPolicies();
+		mvc.perform(post("/api/v1/attendances").headers(userHeaders(USER))).andExpect(status().isCreated());
+
+		// when / then
+		mvc.perform(get("/api/v1/attendances/today").headers(userHeaders(USER)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.attended").value(true))
+				.andExpect(jsonPath("$.data.consecutiveDays").value(1));
+		mvc.perform(get("/api/v1/attendances").headers(userHeaders(USER)).param("month", "2026-09"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.month").value("2026-09"))
+				.andExpect(jsonPath("$.data.attendanceDates.length()").value(1))
+				.andExpect(jsonPath("$.data.attendanceDates[0]").value("2026-09-15"))
+				.andExpect(jsonPath("$.data.milestones.length()").value(3))
+				.andExpect(jsonPath("$.data.milestones[0].claimed").value(false))
+				.andExpect(jsonPath("$.data.serverTime").value("2026-09-15T03:00:00Z"));
+	}
+
+	@Test
+	@DisplayName("AT03은 기록이 없는 달이나 미래의 달도 200과 빈 날짜 목록을 돌려준다")
+	void emptyMonthIsNotAnError() throws Exception {
+		// given
+		seedPolicies();
+
+		// when / then
+		mvc.perform(get("/api/v1/attendances").headers(userHeaders(USER)).param("month", "2026-10"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.attendanceDates.length()").value(0))
+				.andExpect(jsonPath("$.data.milestones.length()").value(3));
+		mvc.perform(get("/api/v1/attendances").headers(userHeaders(USER)).param("month", "2030-01"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.attendanceDates.length()").value(0));
+	}
+
+	@Test
+	@DisplayName("AT03에서 month가 YYYY-MM 형식이 아니거나 없으면 400으로 응답한다")
+	void rejectsInvalidMonth() throws Exception {
+		// given
+		seedPolicies();
+
+		// when / then
+		for (String month : new String[] {"2026-13", "202609", "2026-9", "2026-09-01", "abc"}) {
+			mvc.perform(get("/api/v1/attendances").headers(userHeaders(USER)).param("month", month))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.success").value(false));
+		}
+		mvc.perform(get("/api/v1/attendances").headers(userHeaders(USER)))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	@DisplayName("AT01에서 적용할 정책이 없으면 500 ATTENDANCE-001로 응답한다")
+	void todayWithoutPolicyFails() throws Exception {
+		// given: 정책을 넣지 않는다
+
+		// when / then
+		mvc.perform(get("/api/v1/attendances/today").headers(userHeaders(USER)))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.code").value("ATTENDANCE-001"));
+	}
+
+	@Test
+	@DisplayName("AT01·AT03도 사용자 헤더가 없으면 401로 응답한다")
+	void queriesRequireUserHeaders() throws Exception {
+		// given
+		seedPolicies();
+
+		// when / then
+		mvc.perform(get("/api/v1/attendances/today"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("USER-003"));
+		mvc.perform(get("/api/v1/attendances").param("month", "2026-09"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("USER-003"));
 	}
 
 	/** 종료 없는 일일 정책(2장)과 7·14·28일 단계 정책 묶음을 넣는다. 둘 다 DB 전체에서 하나만 둘 수 있다. */

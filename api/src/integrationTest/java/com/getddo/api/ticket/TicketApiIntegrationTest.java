@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -177,7 +178,7 @@ class TicketApiIntegrationTest {
 		List<String> ids = new ArrayList<>();
 		String cursor = null;
 		for (int page = 0; page < 10; page++) {
-			var request = get("/api/v1/tickets/histories/me").headers(userHeaders(USER)).param("size", "1");
+			MockHttpServletRequestBuilder request = get("/api/v1/tickets/histories/me").headers(userHeaders(USER)).param("size", "1");
 			if (cursor != null) {
 				request.param("cursor", cursor);
 			}

@@ -1,5 +1,6 @@
 package com.getddo.api.ticket.controller;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Arrays;
 import java.time.LocalDate;
@@ -198,7 +199,7 @@ class TicketControllerTest {
 
 		// when / then
 		for (String methodName : new String[]{"findMyTickets", "findMyHistory"}) {
-			var method = Arrays.stream(TicketController.class.getDeclaredMethods())
+			Method method = Arrays.stream(TicketController.class.getDeclaredMethods())
 					.filter(candidate -> candidate.getName().equals(methodName)).findFirst().orElseThrow();
 			Operation operation = new OpenApiConfig().currentUserHeaders()
 					.customize(new Operation(), new HandlerMethod(controller, method));

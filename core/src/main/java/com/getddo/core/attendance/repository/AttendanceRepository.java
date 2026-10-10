@@ -1,6 +1,8 @@
 package com.getddo.core.attendance.repository;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,6 +18,15 @@ public interface AttendanceRepository {
 	 * @return 출석. 없으면 빈 값
 	 */
 	Optional<Attendance> findByUserIdAndDate(UUID userId, LocalDate attendanceDate);
+
+	/**
+	 * 사용자가 해당 월에 출석한 KST 날짜를 조회한다.
+	 *
+	 * @param userId 사용자 ID
+	 * @param month  조회할 KST 월
+	 * @return 날짜 오름차순. 출석이 없으면 빈 목록
+	 */
+	List<LocalDate> findAttendanceDates(UUID userId, YearMonth month);
 
 	/**
 	 * 출석을 저장하고 바로 DB에 반영한다.
