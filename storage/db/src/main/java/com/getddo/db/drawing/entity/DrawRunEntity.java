@@ -73,6 +73,9 @@ public class DrawRunEntity extends BaseEntity {
 				&& status != DrawRunStatus.NO_CANDIDATES) {
 			throw new IllegalArgumentException("최초 입력 확정 상태가 아닙니다.");
 		}
+		if (algorithmVersion == null || rulesSnapshot == null || fixedAt == null) {
+			throw new IllegalArgumentException("확정 입력은 알고리즘 버전·규칙·확정 시각이 필요합니다.");
+		}
 		this.status = status;
 		this.algorithmVersion = algorithmVersion;
 		this.rulesSnapshot = rulesSnapshot;
