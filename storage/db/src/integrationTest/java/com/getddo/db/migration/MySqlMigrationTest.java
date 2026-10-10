@@ -32,6 +32,7 @@ class MySqlMigrationTest {
 	private static Flyway flyway;
 	private static int appliedMigrations;
 
+	/** 스키마 검증 사례들이 공유할 빈 테스트 DB에 전체 마이그레이션을 한 번 적용한다. */
 	@BeforeAll
 	static void migrate() {
 		flyway = Flyway.configure()
@@ -41,19 +42,23 @@ class MySqlMigrationTest {
 		appliedMigrations = flyway.migrate().migrationsExecuted;
 	}
 
+	/** 빈 DB에 알림 인덱스를 포함한 스키마를 적용하고 재실행의 멱등성을 검증한다. */
 	@Test
-	@DisplayName("빈 MySQL에 V001~V011의 44개 테이블을 적용하고 재실행을 확인한다")
+	@DisplayName("빈 MySQL에 V001~V011·V014의 44개 테이블·알림 인덱스와 재실행을 확인한다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(appliedMigrations).isEqualTo(11);
+		assertThat(appliedMigrations).isEqualTo(12);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		flyway.validate();
 		assertNullableDeletedAtColumn("events");
+		assertIndexExists("notification_jobs", "ix_notification_job_pending");
+		assertIndexExists("notification_jobs", "ix_notification_job_lease");
+		assertIndexExists("notifications", "ix_notification_delivery_retry");
 		try (Connection connection = connect();
 			ResultSet rows = connection.createStatement().executeQuery("""
 					select count(*) from information_schema.tables
@@ -61,6 +66,15 @@ class MySqlMigrationTest {
 					""")) {
 			assertThat(rows.next()).isTrue();
 			assertThat(rows.getInt(1)).isEqualTo(44);
+		}
+		try (Connection connection = connect();
+			ResultSet rows = connection.createStatement().executeQuery("""
+					select count(*) from information_schema.columns
+					where table_schema = database() and table_name = 'notification_jobs'
+					and column_name in ('publication_id', 'target_user_id')
+					""")) {
+			assertThat(rows.next()).isTrue();
+			assertThat(rows.getInt(1)).isZero();
 		}
 	}
 
@@ -212,6 +226,19 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** MySQL 메타데이터에서 워커 선점·재시도에 필요한 인덱스의 적용을 확인한다. */
+	private void assertIndexExists(String tableName, String indexName) throws SQLException {
+		try (Connection connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+			ResultSet indexes = connection.getMetaData().getIndexInfo(null, null, tableName, false, false)) {
+			boolean found = false;
+			while (indexes.next()) {
+				found |= indexName.equals(indexes.getString("INDEX_NAME"));
+			}
+			assertThat(found).as(indexName).isTrue();
+		}
+	}
+
+	/** 논리 삭제 컬럼이 기존 활성 데이터를 표현할 수 있도록 null을 허용하는지 확인한다. */
 	private void assertNullableDeletedAtColumn(String tableName) throws SQLException {
 		try (Connection connection = connect();
 			ResultSet columns = connection.getMetaData().getColumns(null, null, tableName, "deleted_at")) {
