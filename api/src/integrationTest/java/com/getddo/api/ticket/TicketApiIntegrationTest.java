@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import com.getddo.api.support.ApiIntegrationTest;
@@ -41,6 +44,10 @@ class TicketApiIntegrationTest {
 	private static final UUID MIDDLE = UUID.fromString("00000000-0000-0000-0000-000000000222");
 	private static final UUID NEWEST = UUID.fromString("00000000-0000-0000-0000-000000000223");
 	private static final UUID OTHER_GRANT = UUID.fromString("00000000-0000-0000-0000-000000000224");
+	private static final UUID TIE_TICKET_A = UUID.fromString("00000000-0000-0000-0000-000000000230");
+	private static final UUID TIE_TICKET_B = UUID.fromString("00000000-0000-0000-0000-000000000231");
+	private static final UUID TIE_A = UUID.fromString("00000000-0000-0000-0000-000000000240");
+	private static final UUID TIE_B = UUID.fromString("00000000-0000-0000-0000-000000000241");
 	private static final Instant T0 = Instant.parse("2026-08-31T01:00:00Z");
 	private static final Instant T1 = Instant.parse("2026-09-01T01:00:00Z");
 	private static final Instant T2 = Instant.parse("2026-09-02T01:00:00Z");
@@ -125,6 +132,41 @@ class TicketApiIntegrationTest {
 				.andExpect(jsonPath("$.data.items[0].id").value(OLDEST.toString()))
 				.andExpect(jsonPath("$.data.items[1].id").value(EXPIRED_GRANT.toString()))
 				.andExpect(jsonPath("$.data.nextCursor").value(nullValue()));
+	}
+
+	@Test
+	@DisplayName("T02는 처리 시각이 같은 이력이 여러 건이어도 한 건씩 커서로 넘기면 ID 역순으로 중복·누락 없이 모두 반환한다")
+	void pagesHistoryWithSameCreatedAtWithoutGapsOrDuplicates() throws Exception {
+		// given: seed()의 NEWEST와 같은 시각(T3)에 본인 이력 두 건을 더한다
+		ByteBuffer claimBytes = ByteBuffer.wrap(jdbc.queryForObject(
+				"select id from attendance_reward_claims where user_id = ?", byte[].class, bytes(USER)));
+		UUID extraClaim = new UUID(claimBytes.getLong(), claimBytes.getLong());
+		Instant farFuture = Instant.now().plus(MARGIN);
+		insertTicketWithGrant(TIE_TICKET_A, TIE_A, USER, extraClaim, farFuture, T3);
+		insertTicketWithGrant(TIE_TICKET_B, TIE_B, USER, extraClaim, farFuture, T3);
+
+		// when: 페이지 크기 1로 끝까지 따라간다
+		List<String> ids = new ArrayList<>();
+		String cursor = null;
+		for (int page = 0; page < 10; page++) {
+			var request = get("/api/v1/tickets/histories/me").headers(userHeaders(USER)).param("size", "1");
+			if (cursor != null) {
+				request.param("cursor", cursor);
+			}
+			String body = mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse()
+					.getContentAsString();
+			JsonNode data = mapper.readTree(body).path("data");
+			ids.add(data.path("items").path(0).path("id").asString());
+			JsonNode next = data.path("nextCursor");
+			if (next.isNull() || next.isMissingNode()) {
+				break;
+			}
+			cursor = next.asString();
+		}
+
+		// then: 같은 시각 묶음은 ID 역순이고 전체 6건이 한 번씩만 나온다
+		assertThat(ids).containsExactly(TIE_B.toString(), TIE_A.toString(), NEWEST.toString(), MIDDLE.toString(),
+				OLDEST.toString(), EXPIRED_GRANT.toString());
 	}
 
 	@Test

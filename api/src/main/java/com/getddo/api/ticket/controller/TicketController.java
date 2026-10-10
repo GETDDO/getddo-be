@@ -2,6 +2,8 @@ package com.getddo.api.ticket.controller;
 
 import java.time.OffsetDateTime;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -60,6 +62,8 @@ public class TicketController {
 	public ResponseEnvelope<CursorResult<TicketHistoryResponse>> findMyHistory(
 			@CurrentUser(membershipRequired = false) User user,
 			@RequestParam(required = false) String cursor,
+			@Parameter(description = "조회할 최대 건수. 1~100, 범위를 벗어나면 조회 조건 오류로 응답한다",
+					schema = @Schema(minimum = "1", maximum = "100", defaultValue = "20"))
 			@RequestParam(defaultValue = "20") int size,
 			@RequestParam(required = false) TicketOperationType operationType,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
