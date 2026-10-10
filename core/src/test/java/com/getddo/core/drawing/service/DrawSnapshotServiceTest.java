@@ -9,9 +9,11 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
@@ -68,6 +70,24 @@ class DrawSnapshotServiceTest {
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(4,
 				entry(1, TicketGrade.GOLD, TicketGrade.GOLD), entry(3, TicketGrade.BRONZE, TicketGrade.BRONZE))));
 		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(participantId));
+		assertError(INVALID_EVIDENCE);
+		verify(repository, never()).saveInitial(any());
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("추가 응모에 같은 티켓이 중복되면 제외 여부와 무관하게 입력 확정을 거절한다")
+	void rejectsSameTicketAcrossAdditionalEntriesEvenWhenExcluded(boolean excluded) {
+		// given
+		UUID ticketId = UUID.randomUUID();
+		Entry first = new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301),
+				List.of(new Use(UUID.randomUUID(), ticketId, userId, TicketGrade.GOLD)));
+		Entry additional = new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301),
+				List.of(new Use(UUID.randomUUID(), ticketId, userId, TicketGrade.GOLD)));
+		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(2, first, additional)));
+		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(excluded ? Set.of(participantId) : Set.of());
+
+		// when / then
 		assertError(INVALID_EVIDENCE);
 		verify(repository, never()).saveInitial(any());
 	}

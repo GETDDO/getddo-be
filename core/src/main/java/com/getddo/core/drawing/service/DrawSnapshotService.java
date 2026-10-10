@@ -82,12 +82,12 @@ public class DrawSnapshotService {
 		if (participant.entries().isEmpty() || participant.usedTicketCount() < 0) invalid();
 		if ((event.type() == EventType.NO_TICKET || !event.weightingEnabled())
 				&& participant.entries().size() != 1) invalid();
+		Set<UUID> tickets = new HashSet<>();
 		try {
 			for (DrawSnapshotSource.Entry entry : participant.entries()) {
 				if (!entryIds.add(entry.id()) || entry.deductedTicketCount() < 0
 						|| entry.uses().size() != entry.deductedTicketCount()
 						|| !entry.acceptedAt().isBefore(event.endsAt())) invalid();
-				Set<UUID> tickets = new HashSet<>();
 				for (DrawSnapshotSource.Use use : entry.uses()) {
 					if (!historyIds.add(use.historyId()) || !tickets.add(use.ticketId())
 							|| !participant.userId().equals(use.ownerId()) || use.grade() == null) invalid();

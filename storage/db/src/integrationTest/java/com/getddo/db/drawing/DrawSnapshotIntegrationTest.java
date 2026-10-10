@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -142,6 +143,36 @@ class DrawSnapshotIntegrationTest {
 		assertThat(jdbc.queryForObject("select json_type(eligibility_snapshot) from draw_candidates where id = ?",
 				String.class, bytes(candidate.id()))).isEqualTo("OBJECT");
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
+	}
+
+	@Test
+	@DisplayName("추가 응모 간 티켓 중복이 DB에 기록됐어도 스냅샷을 저장하지 않는다")
+	void rejectsDuplicateTicketAcrossPersistedAdditionalEntries() {
+		// given
+		jdbc.update("update events set event_type = 'TICKET', weighting_enabled = true where id = ?", bytes(eventId));
+		UUID participant = addParticipant(2);
+		byte[] firstEntry = jdbc.queryForObject("select id from event_entries where participant_id = ?", byte[].class, bytes(participant));
+		jdbc.update("update event_entries set requested_ticket_count = 1, deducted_ticket_count = 1 where id = ?", firstEntry);
+		addUsedTicket(firstEntry, "GOLD");
+		byte[] ticket = jdbc.queryForObject("select ticket_id from ticket_histories where event_entry_id = ?",
+				byte[].class, firstEntry);
+		UUID additionalEntry = UUID.randomUUID();
+		jdbc.update("""
+			insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
+			values (?, ?, ?, 1, 1, ?)
+			""", bytes(additionalEntry), bytes(participant), bytes(userId), utc(NOW.minusSeconds(301)));
+		// 응모별 UNIQUE로 거절할 수 없는 별도 이력·버전의 중복 사용을 재현한다.
+		jdbc.update("""
+			insert into ticket_histories (id, ticket_id, event_entry_id, operation_type, ticket_version, status, expires_at, reason, created_at)
+			values (?, ?, ?, 'USE', 3, 'SPENT', ?, '중복 사용 검증', ?)
+			""", bytes(UUID.randomUUID()), ticket, bytes(additionalEntry), utc(NOW.plusSeconds(3600)), utc(NOW.minusSeconds(301)));
+
+		// when / then
+		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class)
+				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
+		assertThat(count("draw_runs")).isZero();
+		assertThat(count("draw_candidates")).isZero();
+		assertThat(count("draw_run_candidates")).isZero();
 	}
 
 	@Test
