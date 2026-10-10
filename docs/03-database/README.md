@@ -10,6 +10,8 @@
 
 티켓·추첨 SQL 초안은 사용자 요청으로 정리했다. 티켓 전용·전체 SQL은 Git 커밋 `850f3ba`에, 기존 추첨 SQL은 삭제 이전 Git 이력에 보존되어 있다. 최신 설계 기준은 `schema.dbml`이다.
 
+GD-84의 [V016](../../storage/db/src/main/resources/db/migration/drawing/V016__add_initial_draw_terminal_states.sql)는 최초 추첨 실행에 응모자 없음·전원 제외 정상 종료 상태를 추가한다. 기존 V007은 유지하며 새 변경은 [추첨 저장 설계](drawing-selection-storage.md)를 따른다.
+
 ## 마이그레이션 번호 규칙
 
 Flyway 버전 번호는 중복될 수 없지만 연속일 필요는 없다. 예를 들어 `V012__a.sql`, `V014__b.sql`, `V015__c.sql`만 있으면 존재하는 파일을 `12 → 14 → 15` 순서로 적용한다. `V013`이 없다는 이유로 오류가 발생하거나 실행을 기다리지 않는다. 번호의 빈 구간과 SQL 간 의존성은 별개이므로, `V014`가 `V013`에서 만드는 테이블·컬럼을 사용한다면 필요한 변경이 먼저 적용되어야 한다.
