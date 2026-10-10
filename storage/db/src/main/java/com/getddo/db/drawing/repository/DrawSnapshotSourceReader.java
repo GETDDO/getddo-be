@@ -34,7 +34,7 @@ public class DrawSnapshotSourceReader {
 	public DrawSnapshotSourceReader(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
 	public Optional<DrawSnapshotSource.Event> lockEvent(UUID eventId) {
-		var events = jdbc.query("""
+		List<DrawSnapshotSource.Event> events = jdbc.query("""
 			select id, event_type, weighting_enabled, ends_at, status, deleted_at, membership_rule
 			from events where id = ? for update
 			""", (row, index) -> new DrawSnapshotSource.Event(fromBytes(row.getBytes("id")),
@@ -42,18 +42,18 @@ public class DrawSnapshotSourceReader {
 				instant(row, "ends_at"), EventStatus.valueOf(row.getString("status")),
 				row.getObject("deleted_at") != null, row.getString("membership_rule"), List.of()), toBytes(eventId));
 		if (events.isEmpty()) return Optional.empty();
-		var prizes = jdbc.query("""
+		List<DrawSnapshotSource.Prize> prizes = jdbc.query("""
 			select id, prize_rank, winner_count from event_prizes where event_id = ? order by prize_rank
 			""", (row, index) -> new DrawSnapshotSource.Prize(fromBytes(row.getBytes("id")),
 				row.getInt("prize_rank"), row.getInt("winner_count")), toBytes(eventId));
-		var event = events.getFirst();
+		DrawSnapshotSource.Event event = events.getFirst();
 		return Optional.of(new DrawSnapshotSource.Event(event.id(), event.type(), event.weightingEnabled(),
 				event.endsAt(), event.status(), event.deleted(), event.membershipRule(), prizes));
 	}
 
 	public List<DrawSnapshotSource.Participant> findParticipants(UUID eventId) {
 		// 세 번의 일괄 조회로 응모자·응모·이력을 결합한다. 응모자별 N+1 조회를 하지 않는다.
-		var participants = jdbc.query("""
+		List<DrawSnapshotSource.Participant> participants = jdbc.query("""
 			select p.id, p.user_id, p.used_ticket_count, u.membership, u.role
 			from event_participants p join users u on u.id = p.user_id where p.event_id = ? order by p.id
 			""", (row, index) -> new DrawSnapshotSource.Participant(fromBytes(row.getBytes("id")),

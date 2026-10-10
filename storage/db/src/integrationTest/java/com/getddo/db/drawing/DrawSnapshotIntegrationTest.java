@@ -9,7 +9,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.repository.DrawExclusionRepository;
 import com.getddo.core.drawing.service.DrawSnapshotService;
 import com.getddo.db.common.config.JpaAuditingConfig;
@@ -85,7 +88,7 @@ class DrawSnapshotIntegrationTest {
 	@Test
 	void storesAndReplaysEvidenceWithoutRecomputingOriginals() {
 		UUID participant = addParticipant(0);
-		var first = service.prepareInitial(eventId);
+		DrawSnapshot first = service.prepareInitial(eventId);
 		assertThat(first.status()).isEqualTo(DrawRunStatus.READY);
 		assertThat(first.runId().version()).isEqualTo(7);
 		assertThat(first.candidates().getFirst().id().version()).isEqualTo(7);
@@ -105,8 +108,8 @@ class DrawSnapshotIntegrationTest {
 		UUID participant = addParticipant(3);
 		byte[] entry = jdbc.queryForObject("select id from event_entries where participant_id = ?", byte[].class, bytes(participant));
 		for (String grade : List.of("GOLD", "SILVER", "BRONZE")) addUsedTicket(entry, grade);
-		var snapshot = service.prepareInitial(eventId);
-		var candidate = snapshot.candidates().getFirst();
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
+		DrawSnapshot.Candidate candidate = snapshot.candidates().getFirst();
 		assertThat(candidate.ticketCount()).isEqualTo(3);
 		assertThat(candidate.weight()).isEqualTo(9);
 		assertThat(candidate.entryEvidence().entries().getFirst().uses()).hasSize(3);
@@ -117,16 +120,16 @@ class DrawSnapshotIntegrationTest {
 	@Test
 	void mapsBinaryIdsJsonAndUtcTimesThroughJpa() {
 		addParticipant(0);
-		var snapshot = service.prepareInitial(eventId);
-		var candidate = snapshot.candidates().getFirst();
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
+		DrawSnapshot.Candidate candidate = snapshot.candidates().getFirst();
 		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-			var run = runs.findById(snapshot.runId()).orElseThrow();
+			DrawRunEntity run = runs.findById(snapshot.runId()).orElseThrow();
 			assertThat(run.getEventId()).isEqualTo(eventId);
 			assertThat(run.getCreatedAt()).isEqualTo(NOW);
 			assertThat(run.getSnapshotFixedAt()).isEqualTo(NOW);
 			assertThat(run.getStartedAt()).isNull();
 			assertThat(run.getConfirmedAt()).isNull();
-			var link = links.findById(new DrawRunCandidateId(snapshot.runId(), candidate.id())).orElseThrow();
+			DrawRunCandidateEntity link = links.findById(new DrawRunCandidateId(snapshot.runId(), candidate.id())).orElseThrow();
 			assertThat(link.isNew()).isFalse();
 			assertThat(link.getDrawRun().getId()).isEqualTo(snapshot.runId());
 			assertThat(link.getCandidate().getParticipantId()).isEqualTo(candidate.participantId());
@@ -145,7 +148,7 @@ class DrawSnapshotIntegrationTest {
 	void firstResponseUsesPersistedMicrosecondPrecision() {
 		clock.set(NOW.plusNanos(123456789));
 		addParticipant(0);
-		var first = service.prepareInitial(eventId);
+		DrawSnapshot first = service.prepareInitial(eventId);
 		assertThat(first.fixedAt().getNano() % 1000).isZero();
 		assertThat(service.prepareInitial(eventId)).isEqualTo(first);
 	}
@@ -153,19 +156,19 @@ class DrawSnapshotIntegrationTest {
 	@Test
 	void jpaWritesRespectRunCandidateAndLinkUniqueness() {
 		addParticipant(0);
-		var snapshot = service.prepareInitial(eventId);
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
 		UUID candidateId = snapshot.candidates().getFirst().id();
 		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
 				runs.saveAndFlush(new DrawRunEntity(eventId))))
 				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-			var original = candidates.findById(candidateId).orElseThrow();
+			DrawCandidateEntity original = candidates.findById(candidateId).orElseThrow();
 			candidates.saveAndFlush(new DrawCandidateEntity(original.getDrawRun(), original.getParticipantId(),
 					original.getTicketCount(), original.getWeight(), original.getEntrySnapshot(), original.getEligibilitySnapshot()));
 		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-			var run = runs.findById(snapshot.runId()).orElseThrow();
-			var candidate = candidates.findById(candidateId).orElseThrow();
+			DrawRunEntity run = runs.findById(snapshot.runId()).orElseThrow();
+			DrawCandidateEntity candidate = candidates.findById(candidateId).orElseThrow();
 			links.saveAndFlush(new DrawRunCandidateEntity(run, candidate));
 		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 		assertThat(count("draw_runs")).isEqualTo(1);
@@ -177,10 +180,10 @@ class DrawSnapshotIntegrationTest {
 	@Test
 	void jpaWritesRespectParticipantForeignKeyAndPositiveWeight() {
 		addParticipant(0);
-		var snapshot = service.prepareInitial(eventId);
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
 		UUID candidateId = snapshot.candidates().getFirst().id();
 		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-			var original = candidates.findById(candidateId).orElseThrow();
+			DrawCandidateEntity original = candidates.findById(candidateId).orElseThrow();
 			candidates.saveAndFlush(new DrawCandidateEntity(original.getDrawRun(), UUID.randomUUID(), 0, 1,
 					original.getEntrySnapshot(), original.getEligibilitySnapshot()));
 		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
@@ -193,7 +196,7 @@ class DrawSnapshotIntegrationTest {
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
 				bytes(otherParticipant), bytes(eventId), bytes(otherUser), utc(NOW));
 		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-			var original = candidates.findById(candidateId).orElseThrow();
+			DrawCandidateEntity original = candidates.findById(candidateId).orElseThrow();
 			candidates.saveAndFlush(new DrawCandidateEntity(original.getDrawRun(), otherParticipant, 0, 0,
 					original.getEntrySnapshot(), original.getEligibilitySnapshot()));
 		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
@@ -203,7 +206,7 @@ class DrawSnapshotIntegrationTest {
 
 	@Test
 	void distinguishesNormalEmptyTerminationsAndReplaysThem() {
-		var empty = service.prepareInitial(eventId);
+		DrawSnapshot empty = service.prepareInitial(eventId);
 		assertThat(empty.status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
 		assertThat(service.prepareInitial(eventId)).isEqualTo(empty);
 		assertThat(count("draw_candidates")).isZero();
@@ -213,7 +216,7 @@ class DrawSnapshotIntegrationTest {
 	void allExcludedTerminatesWithoutResults() {
 		UUID participant = addParticipant(0);
 		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(participant));
-		var snapshot = service.prepareInitial(eventId);
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
 		assertThat(count("draw_candidates")).isZero();
@@ -247,10 +250,10 @@ class DrawSnapshotIntegrationTest {
 	@Test
 	void concurrentPreparationCreatesOneRunAndSnapshot() throws Exception {
 		addParticipant(0);
-		try (var executor = Executors.newFixedThreadPool(2)) {
-			var start = new CountDownLatch(1);
-			var first = executor.submit(() -> { start.await(); return service.prepareInitial(eventId); });
-			var second = executor.submit(() -> { start.await(); return service.prepareInitial(eventId); });
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			CountDownLatch start = new CountDownLatch(1);
+			Future<DrawSnapshot> first = executor.submit(() -> { start.await(); return service.prepareInitial(eventId); });
+			Future<DrawSnapshot> second = executor.submit(() -> { start.await(); return service.prepareInitial(eventId); });
 			start.countDown();
 			assertThat(first.get(15, TimeUnit.SECONDS)).isEqualTo(second.get(15, TimeUnit.SECONDS));
 		}
@@ -261,10 +264,10 @@ class DrawSnapshotIntegrationTest {
 
 	@Test
 	void waitsForInFlightEntryTransactionAndIncludesItsCommit() throws Exception {
-		var locked = new CountDownLatch(1);
-		var release = new CountDownLatch(1);
-		try (var executor = Executors.newFixedThreadPool(2)) {
-			var entry = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+		CountDownLatch locked = new CountDownLatch(1);
+		CountDownLatch release = new CountDownLatch(1);
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Future<Object> entry = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
 				jdbc.queryForObject("select id from events where id = ? for update", byte[].class, bytes(eventId));
 				addParticipant(0);
 				locked.countDown();
@@ -273,8 +276,8 @@ class DrawSnapshotIntegrationTest {
 				return null;
 			}));
 			assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
-			var started = new CountDownLatch(1);
-			var drawing = executor.submit(() -> { started.countDown(); return service.prepareInitial(eventId); });
+			CountDownLatch started = new CountDownLatch(1);
+			Future<DrawSnapshot> drawing = executor.submit(() -> { started.countDown(); return service.prepareInitial(eventId); });
 			assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
 			assertThatThrownBy(() -> drawing.get(200, TimeUnit.MILLISECONDS))
 					.isInstanceOf(java.util.concurrent.TimeoutException.class);

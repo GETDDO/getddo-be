@@ -14,6 +14,7 @@ import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
+import com.getddo.db.drawing.entity.DrawCandidateEntity;
 import com.getddo.db.drawing.entity.DrawRunCandidateEntity;
 import com.getddo.db.drawing.entity.DrawRunEntity;
 import com.getddo.db.drawing.mapper.DrawSnapshotMapper;
@@ -48,8 +49,8 @@ public class DrawSnapshotRepositoryImpl implements DrawSnapshotRepository {
 
 	@Override
 	public DrawSnapshot saveInitial(DrawSnapshot snapshot) {
-		var run = runs.saveAndFlush(new DrawRunEntity(snapshot.eventId()));
-		var savedCandidates = candidates.saveAllAndFlush(snapshot.candidates().stream()
+		DrawRunEntity run = runs.saveAndFlush(new DrawRunEntity(snapshot.eventId()));
+		List<DrawCandidateEntity> savedCandidates = candidates.saveAllAndFlush(snapshot.candidates().stream()
 				.map(candidate -> mapper.toEntity(run, candidate)).toList());
 		links.saveAllAndFlush(savedCandidates.stream()
 				.map(candidate -> new DrawRunCandidateEntity(run, candidate)).toList());

@@ -24,14 +24,14 @@ public class DrawSnapshotMapper {
 	}
 
 	public DrawSnapshot toDomain(DrawRunEntity run, List<DrawCandidateEntity> candidates) {
-		var rules = run.getRulesSnapshot() == null ? null
+		DrawSnapshot.Rules rules = run.getRulesSnapshot() == null ? null
 				: json.readValue(run.getRulesSnapshot(), DrawSnapshot.Rules.class);
 		return new DrawSnapshot(run.getId(), run.getEventId(), run.getStatus(), run.getSnapshotFixedAt(),
 				run.getAlgorithmVersion(), rules, candidates.stream().map(this::toDomain).toList());
 	}
 
 	private DrawSnapshot.Candidate toDomain(DrawCandidateEntity candidate) {
-		var eligibility = json.readValue(candidate.getEligibilitySnapshot(), DrawSnapshot.EligibilityEvidence.class);
+		DrawSnapshot.EligibilityEvidence eligibility = json.readValue(candidate.getEligibilitySnapshot(), DrawSnapshot.EligibilityEvidence.class);
 		return new DrawSnapshot.Candidate(candidate.getId(), candidate.getParticipantId(), eligibility.userId(),
 				candidate.getTicketCount(), candidate.getWeight(),
 				json.readValue(candidate.getEntrySnapshot(), DrawSnapshot.EntryEvidence.class), eligibility);

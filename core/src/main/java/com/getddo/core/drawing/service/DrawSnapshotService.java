@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,10 +38,10 @@ public class DrawSnapshotService {
 	/** 이벤트를 먼저 잠근 뒤 원본 검증·스냅샷·실행별 연결을 하나의 트랜잭션으로 확정한다. */
 	@Transactional
 	public DrawSnapshot prepareInitial(UUID eventId) {
-		var event = repository.lockEvent(eventId).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
-		var existing = repository.findInitial(eventId);
+		DrawSnapshotSource.Event event = repository.lockEvent(eventId).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
+		Optional<DrawSnapshot> existing = repository.findInitial(eventId);
 		if (existing.isPresent()) {
-			var snapshot = existing.get();
+			DrawSnapshot snapshot = existing.get();
 			if (Set.of(DrawRunStatus.READY, DrawRunStatus.RUNNING, DrawRunStatus.CONFIRMED,
 					DrawRunStatus.NO_ENTRIES, DrawRunStatus.NO_CANDIDATES).contains(snapshot.status())) {
 				return snapshot;
@@ -53,23 +54,23 @@ public class DrawSnapshotService {
 			throw new BusinessException(NOT_EXECUTABLE);
 		}
 		validatePrizes(event);
-		var participants = repository.findParticipants(eventId);
+		List<DrawSnapshotSource.Participant> participants = repository.findParticipants(eventId);
 		List<DrawSnapshot.Candidate> all = new ArrayList<>();
 		Set<UUID> participantIds = new HashSet<>();
 		Set<UUID> users = new HashSet<>();
 		Set<UUID> entryIds = new HashSet<>();
 		Set<UUID> historyIds = new HashSet<>();
-		for (var participant : participants) {
+		for (DrawSnapshotSource.Participant participant : participants) {
 			if (!participantIds.add(participant.id()) || !users.add(participant.userId())) invalid();
 			all.add(validateParticipant(event, participant, now, entryIds, historyIds));
 		}
 		// 원본 검증은 제외된 응모자도 포함한다. 제외 저장 미연결을 빈 집합으로 처리하지 않는다.
 		Set<UUID> excluded = participants.isEmpty() ? Set.of() : exclusions.findExcludedParticipantIds(eventId);
 		if (excluded == null || !participantIds.containsAll(excluded)) invalid();
-		var candidates = all.stream().filter(candidate -> !excluded.contains(candidate.participantId())).toList();
-		var status = participants.isEmpty() ? DrawRunStatus.NO_ENTRIES
+		List<DrawSnapshot.Candidate> candidates = all.stream().filter(candidate -> !excluded.contains(candidate.participantId())).toList();
+		DrawRunStatus status = participants.isEmpty() ? DrawRunStatus.NO_ENTRIES
 				: candidates.isEmpty() ? DrawRunStatus.NO_CANDIDATES : DrawRunStatus.READY;
-		var rules = new DrawSnapshot.Rules(1, event.weightingEnabled(), event.type().name(),
+		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(1, event.weightingEnabled(), event.type().name(),
 				event.membershipRule(), 1, 3, 5, event.prizes());
 		return repository.saveInitial(new DrawSnapshot(null, eventId, status, now,
 				ALGORITHM_VERSION, rules, candidates));
@@ -82,12 +83,12 @@ public class DrawSnapshotService {
 		if ((event.type() == EventType.NO_TICKET || !event.weightingEnabled())
 				&& participant.entries().size() != 1) invalid();
 		try {
-			for (var entry : participant.entries()) {
+			for (DrawSnapshotSource.Entry entry : participant.entries()) {
 				if (!entryIds.add(entry.id()) || entry.deductedTicketCount() < 0
 						|| entry.uses().size() != entry.deductedTicketCount()
 						|| !entry.acceptedAt().isBefore(event.endsAt())) invalid();
 				Set<UUID> tickets = new HashSet<>();
-				for (var use : entry.uses()) {
+				for (DrawSnapshotSource.Use use : entry.uses()) {
 					if (!historyIds.add(use.historyId()) || !tickets.add(use.ticketId())
 							|| !participant.userId().equals(use.ownerId()) || use.grade() == null) invalid();
 					switch (use.grade()) {
@@ -118,7 +119,7 @@ public class DrawSnapshotService {
 		Set<Integer> ranks = new HashSet<>();
 		long slots = 0;
 		if (event.prizes().isEmpty() || (event.type() == EventType.NO_TICKET && event.weightingEnabled())) invalid();
-		for (var prize : event.prizes()) {
+		for (DrawSnapshotSource.Prize prize : event.prizes()) {
 			if (!ids.add(prize.id()) || !ranks.add(prize.rank()) || prize.rank() <= 0 || prize.winnerCount() <= 0) invalid();
 			slots += prize.winnerCount();
 			if (slots > Integer.MAX_VALUE) invalid();

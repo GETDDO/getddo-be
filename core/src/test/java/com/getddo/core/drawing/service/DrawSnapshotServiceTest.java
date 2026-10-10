@@ -49,12 +49,12 @@ class DrawSnapshotServiceTest {
 
 	@Test
 	void sumsGradesAcrossAdditionalEntriesAndPreservesEvidence() {
-		var first = entry(2, TicketGrade.GOLD, TicketGrade.SILVER);
-		var additional = entry(1, TicketGrade.BRONZE);
+		Entry first = entry(2, TicketGrade.GOLD, TicketGrade.SILVER);
+		Entry additional = entry(1, TicketGrade.BRONZE);
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(3, first, additional)));
-		var snapshot = service.prepareInitial(eventId);
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
-		var candidate = snapshot.candidates().getFirst();
+		DrawSnapshot.Candidate candidate = snapshot.candidates().getFirst();
 		assertThat(candidate.ticketCount()).isEqualTo(3);
 		assertThat(candidate.weight()).isEqualTo(9);
 		assertThat(candidate.entryEvidence().entries()).containsExactly(first, additional);
@@ -97,7 +97,7 @@ class DrawSnapshotServiceTest {
 		verifyNoInteractions(exclusions);
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(1, entry(1, TicketGrade.GOLD))));
 		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(participantId));
-		var snapshot = service.prepareInitial(eventId);
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
 		assertThat(snapshot.candidates()).isEmpty();
 	}
@@ -113,7 +113,7 @@ class DrawSnapshotServiceTest {
 	@ParameterizedTest
 	@EnumSource(value = DrawRunStatus.class, names = {"READY", "RUNNING", "CONFIRMED", "NO_ENTRIES", "NO_CANDIDATES"})
 	void replaysFixedRunWithoutReadingOriginals(DrawRunStatus status) {
-		var saved = new DrawSnapshot(UUID.randomUUID(), eventId, status, NOW, "v1", null, List.of());
+		DrawSnapshot saved = new DrawSnapshot(UUID.randomUUID(), eventId, status, NOW, "v1", null, List.of());
 		when(repository.findInitial(eventId)).thenReturn(Optional.of(saved));
 		assertThat(service.prepareInitial(eventId)).isSameAs(saved);
 		verify(repository, never()).findParticipants(any());
@@ -123,7 +123,7 @@ class DrawSnapshotServiceTest {
 
 	@Test
 	void waitsUntilFiveMinuteBoundaryAndRejectsCanceledDeletedEvents() {
-		var early = event(EventType.TICKET, true, NOW.minusSeconds(299));
+		Event early = event(EventType.TICKET, true, NOW.minusSeconds(299));
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(early));
 		assertError(NOT_EXECUTABLE);
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(new Event(eventId, early.type(), true,
@@ -136,7 +136,7 @@ class DrawSnapshotServiceTest {
 
 	@Test
 	void rejectsWrongTicketOwnerAndEntryAfterDeadline() {
-		var use = new Use(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), TicketGrade.GOLD);
+		Use use = new Use(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), TicketGrade.GOLD);
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(1,
 				new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301), List.of(use)))));
 		assertError(INVALID_EVIDENCE);

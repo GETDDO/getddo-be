@@ -20,7 +20,7 @@ class DrawRunEntityTest {
 	@ParameterizedTest(name = "{0}: {1} 누락 시 상태를 변경하지 않는다")
 	@MethodSource("incompleteInputs")
 	void rejectsIncompleteInputBeforeChangingState(DrawRunStatus targetStatus, String missingField) {
-		var run = new DrawRunEntity(UUID.randomUUID());
+		DrawRunEntity run = new DrawRunEntity(UUID.randomUUID());
 		String algorithm = missingField.equals("algorithmVersion") ? null : "v1";
 		String rules = missingField.equals("rulesSnapshot") ? null : "{}";
 		Instant fixedAt = missingField.equals("fixedAt") ? null : FIXED_AT;
