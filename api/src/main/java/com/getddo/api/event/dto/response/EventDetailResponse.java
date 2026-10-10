@@ -1,7 +1,6 @@
 package com.getddo.api.event.dto.response;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,7 +19,7 @@ public record EventDetailResponse(UUID id, String title, String imageUrl, EventT
 		RegisteredEvent details = event.getDetails();
 		return new EventDetailResponse(details.getId(), details.getTitle(), null, details.getEventType(),
 				details.isWeightingEnabled(), details.getMembershipRule(), details.getStartsAt(), details.getEndsAt(),
-				event.getPublicStatus(), details.getEndsAt().plus(5, ChronoUnit.MINUTES), serverTime,
+				event.getPublicStatus(), details.getPublicationScheduledAt(), serverTime,
 				details.getDescription(), details.getMaxTicketsPerUser(),
 				details.getPrizes().stream().map(PrizeResponse::from).toList());
 	}

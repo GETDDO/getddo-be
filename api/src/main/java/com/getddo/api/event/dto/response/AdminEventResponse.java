@@ -1,7 +1,6 @@
 package com.getddo.api.event.dto.response;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +10,7 @@ import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.event.domain.RegisteredEvent;
 
+/** 관리자 등록·조회 응답. 실제 DB 상태와 이미지 키·운영 시각을 제공한다. */
 public record AdminEventResponse(
 		UUID id,
 		String title,
@@ -44,7 +44,7 @@ public record AdminEventResponse(
 			Instant canceledAt) {
 		return new AdminEventResponse(event.getId(), event.getTitle(), null, event.getEventType(), event.isWeightingEnabled(),
 				event.getMembershipRule(), event.getStartsAt(), event.getEndsAt(), event.getStatus(),
-				event.getEndsAt().plus(5, ChronoUnit.MINUTES), serverTime,
+				event.getPublicationScheduledAt(), serverTime,
 				event.getDescription(), event.getMaxTicketsPerUser(), event.getPrizes().stream().map(PrizeResponse::from).toList(),
 				event.getImageKey(), event.getCreatedAt(), event.getUpdatedAt(),
 				canceledAt, event.getPrizes().stream().map(PrizeImage::from).toList());

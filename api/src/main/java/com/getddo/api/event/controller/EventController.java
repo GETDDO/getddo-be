@@ -34,6 +34,7 @@ public class EventController {
 		this.timeProvider = timeProvider;
 	}
 
+	/** 조회 조건과 페이지 입력을 서비스에 전달하고 결과를 사용자 목록 응답으로 변환한다. */
 	@GetMapping
 	public ResponseEnvelope<PageResult<EventSummaryResponse>> list(
 			@CurrentUser User user,
@@ -50,6 +51,7 @@ public class EventController {
 				result.getPage(), result.getSize(), result.getTotalElements()));
 	}
 
+	/** 클릭한 이벤트의 UUID 형식을 검사한 뒤 상세 정보와 경품을 반환한다. */
 	@GetMapping("/{eventId}")
 	public ResponseEnvelope<EventDetailResponse> detail(
 			@CurrentUser User user,

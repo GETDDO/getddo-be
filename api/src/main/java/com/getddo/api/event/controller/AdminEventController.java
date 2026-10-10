@@ -29,6 +29,7 @@ import com.getddo.core.event.service.EventQueryService;
 import com.getddo.core.event.service.EventRegistrationService;
 import com.getddo.core.user.domain.User;
 
+/** 관리자 이벤트 등록·조회 API. 입력 형식과 응답 변환을 맡고 권한·업무 규칙은 서비스에 위임한다. */
 @RestController
 @RequestMapping("/api/v1/admin/events")
 public class AdminEventController {
@@ -43,6 +44,7 @@ public class AdminEventController {
 		this.timeProvider = timeProvider;
 	}
 
+	/** 이벤트와 경품을 함께 등록하고 저장된 정보와 최초 발표 예정 시각을 반환한다. */
 	@PostMapping
 	public ResponseEntity<ResponseEnvelope<AdminEventResponse>> register(
 			@CurrentUser User user,

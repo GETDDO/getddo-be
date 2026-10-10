@@ -33,6 +33,7 @@ import com.getddo.db.common.util.UuidBinary;
  */
 @Repository
 public class EventQueryRepositoryImpl implements EventQueryRepository {
+	// 재추첨 중에도 기존 발표가 있으면 사용자 공개 상태는 PUBLISHED를 유지한다.
 	private static final String PUBLIC_STATUS = """
 			case when e.status = 'REDRAWING'
 				then case when exists (select 1 from draw_publications p where p.event_id = e.id)
@@ -51,6 +52,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 		this.jdbc = jdbc;
 	}
 
+	/** 동일 조건으로 건수·페이지를 조회하며 관리자 목록에만 경품을 일괄 연결한다. */
 	@Override
 	public PageResult<EventView> findAll(EventQueryFilter filter, PageQuery page, boolean publicView) {
 		Map<String, Object> parameters = new HashMap<>();
@@ -65,6 +67,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 				page.getPage(), page.getSize(), total);
 	}
 
+	/** 삭제되지 않은 이벤트와 경품을 읽는다. 실제 상태·공개 상태의 선택은 응답 변환에서 수행한다. */
 	@Override
 	public Optional<EventView> findById(UUID eventId) {
 		List<EventView> rows = jdbc.query(SELECT + " where e.deleted_at is null and e.id = :id",
@@ -127,6 +130,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 				prizes.getOrDefault(event.getDetails().getId(), List.of()))).toList();
 	}
 
+	/** 이벤트별 개별 쿼리를 피하기 위해 조회된 이벤트들의 경품을 한 번의 IN 쿼리로 가져온다. */
 	private Map<UUID, List<RegisteredEvent.Prize>> findPrizes(List<EventView> events) {
 		if (events.isEmpty()) {
 			return Map.of();

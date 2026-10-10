@@ -7,11 +7,15 @@ import java.util.UUID;
 import com.getddo.api.common.exception.CommonErrorCode;
 import com.getddo.core.common.exception.BusinessException;
 
-/** 이벤트 API의 UUID·날짜 입력 형식을 검사하고 타입으로 해석한다. */
+/**
+ * 이벤트 상세 ID와 관리자 검색 날짜의 문자열 형식을 검사한다.
+ * 이벤트 존재 여부는 서비스·저장소에서 확인하고, KST 날짜의 UTC 검색 경계 계산은 서비스에 맡긴다.
+ */
 final class EventRequestContext {
 	private EventRequestContext() {
 	}
 
+	/** 하이픈을 포함한 36자리 UUID 표기를 검사한다. 형식 오류는 공통 400 오류로 처리한다. */
 	static UUID uuid(String value) {
 		try {
 			UUID id = UUID.fromString(value);
