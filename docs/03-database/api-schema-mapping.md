@@ -22,7 +22,7 @@
 | [V005](../../storage/db/src/main/resources/db/migration/game/V005__create_game_tables.sql) | `games`, `game_plays`, `user_game_stats`, `game_reward_claims` | G01~G05, AG01~AG03, AR07 |
 | [V006](../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql) | `events`, `event_prizes`, `event_participants`, `event_entries`, `banners` | E01~E09, B01, AE01~AE08, AB01~AB05, AO06~AO07 |
 | [V007](../../storage/db/src/main/resources/db/migration/drawing/V007__create_drawing_tables.sql) | `draw_runs`, `draw_candidates`, `draw_results`, `current_awards`, `award_cancellations`, `publications` | E08~E09, AD01~AD07, 최초 자동 추첨·발표 |
-| [V008](../../storage/db/src/main/resources/db/migration/ticket/V008__create_ticket_tables.sql) | `tickets`, `ticket_histories` | T01~T02, AR04~AR05, AO03~AO05·AO08, 지급·차감·반환·만료 |
+| [V008](../../storage/db/src/main/resources/db/migration/ticket/V008__create_ticket_tables.sql) | `ticket_wallets`, `ticket_ledger`, `ticket_ledger_allocations`, `ticket_refund_jobs`, `ticket_recovery_targets` | T01~T02, AR04~AR05, AO03~AO05·AO08, 지급·차감·반환·만료 |
 | [V009](../../storage/db/src/main/resources/db/migration/abuse/V009__create_abuse_tables.sql) | `abuse_cases` | AR01~AR07, 탐지 기록 |
 | [V010](../../storage/db/src/main/resources/db/migration/notification/V010__create_notification_tables.sql) | `notification_jobs`, `notifications` | N01~N03, AN01~AN05, 비동기 생성·모의 발송 |
 | [V011](../../storage/db/src/main/resources/db/migration/audit/V011__create_audit_tables.sql) | `audit_logs` | AU01~AU02 및 검토·공개 명단·정책·점수 변경 이력 |
