@@ -168,4 +168,21 @@ class TicketHistoryTest {
 		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.EXPIRE, 2, TicketStatus.EXPIRED,
 				EXPIRES_AT, null, null, null, "사유", null)).isInstanceOf(NullPointerException.class);
 	}
+
+	@Test
+	@DisplayName("이력은 자기 자신을 반환하거나 정정할 수 없다")
+	void rejectsSelfReference() {
+		// given
+		UUID id = UUID.randomUUID();
+		UUID ticketId = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> new TicketHistory(id, ticketId, TicketOperationType.REFUND, 3, TicketStatus.RETURNED,
+				EXPIRES_AT, null, id, null, "사유", ISSUED_AT)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHistory(id, ticketId, TicketOperationType.CORRECTION, 3,
+				TicketStatus.AVAILABLE, EXPIRES_AT, null, null, id, "사유", ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThat(new TicketHistory(id, ticketId, TicketOperationType.REFUND, 3, TicketStatus.RETURNED, EXPIRES_AT,
+				null, UUID.randomUUID(), null, "사유", ISSUED_AT).getId()).isEqualTo(id);
+	}
 }

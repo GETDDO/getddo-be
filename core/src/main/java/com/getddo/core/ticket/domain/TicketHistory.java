@@ -38,7 +38,7 @@ public final class TicketHistory {
 		Objects.requireNonNull(expiresAt, "expiresAt");
 		Objects.requireNonNull(reason, "reason");
 		Objects.requireNonNull(createdAt, "createdAt");
-		requireConsistent(operationType, ticketVersion, status, eventEntryId, originalUseHistoryId,
+		requireConsistent(id, operationType, ticketVersion, status, eventEntryId, originalUseHistoryId,
 				correctedHistoryId);
 		this.id = id;
 		this.ticketId = ticketId;
@@ -105,8 +105,8 @@ public final class TicketHistory {
 	}
 
 	/** DB의 이력 CHECK와 같은 조합만 허용해, 잘못된 이력이 저장 단계의 제약 위반이 아니라 여기서 먼저 드러나게 한다. */
-	private static void requireConsistent(TicketOperationType operationType, long ticketVersion, TicketStatus status,
-			UUID eventEntryId, UUID originalUseHistoryId, UUID correctedHistoryId) {
+	private static void requireConsistent(UUID id, TicketOperationType operationType, long ticketVersion,
+			TicketStatus status, UUID eventEntryId, UUID originalUseHistoryId, UUID correctedHistoryId) {
 		Objects.requireNonNull(operationType, "operationType");
 		Objects.requireNonNull(status, "status");
 		boolean grant = operationType == TicketOperationType.GRANT;
@@ -118,6 +118,9 @@ public final class TicketHistory {
 		}
 		if ((operationType == TicketOperationType.REFUND) != (originalUseHistoryId != null)) {
 			throw new IllegalArgumentException("원본 사용 이력 ID는 반환 이력에만 있어야 한다.");
+		}
+		if (id != null && (id.equals(originalUseHistoryId) || id.equals(correctedHistoryId))) {
+			throw new IllegalArgumentException("이력은 자기 자신을 반환하거나 정정할 수 없다.");
 		}
 		if ((operationType == TicketOperationType.CORRECTION) != (correctedHistoryId != null)) {
 			throw new IllegalArgumentException("정정 대상 이력 ID는 정정 이력에만 있어야 한다.");

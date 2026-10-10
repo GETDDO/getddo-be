@@ -52,6 +52,9 @@ import com.getddo.core.ticket.repository.TicketRepository;
  *       동시에 두 번 호출되면 뒤 요청이 다른 응모권을 차감해 이중 차감이 되고, UNIQUE는 (응모, 응모권) 쌍이라
  *       막지 못한다. 이력을 잠가 다시 확인하는 방식은 빈 결과에서 gap lock을 잡아, 서로 다른 사용자의 동시 차감이
  *       이력 INSERT에서 교착하므로 쓰지 않는다.</li>
+ *   <li>호출 트랜잭션은 {@code READ COMMITTED}여야 한다. 후보 응모권과 사용 이력은 잠그지 않고 읽으므로(잠그면 빈 결과에서
+ *       gap lock이 잡혀 교착한다), REPEATABLE READ에서는 트랜잭션 시작 뒤에 반환·지급된 응모권을 보지 못해 보유가
+ *       충분해도 {@code TICKET-006}이 날 수 있다.</li>
  *   <li>등급은 정해진 순서로 정렬해 같은 순서로 잠그고, 등급 안에서는 만료가 이른 순으로 한 장씩 잠근다. 같은
  *       사용자의 동시 차감이 서로 기다릴 뿐 교착하지 않게 하기 위해서다.</li>
  *   <li>이 서비스가 던진 예외는 삼키지 않고 전파한다. 삼키고 진행하면 응모는 있고 차감은 없는 상태가 된다.</li>
@@ -61,6 +64,9 @@ import com.getddo.core.ticket.repository.TicketRepository;
 @Service
 @RequiredArgsConstructor
 public class TicketUseService {
+
+	/** 잠금을 기다리는 사이 만료된 응모권을 대체하며 다시 고르는 최대 횟수. */
+	private static final int MAX_SELECTION_ATTEMPTS = 3;
 
 	private final TicketRepository ticketRepository;
 	private final TicketHistoryRepository historyRepository;
@@ -86,9 +92,35 @@ public class TicketUseService {
 			return replayOf(command, existing);
 		}
 
-		// 후보 응모권을 고르는 기준 시각이다. DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·
-		// 저장 값이 어긋나지 않게 한다.
-		Instant candidateAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
+		// 후보를 고르고 잠그는 동안 시간이 흘러 고른 응모권이 만료될 수 있다. 잠금을 모두 쥔 뒤 처리 시각을 다시 구해
+		// 만료된 응모권이 섞였으면 그 시각으로 처음부터 다시 고른다. 먼저 만료되는 응모권을 이미 쥐고 있어도 뒤에 만료되는
+		// 응모권이 충분하면 대체해 차감한다. 호출자는 이 시각 이후 커밋까지의 경계를 자신의 응모 마감 판정과 함께 정해야 한다.
+		List<Ticket> selected;
+		Instant usedAt;
+		int attempt = 0;
+		do {
+			if (attempt++ == MAX_SELECTION_ATTEMPTS) {
+				throw new TicketException(TicketErrorCode.TICKET_INSUFFICIENT);
+			}
+			// 후보를 고르는 기준 시각이다. DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·
+			// 저장 값이 어긋나지 않게 한다.
+			Instant candidateAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
+			selected = lockSelected(command, candidateAt);
+			usedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
+		} while (!allUnexpired(selected, usedAt));
+
+		Instant processedAt = usedAt;
+		List<Ticket> used = selected.stream().map(ticket -> ticket.use(processedAt)).toList();
+		ticketRepository.updateAll(used);
+		historyRepository.saveAll(used.stream()
+				.map(ticket -> TicketHistory.use(ticket, command.getEventEntryId(), command.getReason()))
+				.toList());
+		return new UseResult(used.stream().map(ticket -> new UsedTicket(ticket.getId(), ticket.getGrade())).toList(),
+				usedAt, false);
+	}
+
+	/** 고른 등급마다 정해진 순서로 응모권을 잠가 읽는다. 어느 등급이든 쓸 수 있는 응모권이 모자라면 실패한다. */
+	private List<Ticket> lockSelected(UseCommand command, Instant candidateAt) {
 		List<Ticket> selected = new ArrayList<>();
 		for (UseSelection selection : inLockOrder(command.getSelections())) {
 			List<Ticket> locked = ticketRepository.findUsableForUpdate(command.getUserId(), selection.getGrade(),
@@ -98,20 +130,11 @@ public class TicketUseService {
 			}
 			selected.addAll(locked);
 		}
+		return selected;
+	}
 
-		// 잠금을 기다리는 동안 시간이 흘러 응모권이 만료됐을 수 있다. 잠금을 모두 쥔 지금 처리 시각을 다시 구해 만료된
-		// 응모권은 쓰지 않는다. 호출자는 이 시각 이후 커밋까지의 경계를 자신의 응모 마감 판정과 함께 정해야 한다.
-		Instant usedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
-		if (selected.stream().anyMatch(ticket -> !ticket.getExpiresAt().isAfter(usedAt))) {
-			throw new TicketException(TicketErrorCode.TICKET_INSUFFICIENT);
-		}
-		List<Ticket> used = selected.stream().map(ticket -> ticket.use(usedAt)).toList();
-		ticketRepository.updateAll(used);
-		historyRepository.saveAll(used.stream()
-				.map(ticket -> TicketHistory.use(ticket, command.getEventEntryId(), command.getReason()))
-				.toList());
-		return new UseResult(used.stream().map(ticket -> new UsedTicket(ticket.getId(), ticket.getGrade())).toList(),
-				usedAt, false);
+	private static boolean allUnexpired(List<Ticket> tickets, Instant at) {
+		return tickets.stream().allMatch(ticket -> ticket.getExpiresAt().isAfter(at));
 	}
 
 	/** 등급 순으로 정렬한다. 모든 차감이 같은 순서로 잠금을 잡게 한다. */
