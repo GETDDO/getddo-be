@@ -1,5 +1,6 @@
 package com.getddo.api.attendance.controller;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -128,7 +129,7 @@ class AttendanceControllerTest {
 	void documentsUserHeaders() throws Exception {
 		// given
 		AttendanceController controller = new AttendanceController(service);
-		var method = Arrays.stream(AttendanceController.class.getDeclaredMethods())
+		Method method = Arrays.stream(AttendanceController.class.getDeclaredMethods())
 				.filter(candidate -> candidate.getName().equals("attend")).findFirst().orElseThrow();
 
 		// when
