@@ -31,9 +31,16 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
  * GD-129: 서로 다른 업무일의 출석 요청이 요청 시각의 반대 순서로 커밋될 때 연속 출석과 단계 보상이 출석 기록과 일치하는지
  * 검증한다.
  *
- * <p>순서는 잠금 대기로 만들지 않고 {@link AttendanceRecorder#record}를 요청 시각을 직접 지정해 차례로 호출해 정한다.
- * 자정 직전 요청이 잠금 대기에서 자정 직후 요청보다 늦게 처리되는 상황을 대기 시간에 의존하지 않고 재현하기 위해서다.
- * 시계는 두 호출 모두 처리 시각(자정 직후)으로 고정한다.</p>
+ * <p>순서를 만드는 방식이 두 가지다.</p>
+ * <ul>
+ *   <li>역순 커밋 재현: {@link AttendanceRecorder#record}를 요청 시각을 직접 지정해 차례로 호출한다. 자정 직전 요청이
+ *       자정 직후 요청보다 늦게 커밋되는 상황을 잠금 대기 시간에 의존하지 않고 재현한다. 이 테스트들은 시계를
+ *       처리 시각(자정 직후)으로 고정한다.</li>
+ *   <li>잠금 대기 재현: 먼저 들어온 요청이 연속 현황 잠금을 쥔 채 커밋 직전에 멈추고, 운영 경로
+ *       ({@link AttendanceService#attend})로 들어온 뒤 요청이 {@link LockWaitProbe}로 확인한 실제 잠금 대기에
+ *       들어간 뒤 앞 요청을 커밋시킨다. 이 테스트들은 기다리는 요청의 시계를 그 요청의 업무일(자정 직전 또는
+ *       직후)로 따로 설정한다.</li>
+ * </ul>
  */
 class AttendanceOutOfOrderIntegrationTest extends AttendanceIntegrationTestSupport {
 
