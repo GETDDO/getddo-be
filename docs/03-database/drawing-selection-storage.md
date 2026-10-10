@@ -9,7 +9,7 @@
 
 ## 입력과 수량 검증
 
-`DrawSnapshotService.prepareInitial(eventId)`는 HTTP API가 아닌 내부 서비스다. `core`의 저장소 인터페이스를 통해 원본을 읽고 `storage:db`의 JDBC 구현이 영속성을 담당한다. 기존 JDBC·UUID v7·UTC 변환 관례를 따른다. JSON 스냅샷은 BOM으로 관리되는 Jackson 3으로 직렬화한다.
+`DrawSnapshotService.prepareInitial(eventId)`는 HTTP API가 아닌 내부 서비스다. `core`의 저장소 인터페이스를 통해 원본을 읽고 `storage:db`의 JPA 구현이 추첨 스냅샷 영속성을 담당한다. 원본 조회·이벤트 잠금 SQL은 JDBC로 재사용하며, 추첨 엔티티는 공통 UUID v7·UTC 시각 관례를 따른다. JSON 스냅샷은 BOM으로 관리되는 Jackson 3으로 직렬화한다.
 
 - `event_entries`는 성공한 응모만 저장하며 상태 컬럼이 없다. 응모자별 전체 응모를 읽는다.
 - 응모 ID에 연결된 `ticket_histories.operation_type = USE`를 `tickets`와 연결한다. 현재 티켓 상태로 필터링하지 않고 불변 `grade`와 사용 당시 이력을 읽는다.
