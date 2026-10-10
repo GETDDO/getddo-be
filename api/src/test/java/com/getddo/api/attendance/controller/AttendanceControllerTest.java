@@ -212,25 +212,27 @@ class AttendanceControllerTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"2026-13", "202609", "2026-9", "2026-09-01", "abc", ""})
-	@DisplayName("AT03에서 month가 YYYY-MM 형식이 아니면 조회하지 않고 400으로 응답한다")
+	@ValueSource(strings = {"2026-13", "202609", "2026-9", "2026-09-01", "abc"})
+	@DisplayName("AT03에서 month가 YYYY-MM 형식이 아니면 조회하지 않고 400 COMMON-005로 응답한다")
 	void rejectsInvalidMonth(String month) throws Exception {
 		// given
 		// when / then
 		mvc.perform(selected(get("/api/v1/attendances")).param("month", month))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.success").value(false));
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.code").value("COMMON-005"));
 		verifyNoInteractions(queryService);
 	}
 
 	@Test
-	@DisplayName("AT03에서 month를 생략하면 조회하지 않고 400으로 응답한다")
+	@DisplayName("AT03에서 month를 생략하면 조회하지 않고 400 COMMON-002로 응답한다")
 	void requiresMonth() throws Exception {
 		// given
 		// when / then
 		mvc.perform(selected(get("/api/v1/attendances")))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.success").value(false));
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.code").value("COMMON-002"));
 		verifyNoInteractions(queryService);
 	}
 

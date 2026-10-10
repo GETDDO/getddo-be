@@ -227,6 +227,27 @@ class AttendanceQueryServiceTest {
 		}
 
 		@Test
+		@DisplayName("청구는 있는데 지급 기록을 찾지 못하면 claimed=true이고 claimedAt은 null이다")
+		void claimedWithoutGrantRecord() {
+			// given
+			givenPolicies();
+			UUID claimId = UUID.randomUUID();
+			when(streakRepository.find(USER_ID, OCTOBER)).thenReturn(Optional.of(streak(OCTOBER, 7, TODAY)));
+			when(policyRepository.findStreakPolicySetById(SET_ID)).thenReturn(Optional.of(POLICY_SET));
+			when(attendanceRepository.findByUserIdAndDate(USER_ID, TODAY)).thenReturn(Optional.empty());
+			when(claimRepository.findStreakClaims(USER_ID, YearMonth.of(2026, 10)))
+					.thenReturn(List.of(streakClaim(claimId, 7, LocalDate.of(2026, 10, 7))));
+			when(grantService.findGrant(argThat(source -> isAttendanceClaim(source, claimId))))
+					.thenReturn(Optional.empty());
+			// when
+			AttendanceToday result = serviceAt(NOW).getToday(USER_ID);
+			// then
+			AttendanceMilestoneStatus seven = result.getMilestones().get(0);
+			assertThat(seven.isClaimed()).isTrue();
+			assertThat(seven.getClaimedAt()).isNull();
+		}
+
+		@Test
 		@DisplayName("적용할 일일 정책이 없으면 ATTENDANCE-001로 실패한다")
 		void noDailyPolicy() {
 			// given
