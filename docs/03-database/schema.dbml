@@ -96,6 +96,8 @@ Enum draw_runs_status_enum {
   RUNNING
   CONFIRMED
   FAILED
+  NO_ENTRIES
+  NO_CANDIDATES
 }
 
 Enum draw_publications_publication_type_enum {
@@ -674,7 +676,7 @@ Table draw_runs {
   event_id binary(16) [not null, note: '추첨 대상 이벤트 ID']
   run_number int [not null, note: '이벤트별 추첨 차수. 이벤트별 최초 0, 새 재추첨마다 증가. 실패 재시도는 유지.']
   draw_type draw_runs_draw_type_enum [not null, note: '추첨 종류. INITIAL=최초 추첨, REPLACEMENT=당첨 취소에 따른 재추첨']
-  status draw_runs_status_enum [not null, note: '실행 상태. PREPARING=준비 중, READY=후보·조건 확정, RUNNING=실행 중, CONFIRMED=결과 확정, FAILED=실패']
+  status draw_runs_status_enum [not null, note: '실행 상태. PREPARING=준비 중, READY=후보·조건 확정, RUNNING=실행 중, CONFIRMED=결과 확정, FAILED=실패, NO_ENTRIES=응모자 없음, NO_CANDIDATES=전원 제외 정상 종료']
   algorithm_version varchar(100) [note: 'READY 이후 필수·불변.']
   rules_snapshot json [note: 'READY 이후 필수·불변. 경품·자리·가중치 기준·유지 당첨 결과 ID·대상 자리.']
   snapshot_fixed_at datetime(6) [note: 'UTC. 확정 전 NULL']
@@ -690,6 +692,7 @@ Table draw_runs {
   checks {
     `(draw_type = 'INITIAL' AND run_number = 0) OR (draw_type = 'REPLACEMENT' AND run_number >= 1)` [name: 'chk_draw_number']
     `status NOT IN ('READY','RUNNING','CONFIRMED') OR (algorithm_version IS NOT NULL AND rules_snapshot IS NOT NULL AND snapshot_fixed_at IS NOT NULL)` [name: 'chk_draw_fixed_input']
+    `status NOT IN ('NO_ENTRIES','NO_CANDIDATES') OR (algorithm_version IS NOT NULL AND rules_snapshot IS NOT NULL AND snapshot_fixed_at IS NOT NULL)` [name: 'chk_draw_empty_fixed_input']
     `status <> 'CONFIRMED' OR confirmed_at IS NOT NULL` [name: 'chk_draw_confirmed_time']
   }
 }
