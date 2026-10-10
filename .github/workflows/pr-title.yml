@@ -22,15 +22,35 @@ jobs:
         shell: bash
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_HEAD_REF: ${{ github.head_ref }}
         run: |
           python3 - <<'PY'
           import os
           import re
           import sys
+          from datetime import date
 
           pattern = r"\[(feat|fix|docs|style|refactor|test|chore|design|comment|rename|remove|!HOTFIX)\] GD-[1-9][0-9]* \S[^\r\n]*"
-          if re.fullmatch(pattern, os.environ["PR_TITLE"]) is None:
-              print("::error::PR 제목은 [타입] GD-번호 작업 설명 형식이어야 합니다. 예: [feat] GD-51 사용자 조회 구현")
+          worklog_branch = re.fullmatch(
+              r"docs/([0-9]{4}-[0-9]{2}-[0-9]{2})(?:-[^/\s-][^/\s]*)?",
+              os.environ["PR_HEAD_REF"],
+          )
+          is_worklog_branch = False
+          if worklog_branch:
+              try:
+                  date.fromisoformat(worklog_branch.group(1))
+                  is_worklog_branch = True
+              except ValueError:
+                  pass
+
+          title = os.environ["PR_TITLE"]
+          valid_title = re.fullmatch(pattern, title) is not None
+          if is_worklog_branch:
+              valid_title = valid_title or re.fullmatch(r"\[docs\] (?!GD-)\S[^\r\n]*", title) is not None
+
+          if not valid_title:
+              print("::error::PR 제목은 [타입] GD-번호 작업 설명 형식이어야 합니다. "
+                    "docs/YYYY-MM-DD 또는 docs/YYYY-MM-DD-설명 브랜치에서는 [docs] 작업 설명도 허용합니다.")
               sys.exit(1)
           print("PR 제목 형식 검사를 통과했습니다.")
           PY
