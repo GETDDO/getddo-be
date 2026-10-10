@@ -32,4 +32,22 @@ class TicketExpiryTest {
 		// then
 		assertThat(expiresAt).isEqualTo(Instant.parse(expected));
 	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"2026-09-15T03:00:00Z, 2026-10-31T15:00:00Z",
+			"2026-09-30T14:59:59Z, 2026-10-31T15:00:00Z",
+			"2026-09-30T15:00:00Z, 2026-11-30T15:00:00Z",
+			"2026-11-15T03:00:00Z, 2026-12-31T15:00:00Z",
+			"2026-12-31T14:59:59Z, 2027-01-31T15:00:00Z",
+			"2026-12-31T15:00:00Z, 2027-02-28T15:00:00Z"
+	})
+	@DisplayName("반환한 KST 월의 다다음 달 1일 00:00 KST에 만료한다")
+	void refundExpiresAtMonthAfterNextInKst(String refundedAt, String expected) {
+		// given
+		// when
+		Instant expiresAt = TicketExpiry.forRefund(Instant.parse(refundedAt), time);
+		// then
+		assertThat(expiresAt).isEqualTo(Instant.parse(expected));
+	}
 }

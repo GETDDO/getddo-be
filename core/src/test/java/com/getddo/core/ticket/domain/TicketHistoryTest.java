@@ -51,4 +51,87 @@ class TicketHistoryTest {
 		// then
 		assertThatThrownBy(() -> TicketHistory.grant(unsaved, "사유")).isInstanceOf(NullPointerException.class);
 	}
+
+	@Test
+	@DisplayName("사용 이력은 사용된 응모권의 상태·만료 시각·수정 시각과 응모 ID를 담는다")
+	void useHistoryMirrorsSpentTicket() {
+		// given
+		Instant usedAt = ISSUED_AT.plusSeconds(60);
+		Ticket spent = saved().use(usedAt);
+		UUID entryId = UUID.randomUUID();
+		// when
+		TicketHistory history = TicketHistory.use(spent, entryId, "이벤트 응모");
+		// then
+		assertThat(history.getOperationType()).isEqualTo(TicketOperationType.USE);
+		assertThat(history.getTicketVersion()).isEqualTo(2);
+		assertThat(history.getStatus()).isEqualTo(TicketStatus.SPENT);
+		assertThat(history.getExpiresAt()).isEqualTo(EXPIRES_AT);
+		assertThat(history.getCreatedAt()).isEqualTo(usedAt);
+		assertThat(history.getEventEntryId()).isEqualTo(entryId);
+		assertThat(history.getOriginalUseHistoryId()).isNull();
+	}
+
+	@Test
+	@DisplayName("반환 이력은 반환된 응모권의 새 만료 시각과 원본 사용 이력 ID를 담는다")
+	void refundHistoryLinksOriginalUse() {
+		// given
+		Instant refundedAt = ISSUED_AT.plusSeconds(120);
+		Instant newExpiresAt = Instant.parse("2026-10-31T15:00:00Z");
+		Ticket returned = saved().use(ISSUED_AT.plusSeconds(60)).refund(refundedAt, newExpiresAt);
+		UUID useHistoryId = UUID.randomUUID();
+		// when
+		TicketHistory history = TicketHistory.refund(returned, useHistoryId, "이벤트 취소");
+		// then
+		assertThat(history.getOperationType()).isEqualTo(TicketOperationType.REFUND);
+		assertThat(history.getTicketVersion()).isEqualTo(3);
+		assertThat(history.getStatus()).isEqualTo(TicketStatus.RETURNED);
+		assertThat(history.getExpiresAt()).isEqualTo(newExpiresAt);
+		assertThat(history.getCreatedAt()).isEqualTo(refundedAt);
+		assertThat(history.getOriginalUseHistoryId()).isEqualTo(useHistoryId);
+		assertThat(history.getEventEntryId()).isNull();
+	}
+
+	@Test
+	@DisplayName("처리 유형·상태·버전·연결 ID가 DB 제약과 어긋난 이력은 만들 수 없다")
+	void rejectsInconsistentCombinations() {
+		// given
+		UUID ticketId = UUID.randomUUID();
+		UUID other = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.USE, 2, TicketStatus.SPENT,
+				EXPIRES_AT, null, null, null, "사유", ISSUED_AT)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.REFUND, 3,
+				TicketStatus.RETURNED, EXPIRES_AT, null, null, null, "사유", ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.GRANT, 2,
+				TicketStatus.AVAILABLE, EXPIRES_AT, null, null, null, "사유", ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.USE, 1, TicketStatus.SPENT,
+				EXPIRES_AT, other, null, null, "사유", ISSUED_AT)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.USE, 2,
+				TicketStatus.RETURNED, EXPIRES_AT, other, null, null, "사유", ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.EXPIRE, 2,
+				TicketStatus.EXPIRED, EXPIRES_AT, other, null, null, "사유", ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThat(new TicketHistory(null, ticketId, TicketOperationType.EXPIRE, 2, TicketStatus.EXPIRED, EXPIRES_AT,
+				null, null, null, "사유", ISSUED_AT).getStatus()).isEqualTo(TicketStatus.EXPIRED);
+	}
+
+	@Test
+	@DisplayName("만료 이력은 만료된 응모권의 상태와 버전을 담는다")
+	void expireHistoryMirrorsExpiredTicket() {
+		// given
+		Ticket base = saved();
+		Ticket expired = new Ticket(base.getId(), base.getUserId(), base.getGrantSource(), base.getGrade(),
+				TicketStatus.EXPIRED, EXPIRES_AT, 2, ISSUED_AT, EXPIRES_AT);
+		// when
+		TicketHistory history = TicketHistory.expire(expired, "월말 만료");
+		// then
+		assertThat(history.getOperationType()).isEqualTo(TicketOperationType.EXPIRE);
+		assertThat(history.getStatus()).isEqualTo(TicketStatus.EXPIRED);
+		assertThat(history.getTicketVersion()).isEqualTo(2);
+		assertThat(history.getCreatedAt()).isEqualTo(EXPIRES_AT);
+	}
 }

@@ -27,6 +27,7 @@ public class TicketGrantSeeds {
 	private final AtomicInteger sequence = new AtomicInteger();
 	private final List<UUID> users = new CopyOnWriteArrayList<>();
 	private final List<UUID> games = new CopyOnWriteArrayList<>();
+	private final List<UUID> events = new CopyOnWriteArrayList<>();
 
 	public TicketGrantSeeds(JdbcTemplate jdbc) {
 		this.jdbc = jdbc;
@@ -40,12 +41,20 @@ public class TicketGrantSeeds {
 		// 1) 사용자가 소유한 행. 다른 사용자가 만든 정책을 참조할 수 있으므로 정책보다 먼저 모두 지운다.
 		for (UUID user : users) {
 			byte[] id = bytes(user);
+			// 반환·정정 이력은 같은 응모권의 다른 이력을 참조하므로 참조하는 쪽을 먼저 지운다.
+			jdbc.update("""
+					delete h from ticket_histories h
+					join tickets t on t.id = h.ticket_id
+					where t.user_id = ? and (h.original_use_history_id is not null or h.corrected_history_id is not null)
+					""", id);
 			jdbc.update("""
 					delete h from ticket_histories h
 					join tickets t on t.id = h.ticket_id
 					where t.user_id = ?
 					""", id);
 			jdbc.update("delete from tickets where user_id = ?", id);
+			jdbc.update("delete from event_entries where user_id = ?", id);
+			jdbc.update("delete from event_participants where user_id = ?", id);
 			jdbc.update("delete from mission_reward_claims where user_id = ?", id);
 			jdbc.update("delete from attendance_reward_claims where user_id = ?", id);
 			jdbc.update("delete from game_reward_claims where user_id = ?", id);
@@ -69,11 +78,15 @@ public class TicketGrantSeeds {
 		for (UUID game : games) {
 			jdbc.update("delete from games where id = ?", bytes(game));
 		}
+		for (UUID event : events) {
+			jdbc.update("delete from events where id = ?", bytes(event));
+		}
 		for (UUID user : users) {
 			jdbc.update("delete from users where id = ?", bytes(user));
 		}
 		users.clear();
 		games.clear();
+		events.clear();
 	}
 
 	/** 호출자의 "기존 청구 조회" 단계. 미션 청구 UNIQUE 키 {@code (user_id, mission_id)}로 찾는다. */
@@ -182,6 +195,32 @@ public class TicketGrantSeeds {
 		return id;
 	}
 
+	/**
+	 * 사용 이력의 FK가 가리킬 응모 행. 새 이벤트와 참여자를 함께 만든다. 응모 ID는 클라이언트가 발급하는 UUID다.
+	 * 호출자 트랜잭션 안팎 어디서든 부를 수 있다.
+	 */
+	public UUID eventEntry(UUID userId) {
+		UUID eventId = UUID.randomUUID();
+		jdbc.update("""
+				insert into events (id, title, description, event_type, weighting_enabled, starts_at, ends_at,
+				  status, created_at, updated_at, membership_rule)
+				values (?, '테스트 이벤트', '설명', 'TICKET', false, ?, ?, 'OPEN', ?, ?, 'excellent')
+				""", bytes(eventId), SEED_TIME, SEED_TIME.plusMonths(3), SEED_TIME, SEED_TIME);
+		events.add(eventId);
+		UUID participantId = UUID.randomUUID();
+		jdbc.update("""
+				insert into event_participants (id, event_id, user_id, created_at, used_ticket_count)
+				values (?, ?, ?, ?, 0)
+				""", bytes(participantId), bytes(eventId), bytes(userId), SEED_TIME);
+		UUID entryId = uuidV7();
+		jdbc.update("""
+				insert into event_entries (id, participant_id, user_id, requested_ticket_count,
+				  deducted_ticket_count, created_at)
+				values (?, ?, ?, 0, 0, ?)
+				""", bytes(entryId), bytes(participantId), bytes(userId), SEED_TIME);
+		return entryId;
+	}
+
 	private UUID rewardPolicy(UUID createdBy, String rewardType, UUID gameId) {
 		UUID id = UUID.randomUUID();
 		jdbc.update("""
@@ -195,6 +234,17 @@ public class TicketGrantSeeds {
 
 	private int next() {
 		return sequence.incrementAndGet();
+	}
+
+	/**
+	 * 운영의 응모 ID처럼 시간순으로 커지는 UUID v7을 만든다. 서로 다른 응모의 키가 인덱스 끝에 몰리는 분포를 재현한다.
+	 */
+	public static UUID uuidV7() {
+		long millis = System.currentTimeMillis();
+		java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+		long most = (millis << 16) | 0x7000L | (random.nextLong() & 0x0FFFL);
+		long least = (random.nextLong() & 0x3FFFFFFFFFFFFFFFL) | 0x8000000000000000L;
+		return new UUID(most, least);
 	}
 
 	public static byte[] bytes(UUID value) {

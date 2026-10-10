@@ -28,6 +28,8 @@ public interface TicketMapper {
 			expression = "java(claimIdOf(ticket.getGrantSource(), GrantSourceType.GAME))")
 	TicketEntity toEntity(Ticket ticket);
 
+	// use(Instant)는 같은 타입을 돌려주는 인자 하나짜리 메서드라 MapStruct가 fluent setter로 오해한다.
+	@Mapping(target = "use", ignore = true)
 	@Mapping(target = "grantSource", expression = "java(grantSourceOf(entity))")
 	Ticket toDomain(TicketEntity entity);
 
