@@ -108,6 +108,34 @@ class TicketApiIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("T01은 반환 상태 응모권도 보유로 세고, 사용한 응모권은 빼며, 만료 시각이 다른 묶음을 임박순으로 나눠 응답한다")
+	void returnsSeparateHoldingsByExpiryIncludingReturned() throws Exception {
+		// given: seed()의 사용 가능 3장(30일 뒤 만료)에 반환 2장(60일 뒤 만료)과 사용 1장을 더한다
+		ByteBuffer claimBytes = ByteBuffer.wrap(jdbc.queryForObject(
+				"select id from attendance_reward_claims where user_id = ?", byte[].class, bytes(USER)));
+		UUID claim = new UUID(claimBytes.getLong(), claimBytes.getLong());
+		Instant later = Instant.now().plus(MARGIN).plus(MARGIN);
+		insertTicketOnly(UUID.fromString("00000000-0000-0000-0000-000000000250"), claim, "RETURNED", later);
+		insertTicketOnly(UUID.fromString("00000000-0000-0000-0000-000000000251"), claim, "RETURNED", later);
+		insertTicketOnly(UUID.fromString("00000000-0000-0000-0000-000000000252"), claim, "SPENT", later);
+
+		// when
+		String body = mvc.perform(get("/api/v1/tickets/me").headers(userHeaders(USER)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.availableCount").value(5))
+				.andExpect(jsonPath("$.data.countByGrade.BRONZE").value(5))
+				.andExpect(jsonPath("$.data.holdings.length()").value(2))
+				.andExpect(jsonPath("$.data.holdings[0].count").value(3))
+				.andExpect(jsonPath("$.data.holdings[1].count").value(2))
+				.andReturn().getResponse().getContentAsString();
+
+		// then: 만료가 임박한 묶음이 먼저 온다
+		JsonNode holdings = mapper.readTree(body).path("data").path("holdings");
+		assertThat(Instant.parse(holdings.path(0).path("expiresAt").asString()))
+				.isBefore(Instant.parse(holdings.path(1).path("expiresAt").asString()));
+	}
+
+	@Test
 	@DisplayName("T02는 본인 이력을 최신순 커서로 넘기며 마지막 페이지에서 다음 커서가 없다")
 	void pagesOwnHistoryWithCursor() throws Exception {
 		// given: seed()가 본인 지급 이력 4건과 타인 지급 이력 1건을 준비한다.
@@ -259,6 +287,15 @@ class TicketApiIntegrationTest {
 	}
 
 	/** 사용 가능으로 저장된 브론즈 응모권 한 장과 그 지급 이력을 넣는다. 만료 시각만 지정하고 상태는 바꾸지 않는다. */
+	/** 이력 없이 응모권만 넣는다. T01 보유 조회 검증용이라 상태·만료 시각만 의미가 있다. */
+	private void insertTicketOnly(UUID ticketId, UUID claimId, String status, Instant expiresAt) {
+		jdbc.update("""
+				insert into tickets (id, user_id, attendance_reward_claim_id, grade, status, expires_at, version,
+				  created_at, updated_at)
+				values (?, ?, ?, 'BRONZE', ?, ?, 1, ?, ?)
+				""", bytes(ticketId), bytes(USER), bytes(claimId), status, utc(expiresAt), utc(T3), utc(T3));
+	}
+
 	private void insertTicketWithGrant(UUID ticketId, UUID historyId, UUID userId, UUID claimId, Instant expiresAt,
 			Instant grantedAt) {
 		jdbc.update("""

@@ -48,7 +48,8 @@ public class TicketController {
 	/**
 	 * 내 응모권 처리 이력을 {@code createdAt DESC, id DESC} 순서의 커서로 조회한다.
 	 *
-	 * <p>기간은 {@code [from, to)}로 적용한다. 시각은 {@code Z}나 오프셋을 포함해야 하며 시간대 없는 값은 거절한다.</p>
+	 * <p>기간은 {@code [from, to)}로 적용한다. 시각은 {@code Z}나 오프셋을 포함해야 하며 시간대 없는 값은 거절한다.
+	 * 쿼리 문자열에서 오프셋의 {@code +}는 공백으로 해석되므로 {@code %2B}로 인코딩하거나 {@code Z}를 쓴다.</p>
 	 *
 	 * @param user 공통 MVC에서 확인한 등록 사용자
 	 * @param cursor 이전 응답의 nextCursor. 첫 조회에서는 생략
@@ -66,7 +67,11 @@ public class TicketController {
 					schema = @Schema(minimum = "1", maximum = "100", defaultValue = "20"))
 			@RequestParam(defaultValue = "20") int size,
 			@RequestParam(required = false) TicketOperationType operationType,
+			@Parameter(description = "시작 시각(포함). 시간대가 필요하다. UTC는 Z로 쓰고, 오프셋의 +는 %2B로 인코딩한다.",
+					example = "2026-09-01T00:00:00Z")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
+			@Parameter(description = "끝 시각(제외). 시간대가 필요하다. UTC는 Z로 쓰고, 오프셋의 +는 %2B로 인코딩한다.",
+					example = "2026-10-01T00:00:00Z")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
 		TicketHistoryFilter filter = TicketHistoryFilter.of(operationType,
 				from == null ? null : from.toInstant(), to == null ? null : to.toInstant());
