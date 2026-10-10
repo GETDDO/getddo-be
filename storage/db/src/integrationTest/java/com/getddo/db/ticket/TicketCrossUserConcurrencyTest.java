@@ -20,6 +20,7 @@ import com.getddo.core.ticket.domain.RefundCommand;
 import com.getddo.core.ticket.domain.TicketGrade;
 import com.getddo.core.ticket.domain.TicketStatus;
 import com.getddo.core.ticket.domain.UseCommand;
+import com.getddo.core.ticket.domain.UseSelection;
 import com.getddo.core.ticket.service.TicketRefundService;
 import com.getddo.core.ticket.service.TicketUseService;
 
@@ -44,6 +45,11 @@ class TicketCrossUserConcurrencyTest extends TicketIntegrationTestSupport {
 	@Autowired
 	private TicketRefundService refundService;
 
+	/** 브론즈 1장을 고른 묶음. */
+	private static List<UseSelection> one() {
+		return List.of(new UseSelection(TicketGrade.BRONZE, 1));
+	}
+
 	private void tickets(UUID user, int count) {
 		for (int i = 0; i < count; i++) {
 			TicketGrantSeeds.MissionParents parents = seeds.missionParents(user);
@@ -66,7 +72,7 @@ class TicketCrossUserConcurrencyTest extends TicketIntegrationTestSupport {
 			tickets(user, 2);
 			UUID entry = seeds.eventEntry(user);
 			entries.add(entry);
-			works.add(() -> useService.use(new UseCommand(user, entry, 1, "테스트 응모")));
+			works.add(() -> useService.use(new UseCommand(user, entry, one(), "테스트 응모")));
 		}
 		// when
 		List<Object> outcomes = runTogether(works, true);
@@ -86,8 +92,8 @@ class TicketCrossUserConcurrencyTest extends TicketIntegrationTestSupport {
 		tickets(otherUser, 1);
 		UUID firstEntry = seeds.eventEntry(userId);
 		UUID secondEntry = seeds.eventEntry(otherUser);
-		transaction.execute(status -> useService.use(new UseCommand(userId, firstEntry, 1, "테스트 응모")));
-		transaction.execute(status -> useService.use(new UseCommand(otherUser, secondEntry, 1, "테스트 응모")));
+		transaction.execute(status -> useService.use(new UseCommand(userId, firstEntry, one(), "테스트 응모")));
+		transaction.execute(status -> useService.use(new UseCommand(otherUser, secondEntry, one(), "테스트 응모")));
 		// when
 		List<Object> outcomes = runTogether(List.of(
 				() -> refundService.refund(new RefundCommand(firstEntry, "테스트 취소")),

@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantedTicket;
 import com.getddo.core.ticket.domain.Ticket;
+import com.getddo.core.ticket.domain.TicketGrade;
 
 /** 응모권 저장소. 모든 메서드는 호출자 트랜잭션 안에서 호출한다. */
 public interface TicketRepository {
@@ -29,18 +30,16 @@ public interface TicketRepository {
 	List<Ticket> saveAll(List<Ticket> tickets);
 
 	/**
-	 * 사용자가 지금 쓸 수 있는 응모권을 만료 임박순, 같으면 낮은 등급 먼저, 그다음 ID순으로 최대 {@code limit}장 잠가 읽는다.
-	 * 이 순서는 확정 정책이 아니라 <b>임시 구현 선택</b>이다. 사용자가 등급별 장수를 고를지 서버가 순서를 정할지는
-	 * 공용 스펙 {@code 00-requirements/pending-decisions.md}에 미결정으로 남아 있고, 확정되면 계약과 구현을 함께 바꾼다.
-	 *
-	 * <p>같은 사용자의 동시 차감은 같은 순서로 한 장씩 잠금을 잡으므로 서로 기다릴 뿐 교착하지 않는다. 잠금을 기다리는
+	 * 사용자가 지금 쓸 수 있는 해당 등급의 응모권을 만료가 이른 순, 같으면 ID순으로 최대 {@code limit}장 잠가 읽는다.
+	 * 같은 사용자의 동시 차감이 같은 순서로 한 장씩 잠금을 잡으므로 서로 기다릴 뿐 교착하지 않는다. 잠금을 기다리는
 	 * 동안 다른 처리가 쓰거나 만료시킨 응모권은 잠근 뒤 최신 값으로 판정해 건너뛰므로, 결과가 {@code limit}보다 적으면
-	 * 쓸 수 있는 응모권이 부족한 것이다.
+	 * 그 등급의 쓸 수 있는 응모권이 부족한 것이다.
 	 *
+	 * @param grade 읽을 등급
 	 * @param now 이 시각 이후에 만료하는 응모권만 읽는다
 	 * @param limit 최대 개수
 	 */
-	List<Ticket> findUsableForUpdate(UUID userId, Instant now, int limit);
+	List<Ticket> findUsableForUpdate(UUID userId, TicketGrade grade, Instant now, int limit);
 
 	/** 응모권을 ID 오름차순으로 잠가 읽는다. 없는 ID는 결과에서 빠진다. */
 	List<Ticket> findAllForUpdate(Collection<UUID> ids);

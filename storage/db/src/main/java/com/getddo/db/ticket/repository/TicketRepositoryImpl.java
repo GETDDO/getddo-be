@@ -20,6 +20,7 @@ import org.springframework.stereotype.Repository;
 import com.getddo.core.ticket.domain.GrantSource;
 import com.getddo.core.ticket.domain.GrantedTicket;
 import com.getddo.core.ticket.domain.Ticket;
+import com.getddo.core.ticket.domain.TicketGrade;
 import com.getddo.core.ticket.domain.TicketOperationType;
 import com.getddo.core.ticket.repository.TicketRepository;
 import com.getddo.db.common.util.UuidBinary;
@@ -70,15 +71,16 @@ public class TicketRepositoryImpl implements TicketRepository {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * <p>후보 ID는 잠그지 않고 읽은 뒤 선택 순서대로 PK로 한 장씩 잠근다. 잠금을 기다리는 동안 다른 처리가 바꾼 응모권은
+	 * <p>후보 ID는 잠그지 않고 읽은 뒤 만료가 이른 순으로 PK로 한 장씩 잠근다. 잠금을 기다리는 동안 다른 처리가 바꾼 응모권은
 	 * 잠근 뒤 최신 값으로 다시 판정해 건너뛴다. 범위에 {@code FOR UPDATE}를 걸지 않아 gap lock이 생기지 않는다.</p>
 	 */
 	@Override
-	public List<Ticket> findUsableForUpdate(UUID userId, Instant now, int limit) {
+	public List<Ticket> findUsableForUpdate(UUID userId, TicketGrade grade, Instant now, int limit) {
 		List<Ticket> locked = new ArrayList<>();
 		int pageSize = Math.max(limit, MIN_CANDIDATE_PAGE);
 		for (int offset = 0; locked.size() < limit; offset += pageSize) {
-			List<byte[]> page = ticketJpaRepository.findUsableIds(UuidBinary.toBytes(userId), now, pageSize, offset);
+			List<byte[]> page = ticketJpaRepository.findUsableIds(UuidBinary.toBytes(userId), grade.name(), now,
+					pageSize, offset);
 			for (byte[] raw : page) {
 				if (locked.size() >= limit) {
 					break;

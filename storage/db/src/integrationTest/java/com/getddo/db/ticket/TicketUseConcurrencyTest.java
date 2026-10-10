@@ -21,6 +21,7 @@ import com.getddo.core.ticket.domain.TicketGrade;
 import com.getddo.core.ticket.domain.TicketStatus;
 import com.getddo.core.ticket.domain.UseCommand;
 import com.getddo.core.ticket.domain.UseResult;
+import com.getddo.core.ticket.domain.UseSelection;
 import com.getddo.core.ticket.domain.UsedTicket;
 import com.getddo.core.ticket.exception.TicketErrorCode;
 import com.getddo.core.ticket.exception.TicketException;
@@ -57,7 +58,8 @@ class TicketUseConcurrencyTest extends TicketIntegrationTestSupport {
 	}
 
 	private UseResult use(UUID entryId, long quantity) {
-		return useService.use(new UseCommand(userId, entryId, quantity, "테스트 응모"));
+		return useService.use(new UseCommand(userId, entryId,
+				List.of(new UseSelection(TicketGrade.BRONZE, quantity)), "테스트 응모"));
 	}
 
 	private static List<UUID> ids(List<UsedTicket> tickets) {
