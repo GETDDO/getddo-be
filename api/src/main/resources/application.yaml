@@ -15,7 +15,7 @@ getddo:
     # 본 요청의 메서드 목록이다. preflight의 OPTIONS는 Spring이 별도로 처리한다.
     allowed-methods: [GET, HEAD, POST, PUT, DELETE]
     # 프론트 → 서버 요청 헤더. 헤더 값의 유효성은 기존 사용자 문맥 처리에서 검사한다.
-    allowed-headers: [Content-Type, X-User-ID, X-User-Role, X-User-Membership]
+    allowed-headers: [Content-Type, X-User-ID, X-User-Role, X-User-Membership, Idempotency-Key]
     # 서버 → 프론트 응답에서 JavaScript가 추가로 읽을 헤더. JSON 본문 필드와는 별개다.
     exposed-headers: []
     # 현재 쿠키를 사용하지 않는다. X-User-* 헤더 전달을 위해 true로 바꿀 필요는 없다.

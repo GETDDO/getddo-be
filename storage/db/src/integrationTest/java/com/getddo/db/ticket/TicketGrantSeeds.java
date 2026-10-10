@@ -1,8 +1,10 @@
 package com.getddo.db.ticket;
 
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -192,6 +194,44 @@ public class TicketGrantSeeds {
 				values (?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""", bytes(id), bytes(userId), bytes(parents.gameId()), bytes(parents.playId()),
 				bytes(parents.policyId()), FIRST_DATE.plusDays(next()), "game-" + next(), ticketCount, SEED_TIME);
+		return id;
+	}
+
+	/**
+	 * 이벤트를 직접 넣는다. 시각은 UTC 원값이며, 정리 때 지워지도록 추적한다.
+	 *
+	 * @param eventType {@code NO_TICKET} 또는 {@code TICKET}
+	 * @param maxTicketsPerUser 사용자별 누적 상한. 상한 없음(월말 소진용)이면 null
+	 * @param membershipRule {@code excellent}, {@code vip}, {@code vvip}
+	 * @param status 이벤트 상태 이름
+	 * @param deletedAt 삭제 시각. 삭제되지 않았으면 null
+	 */
+	public UUID event(String eventType, boolean weightingEnabled, Integer maxTicketsPerUser, String membershipRule,
+			Instant startsAt, Instant endsAt, String status, Instant deletedAt) {
+		UUID eventId = UUID.randomUUID();
+		jdbc.update("""
+				insert into events (id, title, description, event_type, weighting_enabled, max_tickets_per_user,
+				  starts_at, ends_at, status, created_at, updated_at, deleted_at, membership_rule)
+				values (?, '응모 테스트 이벤트', '설명', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				""", bytes(eventId), eventType, weightingEnabled, maxTicketsPerUser,
+				LocalDateTime.ofInstant(startsAt, ZoneOffset.UTC), LocalDateTime.ofInstant(endsAt, ZoneOffset.UTC),
+				status, SEED_TIME, SEED_TIME,
+				deletedAt == null ? null : LocalDateTime.ofInstant(deletedAt, ZoneOffset.UTC), membershipRule);
+		events.add(eventId);
+		return eventId;
+	}
+
+	/** 사용자에게 응모권 한 장을 직접 넣는다(사용 가능, 버전 1). 만료 시각은 UTC 원값이다. */
+	public UUID ticket(UUID userId, String grade, Instant expiresAt) {
+		MissionParents parents = missionParents(userId);
+		UUID claimId = missionClaim(userId, parents, 1);
+		UUID id = UUID.randomUUID();
+		jdbc.update("""
+				insert into tickets (id, user_id, mission_reward_claim_id, grade, status, expires_at, version,
+				  created_at, updated_at)
+				values (?, ?, ?, ?, 'AVAILABLE', ?, 1, ?, ?)
+				""", bytes(id), bytes(userId), bytes(claimId), grade,
+				LocalDateTime.ofInstant(expiresAt, ZoneOffset.UTC), SEED_TIME.minusDays(1), SEED_TIME.minusDays(1));
 		return id;
 	}
 
