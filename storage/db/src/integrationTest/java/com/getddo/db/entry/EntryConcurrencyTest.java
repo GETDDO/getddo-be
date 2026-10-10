@@ -20,6 +20,8 @@ import com.getddo.core.entry.domain.EntryReceipt;
 import com.getddo.core.entry.exception.EntryErrorCode;
 import com.getddo.core.entry.exception.EntryException;
 import com.getddo.core.ticket.domain.TicketGrade;
+import com.getddo.core.ticket.exception.TicketErrorCode;
+import com.getddo.core.ticket.exception.TicketException;
 
 import com.getddo.db.ticket.ConcurrentTasks;
 
@@ -246,7 +248,9 @@ class EntryConcurrencyTest extends EntryIntegrationTestSupport {
 		// then
 		long accepted = outcomes.stream().filter(EntryReceipt.class::isInstance).count();
 		assertThat(accepted).isEqualTo(3);
-		assertThat(outcomes.stream().filter(Throwable.class::isInstance)).hasSize(1);
+		assertThat(outcomes.stream().filter(Throwable.class::isInstance)).hasSize(1).allSatisfy(failure ->
+				assertThat(failure).isInstanceOfSatisfying(TicketException.class,
+						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_INSUFFICIENT)));
 		assertThat(spentTickets(userId)).isEqualTo(6);
 		assertThat(usedTicketCount(userId, event)).isEqualTo(6);
 	}
