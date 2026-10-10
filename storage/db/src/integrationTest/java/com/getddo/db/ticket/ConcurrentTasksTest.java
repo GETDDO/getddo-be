@@ -75,12 +75,14 @@ class ConcurrentTasksTest {
 		Thread.currentThread().interrupt();
 		// when
 		ConcurrentTasks.shutdownAndAwait(executor);
+		// 복원된 interrupt 상태가 남아 있으면 아래 join이 InterruptedException을 던질 수 있으므로 먼저 읽고 지운다.
+		boolean interruptRestored = Thread.interrupted();
 		// then
 		releaser.join();
 		assertThat(signaled).as("도우미가 interrupt 뒤 두 번째 awaitTermination에 들어갔다").isTrue();
 		assertThat(finished).as("interrupt로 바로 돌아오지 않고 작업 종료를 기다린다").isTrue();
 		assertThat(executor.isTerminated()).isTrue();
-		assertThat(Thread.interrupted()).as("호출 스레드의 interrupt 상태가 복원된다").isTrue();
+		assertThat(interruptRestored).as("호출 스레드의 interrupt 상태가 복원된다").isTrue();
 	}
 
 	/** {@code awaitTermination}의 두 번째 호출 진입을 알리는 테스트용 실행기. */
