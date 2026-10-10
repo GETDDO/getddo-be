@@ -7,8 +7,6 @@ import java.util.UUID;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawSnapshotSource;
@@ -22,7 +20,6 @@ import com.getddo.db.drawing.mapper.DrawSnapshotMapper;
 /** 원본 잠금 이후 같은 서비스 트랜잭션에서 스냅샷을 JPA로 저장·조회한다. */
 @Repository
 @RequiredArgsConstructor
-@Transactional(propagation = Propagation.MANDATORY)
 public class DrawSnapshotRepositoryImpl implements DrawSnapshotRepository {
 	private final DrawSnapshotSourceReader source;
 	private final DrawRunJpaRepository runs;

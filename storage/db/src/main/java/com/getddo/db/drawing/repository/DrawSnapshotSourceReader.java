@@ -14,8 +14,6 @@ import java.util.UUID;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.event.domain.EventStatus;
@@ -27,7 +25,6 @@ import static com.getddo.db.common.util.UuidBinary.toBytes;
 
 /** 다른 담당자의 원본 조회와 이벤트 선잠금 SQL을 유지한다. 추첨 테이블은 읽거나 쓰지 않는다. */
 @Repository
-@Transactional(propagation = Propagation.MANDATORY)
 public class DrawSnapshotSourceReader {
 	private final JdbcTemplate jdbc;
 
