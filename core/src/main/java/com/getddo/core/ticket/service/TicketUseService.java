@@ -65,9 +65,6 @@ import com.getddo.core.ticket.repository.TicketRepository;
 @RequiredArgsConstructor
 public class TicketUseService {
 
-	/** 잠금을 기다리는 사이 만료된 응모권을 대체하며 다시 고르는 최대 횟수. */
-	private static final int MAX_SELECTION_ATTEMPTS = 3;
-
 	private final TicketRepository ticketRepository;
 	private final TicketHistoryRepository historyRepository;
 	private final TimeProvider timeProvider;
@@ -80,7 +77,7 @@ public class TicketUseService {
 	 *
 	 * @param command 차감 요청
 	 * @return 이번에 확정된 차감 결과, 또는 이미 확정된 차감 결과
-	 * @throws TicketException 입력이 올바르지 않거나, 고른 등급의 쓸 수 있는 응모권이 고른 장수보다 적거나,
+	 * @throws TicketException 입력이 올바르지 않거나, 고른 등급의 쓸 수 있는 응모권이 고른 장수보다 적거나(잠금을 기다리는 사이 만료된 경우 포함),
 	 *         이미 차감된 응모에 다른 등급·장수·사용자의 요청이 온 경우
 	 */
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -92,25 +89,20 @@ public class TicketUseService {
 			return replayOf(command, existing);
 		}
 
-		// 후보를 고르고 잠그는 동안 시간이 흘러 고른 응모권이 만료될 수 있다. 잠금을 모두 쥔 뒤 처리 시각을 다시 구해
-		// 만료된 응모권이 섞였으면 그 시각으로 처음부터 다시 고른다. 먼저 만료되는 응모권을 이미 쥐고 있어도 뒤에 만료되는
-		// 응모권이 충분하면 대체해 차감한다. 호출자는 이 시각 이후 커밋까지의 경계를 자신의 응모 마감 판정과 함께 정해야 한다.
-		List<Ticket> selected;
-		Instant usedAt;
-		int attempt = 0;
-		do {
-			if (attempt++ == MAX_SELECTION_ATTEMPTS) {
-				throw new TicketException(TicketErrorCode.TICKET_INSUFFICIENT);
-			}
-			// 후보를 고르는 기준 시각이다. DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·
-			// 저장 값이 어긋나지 않게 한다.
-			Instant candidateAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
-			selected = lockSelected(command, candidateAt);
-			usedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
-		} while (!allUnexpired(selected, usedAt));
+		// DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·저장 값이 어긋나지 않게 한다.
+		Instant candidateAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
+		List<Ticket> selected = lockSelected(command, candidateAt);
 
-		Instant processedAt = usedAt;
-		List<Ticket> used = selected.stream().map(ticket -> ticket.use(processedAt)).toList();
+		// 잠금을 기다리는 동안 시간이 흘러 고른 응모권이 만료됐을 수 있다. 잠금을 모두 쥔 지금 처리 시각을 다시 구해 만료된
+		// 응모권이 섞였으면 실패시킨다. 뒤에 만료되는 응모권으로 바꿔 다시 잠그지 않는다. 앞선 시도의 잠금을 쥔 채 다른
+		// 등급을 다시 잠그면 잠금 순서가 뒤집혀 다른 차감과 교착할 수 있기 때문이다. 같은 달 지급분은 모두 같은 시각에
+		// 만료하므로 대체할 수 있는 경우도 드물다. 호출자는 보유 현황을 다시 조회해 응모하게 하고, 이 시각 이후 커밋까지의
+		// 경계를 자신의 응모 마감 판정과 함께 정해야 한다.
+		Instant usedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
+		if (!allUnexpired(selected, usedAt)) {
+			throw new TicketException(TicketErrorCode.TICKET_INSUFFICIENT);
+		}
+		List<Ticket> used = selected.stream().map(ticket -> ticket.use(usedAt)).toList();
 		ticketRepository.updateAll(used);
 		historyRepository.saveAll(used.stream()
 				.map(ticket -> TicketHistory.use(ticket, command.getEventEntryId(), command.getReason()))

@@ -269,41 +269,13 @@ class TicketUseServiceTest {
 	}
 
 	@Test
-	@DisplayName("잠금을 기다리는 사이 고른 응모권이 만료되면 처리 시각으로 다시 골라 뒤에 만료되는 응모권으로 대체한다")
-	void replacesTicketThatExpiredWhileWaitingForLocks() {
-		// given: 첫 시도의 후보는 만료 직전, 잠금을 모두 쥔 뒤에는 만료 시각이 지났다
+	@DisplayName("잠금을 기다리는 사이 고른 응모권이 만료되면 처리 시각을 다시 구해 TICKET-006으로 실패하고 아무것도 저장하지 않는다")
+	void failsWhenSelectedTicketExpiredWhileWaitingForLocks() {
+		// given: 후보를 고를 때는 만료 직전이지만 잠금을 모두 쥔 뒤에는 만료 시각이 지났다
 		Instant beforeExpiry = Instant.parse("2026-09-30T14:59:59.999999Z");
 		Instant afterExpiry = Instant.parse("2026-09-30T15:00:01Z");
 		TicketUseService advancingService = new TicketUseService(ticketRepository, historyRepository,
-				new TimeProvider(sequenceOf(beforeExpiry, afterExpiry, afterExpiry, afterExpiry)));
-		Ticket expiring = ticket(TicketGrade.BRONZE);
-		Ticket later = new Ticket(UUID.randomUUID(), USER_ID, new GrantSource(GrantSourceType.MISSION, UUID.randomUUID()),
-				TicketGrade.BRONZE, TicketStatus.AVAILABLE, Instant.parse("2026-10-31T15:00:00Z"), 1, CREATED_AT,
-				CREATED_AT);
-		when(ticketRepository.findUsableForUpdate(USER_ID, TicketGrade.BRONZE, beforeExpiry, 1))
-				.thenReturn(List.of(expiring));
-		when(ticketRepository.findUsableForUpdate(USER_ID, TicketGrade.BRONZE, afterExpiry, 1))
-				.thenReturn(List.of(later));
-		// when
-		UseResult result = advancingService.use(command(selection(TicketGrade.BRONZE, 1)));
-		// then
-		assertThat(result.getTickets()).extracting(used -> used.getTicketId()).containsExactly(later.getId());
-		assertThat(result.getUsedAt()).isEqualTo(afterExpiry);
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<Ticket>> updated = ArgumentCaptor.forClass(List.class);
-		verify(ticketRepository).updateAll(updated.capture());
-		assertThat(updated.getValue()).extracting(Ticket::getId).containsExactly(later.getId());
-	}
-
-	@Test
-	@DisplayName("다시 골라도 매번 만료되면 정해진 횟수 뒤 TICKET-006으로 실패하고 아무것도 저장하지 않는다")
-	void givesUpWhenSelectionKeepsExpiring() {
-		// given
-		Instant beforeExpiry = Instant.parse("2026-09-30T14:59:59.999999Z");
-		Instant afterExpiry = Instant.parse("2026-09-30T15:00:01Z");
-		TicketUseService advancingService = new TicketUseService(ticketRepository, historyRepository,
-				new TimeProvider(sequenceOf(beforeExpiry, afterExpiry, beforeExpiry, afterExpiry, beforeExpiry,
-						afterExpiry)));
+				new TimeProvider(sequenceOf(beforeExpiry, afterExpiry)));
 		when(ticketRepository.findUsableForUpdate(USER_ID, TicketGrade.BRONZE, beforeExpiry, 1))
 				.thenReturn(List.of(ticket(TicketGrade.BRONZE)));
 		// when
@@ -311,7 +283,7 @@ class TicketUseServiceTest {
 		assertThatThrownBy(() -> advancingService.use(command(selection(TicketGrade.BRONZE, 1))))
 				.isInstanceOfSatisfying(TicketException.class,
 						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_INSUFFICIENT));
-		verify(ticketRepository, times(3)).findUsableForUpdate(USER_ID, TicketGrade.BRONZE, beforeExpiry, 1);
+		verify(ticketRepository, times(1)).findUsableForUpdate(any(), any(), any(), anyInt());
 		verify(ticketRepository, never()).updateAll(any());
 		verify(historyRepository, never()).saveAll(any());
 	}

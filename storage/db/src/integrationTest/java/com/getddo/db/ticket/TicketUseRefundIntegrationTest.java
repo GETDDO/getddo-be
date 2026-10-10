@@ -5,11 +5,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.getddo.core.ticket.domain.RefundCommand;
 import com.getddo.core.ticket.domain.RefundResult;
@@ -376,5 +379,54 @@ class TicketUseRefundIntegrationTest extends TicketIntegrationTestSupport {
 				select count(*) from ticket_histories
 				where ticket_id = ? and operation_type = 'USE' and ticket_version = 3
 				""", bytes(ticket))).isEqualTo(1);
+	}
+
+	private <T> T inIsolation(int isolationLevel, Supplier<T> work) {
+		TransactionTemplate template = new TransactionTemplate(transaction.getTransactionManager());
+		template.setIsolationLevel(isolationLevel);
+		return template.execute(status -> work.get());
+	}
+
+	/** 호출 트랜잭션과 별개로 커밋한다. 호출 트랜잭션의 스냅샷이 만들어진 뒤에 일어난 지급·반환을 흉내 낸다. */
+	private void commitInNewTransaction(Runnable work) {
+		TransactionTemplate template = new TransactionTemplate(transaction.getTransactionManager());
+		template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		template.executeWithoutResult(status -> work.run());
+	}
+
+	/** 호출 트랜잭션이 첫 일반 조회로 스냅샷을 만든 뒤, 다른 트랜잭션이 같은 등급의 응모권 한 장을 지급해 커밋한다. */
+	private UseResult useAfterGrantCommittedFollowingSnapshot(int isolationLevel, UUID entry) {
+		return inIsolation(isolationLevel, () -> {
+			count("select count(*) from tickets where user_id = ?", bytes(userId));
+			commitInNewTransaction(() -> ticket(TicketGrade.BRONZE, SEPTEMBER_END));
+			return useService.use(new UseCommand(userId, entry, List.of(pick(TicketGrade.BRONZE, 2)), "테스트 응모"));
+		});
+	}
+
+	@Test
+	@DisplayName("READ COMMITTED 호출자는 자기 스냅샷 뒤에 커밋된 지급분도 보고 차감한다")
+	void readCommittedCallerSeesGrantCommittedAfterItsFirstRead() {
+		// given: 이미 한 장 있고, 호출자가 읽은 뒤 한 장이 더 지급·커밋된다
+		ticket(TicketGrade.BRONZE, SEPTEMBER_END);
+		UUID entry = seeds.eventEntry(userId);
+		// when
+		UseResult result = useAfterGrantCommittedFollowingSnapshot(TransactionDefinition.ISOLATION_READ_COMMITTED, entry);
+		// then
+		assertThat(result.getQuantity()).isEqualTo(2);
+		assertThat(spentCount(TicketGrade.BRONZE, SEPTEMBER_END)).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("REPEATABLE READ 호출자는 자기 스냅샷 뒤에 커밋된 지급분을 보지 못해 보유가 충분해도 TICKET-006이 난다(호출 규약 위반의 증상)")
+	void repeatableReadCallerMissesGrantCommittedAfterItsFirstRead() {
+		// given
+		ticket(TicketGrade.BRONZE, SEPTEMBER_END);
+		UUID entry = seeds.eventEntry(userId);
+		// when
+		// then
+		assertThatThrownBy(() -> useAfterGrantCommittedFollowingSnapshot(
+				TransactionDefinition.ISOLATION_REPEATABLE_READ, entry))
+				.satisfies(e -> assertErrorCode(e, TicketErrorCode.TICKET_INSUFFICIENT));
+		assertThat(spentCount(TicketGrade.BRONZE, SEPTEMBER_END)).isZero();
 	}
 }
