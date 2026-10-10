@@ -194,4 +194,24 @@ class TicketUseServiceTest {
 						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_INVALID_USE));
 		verifyNoInteractions(ticketRepository, historyRepository);
 	}
+
+	@Test
+	@DisplayName("여러 장 중 일부만 다른 사용자의 응모권이면 TICKET-008로 실패하고 아무것도 저장하지 않는다")
+	void mismatchedUserInSecondHistoryFails() {
+		// given
+		Ticket mine = ticket(TicketGrade.BRONZE).use(NOW_MICROS);
+		Ticket others = new Ticket(UUID.randomUUID(), UUID.randomUUID(),
+				new GrantSource(GrantSourceType.MISSION, UUID.randomUUID()), TicketGrade.SILVER,
+				TicketStatus.AVAILABLE, EXPIRES_AT, 1, CREATED_AT, CREATED_AT).use(NOW_MICROS);
+		when(historyRepository.findUseHistories(ENTRY_ID)).thenReturn(List.of(
+				TicketHistory.use(mine, ENTRY_ID, "이벤트 응모"), TicketHistory.use(others, ENTRY_ID, "이벤트 응모")));
+		when(ticketRepository.findAllByIds(anyCollection())).thenReturn(List.of(mine, others));
+		// when
+		// then
+		assertThatThrownBy(() -> service.use(command(2)))
+				.isInstanceOfSatisfying(TicketException.class,
+						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_USE_MISMATCH));
+		verify(ticketRepository, never()).updateAll(any());
+		verify(historyRepository, never()).saveAll(any());
+	}
 }

@@ -1,5 +1,6 @@
 package com.getddo.core.ticket.domain;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import lombok.Getter;
@@ -12,6 +13,8 @@ public final class UsedTicket {
 	private final TicketGrade grade;
 
 	public UsedTicket(UUID ticketId, TicketGrade grade) {
+		Objects.requireNonNull(ticketId, "ticketId");
+		Objects.requireNonNull(grade, "grade");
 		this.ticketId = ticketId;
 		this.grade = grade;
 	}

@@ -134,4 +134,21 @@ class TicketHistoryTest {
 		assertThat(history.getTicketVersion()).isEqualTo(2);
 		assertThat(history.getCreatedAt()).isEqualTo(EXPIRES_AT);
 	}
+
+	@Test
+	@DisplayName("정정 대상 이력 ID는 정정 이력에만 있어야 한다")
+	void correctedHistoryIdOnlyOnCorrection() {
+		// given
+		UUID ticketId = UUID.randomUUID();
+		UUID other = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.USE, 2, TicketStatus.SPENT,
+				EXPIRES_AT, other, null, other, "사유", ISSUED_AT)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.CORRECTION, 2,
+				TicketStatus.AVAILABLE, EXPIRES_AT, null, null, null, "사유", ISSUED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThat(new TicketHistory(null, ticketId, TicketOperationType.CORRECTION, 2, TicketStatus.AVAILABLE,
+				EXPIRES_AT, null, null, other, "사유", ISSUED_AT).getCorrectedHistoryId()).isEqualTo(other);
+	}
 }

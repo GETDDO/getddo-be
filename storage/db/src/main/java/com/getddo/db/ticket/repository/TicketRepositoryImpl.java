@@ -31,6 +31,9 @@ import com.getddo.db.ticket.mapper.TicketMapper;
 @RequiredArgsConstructor
 public class TicketRepositoryImpl implements TicketRepository {
 
+	/** 후보 ID를 한 번에 읽는 최소 개수. 건너뛰는 행이 있어도 대개 한 번에 채운다. */
+	private static final int MIN_CANDIDATE_PAGE = 20;
+
 	private final TicketJpaRepository ticketJpaRepository;
 	private final TicketHistoryJpaRepository historyJpaRepository;
 	private final TicketMapper ticketMapper;
@@ -73,13 +76,20 @@ public class TicketRepositoryImpl implements TicketRepository {
 	@Override
 	public List<Ticket> findUsableForUpdate(UUID userId, Instant now, int limit) {
 		List<Ticket> locked = new ArrayList<>();
-		for (byte[] raw : ticketJpaRepository.findUsableIds(UuidBinary.toBytes(userId), now)) {
-			if (locked.size() >= limit) {
+		int pageSize = Math.max(limit, MIN_CANDIDATE_PAGE);
+		for (int offset = 0; locked.size() < limit; offset += pageSize) {
+			List<byte[]> page = ticketJpaRepository.findUsableIds(UuidBinary.toBytes(userId), now, pageSize, offset);
+			for (byte[] raw : page) {
+				if (locked.size() >= limit) {
+					break;
+				}
+				lockAndRefresh(UuidBinary.fromBytes(raw))
+						.filter(entity -> entity.getStatus().isUsable() && entity.getExpiresAt().isAfter(now))
+						.ifPresent(entity -> locked.add(ticketMapper.toDomain(entity)));
+			}
+			if (page.size() < pageSize) {
 				break;
 			}
-			lockAndRefresh(UuidBinary.fromBytes(raw))
-					.filter(entity -> entity.getStatus().isUsable() && entity.getExpiresAt().isAfter(now))
-					.ifPresent(entity -> locked.add(ticketMapper.toDomain(entity)));
 		}
 		return locked;
 	}

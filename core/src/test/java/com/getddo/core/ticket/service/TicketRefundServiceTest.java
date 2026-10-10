@@ -213,4 +213,41 @@ class TicketRefundServiceTest {
 		}
 		verifyNoInteractions(ticketRepository, historyRepository);
 	}
+
+	@Test
+	@DisplayName("잠근 응모권이 하나도 없으면 TICKET-009로 실패하고 아무것도 저장하지 않는다")
+	void missingLockedTicketFails() {
+		// given
+		TicketHistory use = useHistory(spentTicket(TicketGrade.BRONZE));
+		when(historyRepository.findUseHistories(ENTRY_ID)).thenReturn(List.of(use));
+		when(historyRepository.findRefundsOf(anyCollection())).thenReturn(List.of());
+		when(ticketRepository.findAllForUpdate(anyCollection())).thenReturn(List.of());
+		// when
+		// then
+		assertThatThrownBy(() -> service.refund(command()))
+				.isInstanceOfSatisfying(TicketException.class,
+						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH));
+		verify(ticketRepository, never()).updateAll(any());
+		verify(historyRepository, never()).saveAll(any());
+	}
+
+	@Test
+	@DisplayName("반환됨이어도 버전이 사용 버전보다 2 이상 크면 이미 반환된 것으로 보지 않고 TICKET-009로 실패한다")
+	void returnedTicketTouchedAgainFails() {
+		// given: 사용 버전 2, 현재 버전 4 (반환 뒤 다른 처리가 끼어들었다)
+		Ticket spent = spentTicket(TicketGrade.BRONZE);
+		TicketHistory use = useHistory(spent);
+		Ticket touched = new Ticket(spent.getId(), USER_ID, spent.getGrantSource(), spent.getGrade(),
+				TicketStatus.RETURNED, OCTOBER_END, use.getTicketVersion() + 2, CREATED_AT, NOW_MICROS);
+		when(historyRepository.findUseHistories(ENTRY_ID)).thenReturn(List.of(use));
+		when(historyRepository.findRefundsOf(anyCollection())).thenReturn(List.of());
+		when(ticketRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(touched));
+		// when
+		// then
+		assertThatThrownBy(() -> service.refund(command()))
+				.isInstanceOfSatisfying(TicketException.class,
+						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH));
+		verify(ticketRepository, never()).updateAll(any());
+		verify(historyRepository, never()).saveAll(any());
+	}
 }

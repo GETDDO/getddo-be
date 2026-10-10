@@ -60,6 +60,8 @@ class MySqlMigrationTest {
 		assertIndexExists("notification_jobs", "ix_notification_job_lease");
 		assertIndexExists("notifications", "ix_notification_delivery_retry");
 		assertIndexExists("tickets", "ix_tickets_user_status_expiry");
+		assertThat(indexColumns("tickets", "ix_tickets_user_status_expiry", 1))
+				.containsExactly("user_id", "status", "expires_at", "grade");
 		try (Connection connection = connect();
 			ResultSet rows = connection.createStatement().executeQuery("""
 				select column_type from information_schema.columns
@@ -217,14 +219,20 @@ class MySqlMigrationTest {
 
 	/** 인덱스(PK 포함)의 컬럼을 인덱스 내 순서대로 반환한다. */
 	private static List<String> indexColumns(String tableName, String indexName) throws SQLException {
+		return indexColumns(tableName, indexName, 0);
+	}
+
+	/** {@code nonUnique}가 1이면 UNIQUE가 아닌 인덱스의 컬럼을 순서대로 읽는다. */
+	private static List<String> indexColumns(String tableName, String indexName, int nonUnique) throws SQLException {
 		try (Connection connection = connect();
 			PreparedStatement statement = connection.prepareStatement("""
 					select column_name from information_schema.statistics
-					where table_schema = database() and table_name = ? and index_name = ? and non_unique = 0
+					where table_schema = database() and table_name = ? and index_name = ? and non_unique = ?
 					order by seq_in_index
 					""")) {
 			statement.setString(1, tableName);
 			statement.setString(2, indexName);
+			statement.setInt(3, nonUnique);
 			List<String> columns = new ArrayList<>();
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
