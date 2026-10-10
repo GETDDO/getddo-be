@@ -196,7 +196,7 @@ public class TicketGrantSeeds {
 	}
 
 	/**
-	 * 사용 이력의 FK가 가리킬 응모 행. 새 이벤트와 참여자를 함께 만든다. 응모 ID는 운영처럼 시간순으로 커지는 UUID v7이다.
+	 * 사용 이력의 FK가 가리킬 응모 행. 새 이벤트와 참여자를 함께 만든다. 응모 ID는 운영처럼 시간에 가깝게 정렬되는 UUID v7이다(같은 밀리초 안의 순서는 보장하지 않는다).
 	 * 호출자 트랜잭션 안팎 어디서든 부를 수 있다.
 	 */
 	public UUID eventEntry(UUID userId) {

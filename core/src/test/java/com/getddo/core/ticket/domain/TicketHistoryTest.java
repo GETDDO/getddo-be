@@ -151,4 +151,21 @@ class TicketHistoryTest {
 		assertThat(new TicketHistory(null, ticketId, TicketOperationType.CORRECTION, 2, TicketStatus.AVAILABLE,
 				EXPIRES_AT, null, null, other, "사유", ISSUED_AT).getCorrectedHistoryId()).isEqualTo(other);
 	}
+
+	@Test
+	@DisplayName("응모권 ID·만료 시각·사유·처리 시각이 없으면 만들 수 없다")
+	void requiresMandatoryFields() {
+		// given
+		UUID ticketId = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> new TicketHistory(null, null, TicketOperationType.EXPIRE, 2, TicketStatus.EXPIRED,
+				EXPIRES_AT, null, null, null, "사유", ISSUED_AT)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.EXPIRE, 2, TicketStatus.EXPIRED,
+				null, null, null, null, "사유", ISSUED_AT)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.EXPIRE, 2, TicketStatus.EXPIRED,
+				EXPIRES_AT, null, null, null, null, ISSUED_AT)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new TicketHistory(null, ticketId, TicketOperationType.EXPIRE, 2, TicketStatus.EXPIRED,
+				EXPIRES_AT, null, null, null, "사유", null)).isInstanceOf(NullPointerException.class);
+	}
 }

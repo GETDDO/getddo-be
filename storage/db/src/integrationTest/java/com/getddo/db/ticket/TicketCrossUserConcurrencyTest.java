@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 서로 다른 사용자가 서로 다른 응모로 동시에 차감·반환할 때 교착하지 않는지 검증한다.
  *
  * <p>사용자별 응모권 잠금은 서로 막지 않으므로, 이력 인덱스에서 잡는 잠금이 겹치면 교착이 난다. 응모 ID는 운영처럼
- * 시간순으로 커지는 UUID v7이다. 모든 트랜잭션이 처리를 마친 뒤 커밋 전에 장벽에서 만나게 해, 이력 INSERT가 같은
+ * 시간에 가깝게 정렬되는 UUID v7이다. 모든 트랜잭션이 처리를 마친 뒤 커밋 전에 장벽에서 만나게 해, 이력 INSERT가 같은
  * 시점에 나가도록 순서를 고정한다.</p>
  */
 class TicketCrossUserConcurrencyTest extends TicketIntegrationTestSupport {

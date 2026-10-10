@@ -14,7 +14,9 @@ import java.util.stream.Collectors;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.ticket.domain.GrantSource;
@@ -31,6 +33,21 @@ import com.getddo.db.ticket.mapper.TicketMapper;
 @Repository
 @RequiredArgsConstructor
 public class TicketRepositoryImpl implements TicketRepository {
+
+	private static final String CANDIDATES_SELECT = """
+			select id, expires_at from tickets
+			where user_id = :userId and grade = :grade and status in ('AVAILABLE', 'RETURNED')
+			  and expires_at > :now
+			""";
+	private static final String FIRST_CANDIDATES = CANDIDATES_SELECT + """
+			order by expires_at, id
+			limit :limit
+			""";
+	private static final String NEXT_CANDIDATES = CANDIDATES_SELECT + """
+			  and (expires_at > :afterExpiresAt or (expires_at = :afterExpiresAt and id > :afterId))
+			order by expires_at, id
+			limit :limit
+			""";
 
 	/** 후보 ID를 한 번에 읽는 최소 개수. 건너뛰는 행이 있어도 대개 한 번에 채운다. */
 	private static final int MIN_CANDIDATE_PAGE = 20;
@@ -71,29 +88,51 @@ public class TicketRepositoryImpl implements TicketRepository {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * <p>후보 ID는 잠그지 않고 읽은 뒤 만료가 이른 순으로 PK로 한 장씩 잠근다. 잠금을 기다리는 동안 다른 처리가 바꾼 응모권은
-	 * 잠근 뒤 최신 값으로 다시 판정해 건너뛴다. 범위에 {@code FOR UPDATE}를 걸지 않아 gap lock이 생기지 않는다.</p>
+	 * <p>후보 ID는 잠그지 않고 읽은 뒤 만료가 이른 순으로 PK로 한 장씩 잠근다. 잠금을 기다리는 동안 다른 처리가 바꾼
+	 * 응모권은 잠근 뒤 최신 값으로 판정해 건너뛴다. 범위에 {@code FOR UPDATE}를 걸지 않아 gap lock이 생기지 않는다.
+	 * 건너뛴 행이 있으면 마지막으로 본 {@code (expires_at, id)} 뒤부터 다음 페이지를 읽는다. 읽는 사이 다른 트랜잭션이
+	 * 앞쪽 행을 바꿔도 {@code OFFSET}처럼 뒤의 유효한 행을 건너뛰지 않는다.</p>
 	 */
 	@Override
 	public List<Ticket> findUsableForUpdate(UUID userId, TicketGrade grade, Instant now, int limit) {
 		List<Ticket> locked = new ArrayList<>();
 		int pageSize = Math.max(limit, MIN_CANDIDATE_PAGE);
-		for (int offset = 0; locked.size() < limit; offset += pageSize) {
-			List<byte[]> page = ticketJpaRepository.findUsableIds(UuidBinary.toBytes(userId), grade.name(), now,
-					pageSize, offset);
-			for (byte[] raw : page) {
+		Tuple last = null;
+		while (locked.size() < limit) {
+			List<Tuple> page = candidatePage(userId, grade, now, last, pageSize);
+			for (Tuple row : page) {
 				if (locked.size() >= limit) {
 					break;
 				}
-				lockAndRefresh(UuidBinary.fromBytes(raw))
+				lockAndRefresh(UuidBinary.fromBytes(row.get("id", byte[].class)))
 						.filter(entity -> entity.getStatus().isUsable() && entity.getExpiresAt().isAfter(now))
 						.ifPresent(entity -> locked.add(ticketMapper.toDomain(entity)));
 			}
 			if (page.size() < pageSize) {
 				break;
 			}
+			last = page.get(page.size() - 1);
 		}
 		return locked;
+	}
+
+	/** 해당 등급의 쓸 수 있는 응모권 {@code (id, expires_at)}을 만료가 이른 순, 같으면 ID순으로 잠그지 않고 읽는다. */
+	private List<Tuple> candidatePage(UUID userId, TicketGrade grade, Instant now, Tuple after, int pageSize) {
+		@SuppressWarnings("unchecked")
+		NativeQuery<Tuple> query = entityManager
+				.createNativeQuery(after == null ? FIRST_CANDIDATES : NEXT_CANDIDATES, Tuple.class)
+				.unwrap(NativeQuery.class)
+				.addScalar("id", byte[].class)
+				.addScalar("expires_at", Instant.class);
+		query.setParameter("userId", UuidBinary.toBytes(userId));
+		query.setParameter("grade", grade.name());
+		query.setParameter("now", now);
+		query.setParameter("limit", pageSize);
+		if (after != null) {
+			query.setParameter("afterExpiresAt", after.get("expires_at", Instant.class));
+			query.setParameter("afterId", after.get("id", byte[].class));
+		}
+		return query.getResultList();
 	}
 
 	/** {@inheritDoc} PK 바이트 순서(DB 정렬과 같음)로 한 장씩 잠근다. */

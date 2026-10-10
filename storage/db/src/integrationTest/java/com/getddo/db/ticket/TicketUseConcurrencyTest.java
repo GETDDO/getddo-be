@@ -52,9 +52,13 @@ class TicketUseConcurrencyTest extends TicketIntegrationTestSupport {
 	private EntityManager entityManager;
 
 	private UUID ticket() {
+		return ticket(TicketGrade.BRONZE);
+	}
+
+	private UUID ticket(TicketGrade grade) {
 		TicketGrantSeeds.MissionParents parents = seeds.missionParents(userId);
 		UUID claimId = seeds.missionClaim(userId, parents, 1);
-		return insertTicket(userId, claimId, TicketGrade.BRONZE, TicketStatus.AVAILABLE, EXPIRES_AT);
+		return insertTicket(userId, claimId, grade, TicketStatus.AVAILABLE, EXPIRES_AT);
 	}
 
 	private UseResult use(UUID entryId, long quantity) {
@@ -182,5 +186,51 @@ class TicketUseConcurrencyTest extends TicketIntegrationTestSupport {
 			Thread.currentThread().interrupt();
 			throw new IllegalStateException(e);
 		}
+	}
+
+	@RepeatedTest(REPEATS)
+	@DisplayName("두 요청이 브론즈·실버를 서로 반대 순서로 고르고 경쟁해도 같은 순서로 잠가 교착 없이 모두 성공한다")
+	void reverseOrderedGradesDoNotDeadlock() throws Exception {
+		// given
+		ticket(TicketGrade.BRONZE);
+		ticket(TicketGrade.BRONZE);
+		ticket(TicketGrade.SILVER);
+		ticket(TicketGrade.SILVER);
+		UUID first = seeds.eventEntry(userId);
+		UUID second = seeds.eventEntry(userId);
+		// when: 앞 요청은 잠금을 쥔 채 멈추고, 뒤 요청은 같은 등급을 반대 순서로 요청해 잠금 대기에 들어간다
+		List<Object> outcomes = runWhileFirstHoldsLock(
+				() -> useService.use(new UseCommand(userId, first, List.of(
+						new UseSelection(TicketGrade.BRONZE, 1), new UseSelection(TicketGrade.SILVER, 1)), "테스트 응모")),
+				() -> useService.use(new UseCommand(userId, second, List.of(
+						new UseSelection(TicketGrade.SILVER, 1), new UseSelection(TicketGrade.BRONZE, 1)), "테스트 응모")));
+		// then
+		assertThat(outcomes).allSatisfy(outcome -> assertThat(outcome).isInstanceOf(UseResult.class));
+		assertThat(ids(((UseResult) outcomes.get(0)).getTickets()))
+				.doesNotContainAnyElementsOf(ids(((UseResult) outcomes.get(1)).getTickets()));
+		assertThat(count("select count(*) from tickets where user_id = ? and status = 'SPENT'", bytes(userId)))
+				.isEqualTo(4);
+		assertThat(count("select count(*) from ticket_histories where operation_type = 'USE' "
+				+ "and event_entry_id in (?, ?)", bytes(first), bytes(second))).isEqualTo(4);
+	}
+
+	@RepeatedTest(REPEATS)
+	@DisplayName("앞 요청이 후보 첫 페이지 전체를 쓴 뒤 커밋해도 뒤 요청은 다음 페이지에서 남은 응모권을 차감한다")
+	void continuesToNextCandidatePageAfterSkips() throws Exception {
+		// given: 후보 한 페이지(20장)보다 많은 30장
+		for (int i = 0; i < 30; i++) {
+			ticket();
+		}
+		UUID first = seeds.eventEntry(userId);
+		UUID second = seeds.eventEntry(userId);
+		// when: 앞 요청이 25장을 쥔 채 멈춘 사이 뒤 요청이 2장을 요청해 잠금 대기에 들어간다
+		List<Object> outcomes = runWhileFirstHoldsLock(
+				() -> use(first, 25),
+				() -> use(second, 2));
+		// then
+		assertThat(outcomes.get(0)).isInstanceOf(UseResult.class);
+		assertThat(outcomes.get(1)).isInstanceOf(UseResult.class);
+		assertThat(count("select count(*) from tickets where user_id = ? and status = 'SPENT'", bytes(userId)))
+				.isEqualTo(27);
 	}
 }

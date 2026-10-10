@@ -34,6 +34,10 @@ public final class TicketHistory {
 	public TicketHistory(UUID id, UUID ticketId, TicketOperationType operationType, long ticketVersion,
 			TicketStatus status, Instant expiresAt, UUID eventEntryId, UUID originalUseHistoryId,
 			UUID correctedHistoryId, String reason, Instant createdAt) {
+		Objects.requireNonNull(ticketId, "ticketId");
+		Objects.requireNonNull(expiresAt, "expiresAt");
+		Objects.requireNonNull(reason, "reason");
+		Objects.requireNonNull(createdAt, "createdAt");
 		requireConsistent(operationType, ticketVersion, status, eventEntryId, originalUseHistoryId,
 				correctedHistoryId);
 		this.id = id;

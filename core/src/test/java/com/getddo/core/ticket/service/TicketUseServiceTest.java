@@ -2,6 +2,7 @@ package com.getddo.core.ticket.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -244,5 +245,40 @@ class TicketUseServiceTest {
 				.isInstanceOfSatisfying(TicketException.class,
 						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_INVALID_USE));
 		verifyNoInteractions(ticketRepository, historyRepository);
+	}
+
+	@Test
+	@DisplayName("잠금을 기다리는 사이 응모권이 만료되면 처리 시각을 다시 구해 TICKET-006으로 실패하고 아무것도 저장하지 않는다")
+	void rechecksExpiryAfterLocks() {
+		// given: 후보를 고를 때는 만료 전이지만 잠금을 모두 쥔 뒤에는 만료 시각이 지났다
+		Instant beforeExpiry = Instant.parse("2026-09-30T14:59:59.999999Z");
+		java.util.Iterator<Instant> times = List.of(beforeExpiry, Instant.parse("2026-09-30T15:00:00Z")).iterator();
+		Clock advancing = new Clock() {
+			@Override
+			public ZoneId getZone() {
+				return ZoneOffset.UTC;
+			}
+
+			@Override
+			public Clock withZone(ZoneId zone) {
+				return this;
+			}
+
+			@Override
+			public Instant instant() {
+				return times.next();
+			}
+		};
+		TicketUseService advancingService = new TicketUseService(ticketRepository, historyRepository,
+				new TimeProvider(advancing));
+		when(ticketRepository.findUsableForUpdate(USER_ID, TicketGrade.BRONZE, beforeExpiry, 1))
+				.thenReturn(List.of(ticket(TicketGrade.BRONZE)));
+		// when
+		// then
+		assertThatThrownBy(() -> advancingService.use(command(selection(TicketGrade.BRONZE, 1))))
+				.isInstanceOfSatisfying(TicketException.class,
+						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_INSUFFICIENT));
+		verify(ticketRepository, never()).updateAll(any());
+		verify(historyRepository, never()).saveAll(any());
 	}
 }

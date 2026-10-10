@@ -86,18 +86,25 @@ public class TicketUseService {
 			return replayOf(command, existing);
 		}
 
-		// DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·저장 값이 어긋나지 않게 한다.
-		Instant usedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
+		// 후보 응모권을 고르는 기준 시각이다. DATETIME(6)은 마이크로초 아래를 반올림해 저장하므로 미리 잘라, 응답·재조회·
+		// 저장 값이 어긋나지 않게 한다.
+		Instant candidateAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
 		List<Ticket> selected = new ArrayList<>();
 		for (UseSelection selection : inLockOrder(command.getSelections())) {
 			List<Ticket> locked = ticketRepository.findUsableForUpdate(command.getUserId(), selection.getGrade(),
-					usedAt, Math.toIntExact(selection.getCount()));
+					candidateAt, Math.toIntExact(selection.getCount()));
 			if (locked.size() < selection.getCount()) {
 				throw new TicketException(TicketErrorCode.TICKET_INSUFFICIENT);
 			}
 			selected.addAll(locked);
 		}
 
+		// 잠금을 기다리는 동안 시간이 흘러 응모권이 만료됐을 수 있다. 잠금을 모두 쥔 지금 처리 시각을 다시 구해 만료된
+		// 응모권은 쓰지 않는다. 호출자는 이 시각 이후 커밋까지의 경계를 자신의 응모 마감 판정과 함께 정해야 한다.
+		Instant usedAt = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
+		if (selected.stream().anyMatch(ticket -> !ticket.getExpiresAt().isAfter(usedAt))) {
+			throw new TicketException(TicketErrorCode.TICKET_INSUFFICIENT);
+		}
 		List<Ticket> used = selected.stream().map(ticket -> ticket.use(usedAt)).toList();
 		ticketRepository.updateAll(used);
 		historyRepository.saveAll(used.stream()

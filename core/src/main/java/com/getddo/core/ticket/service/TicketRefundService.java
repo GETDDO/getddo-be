@@ -30,8 +30,8 @@ import com.getddo.core.ticket.repository.TicketRepository;
 /**
  * 이벤트 취소·참여 제외처럼 응모가 무효가 될 때 그 응모에 쓴 응모권을 모두 되돌리는 진입점.
  *
- * <p>같은 응모권이 {@code RETURNED} 상태로 돌아오며 등급은 그대로다. 등급 보존은 공용 스펙 {@code 00-requirements/pending-decisions.md}의
- * "반환 응모권의 등급 보존 방식" 미결정 항목에 대한 <b>임시 구현</b>이며 결정되면 함께 바꾼다.
+ * <p>같은 응모권이 {@code RETURNED} 상태로 돌아오며 등급은 그대로다. 새 응모권을 지급하는 것이 아니고 등급은 지급 때
+ * 한 번 정해져 바뀌지 않기 때문이다(공용 스펙 {@code 02-domain/ticket.md}, {@code 00-requirements/pending-decisions.md}).
  * 반환 후 만료 시각은 반환한 KST 월의 다음 달 말이다. 응모 상태 변경과 반환은 같은 트랜잭션에서 호출해 함께 커밋되거나 함께 롤백돼야 한다.
  * 이 서비스가 던진 예외는 삼키지 않고 전파한다.</p>
  */
