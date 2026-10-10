@@ -29,6 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.mysql.MySQLContainer;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
@@ -46,6 +47,7 @@ import com.getddo.db.drawing.repository.DrawRunJpaRepository;
 import com.getddo.db.drawing.repository.DrawRunCandidateJpaRepository;
 import com.getddo.db.support.MySqlTestConfiguration;
 import com.getddo.db.ticket.MutableClock;
+import com.getddo.db.ticket.LockWaitProbe;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 import static org.assertj.core.api.Assertions.*;
@@ -60,6 +62,7 @@ class DrawSnapshotIntegrationTest {
 	@Autowired private MutableClock clock;
 	@Autowired private PlatformTransactionManager transactionManager;
 	@Autowired private JdbcTemplate jdbc;
+	@Autowired private MySQLContainer mysql;
 	@Autowired private DrawRunJpaRepository runs;
 	@Autowired private DrawCandidateJpaRepository candidates;
 	@MockitoSpyBean private DrawRunCandidateJpaRepository links;
@@ -294,28 +297,38 @@ class DrawSnapshotIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("진행 중인 응모 SQL 트랜잭션의 실제 이벤트 잠금 대기를 확인하고 커밋된 후보를 포함한다")
 	void waitsForInFlightEntryTransactionAndIncludesItsCommit() throws Exception {
+		// given
 		CountDownLatch locked = new CountDownLatch(1);
 		CountDownLatch release = new CountDownLatch(1);
 		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-			Future<Object> entry = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+			// 실제 응모 서비스가 추가되기 전까지 합의된 이벤트 선잠금 계약을 SQL로 검증한다.
+			Future<UUID> entry = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
 				jdbc.queryForObject("select id from events where id = ? for update", byte[].class, bytes(eventId));
-				addParticipant(0);
+				UUID participant = addParticipant(0);
 				locked.countDown();
-				try { if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("timeout"); }
+				try { if (!release.await(30, TimeUnit.SECONDS)) throw new IllegalStateException("timeout"); }
 				catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IllegalStateException(interrupted); }
-				return null;
+				return participant;
 			}));
-			assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
-			CountDownLatch started = new CountDownLatch(1);
-			Future<DrawSnapshot> drawing = executor.submit(() -> { started.countDown(); return service.prepareInitial(eventId); });
-			assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
-			assertThatThrownBy(() -> drawing.get(200, TimeUnit.MILLISECONDS))
-					.isInstanceOf(java.util.concurrent.TimeoutException.class);
-			release.countDown();
-			entry.get(15, TimeUnit.SECONDS);
-			assertThat(drawing.get(15, TimeUnit.SECONDS).candidates()).hasSize(1);
-		} finally { release.countDown(); }
+			try {
+				assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+				// when
+				Future<DrawSnapshot> drawing = executor.submit(() -> service.prepareInitial(eventId));
+				new LockWaitProbe(mysql).awaitLockWaits(1);
+				assertThat(drawing.isDone()).isFalse();
+				release.countDown();
+				UUID committedParticipant = entry.get(15, TimeUnit.SECONDS);
+				DrawSnapshot snapshot = drawing.get(15, TimeUnit.SECONDS);
+				// then
+				assertThat(snapshot.candidates()).hasSize(1);
+				assertThat(snapshot.candidates().getFirst().participantId()).isEqualTo(committedParticipant);
+				assertThat(count("draw_runs")).isEqualTo(1);
+				assertThat(count("draw_candidates")).isEqualTo(1);
+				assertThat(count("draw_run_candidates")).isEqualTo(1);
+			} finally { release.countDown(); }
+		}
 	}
 
 	private UUID addParticipant(int count) {
