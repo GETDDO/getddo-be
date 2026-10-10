@@ -6,6 +6,7 @@ dependencies {
 	implementation project(':core')
 
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'tools.jackson.core:jackson-databind'
 	implementation "org.mapstruct:mapstruct:${mapstructVersion}"
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	runtimeOnly 'org.flywaydb:flyway-mysql'
