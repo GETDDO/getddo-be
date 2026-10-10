@@ -32,6 +32,14 @@ import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.repository.DrawExclusionRepository;
 import com.getddo.core.drawing.service.DrawSnapshotService;
+import com.getddo.db.common.config.JpaAuditingConfig;
+import com.getddo.db.drawing.entity.DrawCandidateEntity;
+import com.getddo.db.drawing.entity.DrawRunCandidateEntity;
+import com.getddo.db.drawing.entity.DrawRunCandidateId;
+import com.getddo.db.drawing.entity.DrawRunEntity;
+import com.getddo.db.drawing.repository.DrawCandidateJpaRepository;
+import com.getddo.db.drawing.repository.DrawRunJpaRepository;
+import com.getddo.db.drawing.repository.DrawRunCandidateJpaRepository;
 import com.getddo.db.support.MySqlTestConfiguration;
 import com.getddo.db.ticket.MutableClock;
 
@@ -40,13 +48,17 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest(classes = DrawSnapshotIntegrationTest.TestApplication.class)
+@SpringBootTest(classes = DrawSnapshotIntegrationTest.TestApplication.class,
+		properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.properties.hibernate.jdbc.time_zone=UTC"})
 class DrawSnapshotIntegrationTest {
 	private static final Instant NOW = Instant.parse("2026-10-09T03:00:00Z");
 	@Autowired private DrawSnapshotService service;
 	@Autowired private MutableClock clock;
 	@Autowired private PlatformTransactionManager transactionManager;
-	@MockitoSpyBean private JdbcTemplate jdbc;
+	@Autowired private JdbcTemplate jdbc;
+	@Autowired private DrawRunJpaRepository runs;
+	@Autowired private DrawCandidateJpaRepository candidates;
+	@MockitoSpyBean private DrawRunCandidateJpaRepository links;
 	@MockitoBean private DrawExclusionRepository exclusions;
 	private UUID eventId, userId;
 
@@ -103,6 +115,93 @@ class DrawSnapshotIntegrationTest {
 	}
 
 	@Test
+	void mapsBinaryIdsJsonAndUtcTimesThroughJpa() {
+		addParticipant(0);
+		var snapshot = service.prepareInitial(eventId);
+		var candidate = snapshot.candidates().getFirst();
+		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			var run = runs.findById(snapshot.runId()).orElseThrow();
+			assertThat(run.getEventId()).isEqualTo(eventId);
+			assertThat(run.getCreatedAt()).isEqualTo(NOW);
+			assertThat(run.getSnapshotFixedAt()).isEqualTo(NOW);
+			assertThat(run.getStartedAt()).isNull();
+			assertThat(run.getConfirmedAt()).isNull();
+			var link = links.findById(new DrawRunCandidateId(snapshot.runId(), candidate.id())).orElseThrow();
+			assertThat(link.isNew()).isFalse();
+			assertThat(link.getDrawRun().getId()).isEqualTo(snapshot.runId());
+			assertThat(link.getCandidate().getParticipantId()).isEqualTo(candidate.participantId());
+			assertThat(link.getCandidate().getCreatedAt()).isEqualTo(NOW);
+		});
+		assertThat(jdbc.queryForObject("select json_type(rules_snapshot) from draw_runs where id = ?",
+				String.class, bytes(snapshot.runId()))).isEqualTo("OBJECT");
+		assertThat(jdbc.queryForObject("select json_type(entry_snapshot) from draw_candidates where id = ?",
+				String.class, bytes(candidate.id()))).isEqualTo("OBJECT");
+		assertThat(jdbc.queryForObject("select json_type(eligibility_snapshot) from draw_candidates where id = ?",
+				String.class, bytes(candidate.id()))).isEqualTo("OBJECT");
+		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
+	}
+
+	@Test
+	void firstResponseUsesPersistedMicrosecondPrecision() {
+		clock.set(NOW.plusNanos(123456789));
+		addParticipant(0);
+		var first = service.prepareInitial(eventId);
+		assertThat(first.fixedAt().getNano() % 1000).isZero();
+		assertThat(service.prepareInitial(eventId)).isEqualTo(first);
+	}
+
+	@Test
+	void jpaWritesRespectRunCandidateAndLinkUniqueness() {
+		addParticipant(0);
+		var snapshot = service.prepareInitial(eventId);
+		UUID candidateId = snapshot.candidates().getFirst().id();
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+				runs.saveAndFlush(new DrawRunEntity(eventId))))
+				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			var original = candidates.findById(candidateId).orElseThrow();
+			candidates.saveAndFlush(new DrawCandidateEntity(original.getDrawRun(), original.getParticipantId(),
+					original.getTicketCount(), original.getWeight(), original.getEntrySnapshot(), original.getEligibilitySnapshot()));
+		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			var run = runs.findById(snapshot.runId()).orElseThrow();
+			var candidate = candidates.findById(candidateId).orElseThrow();
+			links.saveAndFlush(new DrawRunCandidateEntity(run, candidate));
+		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		assertThat(count("draw_runs")).isEqualTo(1);
+		assertThat(count("draw_candidates")).isEqualTo(1);
+		assertThat(count("draw_run_candidates")).isEqualTo(1);
+		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
+	}
+
+	@Test
+	void jpaWritesRespectParticipantForeignKeyAndPositiveWeight() {
+		addParticipant(0);
+		var snapshot = service.prepareInitial(eventId);
+		UUID candidateId = snapshot.candidates().getFirst().id();
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			var original = candidates.findById(candidateId).orElseThrow();
+			candidates.saveAndFlush(new DrawCandidateEntity(original.getDrawRun(), UUID.randomUUID(), 0, 1,
+					original.getEntrySnapshot(), original.getEligibilitySnapshot()));
+		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+				.hasMessageContaining("fk_draw_candidates_2");
+		UUID otherUser = UUID.randomUUID(), otherParticipant = UUID.randomUUID();
+		jdbc.update("""
+			insert into users (id, name, role, status, membership, created_at, updated_at)
+			values (?, '추첨 테스트', 'USER', 'ACTIVE', 'VIP', ?, ?)
+			""", bytes(otherUser), utc(NOW), utc(NOW));
+		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
+				bytes(otherParticipant), bytes(eventId), bytes(otherUser), utc(NOW));
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			var original = candidates.findById(candidateId).orElseThrow();
+			candidates.saveAndFlush(new DrawCandidateEntity(original.getDrawRun(), otherParticipant, 0, 0,
+					original.getEntrySnapshot(), original.getEligibilitySnapshot()));
+		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+				.hasMessageContaining("chk_candidate_counts");
+		assertThat(count("draw_candidates")).isEqualTo(1);
+	}
+
+	@Test
 	void distinguishesNormalEmptyTerminationsAndReplaysThem() {
 		var empty = service.prepareInitial(eventId);
 		assertThat(empty.status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
@@ -136,8 +235,8 @@ class DrawSnapshotIntegrationTest {
 	@Test
 	void candidateLinkFailureRollsBackRunAndCandidate() {
 		addParticipant(0);
-		doThrow(new org.springframework.dao.DataIntegrityViolationException("test failure")).when(jdbc).update(
-				eq("insert into draw_run_candidates (draw_run_id, candidate_id) values (?, ?)"), any(Object[].class));
+		doThrow(new org.springframework.dao.DataIntegrityViolationException("test failure"))
+				.when(links).saveAllAndFlush(anyList());
 		assertThatThrownBy(() -> service.prepareInitial(eventId))
 				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 		assertThat(count("draw_runs")).isZero();
@@ -238,7 +337,7 @@ class DrawSnapshotIntegrationTest {
 	@SpringBootConfiguration
 	@EnableAutoConfiguration
 	@ComponentScan(basePackages = {"com.getddo.core.drawing", "com.getddo.db.drawing"})
-	@Import(MySqlTestConfiguration.class)
+	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
 	static class TestApplication {
 		@Bean MutableClock clock() { return new MutableClock(NOW); }
 		@Bean TimeProvider timeProvider(Clock clock) { return new TimeProvider(clock); }
