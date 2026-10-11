@@ -84,7 +84,7 @@ class AttendanceRepositoryIntegrationTest extends AttendanceIntegrationTestSuppo
 		// when
 		AttendanceStreak updated = transaction.execute(status -> {
 			AttendanceStreak locked = streakRepository.findForUpdate(userId, SEPTEMBER).orElseThrow();
-			return streakRepository.save(locked.attend(SEPT_15.plusDays(1)));
+			return streakRepository.save(locked.recalculate(List.of(SEPT_15, SEPT_15.plusDays(1))));
 		});
 		// then
 		AttendanceStreak reloaded = transaction.execute(status ->
