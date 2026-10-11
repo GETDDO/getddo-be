@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -25,7 +24,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -35,7 +33,6 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSnapshot;
-import com.getddo.core.drawing.repository.DrawExclusionRepository;
 import com.getddo.core.drawing.service.DrawSnapshotService;
 import com.getddo.db.common.config.JpaAuditingConfig;
 import com.getddo.db.drawing.entity.DrawCandidateEntity;
@@ -66,7 +63,6 @@ class DrawSnapshotIntegrationTest {
 	@Autowired private DrawRunJpaRepository runs;
 	@Autowired private DrawCandidateJpaRepository candidates;
 	@MockitoSpyBean private DrawRunCandidateJpaRepository links;
-	@MockitoBean private DrawExclusionRepository exclusions;
 	private UUID eventId, userId;
 
 	@BeforeEach
@@ -86,7 +82,6 @@ class DrawSnapshotIntegrationTest {
 			insert into event_prizes (id, event_id, prize_rank, name, winner_count, created_at, updated_at)
 			values (?, ?, 1, '경품', 2, ?, ?)
 			""", bytes(UUID.randomUUID()), bytes(eventId), utc(NOW), utc(NOW));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of());
 	}
 
 	@Test
@@ -102,7 +97,6 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_run_candidates")).isEqualTo(1);
 		jdbc.update("update event_participants set used_ticket_count = 7 where id = ?", bytes(participant));
 		jdbc.update("update event_prizes set winner_count = 5 where event_id = ?", bytes(eventId));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenThrow(new BusinessException(EXCLUSION_UNAVAILABLE));
 		assertThat(service.prepareInitial(eventId)).isEqualTo(first);
 	}
 
@@ -246,27 +240,57 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_candidates")).isZero();
 	}
 
+	/** 기존 어뷰징 판단 기록이 있어도 다른 정상 응모를 후보에서 제거하지 않는다. */
 	@Test
-	void allExcludedTerminatesWithoutResults() {
+	void preparesValidParticipantDespiteLegacyAbuseRecord() {
 		UUID participant = addParticipant(0);
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(participant));
+		UUID abuseCaseId = UUID.randomUUID();
+		jdbc.update("""
+			insert into abuse_cases (id, event_id, user_id, reviewed_by, request_id, detection_key,
+				detection_type, detection_reason, evidence, occurred_at, detected_at, review_status, reviewed_at, review_reason)
+			values (?, ?, ?, ?, ?, ?, 'LEGACY_TEST', '과거 판단 기록', '{}', ?, ?, 'CONFIRMED', ?, '과거 판단')
+			""", bytes(abuseCaseId), bytes(eventId), bytes(userId), bytes(userId), abuseCaseId.toString(),
+				abuseCaseId.toString(), utc(NOW.minusSeconds(1000)), utc(NOW.minusSeconds(900)), utc(NOW.minusSeconds(800)));
+
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
-		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
+
+		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
+		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId).containsExactly(participant);
+		assertThat(snapshot.candidates().getFirst().eligibilityEvidence().excluded()).isFalse();
+		assertThat(count("draw_candidates")).isEqualTo(1);
+		assertThat(count("draw_run_candidates")).isEqualTo(1);
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
+	}
+
+	/** 신규 전원 제외 종료는 만들지 않지만 과거 DB의 NO_CANDIDATES는 재계산 없이 조회한다. */
+	@Test
+	void replaysLegacyNoCandidatesWithoutRecalculatingNewEntries() {
+		DrawSnapshot empty = service.prepareInitial(eventId);
+		jdbc.update("update draw_runs set status = 'NO_CANDIDATES' where id = ?", bytes(empty.runId()));
+		addParticipant(0);
+
+		DrawSnapshot historical = service.prepareInitial(eventId);
+
+		assertThat(historical.runId()).isEqualTo(empty.runId());
+		assertThat(historical.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
+		assertThat(historical.fixedAt()).isEqualTo(empty.fixedAt());
+		assertThat(historical.rules()).isEqualTo(empty.rules());
+		assertThat(historical.candidates()).isEmpty();
+		assertThat(service.prepareInitial(eventId)).isEqualTo(historical);
 		assertThat(count("draw_candidates")).isZero();
 		assertThat(count("draw_results")).isZero();
 	}
 
+	/** 제외 기능 유무와 무관하게 누적 사용 장수 불일치는 전체 준비를 거절한다. */
 	@Test
-	void unavailableExclusionAndInvalidAccumulationLeaveNoRun() {
+	void invalidAccumulationLeavesNoRun() {
 		UUID participant = addParticipant(0);
-		when(exclusions.findExcludedParticipantIds(eventId)).thenThrow(new BusinessException(EXCLUSION_UNAVAILABLE));
-		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class);
-		assertThat(count("draw_runs")).isZero();
 		jdbc.update("update event_participants set used_ticket_count = 1 where id = ?", bytes(participant));
 		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class)
-				.extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
+				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
 		assertThat(count("draw_runs")).isZero();
+		assertThat(count("draw_candidates")).isZero();
+		assertThat(count("draw_run_candidates")).isZero();
 	}
 
 	@Test

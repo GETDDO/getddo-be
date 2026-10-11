@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -20,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -28,7 +26,6 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.DrawExclusionRepository;
 import com.getddo.core.drawing.service.DrawConfirmationService;
 import com.getddo.core.drawing.service.DrawSnapshotService;
 import com.getddo.core.drawing.service.DrawingSelectionService;
@@ -59,20 +56,18 @@ class DrawConfirmationIntegrationTest {
 	@Autowired private EntityManager entityManager;
 	@Autowired private PlatformTransactionManager transactionManager;
 	@Autowired private MySQLContainer mysql;
-	@MockitoBean private DrawExclusionRepository exclusions;
 	@MockitoSpyBean private DrawResultJpaRepository results;
 	@MockitoSpyBean private DrawRunJpaRepository runs;
 	@MockitoSpyBean private DrawingSelectionService selection;
 	private UUID eventId, prizeId, userId;
 
-	/** 테스트마다 별도 이벤트·사용자를 만들고 확정 시각과 제외 판단을 고정한다. */
+	/** 테스트마다 별도 이벤트·사용자를 만들고 확정 시각을 고정한다. */
 	@BeforeEach
 	void setUp() {
 		clock.set(NOW);
 		userId = addUser();
 		eventId = addEvent();
 		prizeId = addPrize(eventId, 1, 2);
-		when(exclusions.findExcludedParticipantIds(any())).thenReturn(Set.of());
 	}
 
 	/** JPA 왕복과 실제 시각 정밀도·복합 연결을 검증하고 원본 변경 후에도 확정 재요청이 동일한지 확인한다. */
@@ -109,7 +104,6 @@ class DrawConfirmationIntegrationTest {
 		jdbc.update("update event_prizes set winner_count = 5, prize_rank = 3 where id = ?", toBytes(prizeId));
 		jdbc.update("update events set status = 'CANCELED' where id = ?", toBytes(eventId));
 		jdbc.update("update event_participants set used_ticket_count = 99 where event_id = ?", toBytes(eventId));
-		when(exclusions.findExcludedParticipantIds(any())).thenThrow(new BusinessException(EXCLUSION_UNAVAILABLE));
 		DrawConfirmation replay = service.confirm(snapshot.runId());
 		assertThat(replay).usingRecursiveComparison().isEqualTo(first);
 		verify(selection, times(1)).select(anyList(), anyList(), anyBoolean());

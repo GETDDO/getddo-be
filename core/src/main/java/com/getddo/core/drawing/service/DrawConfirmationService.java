@@ -110,6 +110,7 @@ public class DrawConfirmationService {
 				|| snapshot.candidates().isEmpty() || snapshot.rules().prizes().isEmpty()) invalid();
 		Set<UUID> participants = new HashSet<>();
 		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
+			// 버전 1에 저장된 후보 형식을 검증한다. 현재 어뷰징 판단을 조회하거나 후보를 재선별하지 않는다.
 			if (candidate.id() == null || candidate.userId() == null || candidate.participantId() == null
 					|| !participants.add(candidate.participantId()) || candidate.ticketCount() < 0
 					|| candidate.eligibilityEvidence() == null || candidate.eligibilityEvidence().excluded()

@@ -22,6 +22,7 @@ public record DrawSnapshot(UUID runId, UUID eventId, DrawRunStatus status, Insta
 		public EntryEvidence { entries = List.copyOf(entries); }
 	}
 
+	/** 과거 JSON 호환성을 위해 excluded를 보존하며 새 후보는 어뷰징 제외 판단 없이 false로 저장한다. */
 	public record EligibilityEvidence(int version, UUID userId, String membership, String role,
 			boolean excluded, Instant checkedAt) { }
 }
