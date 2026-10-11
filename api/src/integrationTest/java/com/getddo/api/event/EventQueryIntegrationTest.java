@@ -433,15 +433,15 @@ class EventQueryIntegrationTest {
 
 	@ParameterizedTest
 	@CsvSource({"SCHEDULED,1", "OPEN,1", "CLOSED,1", "DRAW_CONFIRMED,2", "PUBLISHED,2",
-			"CANCELED,1", "REDRAWING,0", "NO_ENTRANTS,1", "NO_ELIGIBLE_ENTRANTS,1"})
+			"CANCELED,1", "REDRAWING,0", "NO_ENTRANTS,1"})
 	@DisplayName("사용자 상태 검색의 목록과 건수는 실제 상태·재추첨 공개 상태를 함께 반영하고 삭제 행은 제외한다")
 	void publicStatusFiltersIncludeDirectAndRedrawingStates(EventStatus filterStatus, int addedCount) {
 		// given
-		for (EventStatus state : EventStatus.values()) {
-			if (state != EventStatus.REDRAWING) {
-				insertEvent(prefix + "-" + state, state.name(), "TICKET", "vip",
-						"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
-			}
+		// 신규 계약의 상태만 생성한다. DB에 남은 과거 상태를 정상 조회 계약으로 간주하지 않는다.
+		for (EventStatus state : List.of(EventStatus.SCHEDULED, EventStatus.OPEN, EventStatus.CLOSED,
+				EventStatus.DRAW_CONFIRMED, EventStatus.PUBLISHED, EventStatus.CANCELED, EventStatus.NO_ENTRANTS)) {
+			insertEvent(prefix + "-" + state, state.name(), "TICKET", "vip",
+					"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
 		}
 		UUID published = insertEvent(prefix + "-published-redraw", "REDRAWING", "TICKET", "vip",
 				"2099-10-05T00:00:00Z", "2099-10-15T00:00:00Z");
