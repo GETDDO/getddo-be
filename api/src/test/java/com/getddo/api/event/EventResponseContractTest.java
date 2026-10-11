@@ -10,6 +10,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,6 +46,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -152,13 +155,41 @@ class EventResponseContractTest {
 				.thenReturn(new PageResult<>(List.of(), 1, 20, 0));
 		// when
 		mvc.perform(get("/api/v1/admin/events").header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN")
-				.param("from", "2026-10-10").param("to", "2026-10-23"))
+				.param("from", "2026-10-10").param("to", "2026-10-23")
+				.param("keyword", "아이폰").param("status", "OPEN").param("eventType", "TICKET"))
 				.andExpect(status().isOk());
 		// then
 		ArgumentCaptor<AdminEventQuery> query = ArgumentCaptor.forClass(AdminEventQuery.class);
 		verify(queries).findAdminEvents(eq(actor), eq(1), eq(20), query.capture());
 		assertThat(query.getValue().getFromDate()).isEqualTo(LocalDate.of(2026, 10, 10));
 		assertThat(query.getValue().getToDate()).isEqualTo(LocalDate.of(2026, 10, 23));
+		assertThat(query.getValue().getKeyword()).isEqualTo("아이폰");
+		assertThat(query.getValue().getStatus()).isEqualTo(EventStatus.OPEN);
+		assertThat(query.getValue().getEventType()).isEqualTo(EventType.TICKET);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", "invalid", "2026-02-30", "2026/10/10", "2026-1-1",
+			"2026-10-10T00:00:00Z", "+10000-10-01"})
+	@DisplayName("날짜 DTO 바인딩은 잘못된 날짜를 COMMON-005로 거절하고 서비스를 호출하지 않는다")
+	void invalidCalendarDateIsRejectedBeforeService(String value) throws Exception {
+		// given / when / then
+		for (String parameter : new String[]{"from", "to"}) {
+			mvc.perform(get("/api/v1/admin/events").header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN")
+					.param(parameter, value))
+					.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-005"));
+		}
+		verifyNoInteractions(queries);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"/api/v1/events/invalid", "/api/v1/admin/events/invalid"})
+	@DisplayName("Spring의 UUID 변환 실패는 COMMON-005로 응답하고 조회 서비스를 호출하지 않는다")
+	void invalidUuidIsRejectedBeforeService(String path) throws Exception {
+		// given / when / then
+		mvc.perform(get(path).header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-005"));
+		verifyNoInteractions(queries);
 	}
 
 	@Test

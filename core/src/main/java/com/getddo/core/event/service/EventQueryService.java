@@ -12,7 +12,6 @@ import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.AdminEventQuery;
 import com.getddo.core.event.domain.EventQueryFilter;
-import com.getddo.core.event.domain.EventTimeRange;
 import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.exception.EventErrorCode;
 import com.getddo.core.event.exception.EventException;

@@ -1,4 +1,4 @@
-package com.getddo.core.event.domain;
+package com.getddo.core.event.service;
 
 import java.time.Instant;
 

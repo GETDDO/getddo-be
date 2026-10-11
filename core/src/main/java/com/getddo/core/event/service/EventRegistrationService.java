@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
-import com.getddo.core.event.domain.EventTimeRange;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.exception.EventErrorCode;

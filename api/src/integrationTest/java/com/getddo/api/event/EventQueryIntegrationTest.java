@@ -1,10 +1,11 @@
 package com.getddo.api.event;
 
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.Locale;
 
@@ -26,6 +27,7 @@ import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.event.domain.EventQueryFilter;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.repository.EventQueryRepository;
+import com.getddo.db.common.util.UuidBinary;
 import com.jayway.jsonpath.JsonPath;
 import org.springframework.http.MediaType;
 
@@ -53,6 +55,26 @@ class EventQueryIntegrationTest {
 		admin = insertUser("ADMIN", null, "ACTIVE");
 		user = insertUser("USER", "vip", "ACTIVE");
 		prefix = "query-" + UUID.randomUUID();
+	}
+
+	@Test
+	@DisplayName("검색 DTO를 사용해도 Swagger에는 기존 쿼리 파라미터와 날짜 형식만 공개한다")
+	void adminSearchDtoPreservesOpenApiParameters() throws Exception {
+		// given / when
+		String response = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+		List<Map<String, Object>> parameters = JsonPath.read(response,
+				"$.paths['/api/v1/admin/events'].get.parameters");
+		// then
+		assertThat(parameters.stream().filter(parameter -> "query".equals(parameter.get("in"))).toList())
+				.extracting(parameter -> parameter.get("name"))
+				.containsExactlyInAnyOrder("page", "size", "keyword", "status", "eventType", "from", "to");
+		for (String date : new String[]{"from", "to"}) {
+			Map<?, ?> schema = (Map<?, ?>) parameters.stream()
+					.filter(parameter -> date.equals(parameter.get("name"))).findFirst().orElseThrow().get("schema");
+			assertThat(schema.get("type")).isEqualTo("string");
+			assertThat(schema.get("format")).isEqualTo("date");
+		}
 	}
 
 	@Test
@@ -589,6 +611,6 @@ class EventQueryIntegrationTest {
 	}
 
 	private static byte[] bytes(UUID id) {
-		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
+		return UuidBinary.toBytes(id);
 	}
 }

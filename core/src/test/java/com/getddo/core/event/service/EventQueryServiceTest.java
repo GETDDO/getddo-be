@@ -24,7 +24,6 @@ import com.getddo.core.event.domain.AdminEventQuery;
 import com.getddo.core.event.domain.EventQueryFilter;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
-import com.getddo.core.event.domain.EventTimeRange;
 import com.getddo.core.user.domain.Membership;
 import com.getddo.core.user.domain.User;
 import com.getddo.core.user.domain.UserRole;

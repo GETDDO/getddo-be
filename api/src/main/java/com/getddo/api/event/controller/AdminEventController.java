@@ -1,12 +1,14 @@
 package com.getddo.api.event.controller;
 
 import java.time.Instant;
+import java.util.UUID;
 
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,14 +18,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.getddo.api.common.context.CurrentUser;
+import com.getddo.api.common.exception.CommonErrorCode;
 import com.getddo.api.common.response.ResponseEnvelope;
+import com.getddo.api.event.dto.request.AdminEventQueryRequest;
 import com.getddo.api.event.dto.request.EventWriteRequest;
 import com.getddo.api.event.dto.response.AdminEventResponse;
 import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.event.domain.AdminEventQuery;
-import com.getddo.core.event.domain.EventStatus;
-import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.service.EventQueryService;
 import com.getddo.core.event.service.EventRegistrationService;
@@ -60,30 +62,25 @@ public class AdminEventController {
 			@CurrentUser User user,
 			@RequestParam(defaultValue = "1") int page,
 			@RequestParam(defaultValue = "20") int size,
-			@RequestParam(required = false) String keyword,
-			@RequestParam(required = false) EventStatus status,
-			@RequestParam(required = false) EventType eventType,
-			@Parameter(description = "검색 시작 날짜(KST, 해당 날짜 포함)",
-					schema = @Schema(type = "string", format = "date", example = "2026-10-10"))
-			@RequestParam(required = false) String from,
-			@Parameter(description = "검색 종료 날짜(KST, 해당 날짜 포함)",
-					schema = @Schema(type = "string", format = "date", example = "2026-10-20"))
-			@RequestParam(required = false) String to) {
+			@Valid @ModelAttribute @ParameterObject AdminEventQueryRequest request,
+			BindingResult bindingResult) {
+		// DTO 바인딩·형식 검증 오류에도 기존 COMMON-005 응답을 유지한다.
+		if (bindingResult.hasErrors()) {
+			throw new BusinessException(CommonErrorCode.INVALID_FORMAT);
+		}
 		PageResult<EventView> result = queryService.findAdminEvents(user, page, size,
-				new AdminEventQuery(status, eventType, keyword, EventRequestContext.date(from), EventRequestContext.date(to)));
+				request.toDomain());
 		Instant now = timeProvider.now();
-		return ResponseEnvelope.success(new PageResult<>(
-				result.getItems().stream().map(event -> AdminEventResponse.from(event, now)).toList(),
-				result.getPage(), result.getSize(), result.getTotalElements()));
+		return ResponseEnvelope.success(result.map(event -> AdminEventResponse.from(event, now)));
 	}
 
 	/** AE02 관리자 상세는 실제 운영 상태와 이미지 키를 제공한다. */
 	@GetMapping("/{eventId}")
 	public ResponseEnvelope<AdminEventResponse> detail(
 			@CurrentUser User user,
-			@PathVariable String eventId) {
+			@PathVariable UUID eventId) {
 		return ResponseEnvelope.success(AdminEventResponse.from(
-				queryService.findAdminEvent(user, EventRequestContext.uuid(eventId)),
+				queryService.findAdminEvent(user, eventId),
 				timeProvider.now()));
 	}
 }

@@ -1,6 +1,7 @@
 package com.getddo.api.event.controller;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,18 +47,15 @@ public class EventController {
 		PageResult<EventView> result = queryService.findUserEvents(user, page, size,
 				new EventQueryFilter(status, eventType, membershipRule, null, null, null));
 		Instant now = timeProvider.now();
-		return ResponseEnvelope.success(new PageResult<>(
-				result.getItems().stream().map(event -> EventSummaryResponse.from(event, now)).toList(),
-				result.getPage(), result.getSize(), result.getTotalElements()));
+		return ResponseEnvelope.success(result.map(event -> EventSummaryResponse.from(event, now)));
 	}
 
-	/** 클릭한 이벤트의 UUID 형식을 검사한 뒤 상세 정보와 경품을 반환한다. */
+	/** Spring이 변환한 이벤트 UUID로 상세 정보와 경품을 조회한다. */
 	@GetMapping("/{eventId}")
 	public ResponseEnvelope<EventDetailResponse> detail(
 			@CurrentUser User user,
-			@PathVariable String eventId) {
+			@PathVariable UUID eventId) {
 		return ResponseEnvelope.success(EventDetailResponse.from(
-				queryService.findUserEvent(user,
-						EventRequestContext.uuid(eventId)), timeProvider.now()));
+				queryService.findUserEvent(user, eventId), timeProvider.now()));
 	}
 }
