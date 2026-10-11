@@ -39,7 +39,9 @@ public class EventStartNotificationRepositoryImpl implements EventStartNotificat
 			and e.starts_at > ? and e.starts_at <= ?
 			and not exists (
 			 select 1 from notification_jobs j
-			 where j.event_id = e.id and j.notification_type = 'EVENT_START')
+			 where j.event_id = e.id and j.notification_type = 'EVENT_START'
+			 and (json_extract(j.payload, '$.generationStoppedBy') is null
+			 or exists (select 1 from notifications n where n.job_id = j.id)))
 			order by e.starts_at, e.id limit 1 for update skip locked
 		""", (row, index) -> new EventStartNotification(UuidBinary.fromBytes(row.getBytes("id")), row.getString("title"),
 				row.getObject("starts_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),

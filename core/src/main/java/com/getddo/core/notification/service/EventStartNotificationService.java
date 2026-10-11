@@ -2,6 +2,7 @@ package com.getddo.core.notification.service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,8 @@ public class EventStartNotificationService {
 		if (event == null) {
 			return false;
 		}
-		jobs.register(new NotificationJobRequest("event-start:" + event.getId(),
+		jobs.register(new NotificationJobRequest("event-start:" + event.getId() + ":"
+				+ event.getStartsAt().truncatedTo(ChronoUnit.MICROS),
 				NotificationType.EVENT_START, event.getId(), null, "이벤트 시작 안내",
 				"\"" + event.getTitle() + "\" 이벤트가 곧 시작됩니다.", "/events/" + event.getId(),
 				event.getStartsAt().minus(NOTICE_BEFORE), repository.findRecipientIds(event.getMembershipRule())));
