@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import com.getddo.core.notification.exception.NotificationProcessingErrorCode;
@@ -21,6 +22,7 @@ import com.getddo.core.notification.exception.NotificationProcessingException;
  * 이벤트 등록 시점의 사용자 목록을 미리 확정하는 용도로 사용하지 않는다.</p>
  */
 @Getter
+@EqualsAndHashCode
 public final class NotificationJobRequest {
 	private final String occurrenceKey;
 	private final NotificationType type;
@@ -64,32 +66,6 @@ public final class NotificationJobRequest {
 	private static boolean validText(String value, int maxLength) {
 		return value != null && !value.isBlank()
 				&& value.codePointCount(0, value.length()) <= maxLength;
-	}
-
-	/** 모든 저장 값을 비교해 같은 입력 또는 조회 결과인지 판정한다. */
-	@Override
-	public boolean equals(Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof NotificationJobRequest that)) {
-			return false;
-		}
-		return Objects.equals(occurrenceKey, that.occurrenceKey)
-				&& type == that.type
-				&& Objects.equals(eventId, that.eventId)
-				&& Objects.equals(publicationId, that.publicationId)
-				&& Objects.equals(title, that.title)
-				&& Objects.equals(body, that.body)
-				&& Objects.equals(linkUrl, that.linkUrl)
-				&& Objects.equals(scheduledAt, that.scheduledAt)
-				&& Objects.equals(recipientIds, that.recipientIds);
-	}
-
-	/** 값이 같은 객체는 동일한 해시값을 반환한다. */
-	@Override
-	public int hashCode() {
-		return Objects.hash(occurrenceKey, type, eventId, publicationId, title, body, linkUrl, scheduledAt, recipientIds);
 	}
 
 }
