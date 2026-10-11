@@ -58,6 +58,7 @@ public class DrawRunEntity extends BaseEntity {
 	@Column(name = "confirmed_at")
 	private Instant confirmedAt;
 
+	/** 이벤트별 최초 실행을 PREPARING 상태와 차수 0으로 생성한다. */
 	public DrawRunEntity(UUID eventId) {
 		this.eventId = eventId;
 		runNumber = 0;
@@ -65,6 +66,7 @@ public class DrawRunEntity extends BaseEntity {
 		status = DrawRunStatus.PREPARING;
 	}
 
+	/** PREPARING 실행의 알고리즘·규칙·시각을 한 번만 확정하고 READY 또는 대상 없는 정상 종료로 전환한다. */
 	public void fixInput(DrawRunStatus status, String algorithmVersion, String rulesSnapshot, Instant fixedAt) {
 		if (this.status != DrawRunStatus.PREPARING || snapshotFixedAt != null) {
 			throw new IllegalStateException("추첨 입력은 한 번만 확정할 수 있습니다.");

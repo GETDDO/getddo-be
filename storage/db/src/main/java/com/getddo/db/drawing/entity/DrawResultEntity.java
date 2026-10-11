@@ -62,6 +62,7 @@ public class DrawResultEntity extends BaseEntity {
 	@Column(name = "selection_order", updatable = false)
 	private Integer selectionOrder;
 
+	/** 서비스가 검증한 선정·미충원 결과를 새 불변 이력으로 구성한다. 미충원의 후보·선정 순서는 null이다. */
 	public DrawResultEntity(DrawRunEntity run, DrawSelection selection) {
 		drawRun = run;
 		prizeId = selection.getPrizeId();

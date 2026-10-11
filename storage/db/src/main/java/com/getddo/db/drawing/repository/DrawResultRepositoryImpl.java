@@ -23,6 +23,7 @@ import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.db.drawing.entity.DrawResultEntity;
+import com.getddo.db.drawing.entity.DrawRunEntity;
 import com.getddo.db.drawing.mapper.DrawResultMapper;
 import com.getddo.db.drawing.mapper.DrawSnapshotMapper;
 
@@ -42,12 +43,14 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 	private final JdbcTemplate jdbc;
 	private final EntityManager entityManager;
 
+	/** 이벤트 선잠금에 필요한 소속 ID만 조회한다. 트랜잭션의 시작·종료는 확정 서비스가 담당한다. */
 	@Override
 	public Optional<UUID> findEventId(UUID runId) {
 		return jdbc.query("select event_id from draw_runs where id = ?",
 				(row, index) -> fromBytes(row.getBytes("event_id")), toBytes(runId)).stream().findFirst();
 	}
 
+	/** 서비스의 이벤트 잠금 이후 실행과 불변 입력을 읽는다. 대상 자리 계약이 없는 재추첨 실행은 거절한다. */
 	@Override
 	public Optional<DrawSnapshot> lockSnapshot(UUID runId) {
 		return runs.findForUpdate(runId).map(run -> {
@@ -57,6 +60,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 		});
 	}
 
+	/** JDBC 조인으로 후보 연결·이벤트·사용자 관계를 검증하고 스냅샷 경품의 소속을 대조한다. */
 	@Override
 	public void validateRelations(DrawSnapshot snapshot) {
 		Map<UUID, UUID> owners = new HashMap<>();
@@ -79,9 +83,11 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 		if (snapshot.rules().prizes().stream().anyMatch(prize -> !prizeIds.contains(prize.id()))) invalid();
 	}
 
+	/** READY 실행에 저장된 부분 결과가 있는지 조회한다. 결과를 삭제하거나 보정하지 않는다. */
 	@Override
 	public boolean hasResults(UUID runId) { return results.existsByDrawRunId(runId); }
 
+	/** CONFIRMED 선정 결과에서 취소된 배정을 제외한다. 원래 결과 이력과 공개 명단은 변경하지 않는다. */
 	@Override
 	public List<DrawSelection> findCurrentAwards(UUID eventId) {
 		return jdbc.query("""
@@ -97,9 +103,10 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 				fromBytes(row.getBytes("user_id")), DrawSelectionResultType.SELECTED), toBytes(eventId));
 	}
 
+	/** JPA 결과 행을 스냅샷 기준으로 복원하고 등수·자리 순서로 반환한다. 난수는 사용하지 않는다. */
 	@Override
 	public DrawConfirmation findConfirmed(DrawSnapshot snapshot) {
-		var run = runs.findById(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
+		DrawRunEntity run = runs.findById(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		if (run.getStatus() != DrawRunStatus.CONFIRMED || run.getConfirmedAt() == null) invalid();
 		List<DrawResult> stored = results.findByDrawRunId(snapshot.runId()).stream().map(result -> mapper.toDomain(result, snapshot))
 				.sorted(Comparator.comparingInt((DrawResult result) -> result.getSelection().getRank())
@@ -107,9 +114,10 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 		return new DrawConfirmation(run.getId(), run.getEventId(), run.getConfirmedAt(), stored);
 	}
 
+	/** 서비스 트랜잭션 안에서 결과와 상태를 flush한 뒤 재조회한다. 불변 결과는 detach하여 DB 시각 정밀도를 반영한다. */
 	@Override
 	public DrawConfirmation saveConfirmed(DrawSnapshot snapshot, List<DrawSelection> selections, Instant confirmedAt) {
-		var run = runs.findById(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
+		DrawRunEntity run = runs.findById(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		List<DrawResultEntity> saved = results.saveAllAndFlush(selections.stream()
 				.map(selection -> new DrawResultEntity(run, selection)).toList());
 		run.confirm(confirmedAt);
@@ -121,5 +129,6 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 		return findConfirmed(snapshot);
 	}
 
+	/** 실행·스냅샷 관계의 불일치를 도메인 오류로 보고하여 상위 서비스가 전체 작업을 롤백하게 한다. */
 	private static void invalid() { throw new BusinessException(INVALID_RUN); }
 }
