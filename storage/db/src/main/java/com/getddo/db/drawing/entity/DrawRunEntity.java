@@ -58,7 +58,7 @@ public class DrawRunEntity extends BaseEntity {
 	@Column(name = "confirmed_at")
 	private Instant confirmedAt;
 
-	/** 이벤트별 최초 실행을 PREPARING 상태와 차수 0으로 생성한다. */
+	/** 이벤트의 최초 실행을 PREPARING 상태와 실행 번호 0으로 생성한다. */
 	public DrawRunEntity(UUID eventId) {
 		this.eventId = eventId;
 		runNumber = 0;
@@ -66,13 +66,21 @@ public class DrawRunEntity extends BaseEntity {
 		status = DrawRunStatus.PREPARING;
 	}
 
-	/** PREPARING 실행의 알고리즘·규칙·시각을 한 번만 확정하고 READY 또는 대상 없는 정상 종료로 전환한다. */
+	/**
+	 * 최초 후보 준비가 끝난 실행의 입력을 한 번만 확정한다. 새 NO_CANDIDATES는 생성하지 않는다.
+	 *
+	 * @param status 정상 후보가 있으면 READY, 응모자가 없으면 NO_ENTRIES
+	 * @param algorithmVersion 후보 가중치·선정 알고리즘 버전
+	 * @param rulesSnapshot 확정된 경품·가중치 조건의 JSON
+	 * @param fixedAt 서버 기준 입력 확정 시각
+	 * @throws IllegalStateException 이미 입력을 확정했거나 PREPARING 상태가 아닌 경우
+	 * @throws IllegalArgumentException 신규 입력 확정 상태가 아니거나 필수 입력이 null인 경우
+	 */
 	public void fixInput(DrawRunStatus status, String algorithmVersion, String rulesSnapshot, Instant fixedAt) {
 		if (this.status != DrawRunStatus.PREPARING || snapshotFixedAt != null) {
 			throw new IllegalStateException("추첨 입력은 한 번만 확정할 수 있습니다.");
 		}
-		if (status != DrawRunStatus.READY && status != DrawRunStatus.NO_ENTRIES
-				&& status != DrawRunStatus.NO_CANDIDATES) {
+		if (status != DrawRunStatus.READY && status != DrawRunStatus.NO_ENTRIES) {
 			throw new IllegalArgumentException("최초 입력 확정 상태가 아닙니다.");
 		}
 		if (algorithmVersion == null || rulesSnapshot == null || fixedAt == null) {

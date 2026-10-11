@@ -34,7 +34,7 @@ class DrawSnapshotServiceTest {
 	private DrawSnapshotRepository repository;
 	private DrawSnapshotService service;
 
-	/** 원본 저장소와 시각을 고정하며 제외 저장소 대역을 주입하지 않는다. */
+	/** 서버 시각과 유효한 이벤트·응모 테스트 환경을 각 검증 전에 초기화한다. */
 	@BeforeEach
 	void setUp() {
 		repository = mock(DrawSnapshotRepository.class);
@@ -44,7 +44,7 @@ class DrawSnapshotServiceTest {
 		when(repository.saveInitial(any())).thenAnswer(call -> call.getArgument(0));
 	}
 
-	/** 추가 응모의 등급별 장수·가중치와 원본 근거가 함께 보존되는지 검증한다. */
+	/** 추가 응모의 등급별 실제 차감량을 합산하고 원본 근거와 가중치를 보존하는지 검증한다. */
 	@Test
 	void sumsGradesAcrossAdditionalEntriesAndPreservesEvidence() {
 		Entry first = entry(2, TicketGrade.GOLD, TicketGrade.SILVER);
@@ -61,7 +61,7 @@ class DrawSnapshotServiceTest {
 		assertThat(candidate.entryEvidence().bronzeCount()).isEqualTo(1);
 	}
 
-	/** 누적 합계가 같아도 개별 응모 사용 근거의 불일치는 저장 전에 거절한다. */
+	/** 누적 수량이 같아도 개별 응모의 차감 근거가 불일치하면 저장을 거절하는지 검증한다. */
 	@Test
 	void detectsPerEntryMismatchEvenWhenTotalsMatch() {
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(4,
@@ -70,7 +70,7 @@ class DrawSnapshotServiceTest {
 		verify(repository, never()).saveInitial(any());
 	}
 
-	/** 추가 응모 사이에 중복 사용된 티켓을 후보 확정 전에 거절한다. */
+	/** 서로 다른 추가 응모에서 같은 티켓을 차감한 경우 입력 확정을 거절하는지 검증한다. */
 	@Test
 	@DisplayName("추가 응모에 같은 티켓이 중복되면 입력 확정을 거절한다")
 	void rejectsSameTicketAcrossAdditionalEntries() {
@@ -87,7 +87,7 @@ class DrawSnapshotServiceTest {
 		verify(repository, never()).saveInitial(any());
 	}
 
-	/** 누적 사용 장수 불일치와 응모권 사용 이벤트의 0장 사용을 거절한다. */
+	/** 누적 수량 불일치와 티켓 사용 이벤트의 0장 응모를 거절하는지 검증한다. */
 	@Test
 	void rejectsAccumulatedMismatchAndZeroTicketUse() {
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(2, entry(1, TicketGrade.GOLD))));
@@ -96,7 +96,7 @@ class DrawSnapshotServiceTest {
 		assertError(INVALID_EVIDENCE);
 	}
 
-	/** 응모권 미사용·가중치 미적용 후보의 가중치는 1로 보존한다. */
+	/** 응모권 미사용·가중치 미적용 이벤트는 후보 가중치를 1로 고정하는지 검증한다. */
 	@Test
 	void noTicketAndUnweightedUseHaveWeightOne() {
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.NO_TICKET, false, NOW.minusSeconds(300))));
@@ -107,10 +107,10 @@ class DrawSnapshotServiceTest {
 		assertThat(service.prepareInitial(eventId).candidates().getFirst().weight()).isEqualTo(1);
 	}
 
-	/** 응모자 없음은 후보 없이 정상 종료하고 어뷰징 제외 종료를 새로 만들지 않는다. */
+	/** 응모자가 없는 신규 실행만 NO_ENTRIES로 종료하는지 검증한다. */
 	@Test
 	@DisplayName("응모자가 없으면 후보 없이 NO_ENTRIES로 종료한다")
-	void emptyEventTerminatesWithoutCandidates() {
+	void terminatesWithoutCandidatesOnlyWhenThereAreNoEntries() {
 		// given
 		when(repository.findParticipants(eventId)).thenReturn(List.of());
 
@@ -122,14 +122,16 @@ class DrawSnapshotServiceTest {
 		assertThat(snapshot.candidates()).isEmpty();
 	}
 
-	/** 제외 저장소 없이 서로 다른 사용자의 모든 정상 응모를 READY 후보로 확정한다. */
+	/** 제외 제공자 없이 모든 정상 응모를 후보로 저장하고 등급별 가중치를 유지하는지 검증한다. */
 	@Test
-	@DisplayName("제외 저장소 없이 모든 정상 응모를 READY 후보로 확정한다")
-	void preparesAllValidParticipantsWithoutExclusionProvider() {
+	@DisplayName("모든 정상 응모를 후보로 확정하고 등급별 가중치를 보존한다")
+	void includesEveryValidParticipantWithoutAnExclusionProvider() {
 		// given
-		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.NO_TICKET, false, NOW.minusSeconds(300))));
-		Participant first = participant(0, entry(0));
-		Participant second = new Participant(UUID.randomUUID(), UUID.randomUUID(), 0, "VIP", "USER", List.of(entry(0)));
+		Participant first = participant(1, entry(1, TicketGrade.GOLD));
+		UUID otherUser = UUID.randomUUID();
+		Entry otherEntry = new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301),
+				List.of(new Use(UUID.randomUUID(), UUID.randomUUID(), otherUser, TicketGrade.SILVER)));
+		Participant second = new Participant(UUID.randomUUID(), otherUser, 1, "VIP", "USER", List.of(otherEntry));
 		when(repository.findParticipants(eventId)).thenReturn(List.of(first, second));
 
 		// when
@@ -139,14 +141,14 @@ class DrawSnapshotServiceTest {
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
 		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId)
 				.containsExactly(first.id(), second.id());
+		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::weight).containsExactly(5L, 3L);
 		assertThat(snapshot.candidates()).allSatisfy(candidate -> {
-			assertThat(candidate.ticketCount()).isZero();
-			assertThat(candidate.weight()).isEqualTo(1);
+			assertThat(candidate.ticketCount()).isEqualTo(1);
 			assertThat(candidate.eligibilityEvidence().excluded()).isFalse();
 		});
 	}
 
-	/** 과거 NO_CANDIDATES를 포함한 고정 실행은 원본 재조회나 재계산 없이 반환한다. */
+	/** 확정된 실행과 레거시 종료 상태는 원본 재조회·재저장 없이 반환하는지 검증한다. */
 	@ParameterizedTest
 	@EnumSource(value = DrawRunStatus.class, names = {"READY", "RUNNING", "CONFIRMED", "NO_ENTRIES", "NO_CANDIDATES"})
 	void replaysFixedRunWithoutReadingOriginals(DrawRunStatus status) {
@@ -157,7 +159,7 @@ class DrawSnapshotServiceTest {
 		verify(repository, never()).saveInitial(any());
 	}
 
-	/** 기존 5분 경계와 취소·삭제 이벤트의 실행 거절을 유지한다. */
+	/** 마감 후 5분 전·취소·삭제 이벤트의 최초 준비를 거절하는지 검증한다. */
 	@Test
 	void waitsUntilFiveMinuteBoundaryAndRejectsCanceledDeletedEvents() {
 		Event early = event(EventType.TICKET, true, NOW.minusSeconds(299));
@@ -171,7 +173,7 @@ class DrawSnapshotServiceTest {
 		assertError(NOT_EXECUTABLE);
 	}
 
-	/** 티켓 소유자 불일치와 마감 이후 응모를 원본 정합성 오류로 거절한다. */
+	/** 다른 소유자의 티켓과 마감 시각 이후에 접수된 응모를 거절하는지 검증한다. */
 	@Test
 	void rejectsWrongTicketOwnerAndEntryAfterDeadline() {
 		Use use = new Use(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), TicketGrade.GOLD);
@@ -186,7 +188,7 @@ class DrawSnapshotServiceTest {
 		assertError(INVALID_EVIDENCE);
 	}
 
-	/** 단일 응모 이벤트에 추가 응모가 기록됐으면 전체 준비를 거절한다. */
+	/** 추가 응모를 허용하지 않는 이벤트에서 여러 응모를 거절하는지 검증한다. */
 	@Test
 	@DisplayName("단일 응모 이벤트에 추가 응모가 있으면 준비를 거절하고 저장하지 않는다")
 	void rejectsAdditionalEntriesForSingleEntryEvents() {
@@ -203,21 +205,21 @@ class DrawSnapshotServiceTest {
 		verify(repository, never()).saveInitial(any());
 	}
 
-	/** 지정한 응모권·가중치 조건의 이벤트 입력을 구성한다. */
+	/** 지정한 유형·가중치·마감 시각과 유효한 경품 조건의 이벤트를 만든다. */
 	private Event event(EventType type, boolean weighted, Instant endsAt) {
 		return new Event(eventId, type, weighted, endsAt, EventStatus.CLOSED, false, "vip",
 				List.of(new Prize(UUID.randomUUID(), 1, 2)));
 	}
-	/** 같은 사용자의 누적 수량과 원본 응모를 구성한다. */
+	/** 현재 테스트 사용자의 누적 사용량과 응모 근거를 구성한다. */
 	private Participant participant(long count, Entry... entries) {
 		return new Participant(participantId, userId, count, "VIP", "USER", List.of(entries));
 	}
-	/** 등급별로 서로 다른 티켓 사용 근거를 구성한다. */
+	/** 마감 전에 접수된 응모와 지정한 등급의 실제 USE 근거를 만든다. */
 	private Entry entry(long count, TicketGrade... grades) {
 		return new Entry(UUID.randomUUID(), count, NOW.minusSeconds(301), java.util.Arrays.stream(grades)
 				.map(grade -> new Use(UUID.randomUUID(), UUID.randomUUID(), userId, grade)).toList());
 	}
-	/** 실제 준비 호출이 지정한 도메인 오류로 거절되는지 확인한다. */
+	/** 최초 준비 실패가 기대한 BusinessException 오류 코드를 반환하는지 검증한다. */
 	private void assertError(com.getddo.core.drawing.exception.DrawingErrorCode code) {
 		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class)
 				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(code);

@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -16,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -65,6 +68,7 @@ class DrawSnapshotIntegrationTest {
 	@MockitoSpyBean private DrawRunCandidateJpaRepository links;
 	private UUID eventId, userId;
 
+	/** 서버 시각과 유효한 이벤트·응모 테스트 환경을 각 검증 전에 초기화한다. */
 	@BeforeEach
 	void setUp() {
 		clock.set(NOW);
@@ -84,6 +88,7 @@ class DrawSnapshotIntegrationTest {
 			""", bytes(UUID.randomUUID()), bytes(eventId), utc(NOW), utc(NOW));
 	}
 
+	/** 후보 저장 후 원본 응모·경품을 변경해도 같은 확정 입력을 반환하는지 검증한다. */
 	@Test
 	void storesAndReplaysEvidenceWithoutRecomputingOriginals() {
 		UUID participant = addParticipant(0);
@@ -100,6 +105,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(service.prepareInitial(eventId)).isEqualTo(first);
 	}
 
+	/** 실제 USE 이력에서 등급별 차감량을 읽고 JSON 왕복 후 같은 가중치를 반환하는지 검증한다. */
 	@Test
 	void readsGradesFromOriginalUseHistoryAndPreservesJson() {
 		jdbc.update("update events set event_type = 'TICKET', weighting_enabled = true where id = ?", bytes(eventId));
@@ -115,6 +121,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
 	}
 
+	/** JPA가 UUID·JSON·UTC 시각과 실행별 후보 연결을 손실 없이 저장·복원하는지 검증한다. */
 	@Test
 	void mapsBinaryIdsJsonAndUtcTimesThroughJpa() {
 		addParticipant(0);
@@ -142,6 +149,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
 	}
 
+	/** DB에 같은 티켓의 중복 차감이 있어도 실행·후보를 저장하지 않는지 검증한다. */
 	@Test
 	@DisplayName("추가 응모 간 티켓 중복이 DB에 기록됐어도 스냅샷을 저장하지 않는다")
 	void rejectsDuplicateTicketAcrossPersistedAdditionalEntries() {
@@ -172,6 +180,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_run_candidates")).isZero();
 	}
 
+	/** 최초 응답과 재요청이 DB에 저장된 마이크로초 정밀도의 확정 시각을 공유하는지 검증한다. */
 	@Test
 	void firstResponseUsesPersistedMicrosecondPrecision() {
 		clock.set(NOW.plusNanos(123456789));
@@ -181,6 +190,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(service.prepareInitial(eventId)).isEqualTo(first);
 	}
 
+	/** JPA 쓰기에서 실행·후보·실행별 연결의 DB 유일 제약을 지키는지 검증한다. */
 	@Test
 	void jpaWritesRespectRunCandidateAndLinkUniqueness() {
 		addParticipant(0);
@@ -205,6 +215,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
 	}
 
+	/** 존재하지 않는 응모자와 양수가 아닌 가중치는 DB 제약으로 거절하는지 검증한다. */
 	@Test
 	void jpaWritesRespectParticipantForeignKeyAndPositiveWeight() {
 		addParticipant(0);
@@ -232,6 +243,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_candidates")).isEqualTo(1);
 	}
 
+	/** 응모자 없음 종료를 저장하고 같은 실행을 재요청에서도 보존하는지 검증한다. */
 	@Test
 	void distinguishesNormalEmptyTerminationsAndReplaysThem() {
 		DrawSnapshot empty = service.prepareInitial(eventId);
@@ -240,59 +252,127 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_candidates")).isZero();
 	}
 
-	/** 기존 어뷰징 판단 기록이 있어도 다른 정상 응모를 후보에서 제거하지 않는다. */
-	@Test
-	@DisplayName("과거 어뷰징 판단 기록이 있어도 정상 응모를 후보로 보존한다")
-	void preparesValidParticipantDespiteLegacyAbuseRecord() {
+	/** 어뷰징 검토 상태와 관계없이 정상 응모를 후보로 포함하고 검토 기록을 보존하는지 검증한다. */
+	@ParameterizedTest
+	@ValueSource(strings = {"PENDING", "CONFIRMED"})
+	@DisplayName("기존 어뷰징 기록으로 같은 사용자의 정상 응모나 다른 유효 응모자를 제거하지 않는다")
+	void existingAbuseRecordsDoNotRemoveValidParticipants(String reviewStatus) {
 		// given
 		UUID participant = addParticipant(0);
-		UUID abuseCaseId = UUID.randomUUID();
+		UUID otherUser = UUID.randomUUID();
 		jdbc.update("""
-			insert into abuse_cases (id, event_id, user_id, reviewed_by, request_id, detection_key,
-				detection_type, detection_reason, evidence, occurred_at, detected_at, review_status, reviewed_at, review_reason)
-			values (?, ?, ?, ?, ?, ?, 'LEGACY_TEST', '과거 판단 기록', '{}', ?, ?, 'CONFIRMED', ?, '과거 판단')
-			""", bytes(abuseCaseId), bytes(eventId), bytes(userId), bytes(userId), abuseCaseId.toString(),
-				abuseCaseId.toString(), utc(NOW.minusSeconds(1000)), utc(NOW.minusSeconds(900)), utc(NOW.minusSeconds(800)));
+			insert into users (id, name, role, status, membership, created_at, updated_at)
+			values (?, '다른 응모자', 'USER', 'ACTIVE', 'VIP', ?, ?)
+			""", bytes(otherUser), utc(NOW), utc(NOW));
+		UUID otherParticipant = addParticipant(0, otherUser);
+		UUID record = UUID.randomUUID();
+		boolean confirmed = reviewStatus.equals("CONFIRMED");
+		UUID reviewer = UUID.randomUUID();
+		jdbc.update("""
+			insert into users (id, name, role, status, membership, created_at, updated_at)
+			values (?, '검토 관리자', 'ADMIN', 'ACTIVE', 'VIP', ?, ?)
+			""", bytes(reviewer), utc(NOW), utc(NOW));
+		// 현재 스키마의 기존 기록을 보존하는 검증이다. 새 지급 차단 저장소를 구현하지 않는다.
+		jdbc.update("""
+			insert into abuse_cases (id, event_id, user_id, request_id, detection_key, detection_type,
+				detection_reason, evidence, occurred_at, detected_at, review_status, reviewed_by, reviewed_at, review_reason)
+			values (?, ?, ?, ?, ?, 'INVALID_REWARD_REQUEST', '거절된 지급 요청', '{"issued":false}', ?, ?, ?, ?, ?, ?)
+			""", bytes(record), bytes(eventId), bytes(userId), record.toString(), record.toString(),
+				utc(NOW.minusSeconds(100)), utc(NOW.minusSeconds(100)), reviewStatus,
+				confirmed ? bytes(reviewer) : null, confirmed ? utc(NOW.minusSeconds(90)) : null,
+				confirmed ? "기존 확인 기록" : null);
 
 		// when
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
 
 		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
-		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId).containsExactly(participant);
-		assertThat(snapshot.candidates().getFirst().eligibilityEvidence().excluded()).isFalse();
-		assertThat(count("draw_candidates")).isEqualTo(1);
-		assertThat(count("draw_run_candidates")).isEqualTo(1);
+		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId)
+				.containsExactlyInAnyOrder(participant, otherParticipant);
+		assertThat(snapshot.candidates()).allSatisfy(candidate -> {
+			assertThat(candidate.ticketCount()).isZero();
+			assertThat(candidate.weight()).isEqualTo(1);
+			assertThat(candidate.eligibilityEvidence().excluded()).isFalse();
+		});
+		assertThat(count("draw_candidates")).isEqualTo(2);
+		assertThat(count("draw_results")).isZero();
+		assertThat(jdbc.queryForObject("select review_status from abuse_cases where id = ?",
+				String.class, bytes(record))).isEqualTo(reviewStatus);
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
 	}
 
-	/** 신규 전원 제외 종료는 만들지 않지만 과거 DB의 NO_CANDIDATES는 재계산 없이 조회한다. */
+	/** 과거 전원 제외 실행이 이후 응모 변경에도 기존 스냅샷을 반환하는지 검증한다. */
 	@Test
 	@DisplayName("과거 NO_CANDIDATES 실행은 새 응모가 있어도 재계산하지 않는다")
-	void replaysLegacyNoCandidatesWithoutRecalculatingNewEntries() {
+	void replaysLegacyAllExcludedRunWithoutRecomputingCandidates() {
 		// given
 		DrawSnapshot empty = service.prepareInitial(eventId);
+		// GD-84에서 저장한 과거 종료 상태를 재현한다. 새 입력 확정 경로로 생성하지 않는다.
 		jdbc.update("update draw_runs set status = 'NO_CANDIDATES' where id = ?", bytes(empty.runId()));
 		addParticipant(0);
 
 		// when
-		DrawSnapshot historical = service.prepareInitial(eventId);
+		DrawSnapshot legacy = service.prepareInitial(eventId);
 
 		// then
-		assertThat(historical.runId()).isEqualTo(empty.runId());
-		assertThat(historical.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
-		assertThat(historical.fixedAt()).isEqualTo(empty.fixedAt());
-		assertThat(historical.rules()).isEqualTo(empty.rules());
-		assertThat(historical.candidates()).isEmpty();
-		assertThat(service.prepareInitial(eventId)).isEqualTo(historical);
+		assertThat(legacy.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
+		assertThat(legacy.runId()).isEqualTo(empty.runId());
+		assertThat(legacy.rules()).isEqualTo(empty.rules());
+		assertThat(legacy.algorithmVersion()).isEqualTo(empty.algorithmVersion());
+		assertThat(legacy.fixedAt()).isEqualTo(empty.fixedAt());
+		assertThat(legacy.candidates()).isEmpty();
+		assertThat(service.prepareInitial(eventId)).isEqualTo(legacy);
+		assertThat(count("draw_runs")).isEqualTo(1);
 		assertThat(count("draw_candidates")).isZero();
 		assertThat(count("draw_results")).isZero();
 	}
 
-	/** 제외 기능 유무와 무관하게 누적 사용 장수 불일치는 전체 준비를 거절한다. */
+	/** 확정 실행 재요청이 원본 변경에도 저장된 입력·결과·확정 시각을 변경하지 않는지 검증한다. */
+	@Test
+	void replaysConfirmedRunWithoutChangingSnapshotsOrResults() {
+		UUID participant = addParticipant(0);
+		DrawSnapshot ready = service.prepareInitial(eventId);
+		DrawSnapshot.Candidate candidate = ready.candidates().getFirst();
+		UUID result = UUID.randomUUID();
+		jdbc.update("""
+			insert into draw_results (id, draw_run_id, event_prize_id, slot_number, result_type,
+				candidate_id, selection_order, created_at) values (?, ?, ?, 1, 'SELECTED', ?, 1, ?)
+			""", bytes(result), bytes(ready.runId()), bytes(ready.rules().prizes().getFirst().id()),
+				bytes(candidate.id()), utc(NOW));
+		jdbc.update("update draw_runs set status = 'CONFIRMED', started_at = ?, confirmed_at = ? where id = ?",
+				utc(NOW), utc(NOW), bytes(ready.runId()));
+		Map<String, Object> storedResult = resultRow(result);
+		Map<String, Object> storedInput = jdbc.queryForMap("""
+			select entry_snapshot, eligibility_snapshot from draw_candidates where id = ?
+			""", bytes(candidate.id()));
+		jdbc.update("update event_participants set used_ticket_count = 7 where id = ?", bytes(participant));
+		jdbc.update("update event_prizes set winner_count = 5 where event_id = ?", bytes(eventId));
+		jdbc.update("update users set membership = 'VVIP' where id = ?", bytes(userId));
+
+		DrawSnapshot confirmed = service.prepareInitial(eventId);
+
+		assertThat(confirmed.status()).isEqualTo(DrawRunStatus.CONFIRMED);
+		assertThat(confirmed.runId()).isEqualTo(ready.runId());
+		assertThat(confirmed.rules()).isEqualTo(ready.rules());
+		assertThat(confirmed.fixedAt()).isEqualTo(ready.fixedAt());
+		assertThat(confirmed.algorithmVersion()).isEqualTo(ready.algorithmVersion());
+		assertThat(confirmed.candidates()).isEqualTo(ready.candidates());
+		assertThat(service.prepareInitial(eventId)).isEqualTo(confirmed);
+		assertThat(resultRow(result)).isEqualTo(storedResult);
+		assertThat(jdbc.queryForMap("select entry_snapshot, eligibility_snapshot from draw_candidates where id = ?",
+				bytes(candidate.id()))).isEqualTo(storedInput);
+		assertThat(jdbc.queryForObject("select confirmed_at from draw_runs where id = ?",
+				LocalDateTime.class, bytes(ready.runId()))).isEqualTo(utc(NOW));
+		assertThat(count("draw_runs")).isEqualTo(1);
+		assertThat(count("draw_candidates")).isEqualTo(1);
+		assertThat(count("draw_run_candidates")).isEqualTo(1);
+		assertThat(count("draw_results")).isEqualTo(1);
+	}
+
+	/** 누적 응모 수량 불일치 시 실행·후보·연결 행을 남기지 않는지 검증한다. */
 	@Test
 	@DisplayName("누적 사용 장수가 다르면 준비를 거절하고 실행·후보·연결을 저장하지 않는다")
-	void invalidAccumulationLeavesNoRun() {
+	void invalidAccumulationLeavesNoRunOrCandidates() {
 		// given
 		UUID participant = addParticipant(0);
 		jdbc.update("update event_participants set used_ticket_count = 1 where id = ?", bytes(participant));
@@ -308,6 +388,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_run_candidates")).isZero();
 	}
 
+	/** 후보 연결 저장 실패 시 서비스 트랜잭션이 실행·후보 쓰기까지 롤백하는지 검증한다. */
 	@Test
 	void candidateLinkFailureRollsBackRunAndCandidate() {
 		addParticipant(0);
@@ -320,6 +401,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_run_candidates")).isZero();
 	}
 
+	/** 동시 최초 준비 요청이 같은 실행을 반환하고 스냅샷을 한 번만 저장하는지 검증한다. */
 	@Test
 	void concurrentPreparationCreatesOneRunAndSnapshot() throws Exception {
 		addParticipant(0);
@@ -335,6 +417,7 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_run_candidates")).isEqualTo(1);
 	}
 
+	/** SQL 응모 트랜잭션의 이벤트 잠금을 기다린 뒤 커밋된 응모를 포함하는지 검증한다. */
 	@Test
 	@DisplayName("진행 중인 응모 SQL 트랜잭션의 실제 이벤트 잠금 대기를 확인하고 커밋된 후보를 포함한다")
 	void waitsForInFlightEntryTransactionAndIncludesItsCommit() throws Exception {
@@ -370,17 +453,24 @@ class DrawSnapshotIntegrationTest {
 		}
 	}
 
+	/** 지정한 사용량과 소유자로 마감 전 응모자·접수 행을 저장한다. */
 	private UUID addParticipant(int count) {
+		return addParticipant(count, userId);
+	}
+
+	/** 지정한 사용량과 소유자로 마감 전 응모자·접수 행을 저장한다. */
+	private UUID addParticipant(int count, UUID owner) {
 		UUID participant = UUID.randomUUID();
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, ?, ?)",
-				bytes(participant), bytes(eventId), bytes(userId), count, utc(NOW.minusSeconds(301)));
+				bytes(participant), bytes(eventId), bytes(owner), count, utc(NOW.minusSeconds(301)));
 		jdbc.update("""
 			insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
 			values (?, ?, ?, ?, ?, ?)
-			""", bytes(UUID.randomUUID()), bytes(participant), bytes(userId), count, count, utc(NOW.minusSeconds(301)));
+			""", bytes(UUID.randomUUID()), bytes(participant), bytes(owner), count, count, utc(NOW.minusSeconds(301)));
 		return participant;
 	}
 
+	/** 지정한 응모에 실제 보상 출처·등급 티켓·USE 이력을 저장한다. */
 	private void addUsedTicket(byte[] entry, String grade) {
 		UUID policy = UUID.randomUUID(), mission = UUID.randomUUID(), submission = UUID.randomUUID();
 		UUID claim = UUID.randomUUID(), ticket = UUID.randomUUID();
@@ -410,14 +500,25 @@ class DrawSnapshotIntegrationTest {
 			values (?, ?, ?, 'USE', 2, 'SPENT', ?, '테스트 응모', ?)
 			""", bytes(UUID.randomUUID()), bytes(ticket), entry, utc(NOW.plusSeconds(3600)), utc(NOW.minusSeconds(301)));
 	}
+	/** 확정 결과의 식별자·선정 내용·시각을 비교할 수 있도록 한 행을 조회한다. */
+	private Map<String, Object> resultRow(UUID resultId) {
+		return jdbc.queryForMap("""
+			select hex(id) as id, hex(draw_run_id) as draw_run_id, hex(event_prize_id) as event_prize_id,
+				slot_number, result_type, hex(candidate_id) as candidate_id, selection_order, created_at
+			from draw_results where id = ?
+			""", bytes(resultId));
+	}
+	/** 현재 이벤트에 속한 추첨 실행 또는 실행별 상세 행의 수를 조회한다. */
 	private long count(String table) {
 		String sql = table.equals("draw_runs") ? "select count(*) from draw_runs where event_id = ?"
 				: "select count(*) from " + table + " where draw_run_id in (select id from draw_runs where event_id = ?)";
 		return jdbc.queryForObject(sql, Long.class, bytes(eventId));
 	}
+	/** UUID를 테스트 DB의 BINARY(16) 표현으로 변환한다. */
 	private static byte[] bytes(UUID id) {
 		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
+	/** 서버 Instant를 테스트 SQL의 UTC DATETIME 값으로 변환한다. */
 	private static LocalDateTime utc(Instant value) { return LocalDateTime.ofInstant(value, ZoneOffset.UTC); }
 
 	@SpringBootConfiguration
@@ -425,7 +526,9 @@ class DrawSnapshotIntegrationTest {
 	@ComponentScan(basePackages = {"com.getddo.core.drawing", "com.getddo.db.drawing"})
 	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
 	static class TestApplication {
+		/** 테스트에서 직접 제어할 수 있는 서버 기준 시계를 제공한다. */
 		@Bean MutableClock clock() { return new MutableClock(NOW); }
+		/** 서비스에 테스트 시계 기반의 서버 시각 제공자를 주입한다. */
 		@Bean TimeProvider timeProvider(Clock clock) { return new TimeProvider(clock); }
 	}
 }
