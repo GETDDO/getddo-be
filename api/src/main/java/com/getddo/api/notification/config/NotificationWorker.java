@@ -1,7 +1,6 @@
 package com.getddo.api.notification.config;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -12,10 +11,10 @@ import com.getddo.core.notification.service.NotificationJobService;
 
 /** DB의 미완료 작업을 주기적으로 처리한다. 프로세스 내 작업 큐에만 의존하지 않는다. */
 @Configuration(proxyBeanMethods = false)
+@Slf4j
 @EnableScheduling
 @ConditionalOnProperty(name = "getddo.notification.worker.enabled", havingValue = "true", matchIfMissing = true)
 public class NotificationWorker {
-	private static final Log LOG = LogFactory.getLog(NotificationWorker.class);
 	private final NotificationJobService service;
 	private final EventStartNotificationService starts;
 
@@ -35,7 +34,7 @@ public class NotificationWorker {
 				}
 			}
 		} catch (RuntimeException failure) {
-			LOG.warn("Event start notification registration failed: exceptionType=" + failure.getClass().getName());
+			log.warn("Event start notification registration failed: exceptionType={}", failure.getClass().getName());
 		}
 		for (int count = 0; count < 20; count++) {
 			if (!service.processNextJob()) {
