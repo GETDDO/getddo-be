@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DrawRunEntityTest {
 	private static final Instant FIXED_AT = Instant.parse("2026-10-10T06:00:00Z");
 
+	/** 필수 입력 누락은 엔티티를 변경하지 않고 이후 정상 입력 확정도 허용하는지 검증한다. */
 	@ParameterizedTest(name = "{0}: {1} 누락 시 상태를 변경하지 않는다")
 	@MethodSource("incompleteInputs")
 	void rejectsIncompleteInputBeforeChangingState(DrawRunStatus targetStatus, String missingField) {
@@ -41,6 +42,7 @@ class DrawRunEntityTest {
 		assertThat(run.getSnapshotFixedAt()).isEqualTo(FIXED_AT);
 	}
 
+	/** 신규 NO_CANDIDATES 확정을 거절하고 PREPARING 입력을 보존하는지 검증한다. */
 	@Test
 	void rejectsNewAllExcludedTerminationWithoutChangingInput() {
 		DrawRunEntity run = new DrawRunEntity(UUID.randomUUID());
@@ -53,6 +55,7 @@ class DrawRunEntityTest {
 		assertThat(run.getSnapshotFixedAt()).isNull();
 	}
 
+	/** 신규 확정 상태별 알고리즘·규칙·시각 누락 사례를 제공한다. */
 	private static Stream<Arguments> incompleteInputs() {
 		return Stream.of(DrawRunStatus.READY, DrawRunStatus.NO_ENTRIES)
 				.flatMap(status -> List.of("algorithmVersion", "rulesSnapshot", "fixedAt").stream()

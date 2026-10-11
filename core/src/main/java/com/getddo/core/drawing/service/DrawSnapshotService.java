@@ -22,17 +22,27 @@ import com.getddo.core.event.domain.EventType;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
+/** 정상 접수된 응모의 수량·차감 근거를 검증하고 최초 추첨 입력을 불변 스냅샷으로 확정한다. */
 @Service
 public class DrawSnapshotService {
 	public static final String ALGORITHM_VERSION = "weighted-without-replacement-v1";
 	private final DrawSnapshotRepository repository;
 	private final TimeProvider time;
 
+	/** 최초 실행 영속성 경계와 서버 기준 시각을 주입한다. */
 	public DrawSnapshotService(DrawSnapshotRepository repository, TimeProvider time) {
 		this.repository = repository; this.time = time;
 	}
 
-	/** 이벤트를 먼저 잠근 뒤 원본 검증·스냅샷·실행별 연결을 하나의 트랜잭션으로 확정한다. */
+	/**
+	 * 이벤트를 먼저 잠근 뒤 원본 검증·스냅샷·실행별 연결을 하나의 트랜잭션으로 확정한다.
+	 * 정상 응모는 제외 판단 없이 후보로 저장하며, 응모자가 없으면 NO_ENTRIES로 종료한다.
+	 * 이미 입력이 확정된 실행은 과거 NO_CANDIDATES를 포함해 원본을 다시 계산하지 않고 반환한다.
+	 *
+	 * @param eventId 최초 추첨 입력을 준비할 이벤트 식별자
+	 * @return 저장된 실행 식별자·후보·조건·확정 시각을 포함한 스냅샷
+	 * @throws BusinessException 이벤트가 없거나 실행 시각·상태·응모 근거가 유효하지 않은 경우
+	 */
 	@Transactional
 	public DrawSnapshot prepareInitial(UUID eventId) {
 		DrawSnapshotSource.Event event = repository.lockEvent(eventId).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
@@ -68,6 +78,7 @@ public class DrawSnapshotService {
 				ALGORITHM_VERSION, rules, candidates));
 	}
 
+	/** 중복 차감·응모 수량·접수 시각을 검증하고 실제 등급별 차감량으로 후보 가중치를 계산한다. */
 	private DrawSnapshot.Candidate validateParticipant(DrawSnapshotSource.Event event,
 			DrawSnapshotSource.Participant participant, Instant now, Set<UUID> entryIds, Set<UUID> historyIds) {
 		long total = 0, bronze = 0, silver = 0, gold = 0;
@@ -106,6 +117,7 @@ public class DrawSnapshotService {
 		}
 	}
 
+	/** 경품 식별자·등수·당첨 인원과 이벤트 가중치 설정의 정합성을 검증한다. */
 	private static void validatePrizes(DrawSnapshotSource.Event event) {
 		Set<UUID> ids = new HashSet<>();
 		Set<Integer> ranks = new HashSet<>();
@@ -118,5 +130,6 @@ public class DrawSnapshotService {
 		}
 	}
 
+	/** 잘못된 응모·경품 근거를 일관된 도메인 오류로 거절한다. */
 	private static void invalid() { throw new BusinessException(INVALID_EVIDENCE); }
 }
