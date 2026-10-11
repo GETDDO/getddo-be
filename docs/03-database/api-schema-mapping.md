@@ -28,6 +28,7 @@
 | [V011](../../storage/db/src/main/resources/db/migration/audit/V011__create_audit_tables.sql) | `audit_logs` | AU01~AU02 및 검토·공개 명단·정책·점수 변경 이력 |
 | [V014](../../storage/db/src/main/resources/db/migration/notification/V014__add_notification_worker_indexes.sql) | 알림 생성·발송 대기 및 선점 만료 조회용 인덱스 | GD-68 비동기 알림 처리 기반. 신규 공개 API는 추가하지 않음 |
 | [V016](../../storage/db/src/main/resources/db/migration/drawing/V016__add_initial_draw_terminal_states.sql) | 최초 추첨의 응모자 없음·전원 제외 정상 종료 상태와 입력 CHECK | GD-84 내부 준비 서비스. 공개 API는 추가하지 않음 |
+| [V018](../../storage/db/src/main/resources/db/migration/ticket/V018__add_ticket_usable_lookup_index.sql) | `tickets`의 `(user_id, grade, expires_at)` 인덱스 | GD-133 응모권 차감·반환 서비스의 후보 조회. 공개 API는 추가하지 않음 |
 
 ## 확인된 차이와 구현 검토 항목
 
