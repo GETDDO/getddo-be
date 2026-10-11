@@ -257,6 +257,7 @@ class DrawSnapshotIntegrationTest {
 	@ValueSource(strings = {"PENDING", "CONFIRMED"})
 	@DisplayName("기존 어뷰징 기록으로 같은 사용자의 정상 응모나 다른 유효 응모자를 제거하지 않는다")
 	void existingAbuseRecordsDoNotRemoveValidParticipants(String reviewStatus) {
+		// given
 		UUID participant = addParticipant(0);
 		UUID otherUser = UUID.randomUUID();
 		jdbc.update("""
@@ -281,8 +282,10 @@ class DrawSnapshotIntegrationTest {
 				confirmed ? bytes(reviewer) : null, confirmed ? utc(NOW.minusSeconds(90)) : null,
 				confirmed ? "기존 확인 기록" : null);
 
+		// when
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
 
+		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
 		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId)
 				.containsExactlyInAnyOrder(participant, otherParticipant);
@@ -300,14 +303,18 @@ class DrawSnapshotIntegrationTest {
 
 	/** 과거 전원 제외 실행이 이후 응모 변경에도 기존 스냅샷을 반환하는지 검증한다. */
 	@Test
+	@DisplayName("과거 NO_CANDIDATES 실행은 새 응모가 있어도 재계산하지 않는다")
 	void replaysLegacyAllExcludedRunWithoutRecomputingCandidates() {
+		// given
 		DrawSnapshot empty = service.prepareInitial(eventId);
 		// GD-84에서 저장한 과거 종료 상태를 재현한다. 새 입력 확정 경로로 생성하지 않는다.
 		jdbc.update("update draw_runs set status = 'NO_CANDIDATES' where id = ?", bytes(empty.runId()));
 		addParticipant(0);
 
+		// when
 		DrawSnapshot legacy = service.prepareInitial(eventId);
 
+		// then
 		assertThat(legacy.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
 		assertThat(legacy.runId()).isEqualTo(empty.runId());
 		assertThat(legacy.rules()).isEqualTo(empty.rules());
@@ -364,11 +371,18 @@ class DrawSnapshotIntegrationTest {
 
 	/** 누적 응모 수량 불일치 시 실행·후보·연결 행을 남기지 않는지 검증한다. */
 	@Test
+	@DisplayName("누적 사용 장수가 다르면 준비를 거절하고 실행·후보·연결을 저장하지 않는다")
 	void invalidAccumulationLeavesNoRunOrCandidates() {
+		// given
 		UUID participant = addParticipant(0);
 		jdbc.update("update event_participants set used_ticket_count = 1 where id = ?", bytes(participant));
-		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class)
-				.extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
+
+		// when
+		Throwable failure = catchThrowable(() -> service.prepareInitial(eventId));
+
+		// then
+		assertThat(failure).isInstanceOf(BusinessException.class)
+				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
 		assertThat(count("draw_runs")).isZero();
 		assertThat(count("draw_candidates")).isZero();
 		assertThat(count("draw_run_candidates")).isZero();

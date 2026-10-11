@@ -109,16 +109,24 @@ class DrawSnapshotServiceTest {
 
 	/** 응모자가 없는 신규 실행만 NO_ENTRIES로 종료하는지 검증한다. */
 	@Test
+	@DisplayName("응모자가 없으면 후보 없이 NO_ENTRIES로 종료한다")
 	void terminatesWithoutCandidatesOnlyWhenThereAreNoEntries() {
+		// given
 		when(repository.findParticipants(eventId)).thenReturn(List.of());
+
+		// when
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
+
+		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
 		assertThat(snapshot.candidates()).isEmpty();
 	}
 
 	/** 제외 제공자 없이 모든 정상 응모를 후보로 저장하고 등급별 가중치를 유지하는지 검증한다. */
 	@Test
+	@DisplayName("모든 정상 응모를 후보로 확정하고 등급별 가중치를 보존한다")
 	void includesEveryValidParticipantWithoutAnExclusionProvider() {
+		// given
 		Participant first = participant(1, entry(1, TicketGrade.GOLD));
 		UUID otherUser = UUID.randomUUID();
 		Entry otherEntry = new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301),
@@ -126,8 +134,10 @@ class DrawSnapshotServiceTest {
 		Participant second = new Participant(UUID.randomUUID(), otherUser, 1, "VIP", "USER", List.of(otherEntry));
 		when(repository.findParticipants(eventId)).thenReturn(List.of(first, second));
 
+		// when
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
 
+		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
 		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId)
 				.containsExactly(first.id(), second.id());
@@ -180,10 +190,19 @@ class DrawSnapshotServiceTest {
 
 	/** 추가 응모를 허용하지 않는 이벤트에서 여러 응모를 거절하는지 검증한다. */
 	@Test
+	@DisplayName("단일 응모 이벤트에 추가 응모가 있으면 준비를 거절하고 저장하지 않는다")
 	void rejectsAdditionalEntriesForSingleEntryEvents() {
+		// given
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.NO_TICKET, false, NOW.minusSeconds(300))));
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(0, entry(0), entry(0))));
-		assertError(INVALID_EVIDENCE);
+
+		// when
+		Throwable failure = catchThrowable(() -> service.prepareInitial(eventId));
+
+		// then
+		assertThat(failure).isInstanceOf(BusinessException.class)
+				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
+		verify(repository, never()).saveInitial(any());
 	}
 
 	/** 지정한 유형·가중치·마감 시각과 유효한 경품 조건의 이벤트를 만든다. */
