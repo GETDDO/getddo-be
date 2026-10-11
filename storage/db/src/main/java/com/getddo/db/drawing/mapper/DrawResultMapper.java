@@ -19,7 +19,15 @@ import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
 /** 변경 가능한 현재 경품 정보 대신 저장된 규칙·후보에서 결과를 복원한다. */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface DrawResultMapper {
-	/** 결과 행을 확정 당시 규칙·후보와 결합한다. 현재 경품 정보 대신 스냅샷 등수·사용자를 사용한다. */
+	/**
+	 * 결과 행을 확정 당시 규칙·후보와 결합한다. 현재 경품 정보 대신 스냅샷 등수·사용자를 사용한다.
+	 * DB 조회나 현재 자격 판단 없이 주어진 불변 입력에서 필수 변환 값을 찾는다.
+	 *
+	 * @param entity 저장된 선정·미충원 결과 행
+	 * @param snapshot 확정 당시의 불변 후보·경품 입력
+	 * @return 확정 당시 등수·사용자와 저장된 식별자·시각을 보존하는 결과
+	 * @throws BusinessException 결과의 경품 또는 선정 후보가 주어진 스냅샷에 없어 복원할 수 없는 경우
+	 */
 	default DrawResult toDomain(DrawResultEntity entity, DrawSnapshot snapshot) {
 		int rank = findPrizeRank(snapshot, entity.getPrizeId());
 		UUID userId = null;

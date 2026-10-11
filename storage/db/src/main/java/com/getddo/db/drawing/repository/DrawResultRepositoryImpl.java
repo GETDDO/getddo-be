@@ -6,9 +6,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
@@ -85,8 +87,8 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 				invalid();
 			}
 		}
-		List<UUID> prizeIds = jdbc.query("select id from event_prizes where event_id = ?",
-				(row, index) -> fromBytes(row.getBytes("id")), toBytes(snapshot.eventId()));
+		Set<UUID> prizeIds = new HashSet<>(jdbc.query("select id from event_prizes where event_id = ?",
+				(row, index) -> fromBytes(row.getBytes("id")), toBytes(snapshot.eventId())));
 		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
 			if (!prizeIds.contains(prize.id())) {
 				invalid();
@@ -130,13 +132,18 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 				fromBytes(row.getBytes("user_id")), DrawSelectionResultType.SELECTED);
 	}
 
-	/** JPA 결과 행을 스냅샷 기준으로 복원하고 등수·자리 순서로 반환한다. 난수는 사용하지 않는다. */
+	/**
+	 * JPA 결과 행을 스냅샷 기준으로 복원하고 등수·자리 순서로 반환한다. 난수는 사용하지 않는다.
+	 * 전체 결과 반환 계약에 따라 목록을 구성하며, 현재 경품 등수로 DB 정렬하면 확정 당시 순서가 달라질 수 있다.
+	 * 조회한 행 수만큼 용량을 확보하고 반환 목록 자체를 정렬하여 별도 정렬 목록을 만들지 않는다.
+	 */
 	@Override
 	public DrawConfirmation findConfirmed(DrawSnapshot snapshot) {
 		DrawRunEntity run = runs.findById(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		if (run.getStatus() != DrawRunStatus.CONFIRMED || run.getConfirmedAt() == null) invalid();
-		List<DrawResult> stored = new ArrayList<>();
-		for (DrawResultEntity result : results.findByDrawRunId(snapshot.runId())) {
+		List<DrawResultEntity> storedEntities = results.findByDrawRunId(snapshot.runId());
+		List<DrawResult> stored = new ArrayList<>(storedEntities.size());
+		for (DrawResultEntity result : storedEntities) {
 			stored.add(mapper.toDomain(result, snapshot));
 		}
 		stored.sort(Comparator.comparingInt((DrawResult result) -> result.getSelection().getRank())
