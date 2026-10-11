@@ -1,6 +1,5 @@
 package com.getddo.db.notification.repository;
 
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -17,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.notification.domain.EventStartNotification;
 import com.getddo.core.notification.repository.EventStartNotificationRepository;
+import com.getddo.db.common.util.UuidBinary;
 
 /** 이벤트와 사용자는 변경하지 않고, 기존 시작 작업을 조회해 불필요한 재등록을 줄인다. */
 @Repository
@@ -43,7 +43,7 @@ public class EventStartNotificationRepositoryImpl implements EventStartNotificat
 			 select 1 from notification_jobs j
 			 where j.event_id = e.id and j.notification_type = 'EVENT_START')
 			order by e.starts_at, e.id limit 1 for update skip locked
-			""", (row, index) -> new EventStartNotification(uuid(row.getBytes("id")), row.getString("title"),
+		""", (row, index) -> new EventStartNotification(UuidBinary.fromBytes(row.getBytes("id")), row.getString("title"),
 				row.getObject("starts_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),
 				MembershipRule.valueOf(row.getString("membership_rule"))),
 				LocalDateTime.ofInstant(now, ZoneOffset.UTC), LocalDateTime.ofInstant(latestStart, ZoneOffset.UTC));
@@ -62,12 +62,7 @@ public class EventStartNotificationRepositoryImpl implements EventStartNotificat
 			select id from users where role = 'USER' and status = 'ACTIVE'
 			and case membership when 'EXCELLENT' then 1 when 'VIP' then 2 when 'VVIP' then 3 else 0 end >= ?
 			order by id
-			""", (row, index) -> uuid(row.getBytes("id")), minimumRank);
+		""", (row, index) -> UuidBinary.fromBytes(row.getBytes("id")), minimumRank);
 	}
 
-	/** MySQL BINARY(16) UUID를 기존 저장 방식과 동일하게 복원한다. */
-	private static UUID uuid(byte[] value) {
-		ByteBuffer buffer = ByteBuffer.wrap(value);
-		return new UUID(buffer.getLong(), buffer.getLong());
-	}
 }

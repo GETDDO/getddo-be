@@ -1,10 +1,10 @@
 package com.getddo.core.notification.domain;
 
+import java.beans.ConstructorProperties;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
@@ -15,7 +15,6 @@ import lombok.Getter;
  * 생성자에서 필수 식별자를 검증하고 getter와 값 비교 메서드를 제공한다.</p>
  */
 @Getter
-@EqualsAndHashCode
 public final class Notification {
 	/** 알림 식별자. */
 	private final UUID id;
@@ -34,8 +33,10 @@ public final class Notification {
 
 	/**
 	 * 불변 조회 값을 저장하며 ID·제목·내용·생성 시각이 null이면 거절한다.
+	 * 생성자 속성명은 다른 모듈의 Mapper가 컴파일된 클래스에서도 확인할 수 있도록 명시한다.
 	 * @throws NullPointerException 필수 조회 값이 null인 경우
 	 */
+	@ConstructorProperties({"id", "title", "body", "createdAt", "isRead", "eventId", "linkUrl"})
 	public Notification(UUID id, String title, String body, Instant createdAt,
 			boolean isRead, UUID eventId, String linkUrl) {
 		this.id = Objects.requireNonNull(id, "id");
@@ -46,4 +47,29 @@ public final class Notification {
 		this.eventId = eventId;
 		this.linkUrl = linkUrl;
 	}
+
+	/** 모든 저장 값을 비교해 같은 입력 또는 조회 결과인지 판정한다. */
+	@Override
+	public boolean equals(Object other) {
+		if (this == other) {
+			return true;
+		}
+		if (!(other instanceof Notification that)) {
+			return false;
+		}
+		return Objects.equals(id, that.id)
+				&& Objects.equals(title, that.title)
+				&& Objects.equals(body, that.body)
+				&& Objects.equals(createdAt, that.createdAt)
+				&& isRead == that.isRead
+				&& Objects.equals(eventId, that.eventId)
+				&& Objects.equals(linkUrl, that.linkUrl);
+	}
+
+	/** 값이 같은 객체는 동일한 해시값을 반환한다. */
+	@Override
+	public int hashCode() {
+		return Objects.hash(id, title, body, createdAt, isRead, eventId, linkUrl);
+	}
+
 }
