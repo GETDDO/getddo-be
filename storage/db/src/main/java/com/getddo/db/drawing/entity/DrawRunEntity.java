@@ -74,7 +74,7 @@ public class DrawRunEntity extends BaseEntity {
 	 * @param rulesSnapshot 확정된 경품·가중치 조건의 JSON
 	 * @param fixedAt 서버 기준 입력 확정 시각
 	 * @throws IllegalStateException 이미 입력을 확정했거나 PREPARING 상태가 아닌 경우
-	 * @throws IllegalArgumentException 신규 입력 확정 상태 또는 필수 입력이 유효하지 않은 경우
+	 * @throws IllegalArgumentException 신규 입력 확정 상태가 아니거나 필수 입력이 null인 경우
 	 */
 	public void fixInput(DrawRunStatus status, String algorithmVersion, String rulesSnapshot, Instant fixedAt) {
 		if (this.status != DrawRunStatus.PREPARING || snapshotFixedAt != null) {

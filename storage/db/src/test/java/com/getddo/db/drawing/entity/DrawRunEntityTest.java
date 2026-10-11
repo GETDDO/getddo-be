@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -44,11 +45,16 @@ class DrawRunEntityTest {
 
 	/** 신규 NO_CANDIDATES 확정을 거절하고 PREPARING 입력을 보존하는지 검증한다. */
 	@Test
+	@DisplayName("신규 전원 제외 종료를 거절하고 확정 전 입력을 보존한다")
 	void rejectsNewAllExcludedTerminationWithoutChangingInput() {
+		// given
 		DrawRunEntity run = new DrawRunEntity(UUID.randomUUID());
 
+		// when
 		assertThatThrownBy(() -> run.fixInput(DrawRunStatus.NO_CANDIDATES, "v1", "{}", FIXED_AT))
 				.isInstanceOf(IllegalArgumentException.class);
+
+		// then
 		assertThat(run.getStatus()).isEqualTo(DrawRunStatus.PREPARING);
 		assertThat(run.getAlgorithmVersion()).isNull();
 		assertThat(run.getRulesSnapshot()).isNull();
