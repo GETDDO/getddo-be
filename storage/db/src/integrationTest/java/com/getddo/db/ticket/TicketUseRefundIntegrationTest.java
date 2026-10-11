@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.DisplayName;
@@ -338,16 +339,19 @@ class TicketUseRefundIntegrationTest extends TicketIntegrationTestSupport {
 		TransactionTemplate other = new TransactionTemplate(transaction.getTransactionManager());
 		other.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 		// when: 이 요청이 스냅샷을 잡은 뒤 다른 요청이 반환하고 같은 응모권을 다른 응모에 다시 쓴다
+		AtomicReference<RefundResult> firstRefund = new AtomicReference<>();
 		RefundResult result = stale.execute(status -> {
 			jdbc.queryForObject("select count(*) from ticket_histories", Long.class);
-			other.execute(inner -> refundService.refund(new RefundCommand(entry, "테스트 취소")));
+			firstRefund.set(other.execute(inner -> refundService.refund(new RefundCommand(entry, "테스트 취소"))));
 			other.execute(inner -> useService.use(
 					new UseCommand(userId, otherEntry, List.of(pick(TicketGrade.BRONZE, 2)), "테스트 응모")));
 			return refundService.refund(new RefundCommand(entry, "테스트 취소"));
 		});
 		// then
 		assertThat(result.isReplayed()).isTrue();
-		assertThat(result.getTickets()).hasSize(2);
+		assertThat(ids(result.getTickets())).containsExactlyInAnyOrderElementsOf(ids(firstRefund.get().getTickets()));
+		assertThat(result.getRefundedAt()).isEqualTo(firstRefund.get().getRefundedAt());
+		assertThat(result.getExpiresAt()).isEqualTo(firstRefund.get().getExpiresAt());
 		assertThat(count("select count(*) from ticket_histories where operation_type = 'REFUND' "
 				+ "and ticket_id in (select id from tickets where user_id = ?)", bytes(userId))).isEqualTo(2);
 		assertThat(count("select count(*) from tickets where user_id = ? and status = 'SPENT' and version = 4",
