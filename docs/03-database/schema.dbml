@@ -297,7 +297,7 @@ Table draw_candidates {
   ticket_count bigint [not null, note: '해당 이벤트에서 접수 완료된 응모의 실제 누적 차감 수량. 재추첨은 최초 추첨 당시 값']
   weight bigint [not null, note: '해당 응모자의 추첨 가중치. 현재 선형 가중치 정책의 정수 값. 추가 배율 없음.']
   entry_snapshot json [not null, note: '확정 응모 근거 스냅샷. 응모 ID·실제 장수·접수 시각·등급별 사용량·적용 가중치. 재추첨 시 최초 값 유지']
-  eligibility_snapshot json [not null, note: '후보 확정 당시 응모 자격과 제외 판단 스냅샷. 명단 확정 당시 자격·제외 판단 및 재추첨이면 최초 후보 ID.']
+  eligibility_snapshot json [not null, note: '후보 확정 당시 사용자·멤버십·역할·시각 스냅샷. 기존 excluded 필드는 호환용으로 유지하며 새 후보는 false. 과거 스냅샷은 소급 변경하지 않음.']
   created_at datetime(6) [not null, note: '후보 스냅샷 생성 시각 UTC']
 
   indexes {
@@ -676,7 +676,7 @@ Table draw_runs {
   event_id binary(16) [not null, note: '추첨 대상 이벤트 ID']
   run_number int [not null, note: '이벤트별 추첨 차수. 이벤트별 최초 0, 새 재추첨마다 증가. 실패 재시도는 유지.']
   draw_type draw_runs_draw_type_enum [not null, note: '추첨 종류. INITIAL=최초 추첨, REPLACEMENT=당첨 취소에 따른 재추첨']
-  status draw_runs_status_enum [not null, note: '실행 상태. PREPARING=준비 중, READY=후보·조건 확정, RUNNING=실행 중, CONFIRMED=결과 확정, FAILED=실패, NO_ENTRIES=응모자 없음, NO_CANDIDATES=전원 제외 정상 종료']
+  status draw_runs_status_enum [not null, note: '실행 상태. PREPARING=준비 중, READY=후보·조건 확정, RUNNING=실행 중, CONFIRMED=결과 확정, FAILED=실패, NO_ENTRIES=응모자 없음, NO_CANDIDATES=과거 전원 제외 이력 호환용. GD-130 이후 신규 생성하지 않음']
   algorithm_version varchar(100) [note: 'READY 이후 필수·불변.']
   rules_snapshot json [note: 'READY 이후 필수·불변. 경품·자리·가중치 기준·유지 당첨 결과 ID·대상 자리.']
   snapshot_fixed_at datetime(6) [note: 'UTC. 확정 전 NULL']

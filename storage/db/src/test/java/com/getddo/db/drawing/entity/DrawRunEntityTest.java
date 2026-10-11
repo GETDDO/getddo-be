@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,8 +41,20 @@ class DrawRunEntityTest {
 		assertThat(run.getSnapshotFixedAt()).isEqualTo(FIXED_AT);
 	}
 
+	@Test
+	void rejectsNewAllExcludedTerminationWithoutChangingInput() {
+		DrawRunEntity run = new DrawRunEntity(UUID.randomUUID());
+
+		assertThatThrownBy(() -> run.fixInput(DrawRunStatus.NO_CANDIDATES, "v1", "{}", FIXED_AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThat(run.getStatus()).isEqualTo(DrawRunStatus.PREPARING);
+		assertThat(run.getAlgorithmVersion()).isNull();
+		assertThat(run.getRulesSnapshot()).isNull();
+		assertThat(run.getSnapshotFixedAt()).isNull();
+	}
+
 	private static Stream<Arguments> incompleteInputs() {
-		return Stream.of(DrawRunStatus.READY, DrawRunStatus.NO_ENTRIES, DrawRunStatus.NO_CANDIDATES)
+		return Stream.of(DrawRunStatus.READY, DrawRunStatus.NO_ENTRIES)
 				.flatMap(status -> List.of("algorithmVersion", "rulesSnapshot", "fixedAt").stream()
 						.map(field -> Arguments.of(status, field)));
 	}

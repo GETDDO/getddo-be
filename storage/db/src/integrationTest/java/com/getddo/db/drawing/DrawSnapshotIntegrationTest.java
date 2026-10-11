@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -25,7 +27,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -35,7 +36,6 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSnapshot;
-import com.getddo.core.drawing.repository.DrawExclusionRepository;
 import com.getddo.core.drawing.service.DrawSnapshotService;
 import com.getddo.db.common.config.JpaAuditingConfig;
 import com.getddo.db.drawing.entity.DrawCandidateEntity;
@@ -66,7 +66,6 @@ class DrawSnapshotIntegrationTest {
 	@Autowired private DrawRunJpaRepository runs;
 	@Autowired private DrawCandidateJpaRepository candidates;
 	@MockitoSpyBean private DrawRunCandidateJpaRepository links;
-	@MockitoBean private DrawExclusionRepository exclusions;
 	private UUID eventId, userId;
 
 	@BeforeEach
@@ -86,7 +85,6 @@ class DrawSnapshotIntegrationTest {
 			insert into event_prizes (id, event_id, prize_rank, name, winner_count, created_at, updated_at)
 			values (?, ?, 1, '경품', 2, ?, ?)
 			""", bytes(UUID.randomUUID()), bytes(eventId), utc(NOW), utc(NOW));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of());
 	}
 
 	@Test
@@ -102,7 +100,6 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_run_candidates")).isEqualTo(1);
 		jdbc.update("update event_participants set used_ticket_count = 7 where id = ?", bytes(participant));
 		jdbc.update("update event_prizes set winner_count = 5 where event_id = ?", bytes(eventId));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenThrow(new BusinessException(EXCLUSION_UNAVAILABLE));
 		assertThat(service.prepareInitial(eventId)).isEqualTo(first);
 	}
 
@@ -246,27 +243,122 @@ class DrawSnapshotIntegrationTest {
 		assertThat(count("draw_candidates")).isZero();
 	}
 
-	@Test
-	void allExcludedTerminatesWithoutResults() {
+	@ParameterizedTest
+	@ValueSource(strings = {"PENDING", "CONFIRMED"})
+	@DisplayName("기존 어뷰징 기록으로 같은 사용자의 정상 응모나 다른 유효 응모자를 제거하지 않는다")
+	void existingAbuseRecordsDoNotRemoveValidParticipants(String reviewStatus) {
 		UUID participant = addParticipant(0);
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(participant));
+		UUID otherUser = UUID.randomUUID();
+		jdbc.update("""
+			insert into users (id, name, role, status, membership, created_at, updated_at)
+			values (?, '다른 응모자', 'USER', 'ACTIVE', 'VIP', ?, ?)
+			""", bytes(otherUser), utc(NOW), utc(NOW));
+		UUID otherParticipant = addParticipant(0, otherUser);
+		UUID record = UUID.randomUUID();
+		boolean confirmed = reviewStatus.equals("CONFIRMED");
+		UUID reviewer = UUID.randomUUID();
+		jdbc.update("""
+			insert into users (id, name, role, status, membership, created_at, updated_at)
+			values (?, '검토 관리자', 'ADMIN', 'ACTIVE', 'VIP', ?, ?)
+			""", bytes(reviewer), utc(NOW), utc(NOW));
+		// 현재 스키마의 기존 기록을 보존하는 검증이다. 새 지급 차단 저장소를 구현하지 않는다.
+		jdbc.update("""
+			insert into abuse_cases (id, event_id, user_id, request_id, detection_key, detection_type,
+				detection_reason, evidence, occurred_at, detected_at, review_status, reviewed_by, reviewed_at, review_reason)
+			values (?, ?, ?, ?, ?, 'INVALID_REWARD_REQUEST', '거절된 지급 요청', '{"issued":false}', ?, ?, ?, ?, ?, ?)
+			""", bytes(record), bytes(eventId), bytes(userId), record.toString(), record.toString(),
+				utc(NOW.minusSeconds(100)), utc(NOW.minusSeconds(100)), reviewStatus,
+				confirmed ? bytes(reviewer) : null, confirmed ? utc(NOW.minusSeconds(90)) : null,
+				confirmed ? "기존 확인 기록" : null);
+
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
-		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
+
+		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
+		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId)
+				.containsExactlyInAnyOrder(participant, otherParticipant);
+		assertThat(snapshot.candidates()).allSatisfy(candidate -> {
+			assertThat(candidate.ticketCount()).isZero();
+			assertThat(candidate.weight()).isEqualTo(1);
+			assertThat(candidate.eligibilityEvidence().excluded()).isFalse();
+		});
+		assertThat(count("draw_candidates")).isEqualTo(2);
+		assertThat(count("draw_results")).isZero();
+		assertThat(jdbc.queryForObject("select review_status from abuse_cases where id = ?",
+				String.class, bytes(record))).isEqualTo(reviewStatus);
 		assertThat(service.prepareInitial(eventId)).isEqualTo(snapshot);
+	}
+
+	@Test
+	void replaysLegacyAllExcludedRunWithoutRecomputingCandidates() {
+		DrawSnapshot empty = service.prepareInitial(eventId);
+		// GD-84에서 저장한 과거 종료 상태를 재현한다. 새 입력 확정 경로로 생성하지 않는다.
+		jdbc.update("update draw_runs set status = 'NO_CANDIDATES' where id = ?", bytes(empty.runId()));
+		addParticipant(0);
+
+		DrawSnapshot legacy = service.prepareInitial(eventId);
+
+		assertThat(legacy.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
+		assertThat(legacy.runId()).isEqualTo(empty.runId());
+		assertThat(legacy.rules()).isEqualTo(empty.rules());
+		assertThat(legacy.algorithmVersion()).isEqualTo(empty.algorithmVersion());
+		assertThat(legacy.fixedAt()).isEqualTo(empty.fixedAt());
+		assertThat(legacy.candidates()).isEmpty();
+		assertThat(service.prepareInitial(eventId)).isEqualTo(legacy);
+		assertThat(count("draw_runs")).isEqualTo(1);
 		assertThat(count("draw_candidates")).isZero();
 		assertThat(count("draw_results")).isZero();
 	}
 
 	@Test
-	void unavailableExclusionAndInvalidAccumulationLeaveNoRun() {
+	void replaysConfirmedRunWithoutChangingSnapshotsOrResults() {
 		UUID participant = addParticipant(0);
-		when(exclusions.findExcludedParticipantIds(eventId)).thenThrow(new BusinessException(EXCLUSION_UNAVAILABLE));
-		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class);
-		assertThat(count("draw_runs")).isZero();
+		DrawSnapshot ready = service.prepareInitial(eventId);
+		DrawSnapshot.Candidate candidate = ready.candidates().getFirst();
+		UUID result = UUID.randomUUID();
+		jdbc.update("""
+			insert into draw_results (id, draw_run_id, event_prize_id, slot_number, result_type,
+				candidate_id, selection_order, created_at) values (?, ?, ?, 1, 'SELECTED', ?, 1, ?)
+			""", bytes(result), bytes(ready.runId()), bytes(ready.rules().prizes().getFirst().id()),
+				bytes(candidate.id()), utc(NOW));
+		jdbc.update("update draw_runs set status = 'CONFIRMED', started_at = ?, confirmed_at = ? where id = ?",
+				utc(NOW), utc(NOW), bytes(ready.runId()));
+		Map<String, Object> storedResult = resultRow(result);
+		Map<String, Object> storedInput = jdbc.queryForMap("""
+			select entry_snapshot, eligibility_snapshot from draw_candidates where id = ?
+			""", bytes(candidate.id()));
+		jdbc.update("update event_participants set used_ticket_count = 7 where id = ?", bytes(participant));
+		jdbc.update("update event_prizes set winner_count = 5 where event_id = ?", bytes(eventId));
+		jdbc.update("update users set membership = 'VVIP' where id = ?", bytes(userId));
+
+		DrawSnapshot confirmed = service.prepareInitial(eventId);
+
+		assertThat(confirmed.status()).isEqualTo(DrawRunStatus.CONFIRMED);
+		assertThat(confirmed.runId()).isEqualTo(ready.runId());
+		assertThat(confirmed.rules()).isEqualTo(ready.rules());
+		assertThat(confirmed.fixedAt()).isEqualTo(ready.fixedAt());
+		assertThat(confirmed.algorithmVersion()).isEqualTo(ready.algorithmVersion());
+		assertThat(confirmed.candidates()).isEqualTo(ready.candidates());
+		assertThat(service.prepareInitial(eventId)).isEqualTo(confirmed);
+		assertThat(resultRow(result)).isEqualTo(storedResult);
+		assertThat(jdbc.queryForMap("select entry_snapshot, eligibility_snapshot from draw_candidates where id = ?",
+				bytes(candidate.id()))).isEqualTo(storedInput);
+		assertThat(jdbc.queryForObject("select confirmed_at from draw_runs where id = ?",
+				LocalDateTime.class, bytes(ready.runId()))).isEqualTo(utc(NOW));
+		assertThat(count("draw_runs")).isEqualTo(1);
+		assertThat(count("draw_candidates")).isEqualTo(1);
+		assertThat(count("draw_run_candidates")).isEqualTo(1);
+		assertThat(count("draw_results")).isEqualTo(1);
+	}
+
+	@Test
+	void invalidAccumulationLeavesNoRunOrCandidates() {
+		UUID participant = addParticipant(0);
 		jdbc.update("update event_participants set used_ticket_count = 1 where id = ?", bytes(participant));
 		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class)
 				.extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
 		assertThat(count("draw_runs")).isZero();
+		assertThat(count("draw_candidates")).isZero();
+		assertThat(count("draw_run_candidates")).isZero();
 	}
 
 	@Test
@@ -332,13 +424,17 @@ class DrawSnapshotIntegrationTest {
 	}
 
 	private UUID addParticipant(int count) {
+		return addParticipant(count, userId);
+	}
+
+	private UUID addParticipant(int count, UUID owner) {
 		UUID participant = UUID.randomUUID();
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, ?, ?)",
-				bytes(participant), bytes(eventId), bytes(userId), count, utc(NOW.minusSeconds(301)));
+				bytes(participant), bytes(eventId), bytes(owner), count, utc(NOW.minusSeconds(301)));
 		jdbc.update("""
 			insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
 			values (?, ?, ?, ?, ?, ?)
-			""", bytes(UUID.randomUUID()), bytes(participant), bytes(userId), count, count, utc(NOW.minusSeconds(301)));
+			""", bytes(UUID.randomUUID()), bytes(participant), bytes(owner), count, count, utc(NOW.minusSeconds(301)));
 		return participant;
 	}
 
@@ -370,6 +466,13 @@ class DrawSnapshotIntegrationTest {
 			insert into ticket_histories (id, ticket_id, event_entry_id, operation_type, ticket_version, status, expires_at, reason, created_at)
 			values (?, ?, ?, 'USE', 2, 'SPENT', ?, '테스트 응모', ?)
 			""", bytes(UUID.randomUUID()), bytes(ticket), entry, utc(NOW.plusSeconds(3600)), utc(NOW.minusSeconds(301)));
+	}
+	private Map<String, Object> resultRow(UUID resultId) {
+		return jdbc.queryForMap("""
+			select hex(id) as id, hex(draw_run_id) as draw_run_id, hex(event_prize_id) as event_prize_id,
+				slot_number, result_type, hex(candidate_id) as candidate_id, selection_order, created_at
+			from draw_results where id = ?
+			""", bytes(resultId));
 	}
 	private long count(String table) {
 		String sql = table.equals("draw_runs") ? "select count(*) from draw_runs where event_id = ?"

@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -13,14 +12,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawSnapshotSource.*;
-import com.getddo.core.drawing.repository.DrawExclusionRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
@@ -35,17 +32,14 @@ class DrawSnapshotServiceTest {
 	private static final Instant NOW = Instant.parse("2026-10-09T03:00:00Z");
 	private final UUID eventId = UUID.randomUUID(), participantId = UUID.randomUUID(), userId = UUID.randomUUID();
 	private DrawSnapshotRepository repository;
-	private DrawExclusionRepository exclusions;
 	private DrawSnapshotService service;
 
 	@BeforeEach
 	void setUp() {
 		repository = mock(DrawSnapshotRepository.class);
-		exclusions = mock(DrawExclusionRepository.class);
-		service = new DrawSnapshotService(repository, exclusions, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+		service = new DrawSnapshotService(repository, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.TICKET, true, NOW.minusSeconds(300))));
 		when(repository.findInitial(eventId)).thenReturn(Optional.empty());
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of());
 		when(repository.saveInitial(any())).thenAnswer(call -> call.getArgument(0));
 	}
 
@@ -66,18 +60,16 @@ class DrawSnapshotServiceTest {
 	}
 
 	@Test
-	void detectsPerEntryMismatchEvenWhenTotalsMatchAndParticipantIsExcluded() {
+	void detectsPerEntryMismatchEvenWhenTotalsMatch() {
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(4,
 				entry(1, TicketGrade.GOLD, TicketGrade.GOLD), entry(3, TicketGrade.BRONZE, TicketGrade.BRONZE))));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(participantId));
 		assertError(INVALID_EVIDENCE);
 		verify(repository, never()).saveInitial(any());
 	}
 
-	@ParameterizedTest
-	@ValueSource(booleans = {false, true})
-	@DisplayName("추가 응모에 같은 티켓이 중복되면 제외 여부와 무관하게 입력 확정을 거절한다")
-	void rejectsSameTicketAcrossAdditionalEntriesEvenWhenExcluded(boolean excluded) {
+	@Test
+	@DisplayName("추가 응모에 같은 티켓이 중복되면 입력 확정을 거절한다")
+	void rejectsSameTicketAcrossAdditionalEntries() {
 		// given
 		UUID ticketId = UUID.randomUUID();
 		Entry first = new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301),
@@ -85,7 +77,6 @@ class DrawSnapshotServiceTest {
 		Entry additional = new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301),
 				List.of(new Use(UUID.randomUUID(), ticketId, userId, TicketGrade.GOLD)));
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(2, first, additional)));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(excluded ? Set.of(participantId) : Set.of());
 
 		// when / then
 		assertError(INVALID_EVIDENCE);
@@ -111,23 +102,32 @@ class DrawSnapshotServiceTest {
 	}
 
 	@Test
-	void distinguishesEmptyAndAllExcludedAndDoesNotNeedExclusionForEmptyEvent() {
+	void terminatesWithoutCandidatesOnlyWhenThereAreNoEntries() {
 		when(repository.findParticipants(eventId)).thenReturn(List.of());
-		assertThat(service.prepareInitial(eventId).status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
-		verifyNoInteractions(exclusions);
-		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(1, entry(1, TicketGrade.GOLD))));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(participantId));
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
-		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
+		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
 		assertThat(snapshot.candidates()).isEmpty();
 	}
 
 	@Test
-	void rejectsUnavailableExclusionWithoutSaving() {
-		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(1, entry(1, TicketGrade.GOLD))));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenThrow(new BusinessException(EXCLUSION_UNAVAILABLE));
-		assertError(EXCLUSION_UNAVAILABLE);
-		verify(repository, never()).saveInitial(any());
+	void includesEveryValidParticipantWithoutAnExclusionProvider() {
+		Participant first = participant(1, entry(1, TicketGrade.GOLD));
+		UUID otherUser = UUID.randomUUID();
+		Entry otherEntry = new Entry(UUID.randomUUID(), 1, NOW.minusSeconds(301),
+				List.of(new Use(UUID.randomUUID(), UUID.randomUUID(), otherUser, TicketGrade.SILVER)));
+		Participant second = new Participant(UUID.randomUUID(), otherUser, 1, "VIP", "USER", List.of(otherEntry));
+		when(repository.findParticipants(eventId)).thenReturn(List.of(first, second));
+
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
+
+		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
+		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId)
+				.containsExactly(first.id(), second.id());
+		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::weight).containsExactly(5L, 3L);
+		assertThat(snapshot.candidates()).allSatisfy(candidate -> {
+			assertThat(candidate.ticketCount()).isEqualTo(1);
+			assertThat(candidate.eligibilityEvidence().excluded()).isFalse();
+		});
 	}
 
 	@ParameterizedTest
@@ -138,7 +138,6 @@ class DrawSnapshotServiceTest {
 		assertThat(service.prepareInitial(eventId)).isSameAs(saved);
 		verify(repository, never()).findParticipants(any());
 		verify(repository, never()).saveInitial(any());
-		verifyNoInteractions(exclusions);
 	}
 
 	@Test
@@ -169,12 +168,9 @@ class DrawSnapshotServiceTest {
 	}
 
 	@Test
-	void rejectsAdditionalEntriesForSingleEntryEventsAndUnrelatedExclusions() {
+	void rejectsAdditionalEntriesForSingleEntryEvents() {
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.NO_TICKET, false, NOW.minusSeconds(300))));
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(0, entry(0), entry(0))));
-		assertError(INVALID_EVIDENCE);
-		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(0, entry(0))));
-		when(exclusions.findExcludedParticipantIds(eventId)).thenReturn(Set.of(UUID.randomUUID()));
 		assertError(INVALID_EVIDENCE);
 	}
 

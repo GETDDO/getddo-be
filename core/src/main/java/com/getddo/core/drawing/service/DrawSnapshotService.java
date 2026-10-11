@@ -16,7 +16,6 @@ import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawSnapshotSource;
-import com.getddo.core.drawing.repository.DrawExclusionRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
@@ -27,12 +26,10 @@ import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 public class DrawSnapshotService {
 	public static final String ALGORITHM_VERSION = "weighted-without-replacement-v1";
 	private final DrawSnapshotRepository repository;
-	private final DrawExclusionRepository exclusions;
 	private final TimeProvider time;
 
-	public DrawSnapshotService(DrawSnapshotRepository repository, DrawExclusionRepository exclusions,
-			TimeProvider time) {
-		this.repository = repository; this.exclusions = exclusions; this.time = time;
+	public DrawSnapshotService(DrawSnapshotRepository repository, TimeProvider time) {
+		this.repository = repository; this.time = time;
 	}
 
 	/** 이벤트를 먼저 잠근 뒤 원본 검증·스냅샷·실행별 연결을 하나의 트랜잭션으로 확정한다. */
@@ -55,21 +52,16 @@ public class DrawSnapshotService {
 		}
 		validatePrizes(event);
 		List<DrawSnapshotSource.Participant> participants = repository.findParticipants(eventId);
-		List<DrawSnapshot.Candidate> all = new ArrayList<>();
+		List<DrawSnapshot.Candidate> candidates = new ArrayList<>();
 		Set<UUID> participantIds = new HashSet<>();
 		Set<UUID> users = new HashSet<>();
 		Set<UUID> entryIds = new HashSet<>();
 		Set<UUID> historyIds = new HashSet<>();
 		for (DrawSnapshotSource.Participant participant : participants) {
 			if (!participantIds.add(participant.id()) || !users.add(participant.userId())) invalid();
-			all.add(validateParticipant(event, participant, now, entryIds, historyIds));
+			candidates.add(validateParticipant(event, participant, now, entryIds, historyIds));
 		}
-		// 원본 검증은 제외된 응모자도 포함한다. 제외 저장 미연결을 빈 집합으로 처리하지 않는다.
-		Set<UUID> excluded = participants.isEmpty() ? Set.of() : exclusions.findExcludedParticipantIds(eventId);
-		if (excluded == null || !participantIds.containsAll(excluded)) invalid();
-		List<DrawSnapshot.Candidate> candidates = all.stream().filter(candidate -> !excluded.contains(candidate.participantId())).toList();
-		DrawRunStatus status = participants.isEmpty() ? DrawRunStatus.NO_ENTRIES
-				: candidates.isEmpty() ? DrawRunStatus.NO_CANDIDATES : DrawRunStatus.READY;
+		DrawRunStatus status = participants.isEmpty() ? DrawRunStatus.NO_ENTRIES : DrawRunStatus.READY;
 		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(1, event.weightingEnabled(), event.type().name(),
 				event.membershipRule(), 1, 3, 5, event.prizes());
 		return repository.saveInitial(new DrawSnapshot(null, eventId, status, now,
