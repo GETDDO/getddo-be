@@ -46,9 +46,10 @@ public final class DrawingSelectionService {
 		DrawingSelectionValidator.validatePrizes(orderedPrizes);
 		orderedPrizes.sort(Comparator.comparingInt(DrawPrize::getRank));
 
-		BigInteger totalWeight = remaining.stream()
-				.map(candidate -> BigInteger.valueOf(candidate.getWeight()))
-				.reduce(BigInteger.ZERO, BigInteger::add);
+		BigInteger totalWeight = BigInteger.ZERO;
+		for (DrawCandidate candidate : remaining) {
+			totalWeight = totalWeight.add(BigInteger.valueOf(candidate.getWeight()));
+		}
 		List<DrawSelection> results = new ArrayList<>();
 		int selectionOrder = 0;
 		for (DrawPrize prize : orderedPrizes) {
@@ -65,7 +66,7 @@ public final class DrawingSelectionService {
 				}
 				int selectedIndex = selectedIndex(remaining, roll);
 				DrawCandidate selected = remaining.remove(selectedIndex);
-			totalWeight = totalWeight.subtract(BigInteger.valueOf(selected.getWeight()));
+				totalWeight = totalWeight.subtract(BigInteger.valueOf(selected.getWeight()));
 				results.add(DrawSelection.selected(prize, slot, ++selectionOrder, selected));
 			}
 		}

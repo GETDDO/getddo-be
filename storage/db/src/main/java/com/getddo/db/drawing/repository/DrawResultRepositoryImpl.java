@@ -1,6 +1,9 @@
 package com.getddo.db.drawing.repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +23,7 @@ import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSelection;
 import com.getddo.core.drawing.domain.DrawSelectionResultType;
 import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.db.drawing.entity.DrawResultEntity;
@@ -53,11 +57,14 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 	/** 서비스의 이벤트 잠금 이후 실행과 불변 입력을 읽는다. 대상 자리 계약이 없는 재추첨 실행은 거절한다. */
 	@Override
 	public Optional<DrawSnapshot> lockSnapshot(UUID runId) {
-		return runs.findForUpdate(runId).map(run -> {
-			// 재추첨의 대상 자리·유지 결과 스냅샷 계약은 GD-138에서 연결한다.
-			if (run.getDrawType() != DrawType.INITIAL || run.getRunNumber() != 0) invalid();
-			return snapshots.toDomain(run, links.findCandidates(runId));
-		});
+		Optional<DrawRunEntity> lockedRun = runs.findForUpdate(runId);
+		if (lockedRun.isEmpty()) {
+			return Optional.empty();
+		}
+		DrawRunEntity run = lockedRun.get();
+		// 재추첨의 대상 자리·유지 결과 스냅샷 계약은 GD-138에서 연결한다.
+		if (run.getDrawType() != DrawType.INITIAL || run.getRunNumber() != 0) invalid();
+		return Optional.of(snapshots.toDomain(run, links.findCandidates(runId)));
 	}
 
 	/** JDBC 조인으로 후보 연결·이벤트·사용자 관계를 검증하고 스냅샷 경품의 소속을 대조한다. */
@@ -70,17 +77,32 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			join event_participants p on p.id = c.participant_id
 			join draw_runs origin on origin.id = c.draw_run_id
 			where link.draw_run_id = ?
-			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
-			if (!snapshot.eventId().equals(fromBytes(row.getBytes("participant_event")))
-					|| !snapshot.eventId().equals(fromBytes(row.getBytes("origin_event")))
-					|| !snapshot.runId().equals(fromBytes(row.getBytes("origin_id")))) invalid();
-			owners.put(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")));
-		}, toBytes(snapshot.runId()));
-		if (owners.size() != snapshot.candidates().size() || snapshot.candidates().stream()
-				.anyMatch(c -> !c.userId().equals(owners.get(c.id())))) invalid();
+			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> collectCandidateOwner(row, snapshot, owners),
+				toBytes(snapshot.runId()));
+		if (owners.size() != snapshot.candidates().size()) invalid();
+		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
+			if (!candidate.userId().equals(owners.get(candidate.id()))) {
+				invalid();
+			}
+		}
 		List<UUID> prizeIds = jdbc.query("select id from event_prizes where event_id = ?",
 				(row, index) -> fromBytes(row.getBytes("id")), toBytes(snapshot.eventId()));
-		if (snapshot.rules().prizes().stream().anyMatch(prize -> !prizeIds.contains(prize.id()))) invalid();
+		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
+			if (!prizeIds.contains(prize.id())) {
+				invalid();
+			}
+		}
+	}
+
+	/** 후보의 참여 이벤트·생성 원본 실행을 검증하고 후보와 사용자의 연결을 기록한다. */
+	private static void collectCandidateOwner(ResultSet row, DrawSnapshot snapshot, Map<UUID, UUID> owners)
+			throws SQLException {
+		if (!snapshot.eventId().equals(fromBytes(row.getBytes("participant_event")))
+				|| !snapshot.eventId().equals(fromBytes(row.getBytes("origin_event")))
+				|| !snapshot.runId().equals(fromBytes(row.getBytes("origin_id")))) {
+			invalid();
+		}
+		owners.put(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")));
 	}
 
 	/** READY 실행에 저장된 부분 결과가 있는지 조회한다. 결과를 삭제하거나 보정하지 않는다. */
@@ -98,9 +120,14 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			join event_prizes prize on prize.id = r.event_prize_id
 			where run.event_id = ? and run.status = 'CONFIRMED' and r.result_type = 'SELECTED'
 			and not exists (select 1 from award_cancellations cancellation where cancellation.draw_result_id = r.id)
-			""", (row, index) -> new DrawSelection(fromBytes(row.getBytes("event_prize_id")), row.getInt("prize_rank"),
+			""", DrawResultRepositoryImpl::toCurrentAward, toBytes(eventId));
+	}
+
+	/** 취소되지 않은 확정 당첨 행을 현재 유효 배정 모델로 변환한다. */
+	private static DrawSelection toCurrentAward(ResultSet row, int index) throws SQLException {
+		return new DrawSelection(fromBytes(row.getBytes("event_prize_id")), row.getInt("prize_rank"),
 				row.getInt("slot_number"), row.getInt("selection_order"), fromBytes(row.getBytes("candidate_id")),
-				fromBytes(row.getBytes("user_id")), DrawSelectionResultType.SELECTED), toBytes(eventId));
+				fromBytes(row.getBytes("user_id")), DrawSelectionResultType.SELECTED);
 	}
 
 	/** JPA 결과 행을 스냅샷 기준으로 복원하고 등수·자리 순서로 반환한다. 난수는 사용하지 않는다. */
@@ -108,9 +135,12 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 	public DrawConfirmation findConfirmed(DrawSnapshot snapshot) {
 		DrawRunEntity run = runs.findById(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		if (run.getStatus() != DrawRunStatus.CONFIRMED || run.getConfirmedAt() == null) invalid();
-		List<DrawResult> stored = results.findByDrawRunId(snapshot.runId()).stream().map(result -> mapper.toDomain(result, snapshot))
-				.sorted(Comparator.comparingInt((DrawResult result) -> result.getSelection().getRank())
-						.thenComparingInt(result -> result.getSelection().getSlotNumber())).toList();
+		List<DrawResult> stored = new ArrayList<>();
+		for (DrawResultEntity result : results.findByDrawRunId(snapshot.runId())) {
+			stored.add(mapper.toDomain(result, snapshot));
+		}
+		stored.sort(Comparator.comparingInt((DrawResult result) -> result.getSelection().getRank())
+				.thenComparingInt(result -> result.getSelection().getSlotNumber()));
 		return new DrawConfirmation(run.getId(), run.getEventId(), run.getConfirmedAt(), stored);
 	}
 
@@ -118,14 +148,19 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 	@Override
 	public DrawConfirmation saveConfirmed(DrawSnapshot snapshot, List<DrawSelection> selections, Instant confirmedAt) {
 		DrawRunEntity run = runs.findById(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
-		List<DrawResultEntity> saved = results.saveAllAndFlush(selections.stream()
-				.map(selection -> new DrawResultEntity(run, selection)).toList());
+		List<DrawResultEntity> entities = new ArrayList<>();
+		for (DrawSelection selection : selections) {
+			entities.add(new DrawResultEntity(run, selection));
+		}
+		List<DrawResultEntity> saved = results.saveAllAndFlush(entities);
 		run.confirm(confirmedAt);
 		runs.flush();
 		// 첫 응답도 실제 DATETIME(6) 값으로 반환한다.
 		entityManager.refresh(run);
 		// 불변 엔티티의 INSERT 잠금 모드로 refresh하지 않고 실제 저장값을 다시 조회한다.
-		saved.forEach(entityManager::detach);
+		for (DrawResultEntity result : saved) {
+			entityManager.detach(result);
+		}
 		return findConfirmed(snapshot);
 	}
 

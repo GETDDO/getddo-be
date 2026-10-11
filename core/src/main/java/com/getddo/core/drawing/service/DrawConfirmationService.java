@@ -1,5 +1,6 @@
 package com.getddo.core.drawing.service;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HashMap;
@@ -17,6 +18,7 @@ import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawCandidate;
 import com.getddo.core.drawing.domain.DrawConfirmation;
 import com.getddo.core.drawing.domain.DrawPrize;
+import com.getddo.core.drawing.domain.DrawResult;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSelection;
 import com.getddo.core.drawing.domain.DrawSelectionResultType;
@@ -65,7 +67,11 @@ public class DrawConfirmationService {
 		if (snapshot.status() == DrawRunStatus.CONFIRMED) {
 			validateInput(snapshot);
 			DrawConfirmation confirmed = repository.findConfirmed(snapshot);
-			validateResults(snapshot, confirmed.getResults().stream().map(result -> result.getSelection()).toList());
+			List<DrawSelection> storedSelections = new ArrayList<>();
+			for (DrawResult result : confirmed.getResults()) {
+				storedSelections.add(result.getSelection());
+			}
+			validateResults(snapshot, storedSelections);
 			return confirmed;
 		}
 		if (snapshot.status() != DrawRunStatus.READY || repository.hasResults(runId)) invalid();
@@ -78,16 +84,20 @@ public class DrawConfirmationService {
 		List<DrawSelection> awards = repository.findCurrentAwards(eventId);
 		Set<UUID> currentUsers = new HashSet<>();
 		Set<UUID> targetPrizes = new HashSet<>();
-		snapshot.rules().prizes().forEach(prize -> targetPrizes.add(prize.id()));
+		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
+			targetPrizes.add(prize.id());
+		}
 		for (DrawSelection award : awards) {
 			currentUsers.add(award.getUserId());
 			// 최초 실행은 모든 자리가 대상이다. 유지 당첨자가 있는 경품을 덮어쓰지 않는다.
 			if (targetPrizes.contains(award.getPrizeId())) invalid();
 		}
-		if (snapshot.candidates().stream().anyMatch(candidate -> currentUsers.contains(candidate.userId()))) invalid();
-		List<DrawSelection> selections = selection.select(snapshot.candidates().stream()
-				.map(candidate -> new DrawCandidate(candidate.id(), candidate.userId(), candidate.weight())).toList(),
-				snapshot.rules().prizes().stream().map(prize -> new DrawPrize(prize.id(), prize.rank(), prize.winnerCount())).toList(),
+		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
+			if (currentUsers.contains(candidate.userId())) {
+				invalid();
+			}
+		}
+		List<DrawSelection> selections = selection.select(toCandidates(snapshot), toPrizes(snapshot),
 				snapshot.rules().weightingEnabled());
 		validateResults(snapshot, selections);
 		return repository.saveConfirmed(snapshot, selections, time.now());
@@ -106,15 +116,31 @@ public class DrawConfirmationService {
 					|| !candidate.userId().equals(candidate.eligibilityEvidence().userId())) invalid();
 		}
 		try {
-			DrawingSelectionValidator.validateCandidates(snapshot.candidates().stream()
-					.map(candidate -> new DrawCandidate(candidate.id(), candidate.userId(), candidate.weight())).toList(),
+			DrawingSelectionValidator.validateCandidates(toCandidates(snapshot),
 					snapshot.rules().weightingEnabled());
-			DrawingSelectionValidator.validatePrizes(snapshot.rules().prizes().stream()
-					.map(prize -> new DrawPrize(prize.id(), prize.rank(), prize.winnerCount())).toList());
+			DrawingSelectionValidator.validatePrizes(toPrizes(snapshot));
 		} catch (IllegalArgumentException | NullPointerException invalidInput) {
 			// 저장 스냅샷 검증은 선정기의 입력 오류를 일관된 도메인 오류로 보고한다.
 			invalid();
 		}
+	}
+
+	/** 저장된 후보의 식별자·사용자·가중치를 선정기 입력으로 변환한다. */
+	private static List<DrawCandidate> toCandidates(DrawSnapshot snapshot) {
+		List<DrawCandidate> candidates = new ArrayList<>();
+		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
+			candidates.add(new DrawCandidate(candidate.id(), candidate.userId(), candidate.weight()));
+		}
+		return List.copyOf(candidates);
+	}
+
+	/** 저장된 경품의 식별자·등수·당첨 인원을 선정기 입력으로 변환한다. */
+	private static List<DrawPrize> toPrizes(DrawSnapshot snapshot) {
+		List<DrawPrize> prizes = new ArrayList<>();
+		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
+			prizes.add(new DrawPrize(prize.id(), prize.rank(), prize.winnerCount()));
+		}
+		return List.copyOf(prizes);
 	}
 
 	/** 저장 전에 자리·후보·순서와 상위 등수 우선 배정을 다시 검증한다. */
@@ -122,9 +148,12 @@ public class DrawConfirmationService {
 		int index = 0, order = 0;
 		Set<UUID> users = new HashSet<>(), candidates = new HashSet<>();
 		Map<UUID, UUID> candidateUsers = new HashMap<>();
-		snapshot.candidates().forEach(candidate -> candidateUsers.put(candidate.id(), candidate.userId()));
-		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes().stream()
-				.sorted(Comparator.comparingInt(p -> p.rank())).toList()) {
+		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
+			candidateUsers.put(candidate.id(), candidate.userId());
+		}
+		List<DrawSnapshotSource.Prize> orderedPrizes = new ArrayList<>(snapshot.rules().prizes());
+		orderedPrizes.sort(Comparator.comparingInt(DrawSnapshotSource.Prize::rank));
+		for (DrawSnapshotSource.Prize prize : orderedPrizes) {
 			for (int slot = 1; slot <= prize.winnerCount(); slot++) {
 				if (index >= results.size()) invalid();
 				DrawSelection result = results.get(index++);
