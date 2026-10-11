@@ -1,6 +1,7 @@
 package com.getddo.db.drawing.entity;
 
 import java.util.UUID;
+import java.util.Objects;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -62,9 +63,13 @@ public class DrawResultEntity extends BaseEntity {
 	@Column(name = "selection_order", updatable = false)
 	private Integer selectionOrder;
 
-	/** 서비스가 검증한 선정·미충원 결과를 새 불변 이력으로 구성한다. 미충원의 후보·선정 순서는 null이다. */
+	/**
+	 * 서비스가 검증한 결과를 새 불변 이력으로 구성하며 실행·선정 값의 누락은 생성 시 거절한다.
+	 * 유형별 후보·순서 불변식은 변경 불가능한 DrawSelection 생성자가 보장한다.
+	 */
 	public DrawResultEntity(DrawRunEntity run, DrawSelection selection) {
-		drawRun = run;
+		drawRun = Objects.requireNonNull(run, "run");
+		Objects.requireNonNull(selection, "selection");
 		prizeId = selection.getPrizeId();
 		slotNumber = selection.getSlotNumber();
 		resultType = selection.getResultType();
