@@ -50,8 +50,8 @@ class NotificationResponseTest {
 		NotificationReadResponse readResponse = new NotificationReadResponse(id, true);
 
 		// then
-		assertThat(response.getId()).isEqualTo(id);
-		assertThat(response.getEventId()).isNull();
+		assertThat(response.id()).isEqualTo(id);
+		assertThat(response.eventId()).isNull();
 		assertThat(readResponse.getId()).isEqualTo(id);
 		assertThat(readResponse.isRead()).isTrue();
 	}
