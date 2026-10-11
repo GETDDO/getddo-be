@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import lombok.Getter;
+
 /**
  * 출석 날짜를 하루도 빠지지 않은 연속 구간으로 나눈다. 연속 일수와 단계 도달일을 출석 기록에서 계산하는 데 쓴다.
  */
@@ -13,6 +15,7 @@ final class ConsecutiveRuns {
 	}
 
 	/** 연속 구간 하나. 시작일과 길이(일)다. */
+	@Getter
 	static final class Run {
 
 		private final LocalDate start;
@@ -21,14 +24,6 @@ final class ConsecutiveRuns {
 		Run(LocalDate start, int length) {
 			this.start = start;
 			this.length = length;
-		}
-
-		LocalDate start() {
-			return start;
-		}
-
-		int length() {
-			return length;
 		}
 	}
 

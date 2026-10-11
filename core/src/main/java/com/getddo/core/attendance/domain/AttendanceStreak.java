@@ -61,7 +61,7 @@ public final class AttendanceStreak {
 		}
 		List<ConsecutiveRuns.Run> runs = ConsecutiveRuns.of(sortedAttendedDates);
 		ConsecutiveRuns.Run last = runs.get(runs.size() - 1);
-		LocalDate lastDate = last.start().plusDays(last.length() - 1L);
-		return new AttendanceStreak(id, userId, policySetId, streakMonth, last.length(), lastDate);
+		LocalDate lastDate = last.getStart().plusDays(last.getLength() - 1L);
+		return new AttendanceStreak(id, userId, policySetId, streakMonth, last.getLength(), lastDate);
 	}
 }

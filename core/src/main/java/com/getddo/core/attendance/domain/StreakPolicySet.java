@@ -38,10 +38,10 @@ public final class StreakPolicySet {
 		List<ReachedMilestone> reached = new ArrayList<>();
 		for (StreakMilestone milestone : milestones) {
 			runs.stream()
-					.filter(run -> run.length() >= milestone.getMilestoneDays())
+					.filter(run -> run.getLength() >= milestone.getMilestoneDays())
 					.findFirst()
 					.ifPresent(run -> reached.add(new ReachedMilestone(milestone,
-							run.start().plusDays(milestone.getMilestoneDays() - 1L))));
+							run.getStart().plusDays(milestone.getMilestoneDays() - 1L))));
 		}
 		return List.copyOf(reached);
 	}

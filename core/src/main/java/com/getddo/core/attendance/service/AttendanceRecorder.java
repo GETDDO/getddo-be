@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -90,7 +91,7 @@ public class AttendanceRecorder {
 
 		List<AttendanceRewardReceipt> rewards = new ArrayList<>();
 		rewards.add(claimAndGrant(AttendanceRewardClaim.daily(attendance, dailyPolicy), DAILY_REASON));
-		for (ReachedMilestone reached : update.newlyReached()) {
+		for (ReachedMilestone reached : update.getNewlyReached()) {
 			Attendance reachedAttendance = reached.getReachedDate().equals(today) ? attendance
 					: attendanceRepository.findByUserIdAndDate(userId, reached.getReachedDate())
 							.orElseThrow(() -> new IllegalStateException("단계에 도달한 날의 출석 기록이 없다."));
@@ -100,7 +101,7 @@ public class AttendanceRecorder {
 			}
 		}
 
-		return new AttendanceReceipt(attendance.getId(), today, update.streak().getConsecutiveDays(), rewards,
+		return new AttendanceReceipt(attendance.getId(), today, update.getStreak().getConsecutiveDays(), rewards,
 				attendance.getCreatedAt(), true);
 	}
 
@@ -137,6 +138,7 @@ public class AttendanceRecorder {
 	}
 
 	/** 연속 현황을 다시 계산한 결과와 이번 출석으로 새로 도달한 단계. */
+	@Getter
 	private static final class StreakUpdate {
 
 		private final AttendanceStreak streak;
@@ -145,14 +147,6 @@ public class AttendanceRecorder {
 		private StreakUpdate(AttendanceStreak streak, List<ReachedMilestone> newlyReached) {
 			this.streak = streak;
 			this.newlyReached = newlyReached;
-		}
-
-		AttendanceStreak streak() {
-			return streak;
-		}
-
-		List<ReachedMilestone> newlyReached() {
-			return newlyReached;
 		}
 	}
 
