@@ -242,7 +242,9 @@ class DrawSnapshotIntegrationTest {
 
 	/** 기존 어뷰징 판단 기록이 있어도 다른 정상 응모를 후보에서 제거하지 않는다. */
 	@Test
+	@DisplayName("과거 어뷰징 판단 기록이 있어도 정상 응모를 후보로 보존한다")
 	void preparesValidParticipantDespiteLegacyAbuseRecord() {
+		// given
 		UUID participant = addParticipant(0);
 		UUID abuseCaseId = UUID.randomUUID();
 		jdbc.update("""
@@ -252,8 +254,10 @@ class DrawSnapshotIntegrationTest {
 			""", bytes(abuseCaseId), bytes(eventId), bytes(userId), bytes(userId), abuseCaseId.toString(),
 				abuseCaseId.toString(), utc(NOW.minusSeconds(1000)), utc(NOW.minusSeconds(900)), utc(NOW.minusSeconds(800)));
 
+		// when
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
 
+		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
 		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId).containsExactly(participant);
 		assertThat(snapshot.candidates().getFirst().eligibilityEvidence().excluded()).isFalse();
@@ -264,13 +268,17 @@ class DrawSnapshotIntegrationTest {
 
 	/** 신규 전원 제외 종료는 만들지 않지만 과거 DB의 NO_CANDIDATES는 재계산 없이 조회한다. */
 	@Test
+	@DisplayName("과거 NO_CANDIDATES 실행은 새 응모가 있어도 재계산하지 않는다")
 	void replaysLegacyNoCandidatesWithoutRecalculatingNewEntries() {
+		// given
 		DrawSnapshot empty = service.prepareInitial(eventId);
 		jdbc.update("update draw_runs set status = 'NO_CANDIDATES' where id = ?", bytes(empty.runId()));
 		addParticipant(0);
 
+		// when
 		DrawSnapshot historical = service.prepareInitial(eventId);
 
+		// then
 		assertThat(historical.runId()).isEqualTo(empty.runId());
 		assertThat(historical.status()).isEqualTo(DrawRunStatus.NO_CANDIDATES);
 		assertThat(historical.fixedAt()).isEqualTo(empty.fixedAt());
@@ -283,10 +291,17 @@ class DrawSnapshotIntegrationTest {
 
 	/** 제외 기능 유무와 무관하게 누적 사용 장수 불일치는 전체 준비를 거절한다. */
 	@Test
+	@DisplayName("누적 사용 장수가 다르면 준비를 거절하고 실행·후보·연결을 저장하지 않는다")
 	void invalidAccumulationLeavesNoRun() {
+		// given
 		UUID participant = addParticipant(0);
 		jdbc.update("update event_participants set used_ticket_count = 1 where id = ?", bytes(participant));
-		assertThatThrownBy(() -> service.prepareInitial(eventId)).isInstanceOf(BusinessException.class)
+
+		// when
+		Throwable failure = catchThrowable(() -> service.prepareInitial(eventId));
+
+		// then
+		assertThat(failure).isInstanceOf(BusinessException.class)
 				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
 		assertThat(count("draw_runs")).isZero();
 		assertThat(count("draw_candidates")).isZero();

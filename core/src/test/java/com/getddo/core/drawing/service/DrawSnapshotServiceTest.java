@@ -109,23 +109,33 @@ class DrawSnapshotServiceTest {
 
 	/** 응모자 없음은 후보 없이 정상 종료하고 어뷰징 제외 종료를 새로 만들지 않는다. */
 	@Test
+	@DisplayName("응모자가 없으면 후보 없이 NO_ENTRIES로 종료한다")
 	void emptyEventTerminatesWithoutCandidates() {
+		// given
 		when(repository.findParticipants(eventId)).thenReturn(List.of());
+
+		// when
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
+
+		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
 		assertThat(snapshot.candidates()).isEmpty();
 	}
 
 	/** 제외 저장소 없이 서로 다른 사용자의 모든 정상 응모를 READY 후보로 확정한다. */
 	@Test
+	@DisplayName("제외 저장소 없이 모든 정상 응모를 READY 후보로 확정한다")
 	void preparesAllValidParticipantsWithoutExclusionProvider() {
+		// given
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.NO_TICKET, false, NOW.minusSeconds(300))));
 		Participant first = participant(0, entry(0));
 		Participant second = new Participant(UUID.randomUUID(), UUID.randomUUID(), 0, "VIP", "USER", List.of(entry(0)));
 		when(repository.findParticipants(eventId)).thenReturn(List.of(first, second));
 
+		// when
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
 
+		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.READY);
 		assertThat(snapshot.candidates()).extracting(DrawSnapshot.Candidate::participantId)
 				.containsExactly(first.id(), second.id());
@@ -178,10 +188,18 @@ class DrawSnapshotServiceTest {
 
 	/** 단일 응모 이벤트에 추가 응모가 기록됐으면 전체 준비를 거절한다. */
 	@Test
+	@DisplayName("단일 응모 이벤트에 추가 응모가 있으면 준비를 거절하고 저장하지 않는다")
 	void rejectsAdditionalEntriesForSingleEntryEvents() {
+		// given
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.NO_TICKET, false, NOW.minusSeconds(300))));
 		when(repository.findParticipants(eventId)).thenReturn(List.of(participant(0, entry(0), entry(0))));
-		assertError(INVALID_EVIDENCE);
+
+		// when
+		Throwable failure = catchThrowable(() -> service.prepareInitial(eventId));
+
+		// then
+		assertThat(failure).isInstanceOf(BusinessException.class)
+				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(INVALID_EVIDENCE);
 		verify(repository, never()).saveInitial(any());
 	}
 
