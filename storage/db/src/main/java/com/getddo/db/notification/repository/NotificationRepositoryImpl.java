@@ -28,10 +28,12 @@ import com.getddo.db.notification.mapper.NotificationMapper;
 @Repository
 public class NotificationRepositoryImpl implements NotificationRepository {
 	private final NotificationJpaRepository notifications;
+	private final NotificationMapper mapper;
 
-	/** 사용자별 알림 조회와 읽음 변경을 수행할 JPA 저장소를 연결한다. */
-	public NotificationRepositoryImpl(NotificationJpaRepository notifications) {
+	/** 사용자별 조회·읽음 변경 저장소와 Entity 변환 Mapper를 연결한다. */
+	public NotificationRepositoryImpl(NotificationJpaRepository notifications, NotificationMapper mapper) {
 		this.notifications = notifications;
+		this.mapper = mapper;
 	}
 
 	/**
@@ -49,7 +51,7 @@ public class NotificationRepositoryImpl implements NotificationRepository {
 		boolean hasNext = rows.size() > size;
 		List<NotificationEntity> page = hasNext ? rows.subList(0, size) : rows;
 		String nextCursor = hasNext ? encode(page.getLast()) : null;
-		return new CursorResult<>(page.stream().map(NotificationMapper::toDomain).toList(),
+		return new CursorResult<>(page.stream().map(mapper::toDomain).toList(),
 				nextCursor, notifications.countMine(userId, isRead));
 	}
 

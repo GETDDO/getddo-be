@@ -20,8 +20,8 @@ public interface AttendanceMapper {
 
 	AttendanceStreakEntity toEntity(AttendanceStreak streak);
 
-	/** {@code attend(LocalDate)}는 새 현황을 돌려주는 업무 메서드라 속성이 아니다. */
-	@Mapping(target = "attend", ignore = true)
+	/** {@code recalculate(List)}는 새 현황을 돌려주는 업무 메서드라 속성이 아니다. */
+	@Mapping(target = "recalculate", ignore = true)
 	AttendanceStreak toDomain(AttendanceStreakEntity entity);
 
 	@Mapping(target = "attendanceStreakPolicyId", source = "streakPolicyId")
