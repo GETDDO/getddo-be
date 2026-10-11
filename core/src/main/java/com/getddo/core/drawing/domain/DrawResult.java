@@ -13,6 +13,7 @@ public final class DrawResult {
 	private final DrawSelection selection;
 	private final Instant createdAt;
 
+	/** DB에서 확정한 결과 ID·선정 내용·생성 시각을 복원하며 필수 값의 누락을 거절한다. */
 	public DrawResult(UUID id, DrawSelection selection, Instant createdAt) {
 		this.id = Objects.requireNonNull(id, "id");
 		this.selection = Objects.requireNonNull(selection, "selection");

@@ -15,6 +15,7 @@ public final class DrawConfirmation {
 	private final Instant confirmedAt;
 	private final List<DrawResult> results;
 
+	/** 확정 실행의 식별자·시각과 결과 목록을 보존한다. 목록을 복사하여 호출자의 변경을 차단한다. */
 	public DrawConfirmation(UUID runId, UUID eventId, Instant confirmedAt, List<DrawResult> results) {
 		this.runId = Objects.requireNonNull(runId, "runId");
 		this.eventId = Objects.requireNonNull(eventId, "eventId");

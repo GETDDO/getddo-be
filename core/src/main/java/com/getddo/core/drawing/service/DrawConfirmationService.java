@@ -21,6 +21,7 @@ import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSelection;
 import com.getddo.core.drawing.domain.DrawSelectionResultType;
 import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
@@ -35,6 +36,7 @@ public class DrawConfirmationService {
 	private final DrawingSelectionService selection;
 	private final TimeProvider time;
 
+	/** 선정·영속성·시각 의존성을 주입하며 확정 업무의 트랜잭션은 confirm에서 관리한다. */
 	public DrawConfirmationService(DrawResultRepository repository, DrawSnapshotRepository snapshots,
 			DrawingSelectionService selection, TimeProvider time) {
 		this.repository = repository;
@@ -43,11 +45,21 @@ public class DrawConfirmationService {
 		this.time = time;
 	}
 
-	/** 같은 이벤트의 확정을 직렬화하며 확정된 실행에는 난수를 다시 사용하지 않는다. */
+	/**
+	 * 저장된 최초 실행 스냅샷으로 결과를 확정하고, 확정 재요청에는 기존 저장값을 반환한다.
+	 * 이벤트 → 실행 순서로 잠그며 결과와 상태 변경은 서비스의 같은 트랜잭션에서 커밋한다.
+	 * READ_COMMITTED는 이벤트 잠금 대기 후 이전 요청의 확정 결과를 읽기 위한 격리 수준이다.
+	 * 확정 전 실패는 결과·상태·시각을 롤백하여 동일 READY 스냅샷으로 다시 시도할 수 있게 한다.
+	 *
+	 * @param runId 최초 추첨 실행 식별자
+	 * @return 실제 DB에 저장된 결과 ID·순서·확정 시각
+	 * @throws BusinessException 실행·스냅샷·배정 관계가 잘못됐거나 이벤트가 실행 불가한 경우
+	 */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public DrawConfirmation confirm(UUID runId) {
 		UUID eventId = repository.findEventId(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
-		var event = snapshots.lockEvent(eventId).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
+		DrawSnapshotSource.Event event = snapshots.lockEvent(eventId)
+				.orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
 		DrawSnapshot snapshot = repository.lockSnapshot(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		if (!eventId.equals(snapshot.eventId())) invalid();
 		if (snapshot.status() == DrawRunStatus.CONFIRMED) {
@@ -81,6 +93,7 @@ public class DrawConfirmationService {
 		return repository.saveConfirmed(snapshot, selections, time.now());
 	}
 
+	/** 확정된 스냅샷의 버전·중복 후보·가중치·경품 조건을 검증한다. 최신 원본으로 입력을 교체하지 않는다. */
 	private static void validateInput(DrawSnapshot snapshot) {
 		if (snapshot.fixedAt() == null || !DrawSnapshotService.ALGORITHM_VERSION.equals(snapshot.algorithmVersion())
 				|| snapshot.rules() == null || snapshot.rules().version() != 1
@@ -88,7 +101,7 @@ public class DrawConfirmationService {
 		Set<UUID> users = new HashSet<>(), ids = new HashSet<>(), participants = new HashSet<>(), prizes = new HashSet<>();
 		Set<Integer> ranks = new HashSet<>();
 		long slots = 0;
-		for (var candidate : snapshot.candidates()) {
+		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
 			if (candidate.id() == null || candidate.userId() == null || candidate.participantId() == null
 					|| !ids.add(candidate.id()) || !users.add(candidate.userId()) || !participants.add(candidate.participantId())
 					|| candidate.weight() < 1 || candidate.ticketCount() < 0
@@ -96,7 +109,7 @@ public class DrawConfirmationService {
 					|| candidate.eligibilityEvidence() == null || candidate.eligibilityEvidence().excluded()
 					|| !candidate.userId().equals(candidate.eligibilityEvidence().userId())) invalid();
 		}
-		for (var prize : snapshot.rules().prizes()) {
+		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
 			if (prize.id() == null || !prizes.add(prize.id()) || !ranks.add(prize.rank())
 					|| prize.rank() < 1 || prize.winnerCount() < 1) invalid();
 			slots += prize.winnerCount();
@@ -110,7 +123,7 @@ public class DrawConfirmationService {
 		Set<UUID> users = new HashSet<>(), candidates = new HashSet<>();
 		Map<UUID, UUID> candidateUsers = new HashMap<>();
 		snapshot.candidates().forEach(candidate -> candidateUsers.put(candidate.id(), candidate.userId()));
-		for (var prize : snapshot.rules().prizes().stream()
+		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes().stream()
 				.sorted(Comparator.comparingInt(p -> p.rank())).toList()) {
 			for (int slot = 1; slot <= prize.winnerCount(); slot++) {
 				if (index >= results.size()) invalid();
@@ -127,5 +140,6 @@ public class DrawConfirmationService {
 		if (index != results.size() || order != Math.min(snapshot.candidates().size(), index)) invalid();
 	}
 
+	/** 잘못된 실행·스냅샷·결과를 동일한 도메인 오류로 거절하여 서비스 트랜잭션을 롤백한다. */
 	private static void invalid() { throw new BusinessException(INVALID_RUN); }
 }

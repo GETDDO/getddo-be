@@ -21,6 +21,7 @@ public final class DrawingSelectionService {
 
 	private final DrawRandom random;
 
+	/** 운영 Bean은 보안 난수 구현으로 생성한다. 테스트는 난수 주입 생성자로 선정 순서를 제어할 수 있다. */
 	public DrawingSelectionService() {
 		this(new SecureDrawRandom());
 	}
@@ -74,6 +75,7 @@ public final class DrawingSelectionService {
 		return List.copyOf(results);
 	}
 
+	/** 후보 ID·사용자 중복과 미가중치 조건을 검증하여 하나의 이벤트에서 중복 당첨을 방지한다. */
 	private static void validateCandidates(List<DrawCandidate> candidates, boolean weightingEnabled) {
 		Set<UUID> candidateIds = new HashSet<>();
 		Set<UUID> userIds = new HashSet<>();
@@ -88,6 +90,7 @@ public final class DrawingSelectionService {
 		}
 	}
 
+	/** 경품·등수 중복과 전체 자리 수의 정수 범위를 검증한다. */
 	private static void validatePrizes(List<DrawPrize> prizes) {
 		Set<UUID> prizeIds = new HashSet<>();
 		Set<Integer> ranks = new HashSet<>();
@@ -104,6 +107,7 @@ public final class DrawingSelectionService {
 		}
 	}
 
+	/** 누적 가중치 구간에 해당하는 후보 위치를 찾는다. 난수는 전체 가중치 미만이어야 한다. */
 	private static int selectedIndex(List<DrawCandidate> candidates, BigInteger roll) {
 		BigInteger boundary = BigInteger.ZERO;
 		for (int index = 0; index < candidates.size(); index++) {
