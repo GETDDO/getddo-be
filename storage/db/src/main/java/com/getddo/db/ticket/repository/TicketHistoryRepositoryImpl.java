@@ -36,4 +36,10 @@ public class TicketHistoryRepositoryImpl implements TicketHistoryRepository {
 		return historyJpaRepository.findByOriginalUseHistoryIdInOrderByTicketId(originalUseHistoryIds).stream()
 				.map(ticketMapper::toDomain).toList();
 	}
+
+	@Override
+	public List<TicketHistory> findRefundsOfLocked(Collection<UUID> originalUseHistoryIds) {
+		return historyJpaRepository.lockByOriginalUseHistoryIdIn(originalUseHistoryIds).stream()
+				.map(ticketMapper::toDomain).toList();
+	}
 }

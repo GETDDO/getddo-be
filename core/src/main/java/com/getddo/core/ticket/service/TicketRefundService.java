@@ -80,7 +80,9 @@ public class TicketRefundService {
 			switch (stateAfter(use, ticketsById.get(use.getTicketId()))) {
 				case SPENT_AS_USED -> pending.add(use);
 				case ALREADY_REFUNDED -> { }
-				case CHANGED -> throw new TicketException(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH);
+				case CHANGED -> {
+					return replayOrFail(useIds, uses.size());
+				}
 			}
 		}
 		if (pending.isEmpty()) {
@@ -101,6 +103,20 @@ public class TicketRefundService {
 		return new RefundResult(
 				returned.stream().map(ticket -> new UsedTicket(ticket.getId(), ticket.getGrade())).toList(),
 				refundedAt, expiresAt, false);
+	}
+
+	/**
+	 * 응모권이 사용 직후 상태가 아닐 때, 잠금을 기다리는 사이 같은 응모의 앞 반환이 끝나고 응모권이 다시 쓰인 것인지 확인한다.
+	 * 처음 읽은 반환 이력은 잠금 전의 값이므로 잠금 읽기로 최신 이력을 본다. 반환 이력이 모두 있으면 기존 결과를 돌려주고,
+	 * 아니면 다른 처리가 끼어든 것이므로 실패한다. 반환 이력이 없는 구간을 미리 잠그면 서로 다른 사용자의 반환이 이어서
+	 * 이력을 넣을 때 교착하므로, 상태가 이상할 때만 이 확인을 한다.
+	 */
+	private RefundResult replayOrFail(List<UUID> useIds, int useCount) {
+		List<TicketHistory> refunded = historyRepository.findRefundsOfLocked(useIds);
+		if (refunded.size() == useCount) {
+			return replayOf(refunded);
+		}
+		throw new TicketException(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH);
 	}
 
 	/**

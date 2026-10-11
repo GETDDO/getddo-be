@@ -177,6 +177,29 @@ class TicketRefundServiceTest {
 	}
 
 	@Test
+	@DisplayName("잠금을 기다리는 사이 앞 반환이 끝나고 응모권이 다시 쓰였어도 잠금 읽기로 본 반환 이력으로 기존 결과를 돌려준다")
+	void replaysRefundWhenTicketUsedAgainWhileWaitingForLock() {
+		// given: 일반 조회에는 반환 이력이 없고, 잠가 읽은 응모권은 다른 응모에 다시 쓰여 사용 직후 상태가 아니다
+		Ticket spent = spentTicket(TicketGrade.BRONZE);
+		TicketHistory use = useHistory(spent);
+		Ticket returned = spent.refund(NOW_MICROS, OCTOBER_END);
+		TicketHistory refund = TicketHistory.refund(returned, use.getId(), "이벤트 취소");
+		Ticket usedAgain = returned.use(NOW_MICROS);
+		when(historyRepository.findUseHistories(ENTRY_ID)).thenReturn(List.of(use));
+		when(historyRepository.findRefundsOf(anyCollection())).thenReturn(List.of());
+		when(ticketRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(usedAgain));
+		when(historyRepository.findRefundsOfLocked(anyCollection())).thenReturn(List.of(refund));
+		when(ticketRepository.findAllByIds(anyCollection())).thenReturn(List.of(usedAgain));
+		// when
+		RefundResult result = service.refund(command());
+		// then
+		assertThat(result.isReplayed()).isTrue();
+		assertThat(result.getTickets()).extracting(ticket -> ticket.getTicketId()).containsExactly(spent.getId());
+		verify(ticketRepository, never()).updateAll(any());
+		verify(historyRepository, never()).saveAll(any());
+	}
+
+	@Test
 	@DisplayName("반환할 응모권이 사용 직후 상태가 아니면 TICKET-009로 실패하고 아무것도 저장하지 않는다")
 	void changedTicketFails() {
 		// given
