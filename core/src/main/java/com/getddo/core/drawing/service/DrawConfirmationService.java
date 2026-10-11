@@ -98,22 +98,22 @@ public class DrawConfirmationService {
 		if (snapshot.fixedAt() == null || !DrawSnapshotService.ALGORITHM_VERSION.equals(snapshot.algorithmVersion())
 				|| snapshot.rules() == null || snapshot.rules().version() != 1
 				|| snapshot.candidates().isEmpty() || snapshot.rules().prizes().isEmpty()) invalid();
-		Set<UUID> users = new HashSet<>(), ids = new HashSet<>(), participants = new HashSet<>(), prizes = new HashSet<>();
-		Set<Integer> ranks = new HashSet<>();
-		long slots = 0;
+		Set<UUID> participants = new HashSet<>();
 		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
 			if (candidate.id() == null || candidate.userId() == null || candidate.participantId() == null
-					|| !ids.add(candidate.id()) || !users.add(candidate.userId()) || !participants.add(candidate.participantId())
-					|| candidate.weight() < 1 || candidate.ticketCount() < 0
-					|| (!snapshot.rules().weightingEnabled() && candidate.weight() != 1)
+					|| !participants.add(candidate.participantId()) || candidate.ticketCount() < 0
 					|| candidate.eligibilityEvidence() == null || candidate.eligibilityEvidence().excluded()
 					|| !candidate.userId().equals(candidate.eligibilityEvidence().userId())) invalid();
 		}
-		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
-			if (prize.id() == null || !prizes.add(prize.id()) || !ranks.add(prize.rank())
-					|| prize.rank() < 1 || prize.winnerCount() < 1) invalid();
-			slots += prize.winnerCount();
-			if (slots > Integer.MAX_VALUE) invalid();
+		try {
+			DrawingSelectionValidator.validateCandidates(snapshot.candidates().stream()
+					.map(candidate -> new DrawCandidate(candidate.id(), candidate.userId(), candidate.weight())).toList(),
+					snapshot.rules().weightingEnabled());
+			DrawingSelectionValidator.validatePrizes(snapshot.rules().prizes().stream()
+					.map(prize -> new DrawPrize(prize.id(), prize.rank(), prize.winnerCount())).toList());
+		} catch (IllegalArgumentException | NullPointerException invalidInput) {
+			// 저장 스냅샷 검증은 선정기의 입력 오류를 일관된 도메인 오류로 보고한다.
+			invalid();
 		}
 	}
 

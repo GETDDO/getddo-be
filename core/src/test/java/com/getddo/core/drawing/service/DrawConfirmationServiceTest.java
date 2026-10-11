@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InOrder;
 
 import com.getddo.core.common.exception.BusinessException;
@@ -213,6 +214,77 @@ class DrawConfirmationServiceTest {
 		assertThatThrownBy(() -> service.confirm(runId)).isInstanceOf(BusinessException.class)
 				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(NOT_EXECUTABLE);
 		verifyNoInteractions(selection);
+	}
+
+	/** 마감 후 5분 직전의 요청이 난수·결과 저장에 도달하지 않는지 나노초 경계로 검증한다. */
+	@Test
+	@DisplayName("마감 후 5분보다 1ns 이르면 확정하지 않는다")
+	void rejectsBeforeFiveMinuteBoundary() {
+		// given
+		when(snapshots.lockEvent(eventId)).thenReturn(Optional.of(new DrawSnapshotSource.Event(eventId,
+				EventType.NO_TICKET, false, NOW.minusSeconds(300).plusNanos(1), EventStatus.CLOSED,
+				false, "vip", List.of())));
+		// when / then
+		assertThatThrownBy(() -> service.confirm(runId)).isInstanceOf(BusinessException.class)
+				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(NOT_EXECUTABLE);
+		verifyNoInteractions(selection);
+		verify(repository, never()).saveConfirmed(any(), anyList(), any());
+	}
+
+	/** 정확한 5분 경계와 OPEN 이벤트의 경계 이후 실행을 고정 시각으로 검증한다. */
+	@ParameterizedTest
+	@CsvSource({"CLOSED,300000000000", "OPEN,300000000001"})
+	@DisplayName("정확히 5분 이후에는 CLOSED와 OPEN 이벤트 모두 확정할 수 있다")
+	void confirmsAtAndAfterFiveMinutes(EventStatus status, long elapsedNanos) {
+		// given
+		when(snapshots.lockEvent(eventId)).thenReturn(Optional.of(new DrawSnapshotSource.Event(eventId,
+				EventType.NO_TICKET, false, NOW.minusNanos(elapsedNanos), status, false, "vip", List.of())));
+		when(repository.saveConfirmed(eq(snapshot), anyList(), eq(NOW))).thenAnswer(invocation -> {
+			List<DrawSelection> results = invocation.getArgument(1);
+			return new DrawConfirmation(runId, eventId, NOW,
+					results.stream().map(result -> new DrawResult(UUID.randomUUID(), result, NOW)).toList());
+		});
+		// when / then
+		assertThat(service.confirm(runId).getRunId()).isEqualTo(runId);
+		verify(repository).saveConfirmed(eq(snapshot), anyList(), eq(NOW));
+	}
+
+	/** 검토 시간이 지났더라도 논리 삭제된 이벤트는 확정하지 않는지 검증한다. */
+	@Test
+	@DisplayName("논리 삭제된 이벤트는 확정하지 않는다")
+	void rejectsDeletedEvent() {
+		// given
+		when(snapshots.lockEvent(eventId)).thenReturn(Optional.of(new DrawSnapshotSource.Event(eventId,
+				EventType.NO_TICKET, false, NOW.minusSeconds(300), EventStatus.CLOSED, true, "vip", List.of())));
+		// when / then
+		assertThatThrownBy(() -> service.confirm(runId)).isInstanceOf(BusinessException.class)
+				.extracting(error -> ((BusinessException) error).getErrorCode()).isEqualTo(NOT_EXECUTABLE);
+		verifyNoInteractions(selection);
+	}
+
+	/** 공용 검증기의 입력 오류가 선정 전에 INVALID_RUN으로 변환되는지 확인한다. */
+	@Test
+	@DisplayName("후보·경품 공용 검증 실패는 일관된 실행 오류로 반환한다")
+	void rejectsInvalidSelectionInputsAsDomainErrors() {
+		// given
+		List<DrawSnapshot> invalidInputs = List.of(
+				snapshot(DrawRunStatus.READY, List.of(candidate(UUID.randomUUID(), 2)), snapshot.rules().prizes()),
+				snapshot(DrawRunStatus.READY, List.of(candidate(UUID.randomUUID(), 0)), snapshot.rules().prizes()),
+				snapshot(DrawRunStatus.READY, snapshot.candidates(), List.of(
+						new DrawSnapshotSource.Prize(prizeId, 1, 1), new DrawSnapshotSource.Prize(prizeId, 2, 1))),
+				snapshot(DrawRunStatus.READY, snapshot.candidates(), List.of(
+						new DrawSnapshotSource.Prize(prizeId, 1, 1), new DrawSnapshotSource.Prize(UUID.randomUUID(), 1, 1))),
+				snapshot(DrawRunStatus.READY, snapshot.candidates(), List.of(
+						new DrawSnapshotSource.Prize(prizeId, 1, Integer.MAX_VALUE),
+						new DrawSnapshotSource.Prize(UUID.randomUUID(), 2, 1))),
+				snapshot(DrawRunStatus.READY, snapshot.candidates(), List.of(new DrawSnapshotSource.Prize(null, 1, 1))));
+		// when / then
+		for (DrawSnapshot input : invalidInputs) {
+			when(repository.lockSnapshot(runId)).thenReturn(Optional.of(input));
+			assertInvalid();
+		}
+		verifyNoInteractions(selection);
+		verify(repository, never()).saveConfirmed(any(), anyList(), any());
 	}
 
 	/** 중복 당첨·순서 누락·조기 미충원·자리 오류를 결과 저장 전에 거절하는지 검증한다. */
