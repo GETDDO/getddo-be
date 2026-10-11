@@ -9,11 +9,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.stereotype.Service;
+
 import com.getddo.core.drawing.domain.DrawCandidate;
 import com.getddo.core.drawing.domain.DrawPrize;
 import com.getddo.core.drawing.domain.DrawSelection;
 
 /** 확정된 후보·경품만 입력받아 상위 등수부터 당첨자를 선정한다. */
+@Service
 public final class DrawingSelectionService {
 
 	private final DrawRandom random;
