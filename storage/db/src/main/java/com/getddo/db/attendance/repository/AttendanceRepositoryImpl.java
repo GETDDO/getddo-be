@@ -1,6 +1,8 @@
 package com.getddo.db.attendance.repository;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,6 +24,11 @@ public class AttendanceRepositoryImpl implements AttendanceRepository {
 	@Override
 	public Optional<Attendance> findByUserIdAndDate(UUID userId, LocalDate attendanceDate) {
 		return attendanceJpaRepository.findByUserIdAndAttendanceDate(userId, attendanceDate).map(mapper::toDomain);
+	}
+
+	@Override
+	public List<LocalDate> findAttendanceDates(UUID userId, YearMonth month) {
+		return attendanceJpaRepository.findAttendanceDates(userId, month.atDay(1), month.atEndOfMonth());
 	}
 
 	@Override

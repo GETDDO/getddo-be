@@ -31,6 +31,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: PR 제목 규칙 회귀 테스트
+        run: python3 .github/tests/test_pr_title.py
+
       # build.gradle의 Java toolchain 버전과 일치시킨다.
       - name: Java 21 설정
         uses: actions/setup-java@v5

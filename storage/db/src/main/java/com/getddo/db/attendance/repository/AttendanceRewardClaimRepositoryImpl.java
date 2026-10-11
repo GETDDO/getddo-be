@@ -1,5 +1,6 @@
 package com.getddo.db.attendance.repository;
 
+import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +30,16 @@ public class AttendanceRewardClaimRepositoryImpl implements AttendanceRewardClai
 		return claimJpaRepository.findByAttendanceId(attendanceId).stream()
 				.map(mapper::toDomain)
 				.sorted(RECEIPT_ORDER)
+				.toList();
+	}
+
+	@Override
+	public List<AttendanceRewardClaim> findStreakClaims(UUID userId, YearMonth month) {
+		return claimJpaRepository
+				.findByUserIdAndRewardTypeAndRewardDateBetweenOrderByMilestoneDaysAsc(userId,
+						AttendanceRewardType.STREAK, month.atDay(1), month.atEndOfMonth())
+				.stream()
+				.map(mapper::toDomain)
 				.toList();
 	}
 

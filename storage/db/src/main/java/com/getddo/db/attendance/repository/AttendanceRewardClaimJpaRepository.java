@@ -1,5 +1,6 @@
 package com.getddo.db.attendance.repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +12,9 @@ import com.getddo.db.attendance.entity.AttendanceRewardClaimEntity;
 public interface AttendanceRewardClaimJpaRepository extends JpaRepository<AttendanceRewardClaimEntity, UUID> {
 
 	List<AttendanceRewardClaimEntity> findByAttendanceId(UUID attendanceId);
+
+	List<AttendanceRewardClaimEntity> findByUserIdAndRewardTypeAndRewardDateBetweenOrderByMilestoneDaysAsc(
+			UUID userId, AttendanceRewardType rewardType, LocalDate from, LocalDate to);
 
 	boolean existsByUserIdAndRewardTypeAndSourceKey(UUID userId, AttendanceRewardType rewardType, String sourceKey);
 }
