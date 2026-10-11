@@ -81,4 +81,14 @@ public class DrawRunEntity extends BaseEntity {
 		this.rulesSnapshot = rulesSnapshot;
 		snapshotFixedAt = fixedAt;
 	}
+	/** 결과 저장과 같은 트랜잭션에서만 호출한다. 실패하면 READY와 결과 모두 롤백된다. */
+	public void confirm(Instant now) {
+		if (status != DrawRunStatus.READY || now == null || snapshotFixedAt == null || now.isBefore(snapshotFixedAt)) {
+			throw new IllegalStateException("READY 실행만 결과를 확정할 수 있습니다.");
+		}
+		startedAt = now;
+		confirmedAt = now;
+		status = DrawRunStatus.CONFIRMED;
+	}
+
 }
