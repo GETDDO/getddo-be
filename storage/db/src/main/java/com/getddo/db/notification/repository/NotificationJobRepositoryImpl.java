@@ -1,6 +1,5 @@
 package com.getddo.db.notification.repository;
 
-import java.nio.ByteBuffer;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -28,6 +27,7 @@ import com.getddo.core.notification.domain.NotificationType;
 import com.getddo.core.notification.exception.NotificationProcessingErrorCode;
 import com.getddo.core.notification.exception.NotificationProcessingException;
 import com.getddo.core.notification.repository.NotificationJobRepository;
+import com.getddo.db.common.util.UuidBinary;
 
 /**
  * 기존 알림 테이블의 선점·저장·재시도를 담당한다.
@@ -252,17 +252,12 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 
 	/** DB의 BINARY(16) 식별자와 비교할 수 있도록 UUID를 바이트 배열로 변환한다. */
 	private static byte[] bytes(UUID id) {
-		return id == null ? null : ByteBuffer.allocate(16)
-				.putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
+		return id == null ? null : UuidBinary.toBytes(id);
 	}
 
 	/** DB의 BINARY(16) 값을 UUID로 복원하며 nullable 식별자는 null로 유지한다. */
 	private static UUID uuid(byte[] value) {
-		if (value == null) {
-			return null;
-		}
-		ByteBuffer buffer = ByteBuffer.wrap(value);
-		return new UUID(buffer.getLong(), buffer.getLong());
+		return value == null ? null : UuidBinary.fromBytes(value);
 	}
 
 	/** DATETIME에는 JVM 기본 시간대와 무관하게 UTC의 날짜·시각을 전달한다. */

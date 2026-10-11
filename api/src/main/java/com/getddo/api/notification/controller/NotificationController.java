@@ -51,9 +51,7 @@ public class NotificationController {
 			@RequestParam(required = false) Boolean isRead) {
 		CursorResult<Notification> result = service.findMine(
 				user, cursor, size, isRead);
-		return ResponseEnvelope.success(new CursorResult<>(
-				result.getItems().stream().map(NotificationResponse::from).toList(),
-				result.getNextCursor(), result.getTotalElements()));
+		return ResponseEnvelope.success(result.map(NotificationResponse::from));
 	}
 
 	/**

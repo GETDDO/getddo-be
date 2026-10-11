@@ -3,21 +3,22 @@ package com.getddo.core.drawing.service;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+
+import org.springframework.stereotype.Service;
 
 import com.getddo.core.drawing.domain.DrawCandidate;
 import com.getddo.core.drawing.domain.DrawPrize;
 import com.getddo.core.drawing.domain.DrawSelection;
 
 /** 확정된 후보·경품만 입력받아 상위 등수부터 당첨자를 선정한다. */
+@Service
 public final class DrawingSelectionService {
 
 	private final DrawRandom random;
 
+	/** 운영 Bean은 보안 난수 구현으로 생성한다. 테스트는 난수 주입 생성자로 선정 순서를 제어할 수 있다. */
 	public DrawingSelectionService() {
 		this(new SecureDrawRandom());
 	}
@@ -41,13 +42,14 @@ public final class DrawingSelectionService {
 
 		List<DrawCandidate> remaining = new ArrayList<>(candidates);
 		List<DrawPrize> orderedPrizes = new ArrayList<>(prizes);
-		validateCandidates(remaining, weightingEnabled);
-		validatePrizes(orderedPrizes);
+		DrawingSelectionValidator.validateCandidates(remaining, weightingEnabled);
+		DrawingSelectionValidator.validatePrizes(orderedPrizes);
 		orderedPrizes.sort(Comparator.comparingInt(DrawPrize::getRank));
 
-		BigInteger totalWeight = remaining.stream()
-				.map(candidate -> BigInteger.valueOf(candidate.getWeight()))
-				.reduce(BigInteger.ZERO, BigInteger::add);
+		BigInteger totalWeight = BigInteger.ZERO;
+		for (DrawCandidate candidate : remaining) {
+			totalWeight = totalWeight.add(BigInteger.valueOf(candidate.getWeight()));
+		}
 		List<DrawSelection> results = new ArrayList<>();
 		int selectionOrder = 0;
 		for (DrawPrize prize : orderedPrizes) {
@@ -64,43 +66,14 @@ public final class DrawingSelectionService {
 				}
 				int selectedIndex = selectedIndex(remaining, roll);
 				DrawCandidate selected = remaining.remove(selectedIndex);
-			totalWeight = totalWeight.subtract(BigInteger.valueOf(selected.getWeight()));
+				totalWeight = totalWeight.subtract(BigInteger.valueOf(selected.getWeight()));
 				results.add(DrawSelection.selected(prize, slot, ++selectionOrder, selected));
 			}
 		}
 		return List.copyOf(results);
 	}
 
-	private static void validateCandidates(List<DrawCandidate> candidates, boolean weightingEnabled) {
-		Set<UUID> candidateIds = new HashSet<>();
-		Set<UUID> userIds = new HashSet<>();
-		for (DrawCandidate candidate : candidates) {
-			Objects.requireNonNull(candidate, "candidate");
-			if (!candidateIds.add(candidate.getCandidateId()) || !userIds.add(candidate.getUserId())) {
-				throw new IllegalArgumentException("duplicate candidate or user");
-			}
-			if (!weightingEnabled && candidate.getWeight() != 1) {
-				throw new IllegalArgumentException("unweighted candidates must have weight 1");
-			}
-		}
-	}
-
-	private static void validatePrizes(List<DrawPrize> prizes) {
-		Set<UUID> prizeIds = new HashSet<>();
-		Set<Integer> ranks = new HashSet<>();
-		long slotCount = 0;
-		for (DrawPrize prize : prizes) {
-			Objects.requireNonNull(prize, "prize");
-			if (!prizeIds.add(prize.getPrizeId()) || !ranks.add(prize.getRank())) {
-				throw new IllegalArgumentException("duplicate prize or rank");
-			}
-			slotCount += prize.getWinnerCount();
-			if (slotCount > Integer.MAX_VALUE) {
-				throw new IllegalArgumentException("too many prize slots");
-			}
-		}
-	}
-
+	/** 누적 가중치 구간에 해당하는 후보 위치를 찾는다. 난수는 전체 가중치 미만이어야 한다. */
 	private static int selectedIndex(List<DrawCandidate> candidates, BigInteger roll) {
 		BigInteger boundary = BigInteger.ZERO;
 		for (int index = 0; index < candidates.size(); index++) {

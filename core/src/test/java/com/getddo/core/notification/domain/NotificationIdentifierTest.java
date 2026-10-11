@@ -80,6 +80,90 @@ class NotificationIdentifierTest {
 		assertThat(notification.getEventId()).isNull();
 	}
 
+	/** 알림의 모든 저장 필드와 nullable 필드의 동등성·해시 계약을 확인한다. */
+	@Test
+	@DisplayName("알림은 같은 값이면 해시가 같고 각 필드가 달라지면 비동등하다")
+	void comparesAllNotificationFields() {
+		// given
+		UUID id = UUID.randomUUID();
+		UUID event = UUID.randomUUID();
+		Notification original = new Notification(id, "제목", "내용", Instant.EPOCH, false, event, "/events");
+		Notification same = new Notification(id, "제목", "내용", Instant.EPOCH, false, event, "/events");
+		Notification absent = new Notification(id, "제목", "내용", Instant.EPOCH, false, null, null);
+		List<Notification> changed = List.of(
+				new Notification(UUID.randomUUID(), "제목", "내용", Instant.EPOCH, false, event, "/events"),
+				new Notification(id, "다른 제목", "내용", Instant.EPOCH, false, event, "/events"),
+				new Notification(id, "제목", "다른 내용", Instant.EPOCH, false, event, "/events"),
+				new Notification(id, "제목", "내용", Instant.EPOCH.plusSeconds(1), false, event, "/events"),
+				new Notification(id, "제목", "내용", Instant.EPOCH, true, event, "/events"),
+				new Notification(id, "제목", "내용", Instant.EPOCH, false, UUID.randomUUID(), "/events"),
+				new Notification(id, "제목", "내용", Instant.EPOCH, false, null, "/events"),
+				new Notification(id, "제목", "내용", Instant.EPOCH, false, event, "/other"),
+				new Notification(id, "제목", "내용", Instant.EPOCH, false, event, null));
+
+		// when / then
+		assertThat(original).isEqualTo(original).isEqualTo(same).hasSameHashCodeAs(same)
+				.isNotEqualTo(null).isNotEqualTo("제목");
+		assertThat(same).isEqualTo(original);
+		Notification absentCopy = new Notification(id, "제목", "내용", Instant.EPOCH, false, null, null);
+		assertThat(absent).isEqualTo(absentCopy).hasSameHashCodeAs(absentCopy);
+		for (Notification different : changed) {
+			assertThat(original).isNotEqualTo(different);
+			assertThat(different).isNotEqualTo(original);
+		}
+	}
+
+	/** 발송 입력의 저장 필드, 선점 차수와 nullable 링크의 값 비교를 확인한다. */
+	@Test
+	@DisplayName("발송 입력은 같은 값이면 해시가 같고 각 필드와 차수가 달라지면 비동등하다")
+	void comparesAllDeliveryFields() {
+		// given
+		UUID id = UUID.randomUUID();
+		UUID user = UUID.randomUUID();
+		NotificationDelivery original = new NotificationDelivery(id, user, "제목", "내용", "/events", 1);
+		NotificationDelivery same = new NotificationDelivery(id, user, "제목", "내용", "/events", 1);
+		NotificationDelivery absent = new NotificationDelivery(id, user, "제목", "내용", null, 1);
+		List<NotificationDelivery> changed = List.of(
+				new NotificationDelivery(UUID.randomUUID(), user, "제목", "내용", "/events", 1),
+				new NotificationDelivery(id, UUID.randomUUID(), "제목", "내용", "/events", 1),
+				new NotificationDelivery(id, user, "다른 제목", "내용", "/events", 1),
+				new NotificationDelivery(id, user, "제목", "다른 내용", "/events", 1),
+				new NotificationDelivery(id, user, "제목", "내용", "/other", 1),
+				absent,
+				new NotificationDelivery(id, user, "제목", "내용", "/events", 0));
+
+		// when / then
+		assertThat(original).isEqualTo(original).isEqualTo(same).hasSameHashCodeAs(same)
+				.isNotEqualTo(null).isNotEqualTo("제목");
+		assertThat(same).isEqualTo(original);
+		NotificationDelivery absentCopy = new NotificationDelivery(id, user, "제목", "내용", null, 1);
+		assertThat(absent).isEqualTo(absentCopy).hasSameHashCodeAs(absentCopy);
+		for (NotificationDelivery different : changed) {
+			assertThat(original).isNotEqualTo(different);
+			assertThat(different).isNotEqualTo(original);
+		}
+	}
+
+	/** 작업 ID와 선점 차수가 동등성에 모두 포함되는지 확인한다. */
+	@Test
+	@DisplayName("작업은 같은 ID와 차수이면 해시가 같고 ID 또는 차수 변경은 비동등하다")
+	void comparesAllJobFields() {
+		// given
+		UUID id = UUID.randomUUID();
+		NotificationJob original = new NotificationJob(id, 1);
+		NotificationJob same = new NotificationJob(id, 1);
+		List<NotificationJob> changed = List.of(new NotificationJob(UUID.randomUUID(), 1), new NotificationJob(id, 0));
+
+		// when / then
+		assertThat(original).isEqualTo(original).isEqualTo(same).hasSameHashCodeAs(same)
+				.isNotEqualTo(null).isNotEqualTo(id);
+		assertThat(same).isEqualTo(original);
+		for (NotificationJob different : changed) {
+			assertThat(original).isNotEqualTo(different);
+			assertThat(different).isNotEqualTo(original);
+		}
+	}
+
 	/** 검증 시나리오: 알림은 값 비교를 유지하고 문자열 출력에 알림 내용을 노출하지 않는다. */
 	@Test
 	@DisplayName("알림은 값 비교를 유지하고 문자열 출력에 알림 내용을 노출하지 않는다")
