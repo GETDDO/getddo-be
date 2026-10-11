@@ -67,4 +67,5 @@ public final class NotificationJobRequest {
 		return value != null && !value.isBlank()
 				&& value.codePointCount(0, value.length()) <= maxLength;
 	}
+
 }
