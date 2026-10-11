@@ -2,7 +2,9 @@ package com.getddo.db.drawing.mapper;
 
 import java.util.UUID;
 
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.drawing.domain.DrawResult;
@@ -15,18 +17,52 @@ import com.getddo.db.drawing.entity.DrawResultEntity;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
 
 /** 변경 가능한 현재 경품 정보 대신 저장된 규칙·후보에서 결과를 복원한다. */
-@Component
-public class DrawResultMapper {
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
+public interface DrawResultMapper {
 	/** 결과 행을 확정 당시 규칙·후보와 결합한다. 현재 경품 정보 대신 스냅샷 등수·사용자를 사용한다. */
-	public DrawResult toDomain(DrawResultEntity entity, DrawSnapshot snapshot) {
-		DrawSnapshotSource.Prize prize = snapshot.rules().prizes().stream().filter(p -> p.id().equals(entity.getPrizeId()))
-				.findFirst().orElseThrow(() -> new BusinessException(INVALID_RUN));
+	default DrawResult toDomain(DrawResultEntity entity, DrawSnapshot snapshot) {
+		int rank = findPrizeRank(snapshot, entity.getPrizeId());
 		UUID userId = null;
 		if (entity.getResultType() == DrawSelectionResultType.SELECTED) {
-			userId = snapshot.candidates().stream().filter(c -> c.id().equals(entity.getCandidateId()))
-					.findFirst().orElseThrow(() -> new BusinessException(INVALID_RUN)).userId();
+			userId = findCandidateUserId(snapshot, entity.getCandidateId());
 		}
-		return new DrawResult(entity.getId(), new DrawSelection(entity.getPrizeId(), prize.rank(), entity.getSlotNumber(),
-				entity.getSelectionOrder(), entity.getCandidateId(), userId, entity.getResultType()), entity.getCreatedAt());
+		DrawSelection selection = toSelection(entity, rank, userId);
+		return toResult(entity, selection);
+	}
+
+	/** 저장 필드와 스냅샷에서 복원한 등수·사용자를 선정 모델의 생성자에 매핑한다. */
+	@Mapping(target = "prizeId", source = "entity.prizeId")
+	@Mapping(target = "rank", source = "rank")
+	@Mapping(target = "slotNumber", source = "entity.slotNumber")
+	@Mapping(target = "selectionOrder", source = "entity.selectionOrder")
+	@Mapping(target = "candidateId", source = "entity.candidateId")
+	@Mapping(target = "userId", source = "userId")
+	@Mapping(target = "resultType", source = "entity.resultType")
+	DrawSelection toSelection(DrawResultEntity entity, int rank, UUID userId);
+
+	/** DB에서 생성한 식별자·시각과 복원된 선정 내용을 불변 결과 모델로 매핑한다. */
+	@Mapping(target = "id", source = "entity.id")
+	@Mapping(target = "selection", source = "selection")
+	@Mapping(target = "createdAt", source = "entity.createdAt")
+	DrawResult toResult(DrawResultEntity entity, DrawSelection selection);
+
+	/** 확정 당시 경품 등수를 찾으며 스냅샷에 없는 경품은 잘못된 실행으로 거절한다. */
+	private static int findPrizeRank(DrawSnapshot snapshot, UUID prizeId) {
+		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
+			if (prize.id().equals(prizeId)) {
+				return prize.rank();
+			}
+		}
+		throw new BusinessException(INVALID_RUN);
+	}
+
+	/** 확정 당시 후보의 사용자를 찾으며 스냅샷에 없는 후보는 잘못된 실행으로 거절한다. */
+	private static UUID findCandidateUserId(DrawSnapshot snapshot, UUID candidateId) {
+		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
+			if (candidate.id().equals(candidateId)) {
+				return candidate.userId();
+			}
+		}
+		throw new BusinessException(INVALID_RUN);
 	}
 }
