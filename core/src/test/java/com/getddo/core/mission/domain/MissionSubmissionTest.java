@@ -130,25 +130,24 @@ class MissionSubmissionTest {
 	}
 
 	@Test
-	@DisplayName("정답으로 완료한 문항 기록은 그 제출에 포함된 저장된 정답 답변으로만 만들고 사용자는 제출의 사용자다")
-	void progressRequiresCorrectAnswerOfTheSubmission() {
+	@DisplayName("정답으로 완료한 문항 기록은 그 제출에 저장된 정답 답변 ID로만 만들고 사용자·문항은 저장된 값을 쓴다")
+	void progressRequiresStoredCorrectAnswerOfTheSubmission() {
 		// given
 		Mission mission = saved(MissionType.QUIZ);
 		UUID questionId = UUID.randomUUID();
 		QuizAnswer savedCorrect = new QuizAnswer(UUID.randomUUID(), questionId, null, "정답", true);
 		QuizAnswer savedWrong = new QuizAnswer(UUID.randomUUID(), UUID.randomUUID(), null, "오답", false);
-		QuizAnswer otherSubmissionsAnswer = new QuizAnswer(UUID.randomUUID(), questionId, null, "정답", true);
 		MissionSubmission submission = new MissionSubmission(UUID.randomUUID(), mission.getId(),
 				mission.getRewardPolicyId(), USER_ID, false, STARTS, List.of(savedCorrect, savedWrong), List.of());
 		// when
-		QuizQuestionProgress progress = QuizQuestionProgress.of(submission, savedCorrect);
+		QuizQuestionProgress progress = QuizQuestionProgress.of(submission, savedCorrect.getId());
 		// then
 		assertThat(progress.getQuestionId()).isEqualTo(questionId);
 		assertThat(progress.getCorrectAnswerId()).isEqualTo(savedCorrect.getId());
 		assertThat(progress.getUserId()).isEqualTo(USER_ID);
-		assertInvalidAnswer(() -> QuizQuestionProgress.of(submission, savedWrong));
-		assertInvalidAnswer(() -> QuizQuestionProgress.of(submission, otherSubmissionsAnswer));
-		assertThatNullPointerException().isThrownBy(() -> QuizQuestionProgress.of(submission, correctText(questionId)));
+		assertInvalidAnswer(() -> QuizQuestionProgress.of(submission, savedWrong.getId()));
+		assertInvalidAnswer(() -> QuizQuestionProgress.of(submission, UUID.randomUUID()));
+		assertThatNullPointerException().isThrownBy(() -> QuizQuestionProgress.of(submission, null));
 	}
 
 	@Test

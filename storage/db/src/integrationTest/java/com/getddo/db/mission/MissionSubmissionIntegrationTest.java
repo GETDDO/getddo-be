@@ -188,7 +188,7 @@ class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 		QuizQuestion question = mission.getQuizQuestions().get(1);
 		UUID untouchedQuestion = mission.getQuizQuestions().get(0).getId();
 		// when
-		QuizQuestionProgress progress = progressRepository.insert(QuizQuestionProgress.of(saved, correct));
+		QuizQuestionProgress progress = progressRepository.insert(QuizQuestionProgress.of(saved, correct.getId()));
 		// then
 		assertThat(progress.getId()).isNotNull();
 		assertThat(progress.getCorrectAnswerId()).isEqualTo(correct.getId());
@@ -196,7 +196,7 @@ class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 				.containsExactly(question.getId());
 		assertThat(progressRepository.findCorrectQuestionIds(seeds.user(), List.of(question.getId()))).isEmpty();
 		assertThat(progressRepository.findCorrectQuestionIds(userId, List.of())).isEmpty();
-		assertThatThrownBy(() -> progressRepository.insert(QuizQuestionProgress.of(saved, correct)))
+		assertThatThrownBy(() -> progressRepository.insert(QuizQuestionProgress.of(saved, correct.getId())))
 				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
