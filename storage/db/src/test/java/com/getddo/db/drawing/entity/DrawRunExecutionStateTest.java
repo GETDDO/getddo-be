@@ -44,7 +44,7 @@ class DrawRunExecutionStateTest {
 		assertThat(run.getRetryAt()).isNull();
 	}
 
-	/** 후보가 없는 재추첨도 최초 종료 상태로 바꾸지 않고 READY로 준비한다. */
+	/** REPLACEMENT 실행에서 NO_ENTRIES 입력 확정이 IllegalArgumentException으로 거절되는지 검증한다. */
 	@Test @DisplayName("후보가 없는 재추첨도 최초 종료 상태로 바꾸지 않고 READY로 준비한다")
 	void replacementCannotTerminateAsInitialNoEntries() {
 		// given

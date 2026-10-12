@@ -64,7 +64,7 @@ public class DrawConfirmationService {
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public DrawConfirmation confirm(UUID runId, UUID attemptId) { return confirmLocked(runId, attemptId); }
 
-	/** 이벤트·실행 잠금 아래 저장 입력으로 선정·확정한다. CONFIRMED 재요청은 저장 결과를 반환하며 활성 시도의 토큰을 검증한다. */
+	/** 이벤트·실행 잠금 아래 저장 입력으로 선정·확정한다. CONFIRMED 재요청은 토큰 검사 없이 저장 결과를 반환하며, 미확정 실행에만 시도 토큰 검증을 적용한다. */
 	private DrawConfirmation confirmLocked(UUID runId, UUID attemptId) {
 		UUID eventId = repository.findEventId(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		DrawSnapshotSource.Event event = snapshots.lockEvent(eventId)
