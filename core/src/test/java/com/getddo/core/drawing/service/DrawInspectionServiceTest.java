@@ -103,7 +103,7 @@ class DrawInspectionServiceTest {
 				now, now, now, now, new DrawReplacementRulesView(firstId, List.of(new DrawReplacementRulesView.Slot(prizeId, 1, 1)), List.of()));
 		DrawVerificationReferences references = new DrawVerificationReferences(first,
 				List.of(new DrawCandidateView(winner, firstId, eventId, eventId, userId)),
-				List.of(new DrawHistoricalAward(UUID.randomUUID(), firstId, eventId, prizeId, eventId, 1, candidateId, userId, first.getConfirmedAt())));
+				List.of(new DrawHistoricalAward(UUID.randomUUID(), firstId, eventId, prizeId, eventId, 1, candidateId, userId, first.getConfirmedAt(), 0, now.minusSeconds(1), DrawSelectionResultType.SELECTED)));
 		when(repository.findRun(runId)).thenReturn(Optional.of(replacement));
 		when(repository.findReplacementReferences(replacement)).thenReturn(references);
 		when(repository.findAllCandidates(runId)).thenReturn(List.of());

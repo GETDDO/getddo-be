@@ -97,17 +97,20 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		if (run.getSnapshotFixedAt() == null) return new DrawVerificationReferences(original, candidates, List.of());
 		List<DrawHistoricalAward> awards = jdbc.query("""
 			select result.id, result.draw_run_id, run.event_id, result.event_prize_id, prize.event_id as prize_event_id,
-			result.slot_number, result.candidate_id, participant.user_id, run.confirmed_at
+			result.slot_number, result.candidate_id, participant.user_id, run.confirmed_at,
+			run.run_number, result.result_type, cancellation.canceled_at
 			from draw_results result join draw_runs run on run.id = result.draw_run_id
 			join event_prizes prize on prize.id = result.event_prize_id
-			join draw_candidates candidate on candidate.id = result.candidate_id
-			join event_participants participant on participant.id = candidate.participant_id
+			left join draw_candidates candidate on candidate.id = result.candidate_id
+			left join event_participants participant on participant.id = candidate.participant_id
+			left join award_cancellations cancellation on cancellation.draw_result_id = result.id
 			where run.event_id = ? and run.run_number < ? and run.confirmed_at <= ?
-			and run.status = 'CONFIRMED' and result.result_type = 'SELECTED'
+			and run.status = 'CONFIRMED'
 			order by run.run_number, result.id
 			""", (row, index) -> new DrawHistoricalAward(id(row, "id"), id(row, "draw_run_id"), id(row, "event_id"),
 				id(row, "event_prize_id"), id(row, "prize_event_id"), row.getInt("slot_number"), id(row, "candidate_id"),
-				id(row, "user_id"), instant(row, "confirmed_at")), toBytes(run.getEventId()), run.getRunNumber(),
+				id(row, "user_id"), instant(row, "confirmed_at"), row.getInt("run_number"), instant(row, "canceled_at"),
+				DrawSelectionResultType.valueOf(row.getString("result_type"))), toBytes(run.getEventId()), run.getRunNumber(),
 				java.time.LocalDateTime.ofInstant(run.getSnapshotFixedAt(), java.time.ZoneOffset.UTC));
 		return new DrawVerificationReferences(original, candidates, awards);
 	}

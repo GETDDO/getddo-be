@@ -132,7 +132,7 @@ class DrawReplacementVerificationTest {
 		DrawSnapshot.Candidate previouslyWon = fixture.candidates().getFirst().getSnapshot();
 		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
 		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 3,
-				previouslyWon.id(), previouslyWon.userId(), fixedAt.minusSeconds(30)));
+				previouslyWon.id(), previouslyWon.userId(), fixedAt.minusSeconds(30), 1, fixedAt.minusSeconds(1), DrawSelectionResultType.SELECTED));
 		DrawVerificationReferences references = new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), awards);
 		// when / then
 		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(), references), "REPLACEMENT_SOURCE");
@@ -197,6 +197,42 @@ class DrawReplacementVerificationTest {
 		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results()), "REPLACEMENT_SOURCE");
 	}
 
+	@Test @DisplayName("취소되지 않은 자리 선택·유지 당첨 누락·취소된 당첨 유지를 거절한다")
+	void rejectsIncompleteOrUncancelledAssignments() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		DrawReplacementRulesView rules = fixture.run().getReplacementRules();
+		List<DrawHistoricalAward> uncanceled = fixture.references().getHistoricalAwards().stream()
+				.map(a -> history(a, null)).toList();
+		// when / then
+		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), uncanceled)), "REPLACEMENT_SLOTS");
+		DrawRunView missing = replacement(fixture.run().getRules(), new DrawReplacementRulesView(originalId,
+				rules.getTargetSlots(), rules.getRetainedAwards().subList(0, 1)));
+		assertFailed(check(fixture, missing, fixture.candidates(), fixture.results()), "REPLACEMENT_SLOTS");
+		List<DrawHistoricalAward> canceledRetained = fixture.references().getHistoricalAwards().stream()
+				.map(a -> history(a, fixedAt.minusSeconds(1))).toList();
+		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), canceledRetained)), "REPLACEMENT_SLOTS");
+	}
+
+	@Test @DisplayName("고정 이후의 취소는 유지 배정을 소급 변경하지 않는다")
+	void usesCancellationTimeInsteadOfCurrentStatus() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		List<DrawHistoricalAward> history = fixture.references().getHistoricalAwards().stream()
+				.map(a -> a.getSlotNumber() == 3 ? a : history(a, fixedAt.plusSeconds(1))).toList();
+		// when / then
+		assertThat(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), history)))
+				.allMatch(DrawCheckItem::isPassed);
+	}
+
+	private DrawHistoricalAward history(DrawHistoricalAward a, Instant canceledAt) {
+		return new DrawHistoricalAward(a.getId(), a.getRunId(), a.getEventId(), a.getPrizeId(), a.getPrizeEventId(),
+				a.getSlotNumber(), a.getCandidateId(), a.getUserId(), a.getConfirmedAt(), a.getRunNumber(), canceledAt, a.getResultType());
+	}
+
 	private List<DrawCheckItem> check(Fixture fixture, DrawRunView run, List<DrawCandidateView> candidates, List<DrawResultView> results) {
 		return DrawStoredVerification.verify(run, candidates, results, fixture.references());
 	}
@@ -214,7 +250,8 @@ class DrawReplacementVerificationTest {
 		for (int slot = 1; slot <= 3; slot++) {
 			DrawSnapshot.Candidate candidate = originals.get(slot - 1).getSnapshot();
 			history.add(new DrawHistoricalAward(UUID.randomUUID(), originalId, eventId, prizeId, eventId, slot,
-					candidate.id(), candidate.userId(), first.getConfirmedAt()));
+					candidate.id(), candidate.userId(), first.getConfirmedAt(), 0,
+					targets.contains(slot) ? fixedAt.minusSeconds(1) : null, DrawSelectionResultType.SELECTED));
 		}
 		DrawReplacementRulesView metadata = new DrawReplacementRulesView(originalId,
 				targets.stream().map(slot -> new DrawReplacementRulesView.Slot(prizeId, 1, slot)).toList(),

@@ -5,7 +5,7 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 이전 확정 실행이 생성한 불변 SELECTED 결과. 현재 취소·공개 여부는 선정 근거로 사용하지 않는다. */
+/** 이전 실행의 자리 결과와 취소 시각. 검증 입력 고정 당시의 최신 배정을 판단한다. */
 @Getter
 @RequiredArgsConstructor
 public final class DrawHistoricalAward {
@@ -18,4 +18,14 @@ public final class DrawHistoricalAward {
 	private final UUID candidateId;
 	private final UUID userId;
 	private final Instant confirmedAt;
+	private final int runNumber;
+	private final Instant canceledAt;
+	private final DrawSelectionResultType resultType;
+
+	public DrawHistoricalAward(UUID id, UUID runId, UUID eventId, UUID prizeId, UUID prizeEventId,
+			int slotNumber, UUID candidateId, UUID userId, Instant confirmedAt) {
+		this(id, runId, eventId, prizeId, prizeEventId, slotNumber, candidateId, userId,
+				confirmedAt, 0, null, DrawSelectionResultType.SELECTED);
+	}
+
 }
