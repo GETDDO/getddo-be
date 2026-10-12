@@ -66,20 +66,34 @@ class DrawPublicationTest {
 		// when / then
 		assertThatThrownBy(() -> new DrawPublicationRun(null, eventId, 1, DrawRunStatus.CONFIRMED,
 				NOW, List.of(), null)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationRun(initialRun, null, 1, DrawRunStatus.CONFIRMED,
+				NOW, List.of(), null)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationRun(initialRun, eventId, 1, null,
+				NOW, List.of(), null)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationRun(initialRun, eventId, 0, DrawRunStatus.CONFIRMED,
+				NOW, List.of(), null)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new DrawPublicationRun(initialRun, eventId, 1, DrawRunStatus.CONFIRMED,
 				NOW, List.of(), confirmation)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new DrawPublicationCancellation(null, UUID.randomUUID(), null, "사유"))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationCancellation(UUID.randomUUID(), null, null, "사유"))
 				.isInstanceOf(NullPointerException.class);
 		assertThat(new DrawPublicationCancellation(UUID.randomUUID(), UUID.randomUUID(), null, "사유").replacementRunId()).isNull();
 		assertThatThrownBy(() -> new DrawPublicationChange(null, List.of())).isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationChange.SlotChange(UUID.randomUUID(), 0, null, null, null, null))
 				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new DrawPublicationChange.SlotChange(null, 1, null, null, null, null))
+				.isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationComposition(false, null, null, null, List.of()))
 				.isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationConfirmation(eventId, null, null)).isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 0, UUID.randomUUID(), UUID.randomUUID()))
 				.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 1, UUID.randomUUID(), null))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublishedSlot(null, 1, UUID.randomUUID(), UUID.randomUUID()))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 1, null, UUID.randomUUID()))
 				.isInstanceOf(NullPointerException.class);
 	}
 }

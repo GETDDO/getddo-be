@@ -24,6 +24,7 @@ public final class DrawPublicationRun {
 			Instant confirmedAt, List<DrawResult> results, DrawResultConfirmation confirmation) {
 		this.runId = Objects.requireNonNull(runId, "runId");
 		this.eventId = Objects.requireNonNull(eventId, "eventId");
+		if (runNumber < 1) throw new IllegalArgumentException("replacement runNumber must be positive");
 		this.runNumber = runNumber;
 		this.status = Objects.requireNonNull(status, "status");
 		if (confirmation != null && !runId.equals(confirmation.runId()))
