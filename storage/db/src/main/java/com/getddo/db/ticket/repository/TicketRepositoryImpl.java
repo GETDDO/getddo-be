@@ -49,6 +49,13 @@ public class TicketRepositoryImpl implements TicketRepository {
 			limit :limit
 			""";
 
+	private static final String DUE_FOR_EXPIRY = """
+			select * from tickets
+			where status in ('AVAILABLE', 'RETURNED') and expires_at <= :now
+			limit :limit
+			for update skip locked
+			""";
+
 	/** 후보 ID를 한 번에 읽는 최소 개수. 건너뛰는 행이 있어도 대개 한 번에 채운다. */
 	private static final int MIN_CANDIDATE_PAGE = 20;
 
@@ -114,6 +121,20 @@ public class TicketRepositoryImpl implements TicketRepository {
 			last = page.get(page.size() - 1);
 		}
 		return locked;
+	}
+
+	/**
+	 * {@inheritDoc} 조건에 맞는 행을 {@code SKIP LOCKED}로 잠가 곧바로 Entity로 읽는다. 다른 처리가 잠근 행은 결과에서
+	 * 빠지며 기다리지 않는다. 같은 트랜잭션에서 미리 읽어 둔 Entity가 없는 호출을 전제로 한다.
+	 */
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<Ticket> findDueForExpiryForUpdate(Instant now, int limit) {
+		List<TicketEntity> due = entityManager.createNativeQuery(DUE_FOR_EXPIRY, TicketEntity.class)
+				.setParameter("now", now)
+				.setParameter("limit", limit)
+				.getResultList();
+		return due.stream().map(ticketMapper::toDomain).toList();
 	}
 
 	/** 해당 등급의 쓸 수 있는 응모권 {@code (id, expires_at)}을 만료가 이른 순, 같으면 ID순으로 잠그지 않고 읽는다. */
