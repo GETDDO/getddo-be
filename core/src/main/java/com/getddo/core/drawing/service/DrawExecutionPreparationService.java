@@ -11,7 +11,6 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
-import com.getddo.core.event.domain.EventStatus;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
 /** 입력 확정은 선정과 분리하여 선정 실패에도 저장 스냅샷을 보존한다. */
@@ -33,9 +32,7 @@ public class DrawExecutionPreparationService {
 		if (!attemptId.equals(state.getAttemptId()) || state.getLeaseUntil() == null
 				|| !time.now().isBefore(state.getLeaseUntil())) throw new BusinessException(ATTEMPT_LOST);
 		if (state.getFixedAt() != null) return;
-		if (event.deleted() || event.status() == EventStatus.CANCELED || event.status() == EventStatus.SCHEDULED
-				|| time.now().isBefore(event.endsAt().plusSeconds(300))
-				|| (state.getDrawType() == DrawType.INITIAL && event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)) {
+		if (!DrawExecutionEligibility.isExecutable(event, state.getDrawType(), time.now())) {
 			throw new BusinessException(NOT_EXECUTABLE);
 		}
 		List<DrawInputPreparation> matching = preparations.stream().filter(p -> p.supports(state.getDrawType())).toList();
@@ -46,6 +43,5 @@ public class DrawExecutionPreparationService {
 				|| (input.status() != DrawRunStatus.READY && input.status() != DrawRunStatus.NO_ENTRIES)) {
 			throw new BusinessException(INVALID_RUN);
 		}
-		if (input.status() == DrawRunStatus.NO_ENTRIES) executions.release(runId);
 	}
 }

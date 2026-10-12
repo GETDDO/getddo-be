@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -100,8 +101,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 
 	@Override public void validateAttempt(UUID runId, UUID attemptId) {
 		DrawRunEntity run = runs.findById(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
-		if (!java.util.Objects.equals(run.getAttemptId(), attemptId)
-				|| (attemptId == null && run.getStatus() != DrawRunStatus.READY)) invalid();
+		if (!java.util.Objects.equals(run.getAttemptId(), attemptId)) invalid();
 	}
 
 	/** 최초 조건·역대 당첨 제외·연결 취소 자리·유지 결과를 검증한다. 현재 원본으로 입력을 바꾸지 않는다. */
@@ -109,7 +109,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 		DrawRunEntity original = runs.findById(snapshot.rules().originalRunId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		if (original.getDrawType() != DrawType.INITIAL || original.getStatus() != DrawRunStatus.CONFIRMED
 				|| !original.getEventId().equals(snapshot.eventId())) invalid();
-		DrawSnapshot.Rules rules = snapshots.toDomain(original, links.findCandidates(original.getId())).rules();
+		DrawSnapshot.Rules rules = snapshots.toDomain(original, List.of()).rules();
 		DrawSnapshot.Rules replacement = snapshot.rules();
 		if (!rules.prizes().equals(replacement.prizes()) || rules.weightingEnabled() != replacement.weightingEnabled()
 				|| !java.util.Objects.equals(rules.eventType(), replacement.eventType())
@@ -135,19 +135,27 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			""", (row, index) -> fromBytes(row.getBytes("event_prize_id")) + ":" + row.getInt("slot_number"),
 				toBytes(snapshot.runId()), toBytes(snapshot.eventId()));
 		if (targetSlots.isEmpty() || canceledSlots.size() != targetSlots.size() || !targetSlots.equals(new HashSet<>(canceledSlots))) invalid();
-		Set<UUID> retainedIds = new HashSet<>();
-		for (DrawSnapshot.RetainedAward retained : replacement.retainedAwards()) {
-			if (retained.resultId() == null || !retainedIds.add(retained.resultId())) invalid();
-			Integer count = jdbc.queryForObject("""
-				select count(*) from draw_results r join draw_runs run on run.id = r.draw_run_id
-				join draw_candidates c on c.id = r.candidate_id join event_participants p on p.id = c.participant_id
-				where r.id = ? and run.event_id = ? and run.status = 'CONFIRMED' and r.result_type = 'SELECTED'
-				and p.user_id = ? and r.event_prize_id = ? and r.slot_number = ?
-				and not exists (select 1 from award_cancellations cancellation where cancellation.draw_result_id = r.id)
-				""", Integer.class, toBytes(retained.resultId()), toBytes(snapshot.eventId()), toBytes(retained.userId()),
-					toBytes(retained.prizeId()), retained.slotNumber());
-			if (count == null || count != 1) invalid();
-		}
+		validateRetainedAwards(snapshot);
+	}
+
+	/** 서비스가 검증한 유지 결과 ID를 일괄 조회해 사용자·경품·자리와 취소 여부를 대조한다. */
+	private void validateRetainedAwards(DrawSnapshot snapshot) {
+		List<DrawSnapshot.RetainedAward> expected = snapshot.rules().retainedAwards();
+		if (expected.isEmpty()) return;
+		String placeholders = String.join(",", Collections.nCopies(expected.size(), "?"));
+		List<Object> parameters = new ArrayList<>();
+		parameters.add(toBytes(snapshot.eventId()));
+		for (DrawSnapshot.RetainedAward retained : expected) parameters.add(toBytes(retained.resultId()));
+		List<DrawSnapshot.RetainedAward> stored = jdbc.query("""
+			select r.id, p.user_id, r.event_prize_id, r.slot_number
+			from draw_results r join draw_runs run on run.id = r.draw_run_id
+			join draw_candidates c on c.id = r.candidate_id join event_participants p on p.id = c.participant_id
+			where run.event_id = ? and r.id in (%s) and run.status = 'CONFIRMED' and r.result_type = 'SELECTED'
+			and not exists (select 1 from award_cancellations cancellation where cancellation.draw_result_id = r.id)
+			""".formatted(placeholders), (row, index) -> new DrawSnapshot.RetainedAward(
+				fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")),
+				fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number")), parameters.toArray());
+		if (!new HashSet<>(stored).equals(new HashSet<>(expected))) invalid();
 	}
 
 	/** 후보의 참여 이벤트·생성 원본 실행을 검증하고 후보와 사용자의 연결을 기록한다. */

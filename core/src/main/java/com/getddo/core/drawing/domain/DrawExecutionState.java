@@ -1,6 +1,7 @@
 package com.getddo.core.drawing.domain;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.Getter;
 
@@ -18,7 +19,13 @@ public final class DrawExecutionState {
 	private final Instant retryCycleStartedAt;
 	public DrawExecutionState(UUID runId, UUID eventId, DrawType drawType, DrawRunStatus status,
 			Instant fixedAt, UUID attemptId, Instant leaseUntil, Instant retryAt, Instant retryCycleStartedAt) {
-		this.runId = runId; this.eventId = eventId; this.drawType = drawType; this.status = status;
+		this.runId = Objects.requireNonNull(runId, "runId");
+		this.eventId = Objects.requireNonNull(eventId, "eventId");
+		this.drawType = Objects.requireNonNull(drawType, "drawType");
+		this.status = Objects.requireNonNull(status, "status");
+		if ((attemptId == null) != (leaseUntil == null)) {
+			throw new IllegalArgumentException("시도 ID와 임대 시각은 함께 있어야 합니다.");
+		}
 		this.fixedAt = fixedAt; this.attemptId = attemptId; this.leaseUntil = leaseUntil;
 		this.retryAt = retryAt; this.retryCycleStartedAt = retryCycleStartedAt;
 	}

@@ -17,7 +17,7 @@ public interface DrawResultRepository {
 	Optional<DrawSnapshot> lockSnapshot(UUID runId);
 	/** 실행·연결 후보·참가자·경품의 이벤트와 후보 사용자 일치를 검증한다. 원본 조건은 재계산하지 않는다. */
 	void validateRelations(DrawSnapshot snapshot);
-	/** 활성 시도는 해당 토큰으로만 확정한다. 토큰 없는 기존 READY 확정 호출은 유지한다. */
+	/** 저장된 시도 토큰과 호출 토큰의 일치를 검증한다. 허용 상태·RUNNING 토큰 필수 규칙은 서비스가 검사한다. */
 	void validateAttempt(UUID runId, UUID attemptId);
 	/** READY 실행에 비정상적인 부분 결과가 남아 있는지 확인하여 기존 결과의 덮어쓰기를 방지한다. */
 	boolean hasResults(UUID runId);

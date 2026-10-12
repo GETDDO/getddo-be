@@ -17,7 +17,6 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
-import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.user.domain.User;
 import com.getddo.core.user.domain.UserRole;
 import com.getddo.core.user.domain.UserStatus;
@@ -68,7 +67,7 @@ public class DrawExecutionControlService {
 			return new DrawExecutionClaim(state, false);
 		}
 		if (manual && state.getStatus() != DrawRunStatus.FAILED) throw new BusinessException(INVALID_RUN);
-		if (!executable(event, state.getDrawType(), now)) {
+		if (!DrawExecutionEligibility.isExecutable(event, state.getDrawType(), now)) {
 			if (manual) throw new BusinessException(NOT_EXECUTABLE);
 			// 실행 불가인 등록 작업을 계속 폴링하지 않는다. FAILED 이력은 유지하고 예약만 해제한다.
 			if (state.getStatus() == DrawRunStatus.FAILED) executions.fail(runId, null);
@@ -93,17 +92,11 @@ public class DrawExecutionControlService {
 
 	/** 복구 이후 새 시도를 같은 트랜잭션에서 시작하지 않아 이후 거절이 복구를 롤백하지 않는다. */
 	private DrawExecutionClaim recovered(DrawExecutionState state, DrawSnapshotSource.Event event, Instant now, boolean manual) {
-		if (!executable(event, state.getDrawType(), now)) {
+		if (!DrawExecutionEligibility.isExecutable(event, state.getDrawType(), now)) {
 			executions.fail(state.getRunId(), null);
 			return new DrawExecutionClaim(lock(state.getRunId()), false, manual ? NOT_EXECUTABLE : null);
 		}
 		return new DrawExecutionClaim(state, false);
-	}
-
-	private static boolean executable(DrawSnapshotSource.Event event, DrawType type, Instant now) {
-		return !event.deleted() && event.status() != EventStatus.CANCELED && event.status() != EventStatus.SCHEDULED
-				&& !now.isBefore(event.endsAt().plusSeconds(300))
-				&& (type != DrawType.INITIAL || event.status() == EventStatus.OPEN || event.status() == EventStatus.CLOSED);
 	}
 
 	/** 실제 실행 트랜잭션이 종료·롤백된 뒤 호출한다. 저장 재시도에는 같은 attemptId를 전달한다. */

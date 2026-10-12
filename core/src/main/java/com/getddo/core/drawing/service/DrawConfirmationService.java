@@ -27,7 +27,6 @@ import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
-import com.getddo.core.event.domain.EventStatus;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
@@ -85,9 +84,7 @@ public class DrawConfirmationService {
 		repository.validateAttempt(runId, attemptId);
 		if ((snapshot.status() != DrawRunStatus.READY && snapshot.status() != DrawRunStatus.RUNNING)
 				|| repository.hasResults(runId)) invalid();
-		if (event.deleted() || event.status() == EventStatus.CANCELED || event.status() == EventStatus.SCHEDULED
-				|| (snapshot.drawType() == DrawType.INITIAL && event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
-				|| time.now().isBefore(event.endsAt().plusSeconds(300))) {
+		if (!DrawExecutionEligibility.isExecutable(event, snapshot.drawType(), time.now())) {
 			throw new BusinessException(NOT_EXECUTABLE);
 		}
 		validateInput(snapshot);
@@ -159,7 +156,6 @@ public class DrawConfirmationService {
 		try {
 			if (!snapshot.candidates().isEmpty()) DrawingSelectionValidator.validateCandidates(toCandidates(snapshot),
 					snapshot.rules().weightingEnabled());
-			DrawingSelectionValidator.validatePrizes(toPrizes(snapshot));
 		} catch (IllegalArgumentException | NullPointerException invalidInput) {
 			// 저장 스냅샷 검증은 선정기의 입력 오류를 일관된 도메인 오류로 보고한다.
 			invalid();
