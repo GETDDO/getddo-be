@@ -20,7 +20,7 @@
 | [V003](../../storage/db/src/main/resources/db/migration/mission/V003__create_mission_tables.sql) | `missions`, `mission_submissions`, `mission_reward_claims`, `mission_quiz_questions`, `quiz_question_options`, `quiz_answers`, `quiz_question_progress`, `survey_questions`, `survey_question_options`, `survey_answers` | M01~M04, AM01~AM03 |
 | [V004](../../storage/db/src/main/resources/db/migration/attendance/V004__create_attendance_tables.sql) | `attendances`, `attendance_streaks`, `attendance_streak_policy_sets`, `attendance_streak_policies`, `attendance_reward_claims` | AT01~AT03, AP01~AP04 |
 | [V005](../../storage/db/src/main/resources/db/migration/game/V005__create_game_tables.sql) | `games`, `game_plays`, `user_game_stats`, `game_reward_claims` | G01~G05, AG01~AG03, AR07 |
-| [V006](../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql) | `events`, `event_prizes`, `event_participants`, `event_entries`, `banners` | E01~E09(E04 응모, E07 자격 조회는 `event_participants`·`event_entries`와 `events` 읽기), B01, AE01~AE08, AB01~AB05, AO06~AO07 |
+| [V006](../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql) | `events`, `event_prizes`, `event_participants`, `event_entries`, `banners` | E01~E09, B01, AE01~AE08, AB01~AB05, AO06~AO07 |
 | [V007](../../storage/db/src/main/resources/db/migration/drawing/V007__create_drawing_tables.sql) | `draw_runs`, `draw_candidates`, `draw_results`, `current_awards`, `award_cancellations`, `publications` | E08~E09, AD01~AD07, 최초 자동 추첨·발표 |
 | [V008](../../storage/db/src/main/resources/db/migration/ticket/V008__create_ticket_tables.sql) | `ticket_wallets`, `ticket_ledger`, `ticket_ledger_allocations`, `ticket_refund_jobs`, `ticket_recovery_targets` | T01~T02, AR04~AR05, AO03~AO05·AO08, 지급·차감·반환·만료 |
 | [V009](../../storage/db/src/main/resources/db/migration/abuse/V009__create_abuse_tables.sql) | `abuse_cases` | AR01~AR07, 탐지 기록 |
@@ -29,6 +29,18 @@
 | [V014](../../storage/db/src/main/resources/db/migration/notification/V014__add_notification_worker_indexes.sql) | 알림 생성·발송 대기 및 선점 만료 조회용 인덱스 | GD-68 비동기 알림 처리 기반. 신규 공개 API는 추가하지 않음 |
 | [V016](../../storage/db/src/main/resources/db/migration/drawing/V016__add_initial_draw_terminal_states.sql) | 최초 추첨의 응모자 없음·과거 전원 제외 상태와 입력 CHECK | GD-130 이후 새 전원 제외 실행은 생성하지 않으며 과거 조회는 유지. 공개 API는 추가하지 않음 |
 | [V018](../../storage/db/src/main/resources/db/migration/ticket/V018__add_ticket_usable_lookup_index.sql) | `tickets`의 `(user_id, grade, expires_at)` 인덱스 | GD-133 응모권 차감 서비스의 사용 가능 응모권 조회(사용자·등급·만료 시각 조건, 만료 이른 순). 반환은 응모권 ID로 조회하므로 쓰지 않음. 공개 API는 추가하지 않음 |
+
+## 응모 API 현행 매핑 (GD-134)
+
+위 표는 교체 전 SQL의 기록이다. 아래는 현재 스키마에서 응모 API(E04·E07)가 실제로 읽고 쓰는 테이블이다.
+
+| API | 경로 | 테이블 | 접근 |
+| --- | --- | --- | --- |
+| E04 응모 | `POST /api/v1/events/{eventId}/entries` | `events` | 응모 판단에 필요한 컬럼만 `FOR SHARE`로 읽는다(네이티브 SQL). 응모끼리 막지 않고 추첨의 `FOR UPDATE`는 진행 중 응모를 기다린다. |
+| E04 응모 | 같음 | `event_participants` | 사용자당 이벤트 한 행을 PK로 `FOR UPDATE` 잠그고(없으면 생성) 누적 차감 수량을 늘린다. |
+| E04 응모 | 같음 | `event_entries` | 접수된 응모만 저장한다. ID는 `Idempotency-Key` UUID이고 같은 키의 재요청은 기존 행을 돌려준다. |
+| E04 응모 | 같음 | `tickets`, `ticket_histories` | 응모 행 저장 뒤 차감 서비스가 응모권을 `SPENT`로 바꾸고 `USE` 이력을 남긴다. |
+| E07 자격 조회 | `GET /api/v1/events/{eventId}/eligibility` | `events`, `event_participants`, `tickets` | 잠금 없이 읽기만 한다. 사용 수량은 응모자 행, 보유 장수는 응모권 조회(T01의 등급별 보유)를 쓴다. |
 
 ## 확인된 차이와 구현 검토 항목
 
