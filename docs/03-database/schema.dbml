@@ -192,6 +192,10 @@ Table game_plays {
   game_id binary(16) [not null, note: '게임 ID']
   user_id binary(16) [not null, note: '사용자 ID']
   rule_version varchar(30) [not null, note: '적용 게임 규칙 버전']
+  rules_snapshot json [note: '시작 시점 공개 규칙 원본. 과거 행은 검증 기준 네 컬럼 모두 NULL']
+  play_token_hash varchar(64) [note: '서버 발급 플레이 토큰 SHA-256']
+  generator_version varchar(50) [note: '문제 생성 알고리즘 버전']
+  generation_seed bigint [note: '0이 아닌 unsigned 32-bit 문제 생성값']
   score bigint [note: '서버가 판정한 게임 점수']
   result_hash varchar(64) [note: '같은 플레이에 다른 결과 제출을 방지하는 해시']
   created_at datetime(6) [not null, note: '플레이 시작·행 생성 시각 UTC']
@@ -201,7 +205,12 @@ Table game_plays {
     (id, user_id, game_id) [unique, name: 'uq_game_plays_1']
   }
 
-  Note: '서버 발급 ID로 동일 플레이 재제출 구분. 유효·무효·처리 중 판정과 최초 결과 보존 방식은 상태 컬럼 삭제에 따라 보완 필요.'
+  checks {
+    `(rules_snapshot IS NULL AND play_token_hash IS NULL AND generator_version IS NULL AND generation_seed IS NULL) OR (rules_snapshot IS NOT NULL AND JSON_TYPE(rules_snapshot) = 'OBJECT' AND play_token_hash IS NOT NULL AND CHAR_LENGTH(play_token_hash) = 64 AND generator_version IS NOT NULL AND CHAR_LENGTH(generator_version) > 0 AND generation_seed IS NOT NULL AND generation_seed BETWEEN 1 AND 4294967295)` [name: 'chk_game_play_context']
+    `rules_snapshot IS NULL OR (completed_at IS NULL AND score IS NULL AND result_hash IS NULL) OR (completed_at IS NOT NULL AND completed_at >= created_at AND result_hash IS NOT NULL AND CHAR_LENGTH(result_hash) = 64 AND (score IS NULL OR score >= 0))` [name: 'chk_game_play_result']
+  }
+
+  Note: '검증 기준이 있는 신규 행: completed_at NULL=미완료, 완료 시 score NOT NULL=VALID(0점 포함), score NULL=INVALID. 같은 result_hash는 최초 결과 유지. PROCESSING은 영속 상태가 아닌 API 처리 중 응답이며 후속 구현.'
 }
 
 Table attendances {

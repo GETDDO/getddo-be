@@ -1,5 +1,7 @@
 # ERD·설명
 
+- [플레이 검증 기준과 최초 결과 저장](game-play-storage.md): GD-170 저장 모델·트랜잭션 경계·V020 업그레이드.
+
 추첨 후보 재사용·결과 복합 FK와 선정·공개 분리의 근거는 [ADR-0003](../04-decisions/0003-drawing-snapshots-and-publications.md)을 참고한다. 최신 DBML에는 공개 버전별 포함 결과와 재추첨 관리자 확인 이력을 반영했다. GD-93에서 초기 Flyway SQL에 반영했으며, 실제 DB 적용과 서비스 코드의 호환성 수정은 후속 작업이다.
 
 - [API·DB 대응과 스키마 검토](api-schema-mapping.md): 공용 API 초안과 현재 Flyway SQL의 대응 및 백엔드 저장 설계 검토 항목.
