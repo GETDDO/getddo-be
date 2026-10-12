@@ -11,6 +11,7 @@ import com.getddo.core.drawing.domain.DrawPublicationChange;
 public record DrawPublicationChangeResponse(UUID id, UUID publicationId, int revision, UUID drawRunId,
 		String reason, UUID confirmedBy, Instant confirmedAt, Instant updatedAt,
 		List<SlotChange> changes) {
+	/** 실제 공개 버전의 메타데이터와 자리별 사용자 변경을 응답 값으로 변환한다. */
 	public static DrawPublicationChangeResponse from(DrawPublicationChange change) {
 		DrawPublication publication = change.publication();
 		return new DrawPublicationChangeResponse(publication.id(), publication.id(), publication.revision(),
@@ -19,6 +20,7 @@ public record DrawPublicationChangeResponse(UUID id, UUID publicationId, int rev
 	}
 
 	public record SlotChange(UUID prizeId, int slotNumber, UUID beforeUserId, UUID afterUserId) {
+		/** 경품 자리의 공개 전후 사용자만 응답 값으로 변환한다. */
 		static SlotChange from(DrawPublicationChange.SlotChange change) {
 			return new SlotChange(change.prizeId(), change.slotNumber(), change.beforeUserId(), change.afterUserId());
 		}

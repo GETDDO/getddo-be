@@ -17,6 +17,7 @@ public final class DrawPublishedSlot {
 	private final UUID resultId;
 	private final UUID userId;
 
+	/** 경품의 양수 자리 번호와 실제 공개된 결과·사용자를 검증해 보존한다. */
 	public DrawPublishedSlot(UUID prizeId, int slotNumber, UUID resultId, UUID userId) {
 		this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
 		if (slotNumber < 1) throw new IllegalArgumentException("slotNumber must be positive");

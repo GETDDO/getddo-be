@@ -29,6 +29,7 @@ public class DrawPublicationResultEntity implements Persistable<DrawPublicationR
 	@Transient
 	private boolean newEntity = true;
 
+	/** 공개 버전·결과 복합키와 원본 실행·관리자 확인 참조를 저장 값으로 구성한다. */
 	public DrawPublicationResultEntity(UUID publicationId, UUID eventId, DrawPublication.Entry entry) {
 		id = new DrawPublicationResultId(publicationId, entry.resultId());
 		this.eventId = eventId;
@@ -36,13 +37,16 @@ public class DrawPublicationResultEntity implements Persistable<DrawPublicationR
 		confirmationId = entry.confirmationId();
 	}
 
+	/** 저장된 식별자와 업무 참조·시각을 공개 업무의 도메인 값으로 복원한다. */
 	public DrawPublication.Entry toDomain() {
 		return new DrawPublication.Entry(id.getResultId(), runId, confirmationId);
 	}
 
+	/** 할당된 복합키의 신규 행도 merge가 아닌 persist로 저장할 수 있도록 신규 상태를 반환한다. */
 	@Override
 	public boolean isNew() { return newEntity; }
 
+	/** 저장 또는 로드가 완료된 공개 포함 행을 기존 영속 행으로 표시한다. */
 	@PostLoad
 	@PostPersist
 	private void markPersisted() { newEntity = false; }

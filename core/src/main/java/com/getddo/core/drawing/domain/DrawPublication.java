@@ -25,6 +25,7 @@ public final class DrawPublication {
 	private final Instant publishedAt;
 	private final List<Entry> entries;
 
+	/** 필수 메타데이터와 포함 결과의 불변식을 검증하고 공개 버전을 구성한다. */
 	public DrawPublication(UUID id, UUID eventId, UUID sourceDrawId, int revision,
 		DrawPublicationType type, String reason, UUID confirmedBy, Instant confirmedAt,
 		Instant publishedAt, List<Entry> entries) {
@@ -82,6 +83,7 @@ public final class DrawPublication {
 		private final UUID runId;
 		private final UUID confirmationId;
 
+		/** 공개에 포함된 결과의 원본 실행과 선택적인 관리자 확인 참조를 보존한다. */
 		public Entry(UUID resultId, UUID runId, UUID confirmationId) {
 			Objects.requireNonNull(resultId, "resultId");
 			Objects.requireNonNull(runId, "runId");

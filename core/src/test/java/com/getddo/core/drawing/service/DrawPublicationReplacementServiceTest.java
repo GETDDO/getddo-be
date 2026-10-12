@@ -67,6 +67,7 @@ class DrawPublicationReplacementServiceTest {
 	private EventStatus eventStatus = EventStatus.CLOSED;
 	private Instant endsAt = NOW.minusSeconds(300);
 
+	/** 각 시나리오에 사용할 공개·확인 서비스와 저장·사용자 대역을 준비한다. */
 	@BeforeEach
 	void setUp() {
 		when(clock.instant()).thenReturn(NOW);
@@ -117,6 +118,7 @@ class DrawPublicationReplacementServiceTest {
 		});
 	}
 
+	/** 최초 공개 전 취소 결과를 제거하고 유지 결과와 확인된 새 결과를 한 번 공개한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 공개 전 취소 결과를 제거하고 유지 결과와 확인된 새 결과를 한 번 공개한다")
 	void confirmsAndMergesInitialList() {
@@ -137,6 +139,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(latest.publishedAt()).isEqualTo(NOW);
 	}
 
+	/** 마감 +5분 전 확인은 기록만 저장하고 예정 시각 경계에 최초 공개한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("마감 +5분 전 확인은 기록만 저장하고 예정 시각 경계에 최초 공개한다")
 	void confirmsBeforeTimeAndPublishesAtBoundary() {
@@ -157,6 +160,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(history).hasSize(1);
 	}
 
+	/** 여러 재추첨 중 하나라도 미확인이면 최초 명단 일부를 먼저 공개하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("여러 재추첨 중 하나라도 미확인이면 최초 명단 일부를 먼저 공개하지 않는다")
 	void waitsForAllInitialConfirmations() {
@@ -174,6 +178,7 @@ class DrawPublicationReplacementServiceTest {
 				.containsExactly(checked.get(first).id(), checked.get(second).id());
 	}
 
+	/** 미준비 재추첨이 있으면 다른 결과 확인 후에도 최초 발표를 지연한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("미준비 재추첨이 있으면 다른 결과 확인 후에도 최초 발표를 지연한다")
 	void waitsForPendingInitialExecution() {
@@ -191,6 +196,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(latest.entries()).hasSize(2);
 	}
 
+	/** 발표 후 미확인 결과는 비공개이며 확인 후 유지 명단과 새 결과로 다음 버전을 만든다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("발표 후 미확인 결과는 비공개이며 확인 후 유지 명단과 새 결과로 다음 버전을 만든다")
 	void updatesAfterConfirmationAndPreservesHistory() {
@@ -211,6 +217,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(publications.wasPublished(replacement.getId())).isTrue();
 	}
 
+	/** 공개 후 독립 재추첨을 역순으로 확인해도 이미 반영된 새 결과를 유지한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 후 독립 재추첨을 역순으로 확인해도 이미 반영된 새 결과를 유지한다")
 	void confirmsIndependentRunsInReverseOrder() {
@@ -231,6 +238,7 @@ class DrawPublicationReplacementServiceTest {
 				new DrawPublication.Entry(replacementB.getId(), second, checked.get(second).id()));
 	}
 
+	/** 미확인 중간 결과가 다시 취소되면 선행 확인까지 기다리고 중간 당첨자는 공개하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("미확인 중간 결과가 다시 취소되면 선행 확인까지 기다리고 중간 당첨자는 공개하지 않는다")
 	void preservesPrivateIntermediateResult() {
@@ -249,6 +257,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(latest.entries()).extracting(DrawPublication.Entry::resultId).containsExactly(finalResult.getId(), resultB.getId());
 	}
 
+	/** 동일 확인·공개 재요청은 원래 확인자·시각과 한 공개 버전을 보존한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("동일 확인·공개 재요청은 원래 확인자·시각과 한 공개 버전을 보존한다")
 	void repeatsWithoutNewConfirmationOrVersion() {
@@ -267,6 +276,7 @@ class DrawPublicationReplacementServiceTest {
 		verify(repository, times(1)).savePublication(eq(eventId), eq(run), eq(2), any(), any(), anyList(), any());
 	}
 
+	/** 다른 관리자가 같은 확인을 반복해도 원래 확인자를 덮어쓰지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("다른 관리자가 같은 확인을 반복해도 원래 확인자를 덮어쓰지 않는다")
 	void preservesOriginalAdministratorOnReplay() {
@@ -283,6 +293,7 @@ class DrawPublicationReplacementServiceTest {
 		verify(repository, times(1)).saveConfirmation(eq(run), eq(actorId), any());
 	}
 
+	/** 같은 실행에 연결된 여러 취소 자리의 새 결과·미충원을 모두 검증한다. */
 	@Test
 	@DisplayName("같은 실행에 연결된 여러 취소 자리의 새 결과·미충원을 모두 검증한다")
 	void validatesAllCancellationSlotsInOneRun() {
@@ -302,6 +313,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(latest.reason()).isEqualTo("취소 사유 1\n두 번째 취소");
 	}
 
+	/** 빈 자리 미충원 확정도 관리자 확인 후 취소 당첨자만 명단에서 제거한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("빈 자리 미충원 확정도 관리자 확인 후 취소 당첨자만 명단에서 제거한다")
 	void publishesUnfilledReplacementAfterConfirmation() {
@@ -318,6 +330,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(publications.wasPublished(unfilled.getId())).isFalse();
 	}
 
+	/** 공개 저장 실패는 Spring 확인 트랜잭션을 롤백하고 재요청에 한 번만 반영한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 저장 실패는 Spring 확인 트랜잭션을 롤백하고 재요청에 한 번만 반영한다")
 	void rollsBackConfirmationAndPublicationInMemory() {
@@ -340,6 +353,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(history).hasSize(2);
 	}
 
+	/** 메모리 이벤트 잠금에서 확인·최초 공개의 동시 요청은 한 확인·한 공개 버전만 만든다는 시나리오를 검증한다. */
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})
 	@DisplayName("메모리 이벤트 잠금에서 확인·최초 공개의 동시 요청은 한 확인·한 공개 버전만 만든다")
@@ -377,6 +391,7 @@ class DrawPublicationReplacementServiceTest {
 		}
 	}
 
+	/** 비관리자·비활성 관리자와 취소 이벤트·미확정 실행의 확인을 거절한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("비관리자·비활성 관리자와 취소 이벤트·미확정 실행의 확인을 거절한다")
 	void rejectsUnauthorizedAndUnconfirmableRequests() {
@@ -394,6 +409,7 @@ class DrawPublicationReplacementServiceTest {
 		verify(repository, never()).saveConfirmation(any(), any(), any());
 	}
 
+	/** 유지 당첨자 재선정·틀린 자리·빈 취소 근거·다른 이벤트 결과를 공개하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("유지 당첨자 재선정·틀린 자리·빈 취소 근거·다른 이벤트 결과를 공개하지 않는다")
 	void rejectsInvalidReplacementRelations() {
@@ -413,19 +429,23 @@ class DrawPublicationReplacementServiceTest {
 		verify(repository, never()).saveConfirmation(any(), any(), any());
 	}
 
+	/** 시험용 재추첨 실행과 그 원인이 된 취소의 연결을 메모리에 등록한다. */
 	private UUID addRun(int number, DrawResult canceled, DrawRunStatus status, List<DrawResult> selected) {
 		UUID id = UUID.randomUUID();
 		runs.add(new DrawPublicationRun(id, eventId, number, status, status == DrawRunStatus.CONFIRMED ? NOW : null, selected, null));
 		cancellations.add(new DrawPublicationCancellation(UUID.randomUUID(), canceled.getId(), id, "취소 사유 " + number));
 		return id;
 	}
+	/** 시험용 후보에 연결된 지정 자리의 선정 결과를 만든다. */
 	private DrawResult selected(int slot, UUID user) {
 		return new DrawResult(UUID.randomUUID(), new DrawSelection(prizeId, 1, slot, slot,
 				candidates.get(user), user, DrawSelectionResultType.SELECTED), NOW);
 	}
+	/** 지정 역할과 상태를 가진 시험용 관리자 문맥을 구성한다. */
 	private User actor(UserRole role, UserStatus status) {
 		return new User(actorId, "관리자", role, status, Membership.VIP, null, null, null, null, NOW, NOW);
 	}
+	/** 시험용 공개 저장 대역에 새 버전과 변경 이력을 보존한다. */
 	private DrawPublication save(UUID source, int revision, String reason, DrawResultConfirmation confirmation,
 			List<DrawPublication.Entry> entries, Instant publishedAt) {
 		latest = new DrawPublication(UUID.randomUUID(), eventId, source, revision,
@@ -435,6 +455,7 @@ class DrawPublicationReplacementServiceTest {
 		history.add(latest);
 		return latest;
 	}
+	/** 시험용 트랜잭션 관리자를 적용한 Spring 서비스 프록시를 구성한다. */
 	@SuppressWarnings("unchecked")
 	private <T> T proxy(T target) {
 		ProxyFactory factory = new ProxyFactory(target);
@@ -451,15 +472,19 @@ class DrawPublicationReplacementServiceTest {
 		private final ThreadLocal<MemoryTransaction> current = new ThreadLocal<>();
 		private final ReentrantLock eventLock = new ReentrantLock();
 		private final CountDownLatch waiting = new CountDownLatch(1);
+		/** 현재 스레드의 시험용 트랜잭션을 재사용하거나 새 트랜잭션 상태를 반환한다. */
 		@Override protected Object doGetTransaction() {
 			MemoryTransaction existing = current.get();
 			return existing == null ? new MemoryTransaction() : existing;
 		}
+		/** 시험용 트랜잭션이 이미 활성 상태인지 확인한다. */
 		@Override protected boolean isExistingTransaction(Object transaction) { return ((MemoryTransaction) transaction).active; }
+		/** 시험용 트랜잭션을 활성화하고 현재 스레드에 연결한다. */
 		@Override protected void doBegin(Object transaction, TransactionDefinition definition) {
 			MemoryTransaction state = (MemoryTransaction) transaction;
 			state.active = true; current.set(state);
 		}
+		/** 시험용 이벤트 잠금과 롤백 복원을 위한 현재 확인·공개 상태 사본을 준비한다. */
 		void lockEvent() {
 			MemoryTransaction state = current.get();
 			assertThat(state).isNotNull();
@@ -468,16 +493,20 @@ class DrawPublicationReplacementServiceTest {
 			state.locked = true;
 			state.checked = new HashMap<>(checked); state.latest = latest; state.history = new ArrayList<>(history);
 		}
+		/** 메모리 변경은 이미 반영돼 있으므로 시험용 커밋에 추가 작업을 하지 않는다. */
 		@Override protected void doCommit(DefaultTransactionStatus status) { }
+		/** 잠금 획득 시 보존한 확인·공개 버전·이력을 메모리 대역에 복원한다. */
 		@Override protected void doRollback(DefaultTransactionStatus status) {
 			MemoryTransaction state = (MemoryTransaction) status.getTransaction();
 			if (!state.locked) return;
 			checked.clear(); checked.putAll(state.checked); latest = state.latest;
 			history.clear(); history.addAll(state.history);
 		}
+		/** 시험용 트랜잭션을 롤백 전용으로 표시한다. */
 		@Override protected void doSetRollbackOnly(DefaultTransactionStatus status) {
 			((MemoryTransaction) status.getTransaction()).rollbackOnly = true;
 		}
+		/** 시험용 이벤트 잠금을 해제하고 현재 스레드의 트랜잭션 상태를 정리한다. */
 		@Override protected void doCleanupAfterCompletion(Object transaction) {
 			MemoryTransaction state = (MemoryTransaction) transaction;
 			if (state.locked) eventLock.unlock();
@@ -490,7 +519,9 @@ class DrawPublicationReplacementServiceTest {
 		private Map<UUID, DrawResultConfirmation> checked;
 		private DrawPublication latest;
 		private List<DrawPublication> history;
+		/** 시험용 트랜잭션의 롤백 전용 표시를 반환한다. */
 		@Override public boolean isRollbackOnly() { return rollbackOnly; }
+		/** 메모리 대역에는 영속성 flush 작업이 없으므로 추가 작업을 하지 않는다. */
 		@Override public void flush() { }
 	}
 }
