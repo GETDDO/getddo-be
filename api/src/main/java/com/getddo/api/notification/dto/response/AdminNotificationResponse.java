@@ -28,6 +28,7 @@ public record AdminNotificationResponse(
 		String lastDeliveryError,
 		boolean retryable
 ) {
+	/** 도메인 조회 결과를 확정된 관리자 API 응답 필드로 변환한다. */
 	public static AdminNotificationResponse from(AdminNotification value) {
 		return new AdminNotificationResponse(value.getId(), value.getJobId(), value.getUserId(), value.getEventId(), value.getTitle(), value.getBody(), value.getLinkUrl(), value.getCreatedAt(), value.isRead(), value.getMockDeliveryStatus(), value.getMockSentAt(), value.getDeliveryAttemptCount(), value.getNextDeliveryAttemptAt(), value.getLastDeliveryError(), value.isRetryable());
 	}

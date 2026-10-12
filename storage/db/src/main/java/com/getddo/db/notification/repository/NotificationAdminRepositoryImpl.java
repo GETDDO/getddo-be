@@ -44,6 +44,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 		""";
 	private final JdbcTemplate jdbc;
 
+	/** 선택 필터와 생성 시각 역순·ID 역순으로 작업 페이지를 조회한다. */
 	@Override
 	public PageResult<AdminNotificationJob> findJobs(NotificationJobQuery query) {
 		StringBuilder where = new StringBuilder(" where 1=1");
@@ -62,11 +63,13 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 		return new PageResult<>(items, page.getPage(), page.getSize(), count);
 	}
 
+	/** 이벤트 상태를 포함한 작업 조회 결과를 반환한다. */
 	@Override
 	public Optional<AdminNotificationJob> findJob(UUID id) {
 		return jdbc.query(JOB_COLUMNS + " where j.id = ?", (row, index) -> job(row), bytes(id)).stream().findFirst();
 	}
 
+	/** 호출 Service의 트랜잭션에서 이벤트 다음 작업 순서로 행을 잠근다. */
 	@Override
 	public Optional<AdminNotificationJob> lockJob(UUID id) {
 		// event_id 자체는 등록 이후 변경하지 않는다. 잠금 읽기로 실제 작업 상태를 다시 확인한다.
@@ -82,6 +85,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 				(row, index) -> job(row), bytes(id)).stream().findFirst();
 	}
 
+	/** 선택 필터와 생성 시각 역순·ID 역순으로 발송 이력 페이지를 조회한다. */
 	@Override
 	public PageResult<AdminNotification> findDeliveries(NotificationDeliveryQuery query) {
 		StringBuilder where = new StringBuilder(" where 1=1");
@@ -101,12 +105,14 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 		return new PageResult<>(items, page.getPage(), page.getSize(), count);
 	}
 
+	/** 복구 조건을 다시 확인할 수 있도록 해당 알림 행을 잠근다. */
 	@Override
 	public Optional<AdminNotification> lockDelivery(UUID id) {
 		return jdbc.query("select * from notifications where id = ? for update",
 				(row, index) -> delivery(row), bytes(id)).stream().findFirst();
 	}
 
+	/** 관리자 발송 응답에 필요한 알림 한 건을 읽는다. */
 	@Override
 	public Optional<AdminNotification> findDelivery(UUID id) {
 		// 복구 직후에도 호출자 이전 스냅샷 대신 현재 행의 읽음 상태를 반환한다.
@@ -114,6 +120,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 				(row, index) -> delivery(row), bytes(id)).stream().findFirst();
 	}
 
+	/** 최종 실패 작업을 대기 상태로 바꾸고 누적 차수를 새 구간의 기준으로 저장한다. */
 	@Override
 	public boolean retryJob(UUID id, Instant now) {
 		return jdbc.update("""
@@ -124,6 +131,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 			""", time(now), bytes(id)) == 1;
 	}
 
+	/** 알림 내용·읽음 상태를 유지하고 모의 발송의 새 복구 구간을 접수한다. */
 	@Override
 	public boolean retryDelivery(UUID id, Instant now) {
 		return jdbc.update("""
@@ -134,6 +142,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 			""", time(now), bytes(id)) == 1;
 	}
 
+	/** 선택 값이 있을 때에만 SQL 조건과 바인딩 값을 함께 추가한다. */
 	private static void filter(StringBuilder where, List<Object> args, String condition, Object value) {
 		if (value != null) {
 			where.append(" and ").append(condition);
@@ -141,6 +150,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 		}
 	}
 
+	/** DB 행을 복구 가능 여부 판단에 필요한 작업 도메인으로 변환한다. */
 	private static AdminNotificationJob job(ResultSet row) throws SQLException {
 		String publication = row.getString("publication_id");
 		String status = row.getString("event_status");
@@ -163,6 +173,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 		}
 	}
 
+	/** DB 행을 읽음·발송 정보와 복구 기준 차수를 가진 도메인으로 변환한다. */
 	private static AdminNotification delivery(ResultSet row) throws SQLException {
 		return new AdminNotification(uuid(row.getBytes("id")), uuid(row.getBytes("job_id")), uuid(row.getBytes("user_id")),
 				uuid(row.getBytes("event_id")), row.getString("title"), row.getString("body"), row.getString("link_url"),
@@ -171,6 +182,7 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 				instant(row, "next_delivery_attempt_at"), row.getString("last_delivery_error"));
 	}
 
+	/** 선택 시각 컬럼을 UTC Instant로 변환하며 null을 유지한다. */
 	private static Instant instant(ResultSet row, String column) throws SQLException {
 		LocalDateTime value = row.getObject(column, LocalDateTime.class);
 		return value == null ? null : value.toInstant(ZoneOffset.UTC);
@@ -183,14 +195,17 @@ public class NotificationAdminRepositoryImpl implements NotificationAdminReposit
 		return time(micros.equals(value) ? micros : micros.plus(1, ChronoUnit.MICROS));
 	}
 
+	/** Instant를 UTC DB 날짜·시각으로 변환하며 null을 유지한다. */
 	private static LocalDateTime time(Instant value) {
 		return value == null ? null : LocalDateTime.ofInstant(value, ZoneOffset.UTC);
 	}
 
+	/** 공통 UUID 변환기로 선택 UUID를 BINARY(16) 바인딩 값으로 바꾼다. */
 	private static byte[] bytes(UUID value) {
 		return value == null ? null : UuidBinary.toBytes(value);
 	}
 
+	/** 선택 BINARY(16) 값을 UUID로 변환하며 null을 유지한다. */
 	private static UUID uuid(byte[] value) {
 		return value == null ? null : UuidBinary.fromBytes(value);
 	}

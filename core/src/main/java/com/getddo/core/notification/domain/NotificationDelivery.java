@@ -27,7 +27,11 @@ public final class NotificationDelivery {
 		this(id, userId, title, body, linkUrl, attemptCount, 0);
 	}
 
-	/** 발송 누적 차수를 보존하고 현재 복구 구간을 구분한다. */
+	/**
+	 * 누적 차수와 수동 복구 기준 차수를 검증하고 보관한다.
+	 * @throws NullPointerException 필수 값이 null인 경우
+	 * @throws IllegalArgumentException 0 <= attemptBase <= attemptCount를 만족하지 않는 경우
+	 */
 	public NotificationDelivery(UUID id, UUID userId, String title, String body, String linkUrl, int attemptCount, int attemptBase) {
 		this.id = Objects.requireNonNull(id, "id");
 		this.userId = Objects.requireNonNull(userId, "userId");
@@ -35,7 +39,7 @@ public final class NotificationDelivery {
 		this.body = Objects.requireNonNull(body, "body");
 		this.linkUrl = linkUrl;
 		if (attemptCount < 0 || attemptBase < 0 || attemptBase > attemptCount) {
-			throw new IllegalArgumentException("attemptCount must be non-negative");
+			throw new IllegalArgumentException("0 <= attemptBase <= attemptCount is required");
 		}
 		this.attemptCount = attemptCount;
 		this.attemptBase = attemptBase;

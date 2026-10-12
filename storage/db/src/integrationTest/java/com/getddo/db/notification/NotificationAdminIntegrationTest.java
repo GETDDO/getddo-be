@@ -58,6 +58,7 @@ class NotificationAdminIntegrationTest {
 	private final List<UUID> jobIds = new ArrayList<>();
 	private final List<UUID> events = new ArrayList<>();
 
+	/** 테스트 데이터와 고정 시계를 준비한다. */
 	@BeforeEach
 	void setUp() {
 		clock.set(NOW);
@@ -66,6 +67,7 @@ class NotificationAdminIntegrationTest {
 		recipient = user("USER");
 	}
 
+	/** 테스트에서 만든 알림·감사·이벤트·사용자만 정리한다. */
 	@AfterEach
 	void clean() {
 		jdbc.update("delete from audit_logs where actor_id = ?", bytes(actor.id()));
@@ -77,6 +79,7 @@ class NotificationAdminIntegrationTest {
 		jdbc.update("delete from users where id in (?, ?)", bytes(actor.id()), bytes(recipient));
 	}
 
+	/** 최종 생성 실패 복구는 기존 알림을 보존하고 오래된 워커를 차단한다 */
 	@Test
 	@DisplayName("최종 생성 실패 복구는 기존 알림을 보존하고 오래된 워커를 차단한다")
 	void retriesGenerationWithoutDuplicatingExistingNotifications() {
@@ -107,6 +110,7 @@ class NotificationAdminIntegrationTest {
 		assertThat(auditCount(id)).isEqualTo(1);
 	}
 
+	/** 수동 복구 후 누적 차수 5~8에도 해당 구간의 4회 한도를 적용한다 */
 	@Test
 	@DisplayName("수동 복구 후 누적 차수 5~8에도 해당 구간의 4회 한도를 적용한다")
 	void allowsFourAttemptsInNewCycle() {
@@ -128,11 +132,12 @@ class NotificationAdminIntegrationTest {
 		assertThat(admin.findJob(actor, id).getStatus()).isEqualTo(NotificationJobStatus.FAILED);
 	}
 
+	/** 발송 복구 직후 새 선점 전에도 오래된 완료·실패 기록을 차단한다 */
 	@Test
 	@DisplayName("발송 복구 직후 새 선점 전에도 오래된 완료·실패 기록을 차단한다")
 	void deliveryRetryInvalidatesOldWorkerImmediately() {
 		// given
-		UUID id = job(NotificationType.RESULT_PUBLISHED, null);
+		job(NotificationType.RESULT_PUBLISHED, null);
 		assertThat(jobs.processNextJob()).isTrue();
 		NotificationDelivery old = repository.claimNextDelivery(NOW).orElseThrow();
 		repository.failDelivery(old, null, "NOTIFICATION-006");
@@ -154,6 +159,46 @@ class NotificationAdminIntegrationTest {
 		assertThat(auditCount(old.getId())).isEqualTo(1);
 	}
 
+	/** 시작 전 이벤트를 잠근 뒤 최종 실패 작업의 복구를 접수한다. */
+	@Test
+	@DisplayName("시작 전 진행 예정 이벤트의 최종 실패는 생성 복구를 접수한다")
+	void acceptsScheduledEventBeforeStart() {
+		// given
+		UUID event = event("SCHEDULED");
+		UUID start = job(NotificationType.EVENT_START, event);
+		jdbc.update("update notification_jobs set status='FAILED', attempt_count=4 where id=?", bytes(start));
+		// when
+		AdminNotificationJob accepted = admin.retryJob(actor, start);
+		// then
+		assertThat(accepted.getStatus()).isEqualTo(NotificationJobStatus.PENDING);
+		assertThat(accepted.getAttemptBase()).isEqualTo(4);
+		assertThat(accepted.getNextAttemptAt()).isEqualTo(NOW);
+		assertThat(auditCount(start)).isEqualTo(1);
+	}
+
+	/** 실제 MySQL에서 V019의 두 CHECK 제약이 잘못된 복구 차수를 거절한다. */
+	@Test
+	@DisplayName("복구 기준 차수는 음수 또는 누적 차수 초과로 저장할 수 없다")
+	void enforcesRetryBaselineConstraints() {
+		// given
+		UUID id = job(NotificationType.RESULT_PUBLISHED, null);
+		assertThat(jobs.processNextJob()).isTrue();
+		UUID notification = notificationId(id);
+		// when / then
+		for (String baseline : List.of("-1", "attempt_count + 1")) {
+			assertThatThrownBy(() -> jdbc.update("update notification_jobs set attempt_base=" + baseline + " where id=?", bytes(id)))
+					.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+					.hasStackTraceContaining("chk_notification_attempt_base");
+		}
+		for (String baseline : List.of("-1", "delivery_attempt_count + 1")) {
+			assertThatThrownBy(() -> jdbc.update("update notifications set delivery_attempt_base=" + baseline + " where id=?", bytes(notification)))
+					.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+					.hasStackTraceContaining("chk_delivery_attempt_base");
+		}
+		assertThat(admin.findJob(actor, id).getAttemptBase()).isZero();
+	}
+
+	/** 진행 중·성공·중지·오래된 시작 안내는 생성 복구를 거절한다 */
 	@Test
 	@DisplayName("진행 중·성공·중지·오래된 시작 안내는 생성 복구를 거절한다")
 	void rejectsNonFinalAndObsoleteJobs() {
@@ -174,6 +219,7 @@ class NotificationAdminIntegrationTest {
 		}
 	}
 
+	/** 조회는 기간 상한 제외·페이지·필터를 적용하고 읽음 상태를 변경하지 않는다 */
 	@Test
 	@DisplayName("조회는 기간 상한 제외·페이지·필터를 적용하고 읽음 상태를 변경하지 않는다")
 	void filtersPagesAndPreservesReadState() {
@@ -197,6 +243,7 @@ class NotificationAdminIntegrationTest {
 		assertThat(jdbc.queryForObject("select is_read from notifications where id=?", Boolean.class, bytes(notification))).isFalse();
 	}
 
+	/** 감사 기록과 복구 접수는 호출자 롤백에 함께 취소된다 */
 	@Test
 	@DisplayName("감사 기록과 복구 접수는 호출자 롤백에 함께 취소된다")
 	void rollsBackRecoveryAndAudit() {
@@ -213,6 +260,7 @@ class NotificationAdminIntegrationTest {
 		assertThat(auditCount(id)).isZero();
 	}
 
+	/** 같은 최종 실패의 동시 복구는 하나만 접수하고 감사 기록도 한 건이다 */
 	@Test
 	@DisplayName("같은 최종 실패의 동시 복구는 하나만 접수하고 감사 기록도 한 건이다")
 	void acceptsOnlyOneConcurrentRecovery() throws Exception {
@@ -235,6 +283,7 @@ class NotificationAdminIntegrationTest {
 		assertThat(auditCount(id)).isEqualTo(1);
 	}
 
+	/** 나노초 기간 필터에서도 마이크로초 저장값의 하한 포함·상한 제외를 유지한다 */
 	@Test
 	@DisplayName("나노초 기간 필터에서도 마이크로초 저장값의 하한 포함·상한 제외를 유지한다")
 	void preservesSubMicrosecondBounds() {

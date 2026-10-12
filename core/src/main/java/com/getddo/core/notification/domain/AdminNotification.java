@@ -2,6 +2,7 @@ package com.getddo.core.notification.domain;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Objects;
 
 import lombok.Getter;
 
@@ -24,7 +25,11 @@ public final class AdminNotification {
 	private final Instant nextDeliveryAttemptAt;
 	private final String lastDeliveryError;
 
-	/** 저장소가 읽은 값과 복구 가능 여부 계산에 필요한 근거를 보관한다. */
+	/**
+	 * 저장소 결과의 필수 값과 복구 기준 차수를 검증한다.
+	 * @throws NullPointerException 필수 조회 필드가 null인 경우
+	 * @throws IllegalArgumentException 0 <= deliveryAttemptBase <= deliveryAttemptCount를 만족하지 않는 경우
+	 */
 	public AdminNotification(UUID id,
 			UUID jobId,
 			UUID userId,
@@ -40,17 +45,20 @@ public final class AdminNotification {
 			int deliveryAttemptBase,
 			Instant nextDeliveryAttemptAt,
 			String lastDeliveryError) {
-		this.id = id;
-		this.jobId = jobId;
-		this.userId = userId;
+		this.id = Objects.requireNonNull(id, "id");
+		this.jobId = Objects.requireNonNull(jobId, "jobId");
+		this.userId = Objects.requireNonNull(userId, "userId");
 		this.eventId = eventId;
-		this.title = title;
-		this.body = body;
+		this.title = Objects.requireNonNull(title, "title");
+		this.body = Objects.requireNonNull(body, "body");
 		this.linkUrl = linkUrl;
-		this.createdAt = createdAt;
+		this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
 		this.isRead = isRead;
-		this.mockDeliveryStatus = mockDeliveryStatus;
+		this.mockDeliveryStatus = Objects.requireNonNull(mockDeliveryStatus, "mockDeliveryStatus");
 		this.mockSentAt = mockSentAt;
+		if (deliveryAttemptCount < 0 || deliveryAttemptBase < 0 || deliveryAttemptBase > deliveryAttemptCount) {
+			throw new IllegalArgumentException("0 <= deliveryAttemptBase <= deliveryAttemptCount is required");
+		}
 		this.deliveryAttemptCount = deliveryAttemptCount;
 		this.deliveryAttemptBase = deliveryAttemptBase;
 		this.nextDeliveryAttemptAt = nextDeliveryAttemptAt;

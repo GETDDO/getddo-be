@@ -31,18 +31,21 @@ public class NotificationAdminService {
 	private final AuditLogService audit;
 	private final TimeProvider time;
 
+	/** 활성 관리자 권한을 확인하고 작업 목록을 조회한다. */
 	@Transactional(readOnly = true)
 	public PageResult<AdminNotificationJob> findJobs(User actor, NotificationJobQuery query) {
 		requireAdmin(actor);
 		return repository.findJobs(query);
 	}
 
+	/** 활성 관리자 권한을 확인하고 작업 상세를 조회한다. 대상이 없으면 업무 예외를 던진다. */
 	@Transactional(readOnly = true)
 	public AdminNotificationJob findJob(User actor, UUID id) {
 		requireAdmin(actor);
 		return repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
 	}
 
+	/** 활성 관리자에게 읽음 상태를 변경하지 않는 발송 이력 조회를 제공한다. */
 	@Transactional(readOnly = true)
 	public PageResult<AdminNotification> findDeliveries(User actor, NotificationDeliveryQuery query) {
 		requireAdmin(actor);
@@ -78,12 +81,14 @@ public class NotificationAdminService {
 		return repository.findDelivery(id).orElseThrow(NotificationAdminService::notFound);
 	}
 
+	/** DB 사용자 문맥의 활성 상태와 관리자 역할을 확인한다. */
 	private static void requireAdmin(User actor) {
 		if (actor == null || actor.id() == null || actor.role() != UserRole.ADMIN || actor.status() != UserStatus.ACTIVE) {
 			throw new BusinessException(NotificationAdminErrorCode.ADMIN_REQUIRED);
 		}
 	}
 
+	/** 작업 또는 알림 조회 부재를 공통 관리자 알림 오류로 표현한다. */
 	private static BusinessException notFound() {
 		return new BusinessException(NotificationAdminErrorCode.NOT_FOUND);
 	}

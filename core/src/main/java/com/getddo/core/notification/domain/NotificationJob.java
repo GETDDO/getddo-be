@@ -23,11 +23,15 @@ public final class NotificationJob {
 		this(id, attemptCount, 0);
 	}
 
-	/** 누적 차수와 수동 복구 구간의 기준 차수를 보관한다. */
+	/**
+	 * 누적 차수와 수동 복구 기준 차수를 검증하고 보관한다.
+	 * @throws NullPointerException 필수 값이 null인 경우
+	 * @throws IllegalArgumentException 0 <= attemptBase <= attemptCount를 만족하지 않는 경우
+	 */
 	public NotificationJob(UUID id, int attemptCount, int attemptBase) {
 		this.id = Objects.requireNonNull(id, "id");
 		if (attemptCount < 0 || attemptBase < 0 || attemptBase > attemptCount) {
-			throw new IllegalArgumentException("attemptCount must be non-negative");
+			throw new IllegalArgumentException("0 <= attemptBase <= attemptCount is required");
 		}
 		this.attemptCount = attemptCount;
 		this.attemptBase = attemptBase;

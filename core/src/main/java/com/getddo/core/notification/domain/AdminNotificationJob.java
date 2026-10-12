@@ -2,6 +2,7 @@ package com.getddo.core.notification.domain;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Objects;
 
 import lombok.Getter;
 
@@ -30,7 +31,11 @@ public final class AdminNotificationJob {
 	private final Instant eventStartsAt;
 	private final boolean eventDeleted;
 
-	/** 저장소가 읽은 값과 복구 가능 여부 계산에 필요한 근거를 보관한다. */
+	/**
+	 * 저장소 결과의 필수 값과 복구 기준 차수를 검증한다.
+	 * @throws NullPointerException 필수 조회 필드가 null인 경우
+	 * @throws IllegalArgumentException 0 <= attemptBase <= attemptCount를 만족하지 않는 경우
+	 */
 	public AdminNotificationJob(UUID id,
 			UUID eventId,
 			UUID publicationId,
@@ -50,16 +55,19 @@ public final class AdminNotificationJob {
 			EventStatus eventStatus,
 			Instant eventStartsAt,
 			boolean eventDeleted) {
-		this.id = id;
+		this.id = Objects.requireNonNull(id, "id");
 		this.eventId = eventId;
 		this.publicationId = publicationId;
-		this.notificationType = notificationType;
-		this.status = status;
+		this.notificationType = Objects.requireNonNull(notificationType, "notificationType");
+		this.status = Objects.requireNonNull(status, "status");
+		if (attemptCount < 0 || attemptBase < 0 || attemptBase > attemptCount) {
+			throw new IllegalArgumentException("0 <= attemptBase <= attemptCount is required");
+		}
 		this.attemptCount = attemptCount;
 		this.attemptBase = attemptBase;
-		this.scheduledAt = scheduledAt;
+		this.scheduledAt = Objects.requireNonNull(scheduledAt, "scheduledAt");
 		this.nextAttemptAt = nextAttemptAt;
-		this.createdAt = createdAt;
+		this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
 		this.completedAt = completedAt;
 		this.generationStoppedBy = generationStoppedBy;
 		this.lastError = lastError;

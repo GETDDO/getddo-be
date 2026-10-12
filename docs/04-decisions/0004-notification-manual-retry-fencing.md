@@ -3,7 +3,7 @@
 - 상태: 제안
 - 작성자 / 날짜: AI 초안 / 2026-10-12
 - 검토자: 전민규 확인 대기
-- 관련 작업 기록 / PR: GD-72, PR 미생성
+- 관련 작업 기록 / PR: GD-72, [PR #52](https://github.com/GETDDO/getddo-be/pull/52)
 - 대체한 ADR / 대체된 ADR: 해당 없음
 
 ## 배경

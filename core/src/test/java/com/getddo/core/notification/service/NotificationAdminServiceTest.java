@@ -34,11 +34,13 @@ class NotificationAdminServiceTest {
 	private final AuditLogService audit = mock(AuditLogService.class);
 	private NotificationAdminService service;
 
+	/** 테스트 데이터와 고정 시계를 준비한다. */
 	@BeforeEach
 	void setUp() {
 		service = new NotificationAdminService(repository, audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 	}
 
+	/** 일반 사용자는 상태와 관계없이 관리자 조회를 할 수 없다 */
 	@ParameterizedTest
 	@EnumSource(UserStatus.class)
 	@DisplayName("일반 사용자는 상태와 관계없이 관리자 조회를 할 수 없다")
@@ -49,6 +51,7 @@ class NotificationAdminServiceTest {
 		verifyNoInteractions(repository, audit);
 	}
 
+	/** 비활성 관리자와 없는 대상의 요청을 구분한다 */
 	@Test
 	@DisplayName("비활성 관리자와 없는 대상의 요청을 구분한다")
 	void rejectsInactiveAndMissing() {
@@ -61,6 +64,7 @@ class NotificationAdminServiceTest {
 		verifyNoInteractions(audit);
 	}
 
+	/** 복구 접수 후 감사 저장 실패를 숨기지 않고 트랜잭션에 전파한다 */
 	@Test
 	@DisplayName("복구 접수 후 감사 저장 실패를 숨기지 않고 트랜잭션에 전파한다")
 	void propagatesAuditFailure() {

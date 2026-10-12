@@ -37,6 +37,7 @@ public class AdminNotificationController {
 	private final NotificationAdminService service;
 	private final TimeProvider time;
 
+	/** 작업 목록의 선택 필터를 해석하고 공통 페이지 응답으로 변환한다. */
 	@GetMapping("/notification-jobs")
 	public ResponseEnvelope<PageResult<AdminNotificationJobResponse>> jobs(
 			@CurrentUser(membershipRequired = false) User user,
@@ -51,12 +52,14 @@ public class AdminNotificationController {
 		return ResponseEnvelope.success(result.map(value -> AdminNotificationJobResponse.from(value, now)));
 	}
 
+	/** 작업 상세와 현재 시점의 복구 가능 여부를 반환한다. */
 	@GetMapping("/notification-jobs/{jobId}")
 	public ResponseEnvelope<AdminNotificationJobDetailResponse> job(@CurrentUser(membershipRequired = false) User user,
 			@PathVariable UUID jobId) {
 		return ResponseEnvelope.success(AdminNotificationJobDetailResponse.from(service.findJob(user, jobId), time.now()));
 	}
 
+	/** 생성 복구를 접수하고 처리 대기 작업을 202로 반환한다. */
 	@PostMapping("/notification-jobs/{jobId}/retry")
 	public ResponseEntity<ResponseEnvelope<AdminNotificationJobResponse>> retryJob(
 			@CurrentUser(membershipRequired = false) User user, @PathVariable UUID jobId) {
@@ -64,6 +67,7 @@ public class AdminNotificationController {
 				AdminNotificationJobResponse.from(service.retryJob(user, jobId), time.now())));
 	}
 
+	/** 발송 이력을 조회하며 알림의 읽음 상태를 바꾸지 않는다. */
 	@GetMapping("/notifications")
 	public ResponseEnvelope<PageResult<AdminNotificationResponse>> notifications(
 			@CurrentUser(membershipRequired = false) User user,
@@ -77,6 +81,7 @@ public class AdminNotificationController {
 				.map(AdminNotificationResponse::from));
 	}
 
+	/** 동일 알림의 모의 발송 복구를 접수하고 202로 반환한다. */
 	@PostMapping("/notifications/{notificationId}/delivery-retries")
 	public ResponseEntity<ResponseEnvelope<AdminNotificationResponse>> retryDelivery(
 			@CurrentUser(membershipRequired = false) User user, @PathVariable UUID notificationId) {
