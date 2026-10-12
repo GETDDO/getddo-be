@@ -29,25 +29,8 @@ public final class DrawPublication {
 		DrawPublicationType type, String reason, UUID confirmedBy, Instant confirmedAt,
 		Instant publishedAt, List<Entry> entries) {
 		Objects.requireNonNull(id, "id");
-		Objects.requireNonNull(eventId, "eventId");
-		Objects.requireNonNull(sourceDrawId, "sourceDrawId");
-		Objects.requireNonNull(type, "type");
-		Objects.requireNonNull(publishedAt, "publishedAt");
-		entries = List.copyOf(entries);
-		if (revision < 1 || (type == DrawPublicationType.INITIAL && revision != 1)
-			|| (type == DrawPublicationType.UPDATE && revision < 2)) {
-			throw new IllegalArgumentException("invalid publication revision");
-		}
-		if ((confirmedBy == null) != (confirmedAt == null)
-			|| (confirmedAt != null && confirmedAt.isAfter(publishedAt))) {
-			throw new IllegalArgumentException("invalid confirmation time");
-		}
-		if (type == DrawPublicationType.UPDATE && (confirmedBy == null || reason == null || reason.isBlank())) {
-			throw new IllegalArgumentException("update requires confirmation and reason");
-		}
-		if (entries.stream().map(Entry::resultId).distinct().count() != entries.size()) {
-			throw new IllegalArgumentException("duplicate publication result");
-		}
+		validateMetadata(eventId, sourceDrawId, revision, type, reason, confirmedBy, confirmedAt, publishedAt);
+		entries = validatedEntries(entries);
 
 		this.id = id;
 		this.eventId = eventId;
@@ -59,6 +42,34 @@ public final class DrawPublication {
 		this.confirmedAt = confirmedAt;
 		this.publishedAt = publishedAt;
 		this.entries = entries;
+	}
+
+	/** ID 발급 전 저장 메타데이터에도 같은 불변식을 적용한다. 공개 버전 ID를 가짜로 만들지 않는다. */
+	public static void validateMetadata(UUID eventId, UUID sourceDrawId, int revision, DrawPublicationType type,
+			String reason, UUID confirmedBy, Instant confirmedAt, Instant publishedAt) {
+		Objects.requireNonNull(eventId, "eventId");
+		Objects.requireNonNull(sourceDrawId, "sourceDrawId");
+		Objects.requireNonNull(type, "type");
+		Objects.requireNonNull(publishedAt, "publishedAt");
+		if (revision < 1 || (type == DrawPublicationType.INITIAL && revision != 1)
+			|| (type == DrawPublicationType.UPDATE && revision < 2)) {
+			throw new IllegalArgumentException("invalid publication revision");
+		}
+		if ((confirmedBy == null) != (confirmedAt == null)
+			|| (confirmedAt != null && confirmedAt.isAfter(publishedAt))) {
+			throw new IllegalArgumentException("invalid confirmation time");
+		}
+		if (type == DrawPublicationType.UPDATE && (confirmedBy == null || reason == null || reason.isBlank())) {
+			throw new IllegalArgumentException("update requires confirmation and reason");
+		}
+	}
+
+	/** 저장 전 포함 결과도 복사·중복 검증해 ID 발급 후의 공개 모델과 같은 명단 불변식을 지킨다. */
+	public static List<Entry> validatedEntries(List<Entry> entries) {
+		List<Entry> copied = List.copyOf(entries);
+		if (copied.stream().map(Entry::resultId).distinct().count() != copied.size())
+			throw new IllegalArgumentException("duplicate publication result");
+		return copied;
 	}
 
 	/** 유지 결과도 원본 실행과 원래 관리자 확인 식별자를 그대로 참조한다. */

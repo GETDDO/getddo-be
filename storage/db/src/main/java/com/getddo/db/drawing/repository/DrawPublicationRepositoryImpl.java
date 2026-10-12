@@ -33,7 +33,6 @@ import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawResult;
 import com.getddo.core.drawing.domain.DrawSelection;
 import com.getddo.core.drawing.domain.DrawSelectionResultType;
-import com.getddo.core.drawing.domain.DrawPublicationType;
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
 import com.getddo.db.drawing.entity.DrawPublicationEntity;
@@ -193,11 +192,11 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	@Override
 	public DrawPublication savePublication(UUID eventId, UUID sourceRunId, int revision, String reason,
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> included, Instant publishedAt) {
-		DrawPublication draft = new DrawPublication(sourceRunId, eventId, sourceRunId, revision,
-				revision == 1 ? DrawPublicationType.INITIAL : DrawPublicationType.UPDATE, reason,
+		included = DrawPublication.validatedEntries(included);
+		DrawPublicationEntity publication = new DrawPublicationEntity(eventId, sourceRunId, revision, reason,
 				confirmation == null ? null : confirmation.confirmedBy(),
-				confirmation == null ? null : confirmation.confirmedAt(), publishedAt, included);
-		DrawPublicationEntity saved = publications.saveAndFlush(new DrawPublicationEntity(draft));
+				confirmation == null ? null : confirmation.confirmedAt(), publishedAt);
+		DrawPublicationEntity saved = publications.saveAndFlush(publication);
 		entries.saveAllAndFlush(included.stream()
 				.map(entry -> new DrawPublicationResultEntity(saved.getId(), eventId, entry)).toList());
 		UUID id = saved.getId();

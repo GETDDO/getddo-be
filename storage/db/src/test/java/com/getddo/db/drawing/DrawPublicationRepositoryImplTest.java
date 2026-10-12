@@ -139,4 +139,34 @@ class DrawPublicationRepositoryImplTest {
 		ReflectionTestUtils.invokeMethod(entry, "markPersisted");
 		assertThat(information.isNew(entry)).isFalse();
 	}
+
+	@Test
+	@DisplayName("공개 Entity는 ID 발급 전 필수 메타데이터를 검증하고 실제 ID를 임의로 만들지 않는다")
+	void validatesMetadataBeforeIdGeneration() {
+		// given
+		UUID event = UUID.randomUUID(), run = UUID.randomUUID();
+		// when / then
+		assertThatThrownBy(() -> new DrawPublicationEntity(null, run, NOW)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationEntity(event, null, NOW)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationEntity(event, run, null)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationEntity(event, run, 2, "사유", null, null, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+		DrawPublicationEntity entity = new DrawPublicationEntity(event, run, NOW);
+		assertThat(entity.getId()).isNull();
+		assertThat(entity.getSourceDrawId()).isEqualTo(run);
+		assertThat(entity.getType()).isEqualTo(DrawPublicationType.INITIAL);
+	}
+
+	@Test
+	@DisplayName("공개 목록 중복은 ID 발급 전 거절하며 저장소에 부분 버전을 쓰지 않는다")
+	void rejectsDuplicateEntriesBeforeSavingVersion() {
+		// given
+		UUID run = UUID.randomUUID();
+		DrawPublication.Entry entry = new DrawPublication.Entry(UUID.randomUUID(), run, null);
+		// when / then
+		assertThatThrownBy(() -> repository.savePublication(UUID.randomUUID(), run, 1, null, null,
+				List.of(entry, entry), NOW)).isInstanceOf(IllegalArgumentException.class);
+		verifyNoInteractions(versions, entries);
+	}
+
 }

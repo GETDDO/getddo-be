@@ -47,23 +47,28 @@ public class DrawPublicationEntity {
 
 	/** 정상 최초 자동 공개에는 관리자 확인을 추가하지 않는다. */
 	public DrawPublicationEntity(UUID eventId, UUID sourceDrawId, Instant publishedAt) {
+		this(eventId, sourceDrawId, 1, null, null, null, publishedAt);
+	}
+
+	/** 공개 ID 발급 전 필드로 구성하고 도메인 메타데이터와 동일한 규칙을 검증한다. */
+	public DrawPublicationEntity(UUID eventId, UUID sourceDrawId, int revision, String reason,
+			UUID confirmedBy, Instant confirmedAt, Instant publishedAt) {
+		DrawPublicationType type = revision == 1 ? DrawPublicationType.INITIAL : DrawPublicationType.UPDATE;
+		DrawPublication.validateMetadata(eventId, sourceDrawId, revision, type, reason, confirmedBy, confirmedAt, publishedAt);
 		this.eventId = eventId;
 		this.sourceDrawId = sourceDrawId;
 		this.publishedAt = publishedAt;
-		revision = 1;
-		type = DrawPublicationType.INITIAL;
+		this.revision = revision;
+		this.type = type;
+		this.reason = reason;
+		this.confirmedBy = confirmedBy;
+		this.confirmedAt = confirmedAt;
 	}
 
 	/** 검증된 공개 모델에서 새 버전을 구성한다. ID는 저장 시 발급한다. */
 	public DrawPublicationEntity(DrawPublication publication) {
-		eventId = publication.eventId();
-		sourceDrawId = publication.sourceDrawId();
-		revision = publication.revision();
-		type = publication.type();
-		reason = publication.reason();
-		confirmedBy = publication.confirmedBy();
-		confirmedAt = publication.confirmedAt();
-		publishedAt = publication.publishedAt();
+		this(publication.eventId(), publication.sourceDrawId(), publication.revision(), publication.reason(),
+				publication.confirmedBy(), publication.confirmedAt(), publication.publishedAt());
 	}
 
 	/** 실제 저장 시각과 실제 포함 결과를 복원한다. */
