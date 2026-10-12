@@ -168,4 +168,53 @@ class TicketTest {
 		assertThatThrownBy(() -> ticketWith(TicketStatus.SPENT, EXPIRES_AT, 2).refund(refundedAt, refundedAt))
 				.isInstanceOf(IllegalArgumentException.class);
 	}
+
+	@Test
+	@DisplayName("만료 시각이 지난 사용 가능 응모권은 만료됨·버전 +1·수정 시각이 만료 처리 시각이 되고 만료 시각과 등급은 그대로다")
+	void expireMarksDueTicketExpired() {
+		// given
+		Ticket available = ticketWith(TicketStatus.AVAILABLE, EXPIRES_AT, 1);
+		Ticket returned = ticketWith(TicketStatus.RETURNED, EXPIRES_AT, 3);
+		Instant expiredAt = EXPIRES_AT.plusSeconds(30);
+		// when
+		Ticket expired = available.expire(expiredAt);
+		Ticket expiredAgain = returned.expire(expiredAt);
+		// then
+		assertThat(expired.getId()).isEqualTo(available.getId());
+		assertThat(expired.getStatus()).isEqualTo(TicketStatus.EXPIRED);
+		assertThat(expired.getVersion()).isEqualTo(2);
+		assertThat(expired.getUpdatedAt()).isEqualTo(expiredAt);
+		assertThat(expired.getExpiresAt()).isEqualTo(EXPIRES_AT);
+		assertThat(expired.getGrade()).isEqualTo(TicketGrade.SILVER);
+		assertThat(expired.getStatus().isUsable()).isFalse();
+		assertThat(expiredAgain.getVersion()).isEqualTo(4);
+		assertThat(available.getStatus()).isEqualTo(TicketStatus.AVAILABLE);
+		assertThat(available.getVersion()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("만료 시각 정각부터 만료할 수 있고 그 직전까지는 만료할 수 없다")
+	void expireBoundaryMatchesUsableBoundary() {
+		// given
+		Ticket ticket = ticketWith(TicketStatus.AVAILABLE, EXPIRES_AT, 1);
+		// when
+		// then
+		assertThat(ticket.expire(EXPIRES_AT).getStatus()).isEqualTo(TicketStatus.EXPIRED);
+		assertThatThrownBy(() -> ticket.expire(EXPIRES_AT.minusNanos(1000))).isInstanceOf(IllegalStateException.class);
+	}
+
+	@Test
+	@DisplayName("이미 사용됐거나 만료된 응모권은 만료 처리하지 않는다")
+	void expireRejectsSpentOrExpiredTicket() {
+		// given
+		Instant expiredAt = EXPIRES_AT.plusSeconds(30);
+		// when
+		// then
+		assertThatThrownBy(() -> ticketWith(TicketStatus.SPENT, EXPIRES_AT, 2).expire(expiredAt))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> ticketWith(TicketStatus.EXPIRED, EXPIRES_AT, 2).expire(expiredAt))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> ticketWith(TicketStatus.AVAILABLE, EXPIRES_AT, 1).expire(null))
+				.isInstanceOf(NullPointerException.class);
+	}
 }
