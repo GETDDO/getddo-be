@@ -111,7 +111,8 @@ class AdminDrawControllerTest {
 		UUID firstId = UUID.randomUUID(), prizeId = UUID.randomUUID(), awardId = UUID.randomUUID(), winnerId = UUID.randomUUID();
 		DrawRunView replacement = new DrawRunView(runId, eventId, 1, DrawType.REPLACEMENT, DrawRunStatus.CONFIRMED, firstId,
 				"weighted-without-replacement-v1", new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5,
-				List.of(new DrawSnapshotSource.Prize(prizeId, 1, 3))), now, now, now, now,
+				List.of(new DrawSnapshotSource.Prize(prizeId, 1, 3)), firstId,
+				List.of(new DrawSnapshot.Slot(prizeId, 1, 3)), List.of(new DrawSnapshot.RetainedAward(awardId, winnerId, prizeId, 1))), now, now, now, now,
 				new DrawReplacementRulesView(firstId, List.of(new DrawReplacementRulesView.Slot(prizeId, 1, 3)),
 				List.of(new DrawReplacementRulesView.RetainedAward(awardId, winnerId, prizeId, 1))));
 		when(repository.findRun(runId)).thenReturn(Optional.of(replacement));

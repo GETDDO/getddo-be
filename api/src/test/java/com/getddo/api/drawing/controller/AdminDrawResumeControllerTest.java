@@ -63,6 +63,21 @@ class AdminDrawResumeControllerTest {
 		});
 	}
 
+	@Test @DisplayName("재개 중 응모자 없음으로 종료되면 200과 정상 종료 상태를 반환한다")
+	void returnsCompletedNoEntries() throws Exception {
+		// given
+		DrawExecutionService execution = mock(DrawExecutionService.class);
+		when(execution.resumeInitial(runId, adminId)).thenReturn(new DrawExecutionResult(runId, DrawRunStatus.NO_ENTRIES, null));
+		UserRepository users = id -> Optional.of(user(adminId, UserRole.ADMIN, UserStatus.ACTIVE));
+		MockMvc terminalMvc = MockMvcBuilders.standaloneSetup(new AdminDrawResumeController(execution))
+				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(users)))
+				.setControllerAdvice(new GlobalExceptionHandler()).build();
+		// when / then
+		terminalMvc.perform(post(path()).header("X-User-ID", adminId).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("NO_ENTRIES"))
+				.andExpect(jsonPath("$.data.confirmation").value(nullValue()));
+	}
+
 	@Test @DisplayName("확정된 최초 실행은 200과 저장 결과를 반환한다")
 	void returnsStoredConfirmation() throws Exception {
 		// given

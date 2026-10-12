@@ -58,6 +58,7 @@ public class DrawExecutionService {
 	/** 실제 일시적 저장 오류만 자동 재시도하며 미분류 오류는 운영자에게 맡긴다. */
 	static DrawFailureCode classify(RuntimeException failure) {
 		if (failure instanceof BusinessException business) {
+			if (business.getErrorCode() == ATTEMPT_LOST) return DrawFailureCode.INTERRUPTED;
 			if (business.getErrorCode() == INVALID_EVIDENCE) return DrawFailureCode.INVALID_EVIDENCE;
 			if (business.getErrorCode() == INVALID_RUN) return DrawFailureCode.INVALID_RUN;
 			if (business.getErrorCode() == NOT_EXECUTABLE) return DrawFailureCode.NOT_EXECUTABLE;

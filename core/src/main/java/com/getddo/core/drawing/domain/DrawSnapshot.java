@@ -3,6 +3,7 @@ package com.getddo.core.drawing.domain;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.Objects;
 
 /** READY 이후 재요청은 이 저장된 값만 반환한다. JSON의 버전은 알고리즘 버전과 별개다. */
 public record DrawSnapshot(UUID runId, UUID eventId, DrawRunStatus status, Instant fixedAt,
@@ -13,7 +14,10 @@ public record DrawSnapshot(UUID runId, UUID eventId, DrawRunStatus status, Insta
 		this(runId, eventId, status, fixedAt, algorithmVersion, rules, candidates, DrawType.INITIAL);
 	}
 	/** 후보 목록을 복사해 외부 컬렉션 변경이 확정 입력에 영향을 주지 않게 한다. */
-	public DrawSnapshot { candidates = List.copyOf(candidates); }
+	public DrawSnapshot {
+		Objects.requireNonNull(drawType, "drawType");
+		candidates = List.copyOf(candidates);
+	}
 
 	/** 실행 당시 이벤트 유형·멤버십·등급별 가중치와 경품 조건을 보존한다. */
 	public record Rules(int version, boolean weightingEnabled, String eventType, String membershipRule,
@@ -29,6 +33,13 @@ public record DrawSnapshot(UUID runId, UUID eventId, DrawRunStatus status, Insta
 			prizes = List.copyOf(prizes);
 			targetSlots = targetSlots == null ? List.of() : List.copyOf(targetSlots);
 			retainedAwards = retainedAwards == null ? List.of() : List.copyOf(retainedAwards);
+			if (version != 1 && version != 2) throw new IllegalArgumentException("지원하지 않는 추첨 규칙 버전입니다.");
+			if (version == 1 && (originalRunId != null || !targetSlots.isEmpty() || !retainedAwards.isEmpty())) {
+				throw new IllegalArgumentException("최초 규칙에는 재추첨 연결 정보를 넣을 수 없습니다.");
+			}
+			if (version == 2 && (originalRunId == null || targetSlots.isEmpty())) {
+				throw new IllegalArgumentException("재추첨 규칙에는 최초 실행과 대상 자리가 필요합니다.");
+			}
 		}
 	}
 

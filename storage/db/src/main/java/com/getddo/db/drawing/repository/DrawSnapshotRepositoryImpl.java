@@ -87,7 +87,7 @@ public class DrawSnapshotRepositoryImpl implements DrawSnapshotRepository {
 		mapper.fixInput(run, snapshot);
 		runs.flush();
 		entityManager.refresh(run);
-		return mapper.toDomain(run, existing);
+		return mapper.toDomain(run, links.findCandidates(run.getId()));
 	}
 
 	@Override

@@ -80,7 +80,7 @@ class DrawReplacementVerificationTest {
 		Fixture fixture = fixture(1, List.of(3));
 		DrawRunView wrongId = replacement(fixture.run().getRules(), new DrawReplacementRulesView(UUID.randomUUID(),
 				fixture.run().getReplacementRules().getTargetSlots(), fixture.run().getReplacementRules().getRetainedAwards()));
-		DrawSnapshot.Rules changed = new DrawSnapshot.Rules(2, false, "NO_TICKET", "different", 1, 3, 5, fixture.run().getRules().prizes());
+		DrawSnapshot.Rules changed = new DrawSnapshot.Rules(2, false, "NO_TICKET", "different", 1, 3, 5, fixture.run().getRules().prizes(), originalId, fixture.run().getRules().targetSlots(), fixture.run().getRules().retainedAwards());
 		// when / then
 		assertFailed(check(fixture, wrongId, fixture.candidates(), fixture.results()), "REPLACEMENT_SOURCE");
 		assertFailed(check(fixture, replacement(changed, fixture.run().getReplacementRules()), fixture.candidates(), fixture.results()), "REPLACEMENT_SOURCE");
@@ -157,7 +157,7 @@ class DrawReplacementVerificationTest {
 		DrawRunView original = new DrawRunView(originalId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED, null,
 				first.getAlgorithmVersion(), new DrawSnapshot.Rules(1, true, "TICKET", "ALL", 1, 3, 5, first.getRules().prizes()),
 				first.getSnapshotFixedAt(), first.getStartedAt(), first.getConfirmedAt(), first.getCreatedAt());
-		DrawRunView run = replacement(new DrawSnapshot.Rules(2, true, "TICKET", "ALL", 1, 3, 5, first.getRules().prizes()), fixture.run().getReplacementRules());
+		DrawRunView run = replacement(new DrawSnapshot.Rules(2, true, "TICKET", "ALL", 1, 3, 5, first.getRules().prizes(), originalId, fixture.run().getRules().targetSlots(), fixture.run().getRules().retainedAwards()), fixture.run().getReplacementRules());
 		DrawVerificationReferences references = new DrawVerificationReferences(original, weighted, fixture.references().getHistoricalAwards());
 		DrawCandidateView candidate = weighted.getLast();
 		assertThat(DrawStoredVerification.verify(run, List.of(candidate), fixture.results(), references)).allMatch(DrawCheckItem::isPassed);
@@ -220,7 +220,9 @@ class DrawReplacementVerificationTest {
 				targets.stream().map(slot -> new DrawReplacementRulesView.Slot(prizeId, 1, slot)).toList(),
 				history.stream().filter(award -> !targets.contains(award.getSlotNumber()))
 						.map(award -> new DrawReplacementRulesView.RetainedAward(award.getId(), award.getUserId(), award.getPrizeId(), award.getSlotNumber())).toList());
-		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes());
+		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes(), originalId,
+				metadata.getTargetSlots().stream().map(slot -> new DrawSnapshot.Slot(slot.getPrizeId(), slot.getRank(), slot.getSlotNumber())).toList(),
+				metadata.getRetainedAwards().stream().map(award -> new DrawSnapshot.RetainedAward(award.getResultId(), award.getUserId(), award.getPrizeId(), award.getSlotNumber())).toList());
 		List<DrawCandidateView> remaining = originals.subList(3, originals.size());
 		List<DrawResultView> results = new ArrayList<>();
 		for (int index = 0; index < targets.size(); index++) {

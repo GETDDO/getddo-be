@@ -26,6 +26,13 @@ public final class DrawExecutionState {
 		if ((attemptId == null) != (leaseUntil == null)) {
 			throw new IllegalArgumentException("시도 ID와 임대 시각은 함께 있어야 합니다.");
 		}
+		if (attemptId != null && (retryCycleStartedAt == null
+				|| (status != DrawRunStatus.PREPARING && status != DrawRunStatus.READY && status != DrawRunStatus.RUNNING))) {
+			throw new IllegalArgumentException("시도 소유권은 재시도 구간이 있는 준비·실행 상태에만 허용됩니다.");
+		}
+		if (retryAt != null && (status != DrawRunStatus.FAILED || attemptId != null || retryCycleStartedAt == null)) {
+			throw new IllegalArgumentException("재시도 예약은 소유권 없는 실패 상태와 구간을 요구합니다.");
+		}
 		this.fixedAt = fixedAt; this.attemptId = attemptId; this.leaseUntil = leaseUntil;
 		this.retryAt = retryAt; this.retryCycleStartedAt = retryCycleStartedAt;
 	}

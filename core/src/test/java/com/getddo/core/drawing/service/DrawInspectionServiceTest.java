@@ -99,7 +99,7 @@ class DrawInspectionServiceTest {
 				new DrawSnapshot.EntryEvidence(1, 0, 0, 0, List.of(new DrawSnapshotSource.Entry(UUID.randomUUID(), 0, now.minusSeconds(20), List.of()))),
 				new DrawSnapshot.EligibilityEvidence(1, userId, "VIP", "USER", false, now.minusSeconds(10)));
 		DrawRunView replacement = new DrawRunView(runId, eventId, 1, DrawType.REPLACEMENT, DrawRunStatus.CONFIRMED, firstId,
-				DrawSnapshotService.ALGORITHM_VERSION, new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes()),
+				DrawSnapshotService.ALGORITHM_VERSION, new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes(), firstId, List.of(new DrawSnapshot.Slot(prizeId, 1, 1)), List.of()),
 				now, now, now, now, new DrawReplacementRulesView(firstId, List.of(new DrawReplacementRulesView.Slot(prizeId, 1, 1)), List.of()));
 		DrawVerificationReferences references = new DrawVerificationReferences(first,
 				List.of(new DrawCandidateView(winner, firstId, eventId, eventId, userId)),
