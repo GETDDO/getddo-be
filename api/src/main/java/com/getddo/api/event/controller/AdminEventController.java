@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,19 +30,23 @@ import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.service.EventQueryService;
 import com.getddo.core.event.service.EventRegistrationService;
+import com.getddo.core.event.service.EventModificationService;
 import com.getddo.core.user.domain.User;
 
-/** 관리자 이벤트 등록·조회 API. 입력 형식과 응답 변환을 맡고 권한·업무 규칙은 서비스에 위임한다. */
+/** 관리자 이벤트 등록·조회·수정 API. 입력 형식과 응답 변환을 맡고 권한·업무 규칙은 서비스에 위임한다. */
 @RestController
 @RequestMapping("/api/v1/admin/events")
 public class AdminEventController {
 	private final EventRegistrationService registrationService;
+	private final EventModificationService modificationService;
 	private final EventQueryService queryService;
 	private final TimeProvider timeProvider;
 
-	public AdminEventController(EventRegistrationService registrationService, EventQueryService queryService,
+	public AdminEventController(EventRegistrationService registrationService, EventModificationService modificationService,
+			EventQueryService queryService,
 			TimeProvider timeProvider) {
 		this.registrationService = registrationService;
+		this.modificationService = modificationService;
 		this.queryService = queryService;
 		this.timeProvider = timeProvider;
 	}
@@ -54,6 +59,14 @@ public class AdminEventController {
 		AdminEventResponse response = AdminEventResponse.from(
 				registrationService.register(request.toRegistration(user.id())), timeProvider.now());
 		return ResponseEntity.status(HttpStatus.CREATED).body(ResponseEnvelope.success(response));
+	}
+
+	/** AE04: 수정 가능한 전체 설정과 경품 목록을 전달한다. 수정 제한·알림 연동은 서비스에서 처리한다. */
+	@PutMapping("/{eventId}")
+	public ResponseEnvelope<AdminEventResponse> modify(@CurrentUser User user, @PathVariable UUID eventId,
+			@Valid @RequestBody EventWriteRequest request) {
+		return ResponseEnvelope.success(AdminEventResponse.from(
+				modificationService.modify(eventId, request.toModification(user.id())), timeProvider.now()));
 	}
 
 	/** AE01 관리자 검색. from/to는 양끝 날짜를 포함하는 KST 날짜 범위다. 모집 기간과 겹치면 포함한다. */

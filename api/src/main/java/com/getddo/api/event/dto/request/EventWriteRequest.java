@@ -30,10 +30,18 @@ public record EventWriteRequest(
 		@NotEmpty List<@NotNull @Valid PrizeWrite> prizes
 ) {
 	public EventRegistration toRegistration(UUID actorId) {
+		if (prizes != null && prizes.stream().anyMatch(prize -> prize != null && prize.id() != null)) {
+			throw new EventException(EventErrorCode.INVALID_PRIZES);
+		}
+		return toModification(actorId);
+	}
+
+	/** 수정에서는 기존 경품 ID를 보존하고 새 경품만 ID 없이 전달한다. */
+	public EventRegistration toModification(UUID actorId) {
 		return new EventRegistration(actorId, title, description, imageKey, eventType,
 				Boolean.TRUE.equals(weightingEnabled), maxTicketsPerUser, membershipRule,
 				startsAt == null ? null : startsAt.toInstant(), endsAt == null ? null : endsAt.toInstant(),
-				prizes == null ? null : prizes.stream().map(PrizeWrite::toPrize).toList());
+				prizes == null ? null : prizes.stream().map(prize -> prize == null ? null : prize.toPrize()).toList());
 	}
 
 	public record PrizeWrite(
@@ -45,10 +53,7 @@ public record EventWriteRequest(
 			@Positive int winnerCount
 	) {
 		EventRegistration.Prize toPrize() {
-			if (id != null) {
-				throw new EventException(EventErrorCode.INVALID_PRIZES);
-			}
-			return new EventRegistration.Prize(rank, name, description, imageKey, winnerCount);
+			return new EventRegistration.Prize(id, rank, name, description, imageKey, winnerCount);
 		}
 	}
 }
