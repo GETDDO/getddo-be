@@ -1,4 +1,5 @@
 # 배포·장애 확인·복구 방법
 
 - [알림 작업 처리·장애 확인](notification-worker.md)
+- [응모권 만료 워커 확인](ticket-expiry-worker.md)
 - [개별 당첨 취소·재추첨 확인과 복구](award-cancellation-recovery.md)

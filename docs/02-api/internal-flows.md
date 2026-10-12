@@ -20,4 +20,4 @@
 
 ## 구현 상태
 
-공통 응답·페이징 모델만 존재하며 업무 Controller·DTO는 아직 없다. 실제 업무 API 구현 후 생성되는 OpenAPI 문서와 공용 계약을 대조한다.
+기능별로 구현 범위가 다르다. 구현된 업무 API는 실행 중인 서버의 OpenAPI 문서([API 안내](README.md)의 `/swagger-ui.html`)와 공용 계약(`getddo-spec/05-api`)을 대조하고, 미션처럼 서비스·저장소만 있는 기능은 해당 Jira 이슈와 PR 본문을 기준으로 확인한다. 이 표의 내부 처리 중 응모권 만료 워커는 구현되어 있다([런북](../06-runbook/ticket-expiry-worker.md)).
