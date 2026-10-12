@@ -44,14 +44,16 @@ class MySqlMigrationTest {
 
 	/** 빈 DB에 이벤트·알림 인덱스를 포함한 스키마를 적용하고 재실행의 멱등성을 검증한다. */
 	@Test
-	@DisplayName("빈 MySQL에 V001~V011·V014·V016~V019·V021~V023의 44개 테이블·인덱스·추첨 상태·복구 차수와 재실행을 확인한다")
+	@DisplayName("빈 MySQL에 전체 마이그레이션이 적용되어 44개 테이블·인덱스·추첨 상태·복구 차수를 갖추고 재실행해도 다시 적용되지 않는다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(appliedMigrations).isEqualTo(19);
+		// 마이그레이션 파일이 늘 때마다 이 값을 고치면 PR끼리 충돌하므로, 개수를 적지 않고 Flyway가 찾은 전부가 적용됐는지 확인한다.
+		assertThat(appliedMigrations).isEqualTo(flyway.info().all().length);
+		assertThat(appliedMigrations).isPositive();
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		assertThat(indexColumns("award_cancellations", "uq_award_cancellations_request", 0)).containsExactly("request_key");
