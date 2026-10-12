@@ -12,6 +12,7 @@ import lombok.Getter;
 public final class NotificationJob {
 	private final UUID id;
 	private final int attemptCount;
+	private final int attemptBase;
 
 	/**
 	 * 필수 작업 ID를 검증하고 선점 차수를 저장한다. 0은 아직 선점하지 않은 초기 상태다.
@@ -19,11 +20,26 @@ public final class NotificationJob {
 	 * @throws IllegalArgumentException 선점 차수가 음수인 경우
 	 */
 	public NotificationJob(UUID id, int attemptCount) {
+		this(id, attemptCount, 0);
+	}
+
+	/**
+	 * 누적 차수와 수동 복구 기준 차수를 검증하고 보관한다.
+	 * @throws NullPointerException 필수 값이 null인 경우
+	 * @throws IllegalArgumentException 0 <= attemptBase <= attemptCount를 만족하지 않는 경우
+	 */
+	public NotificationJob(UUID id, int attemptCount, int attemptBase) {
 		this.id = Objects.requireNonNull(id, "id");
-		if (attemptCount < 0) {
-			throw new IllegalArgumentException("attemptCount must be non-negative");
+		if (attemptCount < 0 || attemptBase < 0 || attemptBase > attemptCount) {
+			throw new IllegalArgumentException("0 <= attemptBase <= attemptCount is required");
 		}
 		this.attemptCount = attemptCount;
+		this.attemptBase = attemptBase;
+	}
+
+	/** 현재 수동 복구 구간에서 최초 시도를 포함한 횟수다. */
+	public int getCycleAttemptCount() {
+		return attemptCount - attemptBase;
 	}
 
 }

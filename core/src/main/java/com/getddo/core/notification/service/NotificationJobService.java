@@ -60,7 +60,7 @@ public class NotificationJobService {
 			LOG.warn("Notification generation failed: jobId=" + job.getId()
 					+ ", attempt=" + job.getAttemptCount() + ", exceptionType=" + failure.getClass().getName());
 			repository.failJob(job, NotificationRetryPolicy.nextAttemptAt(
-					job.getAttemptCount(), timeProvider.now(), failure), NotificationRetryPolicy.errorCode(failure));
+					job.getCycleAttemptCount(), timeProvider.now(), failure), NotificationRetryPolicy.errorCode(failure));
 		}
 		return true;
 	}
@@ -80,7 +80,7 @@ public class NotificationJobService {
 			LOG.warn("Notification delivery failed: notificationId=" + delivery.getId()
 					+ ", attempt=" + delivery.getAttemptCount() + ", exceptionType=" + failure.getClass().getName());
 			repository.failDelivery(delivery, NotificationRetryPolicy.nextAttemptAt(
-					delivery.getAttemptCount(), timeProvider.now(), failure), NotificationRetryPolicy.errorCode(failure));
+					delivery.getCycleAttemptCount(), timeProvider.now(), failure), NotificationRetryPolicy.errorCode(failure));
 		}
 		return true;
 	}
