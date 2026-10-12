@@ -32,6 +32,29 @@ class DrawPublicationTest {
 	}
 
 	@Test
+	@DisplayName("최초 공개와 갱신의 버전 경계 및 확인자·확인 시각의 쌍을 검증한다")
+	void rejectsInvalidRevisionAndIncompleteConfirmation() {
+		// given: 사유와 시각은 유효하게 두어 버전 또는 확인 쌍만 검증한다.
+		UUID adminId = UUID.randomUUID();
+		// when / then
+		assertThatThrownBy(() -> new DrawPublication(UUID.randomUUID(), eventId, initialRun, 0,
+				DrawPublicationType.INITIAL, null, null, null, NOW, List.of()))
+				.isInstanceOf(IllegalArgumentException.class).hasMessage("invalid publication revision");
+		assertThatThrownBy(() -> new DrawPublication(UUID.randomUUID(), eventId, initialRun, 2,
+				DrawPublicationType.INITIAL, null, null, null, NOW, List.of()))
+				.isInstanceOf(IllegalArgumentException.class).hasMessage("invalid publication revision");
+		assertThatThrownBy(() -> new DrawPublication(UUID.randomUUID(), eventId, replacementRun, 1,
+				DrawPublicationType.UPDATE, "사유", adminId, NOW, NOW, List.of()))
+				.isInstanceOf(IllegalArgumentException.class).hasMessage("invalid publication revision");
+		assertThatThrownBy(() -> new DrawPublication(UUID.randomUUID(), eventId, initialRun, 1,
+				DrawPublicationType.INITIAL, "사유", adminId, null, NOW, List.of()))
+				.isInstanceOf(IllegalArgumentException.class).hasMessage("invalid confirmation time");
+		assertThatThrownBy(() -> new DrawPublication(UUID.randomUUID(), eventId, initialRun, 1,
+				DrawPublicationType.INITIAL, "사유", null, NOW, NOW, List.of()))
+				.isInstanceOf(IllegalArgumentException.class).hasMessage("invalid confirmation time");
+	}
+
+	@Test
 	@DisplayName("관리자 확인 또는 사유가 없는 갱신 버전을 거절한다")
 	void rejectsUnconfirmedUpdateMetadata() {
 		// when / then
