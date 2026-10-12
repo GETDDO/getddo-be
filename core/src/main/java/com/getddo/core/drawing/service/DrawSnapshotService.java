@@ -10,10 +10,12 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
@@ -60,8 +62,33 @@ public class DrawSnapshotService {
 				|| now.isBefore(event.endsAt().plusSeconds(300))) {
 			throw new BusinessException(NOT_EXECUTABLE);
 		}
+		return repository.saveInitial(buildInput(event, null, now));
+	}
+
+	/** 먼저 실행을 등록·커밋해 준비 롤백 뒤에도 실패 FK와 실행 ID가 보존되게 한다. */
+	@Transactional
+	public UUID registerInitial(UUID eventId) {
+		DrawSnapshotSource.Event event = repository.lockEvent(eventId).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
+		if (event.deleted() || (event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
+				|| time.now().isBefore(event.endsAt().plusSeconds(300))) throw new BusinessException(NOT_EXECUTABLE);
+		return repository.registerInitial(eventId).runId();
+	}
+
+	/** 공통 실행의 이벤트·실행 잠금과 소유권 검증 뒤 호출한다. 새 실행을 생성하지 않는다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public DrawSnapshot prepareRegistered(UUID runId) {
+		DrawSnapshot existing = repository.findRegistered(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
+		DrawSnapshotSource.Event event = repository.lockEvent(existing.eventId()).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
+		if (existing.drawType() != DrawType.INITIAL
+				|| existing.status() != DrawRunStatus.PREPARING || existing.fixedAt() != null) throw new BusinessException(INVALID_RUN);
+		return repository.saveRegisteredInitial(buildInput(event, runId, time.now()));
+	}
+
+	private DrawSnapshot buildInput(DrawSnapshotSource.Event event, UUID runId, Instant now) {
+		if (event.deleted() || (event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
+				|| now.isBefore(event.endsAt().plusSeconds(300))) throw new BusinessException(NOT_EXECUTABLE);
 		validatePrizes(event);
-		List<DrawSnapshotSource.Participant> participants = repository.findParticipants(eventId);
+		List<DrawSnapshotSource.Participant> participants = repository.findParticipants(event.id());
 		List<DrawSnapshot.Candidate> candidates = new ArrayList<>();
 		Set<UUID> participantIds = new HashSet<>();
 		Set<UUID> users = new HashSet<>();
@@ -74,8 +101,7 @@ public class DrawSnapshotService {
 		DrawRunStatus status = participants.isEmpty() ? DrawRunStatus.NO_ENTRIES : DrawRunStatus.READY;
 		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(1, event.weightingEnabled(), event.type().name(),
 				event.membershipRule(), 1, 3, 5, event.prizes());
-		return repository.saveInitial(new DrawSnapshot(null, eventId, status, now,
-				ALGORITHM_VERSION, rules, candidates));
+		return new DrawSnapshot(runId, event.id(), status, now, ALGORITHM_VERSION, rules, candidates);
 	}
 
 	/** 중복 차감·응모 수량·접수 시각을 검증하고 실제 등급별 차감량으로 후보 가중치를 계산한다. */
