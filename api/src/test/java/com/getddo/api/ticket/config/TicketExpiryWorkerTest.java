@@ -122,7 +122,9 @@ class TicketExpiryWorkerTest {
 			stopping.get(10, TimeUnit.SECONDS);
 			assertThat(stopping.isDone()).isTrue();
 		} finally {
+			// 검증이 중간에 실패해도 시작한 전용 스레드가 남지 않게 폴링을 풀어 주고 워커를 종료한다. stop()은 여러 번 불러도 안전하다.
 			release.countDown();
+			started.stop();
 			stopper.shutdownNow();
 		}
 	}
