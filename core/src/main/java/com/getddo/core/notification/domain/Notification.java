@@ -1,5 +1,6 @@
 package com.getddo.core.notification.domain;
 
+import java.beans.ConstructorProperties;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -34,8 +35,10 @@ public final class Notification {
 
 	/**
 	 * 불변 조회 값을 저장하며 ID·제목·내용·생성 시각이 null이면 거절한다.
+	 * 생성자 속성명은 다른 모듈의 Mapper가 컴파일된 클래스에서도 확인할 수 있도록 명시한다.
 	 * @throws NullPointerException 필수 조회 값이 null인 경우
 	 */
+	@ConstructorProperties({"id", "title", "body", "createdAt", "isRead", "eventId", "linkUrl"})
 	public Notification(UUID id, String title, String body, Instant createdAt,
 			boolean isRead, UUID eventId, String linkUrl) {
 		this.id = Objects.requireNonNull(id, "id");
@@ -46,4 +49,5 @@ public final class Notification {
 		this.eventId = eventId;
 		this.linkUrl = linkUrl;
 	}
+
 }

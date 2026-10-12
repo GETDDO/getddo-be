@@ -1,6 +1,5 @@
 package com.getddo.db.notification.repository;
 
-import java.nio.ByteBuffer;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -28,6 +27,7 @@ import com.getddo.core.notification.domain.NotificationType;
 import com.getddo.core.notification.exception.NotificationProcessingErrorCode;
 import com.getddo.core.notification.exception.NotificationProcessingException;
 import com.getddo.core.notification.repository.NotificationJobRepository;
+import com.getddo.db.common.util.UuidBinary;
 
 /**
  * 기존 알림 테이블의 선점·저장·재시도를 담당한다.
@@ -75,7 +75,8 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		while (true) {
 			List<NotificationJob> rows = jdbc.query("""
 				select id, attempt_count from notification_jobs
-				where scheduled_at <= ? and (
+				where json_extract(payload, '$.generationStoppedBy') is null
+				and scheduled_at <= ? and (
 				 (status = 'PENDING' and (next_attempt_at is null or next_attempt_at <= ?))
 				 or (status = 'PROCESSING' and (lease_until is null or lease_until <= ?)))
 				order by scheduled_at, id limit 1 for update skip locked
@@ -105,6 +106,11 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	@Override
 	public NotificationJobRequest findRequest(UUID jobId) {
 		return findRequest(jobId, false);
+	}
+
+	@Override
+	public NotificationJobRequest findRequestForComparison(UUID jobId) {
+		return findRequest(jobId, true);
 	}
 
 	/** 등록 입력 비교는 잠금 읽기로 수행해 호출자의 이전 스냅샷에 영향을 받지 않는다. */
@@ -145,8 +151,11 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public boolean createNotification(NotificationJob job, NotificationJobRequest request, UUID userId, Instant now) {
 		List<Boolean> owned = jdbc.query("""
-			select attempt_count, status, lease_until from notification_jobs where id = ? for update
+			select attempt_count, status, lease_until,
+			json_extract(payload, '$.generationStoppedBy') as stopped_by
+			from notification_jobs where id = ? for update
 			""", (row, index) -> row.getInt("attempt_count") == job.getAttemptCount()
+				&& row.getString("stopped_by") == null
 				&& NotificationJobStatus.PROCESSING.name().equals(row.getString("status"))
 				&& instant(row, "lease_until") != null && instant(row, "lease_until").isAfter(now), bytes(job.getId()));
 		if (owned.isEmpty() || !owned.getFirst()) {
@@ -173,6 +182,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			update notification_jobs set status = 'COMPLETED', completed_at = ?,
 			lease_until = null, next_attempt_at = null, last_error = null
 			where id = ? and status = 'PROCESSING' and attempt_count = ?
+			and json_extract(payload, '$.generationStoppedBy') is null
 			""", time(now), bytes(job.getId()), job.getAttemptCount());
 	}
 
@@ -183,6 +193,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		jdbc.update("""
 			update notification_jobs set status = ?, next_attempt_at = ?, lease_until = null,
 			last_error = ? where id = ? and status = 'PROCESSING' and attempt_count = ?
+			and json_extract(payload, '$.generationStoppedBy') is null
 			""", (nextAttemptAt == null ? NotificationJobStatus.FAILED : NotificationJobStatus.PENDING).name(),
 				time(nextAttemptAt), errorCode, bytes(job.getId()), job.getAttemptCount());
 	}
@@ -252,17 +263,12 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 
 	/** DB의 BINARY(16) 식별자와 비교할 수 있도록 UUID를 바이트 배열로 변환한다. */
 	private static byte[] bytes(UUID id) {
-		return id == null ? null : ByteBuffer.allocate(16)
-				.putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
+		return id == null ? null : UuidBinary.toBytes(id);
 	}
 
 	/** DB의 BINARY(16) 값을 UUID로 복원하며 nullable 식별자는 null로 유지한다. */
 	private static UUID uuid(byte[] value) {
-		if (value == null) {
-			return null;
-		}
-		ByteBuffer buffer = ByteBuffer.wrap(value);
-		return new UUID(buffer.getLong(), buffer.getLong());
+		return value == null ? null : UuidBinary.fromBytes(value);
 	}
 
 	/** DATETIME에는 JVM 기본 시간대와 무관하게 UTC의 날짜·시각을 전달한다. */

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.ticket.domain.RefundCommand;
 import com.getddo.core.ticket.domain.RefundResult;
+import com.getddo.core.ticket.domain.RefundTicketState;
 import com.getddo.core.ticket.domain.Ticket;
 import com.getddo.core.ticket.domain.TicketExpiry;
 import com.getddo.core.ticket.domain.TicketHistory;
@@ -28,7 +29,7 @@ import com.getddo.core.ticket.repository.TicketHistoryRepository;
 import com.getddo.core.ticket.repository.TicketRepository;
 
 /**
- * 이벤트 취소·참여 제외처럼 응모가 무효가 될 때 그 응모에 쓴 응모권을 모두 되돌리는 진입점.
+ * 이벤트 취소로 응모가 무효가 될 때 그 응모에 쓴 응모권을 모두 되돌리는 진입점.
  *
  * <p>같은 응모권이 {@code RETURNED} 상태로 돌아오며 등급은 그대로다. 새 응모권을 지급하는 것이 아니고 등급은 지급 때
  * 한 번 정해져 바뀌지 않기 때문이다(공용 스펙 {@code 02-domain/ticket.md}, {@code 00-requirements/pending-decisions.md}).
@@ -79,7 +80,9 @@ public class TicketRefundService {
 			switch (stateAfter(use, ticketsById.get(use.getTicketId()))) {
 				case SPENT_AS_USED -> pending.add(use);
 				case ALREADY_REFUNDED -> { }
-				case CHANGED -> throw new TicketException(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH);
+				case CHANGED -> {
+					return replayOrFail(useIds, uses.size());
+				}
 			}
 		}
 		if (pending.isEmpty()) {
@@ -102,30 +105,35 @@ public class TicketRefundService {
 				refundedAt, expiresAt, false);
 	}
 
-	private enum TicketState {
-		/** 사용 직후 상태 그대로다. 반환할 수 있다. */
-		SPENT_AS_USED,
-		/** 이 사용을 되돌리는 반환이 이미 반영됐다. */
-		ALREADY_REFUNDED,
-		/** 다른 처리가 끼어들어 이 사용과 이어지지 않는다. */
-		CHANGED
+	/**
+	 * 응모권이 사용 직후 상태가 아닐 때, 잠금을 기다리는 사이 같은 응모의 앞 반환이 끝나고 응모권이 다시 쓰인 것인지 확인한다.
+	 * 처음 읽은 반환 이력은 잠금 전의 값이므로 잠금 읽기로 최신 이력을 본다. 반환 이력이 모두 있으면 기존 결과를 돌려주고,
+	 * 아니면 다른 처리가 끼어든 것이므로 실패한다. 반환 이력이 없는 구간을 미리 잠그면 서로 다른 사용자의 반환이 이어서
+	 * 이력을 넣을 때 교착하므로, 상태가 이상할 때만 이 확인을 한다.
+	 */
+	private RefundResult replayOrFail(List<UUID> useIds, int useCount) {
+		List<TicketHistory> refunded = historyRepository.findRefundsOfLocked(useIds);
+		if (refunded.size() == useCount) {
+			return replayOf(refunded);
+		}
+		throw new TicketException(TicketErrorCode.TICKET_REFUND_STATE_MISMATCH);
 	}
 
 	/**
 	 * 잠가 읽은 응모권이 이 사용 이력의 직후 상태인지, 이미 이 사용을 반환한 상태인지 가린다. 사용됨에서 반환됨으로 바꾸는
 	 * 처리는 반환뿐이므로, 반환됨이고 버전이 사용 버전 + 1이면 이 사용을 되돌린 것이다.
 	 */
-	private static TicketState stateAfter(TicketHistory use, Ticket ticket) {
+	private static RefundTicketState stateAfter(TicketHistory use, Ticket ticket) {
 		if (ticket == null) {
-			return TicketState.CHANGED;
+			return RefundTicketState.CHANGED;
 		}
 		if (ticket.getStatus() == TicketStatus.SPENT && ticket.getVersion() == use.getTicketVersion()) {
-			return TicketState.SPENT_AS_USED;
+			return RefundTicketState.SPENT_AS_USED;
 		}
 		if (ticket.getStatus() == TicketStatus.RETURNED && ticket.getVersion() == use.getTicketVersion() + 1) {
-			return TicketState.ALREADY_REFUNDED;
+			return RefundTicketState.ALREADY_REFUNDED;
 		}
-		return TicketState.CHANGED;
+		return RefundTicketState.CHANGED;
 	}
 
 	/** 앞선 반환이 이미 반영된 응모권의 현재 값으로 기존 결과를 만든다. 반환 시각과 만료 시각은 응모권의 현재 값이다. */

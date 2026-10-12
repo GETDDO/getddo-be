@@ -21,4 +21,9 @@ public interface TicketHistoryRepository {
 
 	/** 주어진 사용 이력을 되돌리는 반환 이력을 잠그지 않고 읽는다. */
 	List<TicketHistory> findRefundsOf(Collection<UUID> originalUseHistoryIds);
+
+	/**
+	 * 주어진 사용 이력을 되돌리는 반환 이력을 공유 잠금으로 읽는다. 잠금 읽기는 트랜잭션 스냅샷이 아니라 최신 커밋 값을 본다.
+	 */
+	List<TicketHistory> findRefundsOfLocked(Collection<UUID> originalUseHistoryIds);
 }

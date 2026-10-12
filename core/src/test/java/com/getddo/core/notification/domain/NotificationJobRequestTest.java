@@ -69,6 +69,39 @@ class NotificationJobRequestTest {
 		assertThat(request.getTitle().codePointCount(0, request.getTitle().length())).isEqualTo(200);
 	}
 
+	/** 작업 전체 입력의 비교와 수신자·시각 정규화 후의 해시 계약을 확인한다. */
+	@Test
+	@DisplayName("정규화된 같은 작업은 값과 해시가 같고 입력 필드가 바뀌면 다른 작업이다")
+	void comparesAllRegistrationFields() {
+		// given
+		UUID event = UUID.randomUUID();
+		UUID publication = UUID.randomUUID();
+		UUID user = UUID.randomUUID();
+		NotificationJobRequest original = new NotificationJobRequest("발생", NotificationType.RESULT_CHANGED,
+				event, publication, "제목", "내용", "/events", NOW, List.of(user));
+		NotificationJobRequest same = new NotificationJobRequest("발생", NotificationType.RESULT_CHANGED,
+				event, publication, "제목", "내용", "/events", NOW.plusNanos(1), List.of(user, user));
+		List<NotificationJobRequest> changed = List.of(
+				new NotificationJobRequest("다른 발생", original.getType(), event, publication, "제목", "내용", "/events", NOW, List.of(user)),
+				new NotificationJobRequest("발생", NotificationType.EVENT_START, event, publication, "제목", "내용", "/events", NOW, List.of(user)),
+				new NotificationJobRequest("발생", original.getType(), null, publication, "제목", "내용", "/events", NOW, List.of(user)),
+				new NotificationJobRequest("발생", original.getType(), event, null, "제목", "내용", "/events", NOW, List.of(user)),
+				new NotificationJobRequest("발생", original.getType(), event, publication, "다른 제목", "내용", "/events", NOW, List.of(user)),
+				new NotificationJobRequest("발생", original.getType(), event, publication, "제목", "다른 내용", "/events", NOW, List.of(user)),
+				new NotificationJobRequest("발생", original.getType(), event, publication, "제목", "내용", null, NOW, List.of(user)),
+				new NotificationJobRequest("발생", original.getType(), event, publication, "제목", "내용", "/events", NOW.plusSeconds(1), List.of(user)),
+				new NotificationJobRequest("발생", original.getType(), event, publication, "제목", "내용", "/events", NOW, List.of()));
+
+		// when / then
+		assertThat(original).isEqualTo(same);
+		assertThat(same).isEqualTo(original);
+		assertThat(original.hashCode()).isEqualTo(same.hashCode());
+		assertThat(original).isNotEqualTo(null).isNotEqualTo("발생");
+		for (NotificationJobRequest different : changed) {
+			assertThat(original).isNotEqualTo(different);
+		}
+	}
+
 	/** 각 시나리오에서 발생 키와 수신 대상을 지정할 유효한 알림 작업 입력을 만든다. */
 	private static NotificationJobRequest request(String key, String title, String body, List<UUID> users) {
 		return new NotificationJobRequest(key, NotificationType.RESULT_CHANGED,

@@ -3,6 +3,7 @@ package com.getddo.core.attendance.service;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -106,6 +107,16 @@ class AttendanceRecorderTest {
 		});
 	}
 
+	/** 오늘을 포함한 그 달 출석 날짜를 돌려준다. */
+	private void attendedDates(YearMonth month, LocalDate... dates) {
+		when(attendanceRepository.findAttendanceDates(USER_ID, month)).thenReturn(List.of(dates));
+	}
+
+	private static LocalDate[] septemberDays(int fromDay, int toDay) {
+		return java.util.stream.IntStream.rangeClosed(fromDay, toDay)
+				.mapToObj(day -> LocalDate.of(2026, 9, day)).toArray(LocalDate[]::new);
+	}
+
 	private void streakSavedAsIs() {
 		when(streakRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 	}
@@ -125,9 +136,9 @@ class AttendanceRecorderTest {
 		insertReturnsSavedAttendance(TODAY);
 		when(streakRepository.findForUpdate(USER_ID, SEPTEMBER)).thenReturn(Optional.empty());
 		when(policyRepository.findStreakPolicySet(SEPTEMBER)).thenReturn(Optional.of(SET));
+		attendedDates(YearMonth.of(2026, 9), TODAY);
 		streakSavedAsIs();
 		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.of(DAILY));
-		when(policyRepository.findStreakPolicySetById(SET.getId())).thenReturn(Optional.of(SET));
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
@@ -154,9 +165,9 @@ class AttendanceRecorderTest {
 		insertReturnsSavedAttendance(TODAY);
 		when(streakRepository.findForUpdate(USER_ID, SEPTEMBER)).thenReturn(Optional.empty());
 		when(policyRepository.findStreakPolicySet(SEPTEMBER)).thenReturn(Optional.of(SET));
+		attendedDates(YearMonth.of(2026, 9), TODAY);
 		streakSavedAsIs();
 		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.of(DAILY));
-		when(policyRepository.findStreakPolicySetById(SET.getId())).thenReturn(Optional.of(SET));
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
@@ -174,6 +185,7 @@ class AttendanceRecorderTest {
 		when(attendanceRepository.findByUserIdAndDate(USER_ID, TODAY)).thenReturn(Optional.empty());
 		insertReturnsSavedAttendance(TODAY);
 		when(streakRepository.findForUpdate(USER_ID, SEPTEMBER)).thenReturn(Optional.of(sixDays));
+		attendedDates(YearMonth.of(2026, 9), septemberDays(1, 7));
 		streakSavedAsIs();
 		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.of(DAILY));
 		when(policyRepository.findStreakPolicySetById(SET.getId())).thenReturn(Optional.of(SET));
@@ -207,6 +219,7 @@ class AttendanceRecorderTest {
 		when(attendanceRepository.findByUserIdAndDate(USER_ID, TODAY)).thenReturn(Optional.empty());
 		insertReturnsSavedAttendance(TODAY);
 		when(streakRepository.findForUpdate(USER_ID, SEPTEMBER)).thenReturn(Optional.of(sixDays));
+		attendedDates(YearMonth.of(2026, 9), septemberDays(1, 7));
 		streakSavedAsIs();
 		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.of(DAILY));
 		when(policyRepository.findStreakPolicySetById(SET.getId())).thenReturn(Optional.of(SET));
@@ -259,9 +272,9 @@ class AttendanceRecorderTest {
 		insertReturnsSavedAttendance(october);
 		when(streakRepository.findForUpdate(USER_ID, october)).thenReturn(Optional.empty());
 		when(policyRepository.findStreakPolicySet(october)).thenReturn(Optional.of(SET));
+		attendedDates(YearMonth.of(2026, 10), october);
 		streakSavedAsIs();
 		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.of(DAILY));
-		when(policyRepository.findStreakPolicySetById(SET.getId())).thenReturn(Optional.of(SET));
 		claimInsertAssignsId();
 		grantSucceeds();
 		// when
@@ -297,5 +310,70 @@ class AttendanceRecorderTest {
 		// then
 		assertErrorCode(() -> recorder.record(USER_ID, NOW), AttendanceErrorCode.ATTENDANCE_POLICY_NOT_FOUND);
 		verify(grantService, never()).grant(any());
+	}
+
+	@Test
+	@DisplayName("8일 출석이 먼저 저장된 뒤 7일 출석이 처리되면 연속 8일로 다시 계산하고 7일 단계 보상을 7일 출석으로 청구한다")
+	void lateAttendanceCompletesRunAndClaimsMilestone() {
+		// given: 9/1~9/6 출석 뒤 8일 요청이 먼저 커밋되어 현황은 연속 1일, 마지막 출석일은 8일이다
+		LocalDate eighth = LocalDate.parse("2026-09-08");
+		AttendanceStreak resetByEighth = new AttendanceStreak(UUID.randomUUID(), USER_ID, SET.getId(), SEPTEMBER, 1,
+				eighth);
+		when(attendanceRepository.findByUserIdAndDate(USER_ID, TODAY)).thenReturn(Optional.empty());
+		insertReturnsSavedAttendance(TODAY);
+		when(streakRepository.findForUpdate(USER_ID, SEPTEMBER)).thenReturn(Optional.of(resetByEighth));
+		attendedDates(YearMonth.of(2026, 9), septemberDays(1, 8));
+		streakSavedAsIs();
+		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.of(DAILY));
+		when(policyRepository.findStreakPolicySetById(SET.getId())).thenReturn(Optional.of(SET));
+		when(claimRepository.exists(USER_ID, AttendanceRewardType.STREAK, "2026-09:7")).thenReturn(false);
+		claimInsertAssignsId();
+		grantSucceeds();
+		// when: 요청 시각은 7일이다
+		AttendanceReceipt receipt = recorder.record(USER_ID, NOW);
+		// then
+		assertThat(receipt.getAttendanceDate()).isEqualTo(TODAY);
+		assertThat(receipt.getConsecutiveDays()).isEqualTo(8);
+		assertThat(receipt.getRewards()).extracting(AttendanceRewardReceipt::getRewardType, AttendanceRewardReceipt::getMilestoneDays)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(AttendanceRewardType.DAILY, null),
+						org.assertj.core.groups.Tuple.tuple(AttendanceRewardType.STREAK, 7));
+		ArgumentCaptor<AttendanceStreak> streak = ArgumentCaptor.forClass(AttendanceStreak.class);
+		verify(streakRepository).save(streak.capture());
+		assertThat(streak.getValue().getConsecutiveDays()).isEqualTo(8);
+		assertThat(streak.getValue().getLastAttendanceDate()).isEqualTo(eighth);
+	}
+
+	@Test
+	@DisplayName("늦게 저장된 중간 날짜 덕에 이미 저장된 뒤 날짜에서 단계에 도달하면 그 날의 출석으로 단계 보상을 청구한다")
+	void claimsMilestoneOnTheDayAlreadyStored() {
+		// given: 1~5일과 7일이 저장돼 있고 6일이 나중에 들어와 7일째 되는 날은 이미 저장된 7일 출석이다
+		LocalDate sixth = LocalDate.parse("2026-09-06");
+		LocalDate seventh = LocalDate.parse("2026-09-07");
+		Attendance sixthAttendance = saved(sixth);
+		Attendance seventhAttendance = saved(seventh);
+		AttendanceStreak brokenBySeventh = new AttendanceStreak(UUID.randomUUID(), USER_ID, SET.getId(), SEPTEMBER, 1,
+				seventh);
+		Instant sixthDay = Instant.parse("2026-09-06T03:00:00Z");
+		when(attendanceRepository.findByUserIdAndDate(USER_ID, sixth)).thenReturn(Optional.empty());
+		when(attendanceRepository.insert(any())).thenReturn(sixthAttendance);
+		when(streakRepository.findForUpdate(USER_ID, SEPTEMBER)).thenReturn(Optional.of(brokenBySeventh));
+		attendedDates(YearMonth.of(2026, 9), septemberDays(1, 7));
+		when(attendanceRepository.findByUserIdAndDate(USER_ID, seventh)).thenReturn(Optional.of(seventhAttendance));
+		streakSavedAsIs();
+		when(policyRepository.findDailyPolicy(any())).thenReturn(Optional.of(DAILY));
+		when(policyRepository.findStreakPolicySetById(SET.getId())).thenReturn(Optional.of(SET));
+		when(claimRepository.exists(USER_ID, AttendanceRewardType.STREAK, "2026-09:7")).thenReturn(false);
+		claimInsertAssignsId();
+		grantSucceeds();
+		// when
+		AttendanceReceipt receipt = recorder.record(USER_ID, sixthDay);
+		// then
+		assertThat(receipt.getConsecutiveDays()).isEqualTo(7);
+		ArgumentCaptor<AttendanceRewardClaim> claims = ArgumentCaptor.forClass(AttendanceRewardClaim.class);
+		verify(claimRepository, times(2)).insert(claims.capture());
+		AttendanceRewardClaim streakClaim = claims.getAllValues().get(1);
+		assertThat(streakClaim.getRewardType()).isEqualTo(AttendanceRewardType.STREAK);
+		assertThat(streakClaim.getAttendanceId()).isEqualTo(seventhAttendance.getId());
+		assertThat(streakClaim.getRewardDate()).isEqualTo(seventh);
 	}
 }

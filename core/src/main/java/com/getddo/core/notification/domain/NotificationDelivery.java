@@ -33,4 +33,5 @@ public final class NotificationDelivery {
 		}
 		this.attemptCount = attemptCount;
 	}
+
 }

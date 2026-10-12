@@ -59,9 +59,9 @@ class MySqlMigrationTest {
 		assertIndexExists("notification_jobs", "ix_notification_job_pending");
 		assertIndexExists("notification_jobs", "ix_notification_job_lease");
 		assertIndexExists("notifications", "ix_notification_delivery_retry");
-		assertIndexExists("tickets", "ix_tickets_user_status_expiry");
-		assertThat(indexColumns("tickets", "ix_tickets_user_status_expiry", 1))
-				.containsExactly("user_id", "status", "expires_at", "grade");
+		assertIndexExists("tickets", "ix_tickets_user_grade_expiry");
+		assertThat(indexColumns("tickets", "ix_tickets_user_grade_expiry", 1))
+				.containsExactly("user_id", "grade", "expires_at");
 		try (Connection connection = connect();
 			ResultSet rows = connection.createStatement().executeQuery("""
 				select column_type from information_schema.columns

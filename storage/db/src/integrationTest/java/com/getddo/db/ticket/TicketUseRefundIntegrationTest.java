@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.DisplayName;
@@ -303,6 +304,58 @@ class TicketUseRefundIntegrationTest extends TicketIntegrationTestSupport {
 		assertThat(historyCount(userId)).isEqualTo(historiesAfterFirst);
 		assertThat(count("select count(*) from tickets where user_id = ? and version = 3", bytes(userId)))
 				.isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("반환된 응모권이 다른 응모에 다시 쓰인 뒤에도 같은 응모를 다시 반환하면 기존 결과를 replayed=true로 돌려준다")
+	void refundReplaysEvenAfterTicketsUsedAgain() {
+		// given
+		ticket(TicketGrade.BRONZE, SEPTEMBER_END);
+		ticket(TicketGrade.BRONZE, SEPTEMBER_END);
+		UUID entry = seeds.eventEntry(userId);
+		use(entry, pick(TicketGrade.BRONZE, 2));
+		RefundResult first = refund(entry);
+		use(seeds.eventEntry(userId), pick(TicketGrade.BRONZE, 2));
+		// when
+		RefundResult again = refund(entry);
+		// then
+		assertThat(again.isReplayed()).isTrue();
+		assertThat(ids(again.getTickets())).containsExactlyInAnyOrderElementsOf(ids(first.getTickets()));
+		assertThat(count("select count(*) from tickets where user_id = ? and status = 'SPENT' and version = 4",
+				bytes(userId))).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("반환 요청이 오래된 스냅샷을 본 사이 앞 반환이 끝나고 응모권이 다시 쓰여도 TICKET-009가 아니라 기존 결과를 돌려준다")
+	void refundReplaysWhenPriorRefundAndReuseCommitDuringRequest() {
+		// given
+		ticket(TicketGrade.BRONZE, SEPTEMBER_END);
+		ticket(TicketGrade.BRONZE, SEPTEMBER_END);
+		UUID entry = seeds.eventEntry(userId);
+		UUID otherEntry = seeds.eventEntry(userId);
+		use(entry, pick(TicketGrade.BRONZE, 2));
+		TransactionTemplate stale = new TransactionTemplate(transaction.getTransactionManager());
+		stale.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		TransactionTemplate other = new TransactionTemplate(transaction.getTransactionManager());
+		other.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		// when: 이 요청이 스냅샷을 잡은 뒤 다른 요청이 반환하고 같은 응모권을 다른 응모에 다시 쓴다
+		AtomicReference<RefundResult> firstRefund = new AtomicReference<>();
+		RefundResult result = stale.execute(status -> {
+			jdbc.queryForObject("select count(*) from ticket_histories", Long.class);
+			firstRefund.set(other.execute(inner -> refundService.refund(new RefundCommand(entry, "테스트 취소"))));
+			other.execute(inner -> useService.use(
+					new UseCommand(userId, otherEntry, List.of(pick(TicketGrade.BRONZE, 2)), "테스트 응모")));
+			return refundService.refund(new RefundCommand(entry, "테스트 취소"));
+		});
+		// then
+		assertThat(result.isReplayed()).isTrue();
+		assertThat(ids(result.getTickets())).containsExactlyInAnyOrderElementsOf(ids(firstRefund.get().getTickets()));
+		assertThat(result.getRefundedAt()).isEqualTo(firstRefund.get().getRefundedAt());
+		assertThat(result.getExpiresAt()).isEqualTo(firstRefund.get().getExpiresAt());
+		assertThat(count("select count(*) from ticket_histories where operation_type = 'REFUND' "
+				+ "and ticket_id in (select id from tickets where user_id = ?)", bytes(userId))).isEqualTo(2);
+		assertThat(count("select count(*) from tickets where user_id = ? and status = 'SPENT' and version = 4",
+				bytes(userId))).isEqualTo(2);
 	}
 
 	@Test
