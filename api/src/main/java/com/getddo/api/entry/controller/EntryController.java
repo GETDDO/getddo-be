@@ -62,8 +62,8 @@ public class EntryController {
 			@Parameter(description = "응모 요청을 구분하는 UUID. 같은 응모의 재시도는 같은 값을 보낸다.")
 			@RequestHeader("Idempotency-Key") UUID entryId,
 			@Valid @RequestBody EntryRequest request) {
-		EntryReceipt receipt = entryService.enter(new EntryCommand(user.id(), user.role() == UserRole.ADMIN,
-				user.membership(), eventId, entryId, request.toTickets()));
+		EntryReceipt receipt = entryService.enter(new EntryCommand(user.getId(), user.getRole() == UserRole.ADMIN,
+				user.getMembership(), eventId, entryId, request.toTickets()));
 		return ResponseEntity.status(receipt.isCreated() ? HttpStatus.CREATED : HttpStatus.OK)
 				.body(ResponseEnvelope.success(EntryReceiptResponse.from(receipt)));
 	}
@@ -77,7 +77,7 @@ public class EntryController {
 	@GetMapping("/eligibility")
 	public ResponseEnvelope<EntryEligibilityResponse> findEligibility(@CurrentUser User user,
 			@PathVariable UUID eventId) {
-		return ResponseEnvelope.success(EntryEligibilityResponse.from(eligibilityService.check(user.id(),
-				user.role() == UserRole.ADMIN, user.membership(), eventId)));
+		return ResponseEnvelope.success(EntryEligibilityResponse.from(eligibilityService.check(user.getId(),
+				user.getRole() == UserRole.ADMIN, user.getMembership(), eventId)));
 	}
 }

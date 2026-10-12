@@ -14,11 +14,11 @@ public record UserProfileResponse(
 ) {
 	public static UserProfileResponse from(User user) {
 		String membership = null;
-		if (user.membership() != null) {
-			membership = user.membership().name().toLowerCase(Locale.ROOT);
+		if (user.getMembership() != null) {
+			membership = user.getMembership().name().toLowerCase(Locale.ROOT);
 		}
 
-		return new UserProfileResponse(user.id(), user.name(), user.role(), user.status(),
-				membership, user.phoneNum(), user.email());
+		return new UserProfileResponse(user.getId(), user.getName(), user.getRole(), user.getStatus(),
+				membership, user.getPhoneNum(), user.getEmail());
 	}
 }
