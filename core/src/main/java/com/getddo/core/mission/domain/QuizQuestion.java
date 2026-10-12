@@ -19,7 +19,7 @@ public final class QuizQuestion {
 	private final QuizQuestionType questionType;
 	private final String questionText;
 	private final int displayOrder;
-	/** 단답형 정답. 선택형이면 null. */
+	/** 단답형 정답. 선택형이면 null. 관리자용 정보라 사용자 응답에 담지 않는다. */
 	private final String correctAnswer;
 	private final List<QuizOption> options;
 

@@ -113,6 +113,24 @@ class MissionTest {
 	}
 
 	@Test
+	@DisplayName("기간 판정은 운영 상태와 무관하게 도착 시각만 보므로 종료 상태가 된 뒤에도 기간 안에 도착한 제출을 기간 안으로 판정한다")
+	void periodCheckIgnoresStatus() {
+		// given
+		Mission active = register("제목", "설명", STARTS, ENDS, null);
+		Mission ended = new Mission(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "제목", "설명",
+				MissionType.SURVEY, STARTS, ENDS, MissionStatus.ENDED, null, STARTS, STARTS);
+		Instant arrivedInPeriod = ENDS.minusSeconds(1);
+		// when
+		// then
+		assertThat(active.isWithinPeriod(STARTS.minusNanos(1000))).isFalse();
+		assertThat(active.isWithinPeriod(STARTS)).isTrue();
+		assertThat(active.isWithinPeriod(ENDS.minusNanos(1000))).isTrue();
+		assertThat(active.isWithinPeriod(ENDS)).isFalse();
+		assertThat(ended.isWithinPeriod(arrivedInPeriod)).isTrue();
+		assertThat(ended.acceptsSubmissionAt(arrivedInPeriod)).isFalse();
+	}
+
+	@Test
 	@DisplayName("종료된 미션은 기간 안이어도 제출을 인정하지 않는다")
 	void endedMissionRejectsSubmission() {
 		// given

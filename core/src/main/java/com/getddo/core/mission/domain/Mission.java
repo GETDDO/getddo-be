@@ -74,10 +74,21 @@ public final class Mission {
 	}
 
 	/**
-	 * 서버가 제출을 받은 시각에 제출을 인정하는지 확인한다. 시작 시각 이상, 종료 시각 미만이고 운영 중일 때만 참이다.
-	 * 정확히 종료 시각에 도착한 제출은 인정하지 않는다.
+	 * 서버가 제출을 <b>받는 순간</b> 새 제출을 받아도 되는지 확인한다. 기간 안이고 운영 중일 때만 참이다.
+	 *
+	 * <p>도착 시점에 한 번만 호출한다. 기간 안에 도착한 제출은 검증이 종료 뒤에 끝나도 달성·보상을 반영해야 하므로, 이미
+	 * 받은 제출을 이어서 처리할 때는 미션 상태가 종료로 바뀌었을 수 있는 이 메서드 대신 도착 시각으로 {@link #isWithinPeriod}를
+	 * 쓴다.</p>
 	 */
 	public boolean acceptsSubmissionAt(Instant receivedAt) {
-		return status == MissionStatus.ACTIVE && !receivedAt.isBefore(startsAt) && receivedAt.isBefore(endsAt);
+		return status == MissionStatus.ACTIVE && isWithinPeriod(receivedAt);
+	}
+
+	/**
+	 * 도착 시각이 운영 기간 안인지 확인한다. 운영 상태는 보지 않는다. 시작 시각 이상, 종료 시각 미만이며 정확히 종료 시각에
+	 * 도착한 제출은 기간 밖이다.
+	 */
+	public boolean isWithinPeriod(Instant receivedAt) {
+		return !receivedAt.isBefore(startsAt) && receivedAt.isBefore(endsAt);
 	}
 }
