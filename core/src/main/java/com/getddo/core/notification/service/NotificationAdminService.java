@@ -1,5 +1,6 @@
 package com.getddo.core.notification.service;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -15,6 +16,7 @@ import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.notification.domain.AdminNotification;
 import com.getddo.core.notification.domain.AdminNotificationJob;
+import com.getddo.core.notification.domain.AdminNotificationJobResult;
 import com.getddo.core.notification.domain.NotificationDeliveryQuery;
 import com.getddo.core.notification.domain.NotificationJobQuery;
 import com.getddo.core.notification.exception.NotificationAdminErrorCode;
@@ -33,16 +35,19 @@ public class NotificationAdminService {
 
 	/** 활성 관리자 권한을 확인하고 작업 목록을 조회한다. */
 	@Transactional(readOnly = true)
-	public PageResult<AdminNotificationJob> findJobs(User actor, NotificationJobQuery query) {
+	public PageResult<AdminNotificationJobResult> findJobs(User actor, NotificationJobQuery query) {
 		requireAdmin(actor);
-		return repository.findJobs(query);
+		PageResult<AdminNotificationJob> jobs = repository.findJobs(query);
+		Instant now = time.now();
+		return jobs.map(job -> new AdminNotificationJobResult(job, job.isRetryable(now)));
 	}
 
 	/** 활성 관리자 권한을 확인하고 작업 상세를 조회한다. 대상이 없으면 업무 예외를 던진다. */
 	@Transactional(readOnly = true)
-	public AdminNotificationJob findJob(User actor, UUID id) {
+	public AdminNotificationJobResult findJob(User actor, UUID id) {
 		requireAdmin(actor);
-		return repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
+		AdminNotificationJob job = repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
+		return new AdminNotificationJobResult(job, job.isRetryable(time.now()));
 	}
 
 	/** 활성 관리자에게 읽음 상태를 변경하지 않는 발송 이력 조회를 제공한다. */
@@ -54,17 +59,18 @@ public class NotificationAdminService {
 
 	/** 복구 접수와 감사 기록을 함께 커밋한다. 잠금 대기 후 현재 시각으로 시작 안내 자격을 검사한다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
-	public AdminNotificationJob retryJob(User actor, UUID id) {
+	public AdminNotificationJobResult retryJob(User actor, UUID id) {
 		requireAdmin(actor);
 		AdminNotificationJob before = repository.lockJob(id).orElseThrow(NotificationAdminService::notFound);
-		var now = time.now();
+		Instant now = time.now();
 		if (!before.isRetryable(now) || !repository.retryJob(id, now)) {
 			throw new BusinessException(NotificationAdminErrorCode.RETRY_NOT_ALLOWED);
 		}
 		audit.record(new AuditLogCommand(actor.id(), "NOTIFICATION_JOB_RETRY", "NOTIFICATION_JOB", id, null,
 				Map.of("status", before.getStatus().name(), "attemptCount", before.getAttemptCount()),
 				Map.of("status", "PENDING", "attemptBase", before.getAttemptCount()), null));
-		return repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
+		AdminNotificationJob job = repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
+		return new AdminNotificationJobResult(job, job.isRetryable(now));
 	}
 
 	/** 이미 생성된 알림의 읽음·문구를 유지하고 모의 발송만 재접수한다. */

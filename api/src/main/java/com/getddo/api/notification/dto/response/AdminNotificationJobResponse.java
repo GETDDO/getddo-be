@@ -6,6 +6,7 @@ import java.util.UUID;
 import lombok.Builder;
 
 import com.getddo.core.notification.domain.AdminNotificationJob;
+import com.getddo.core.notification.domain.AdminNotificationJobResult;
 import com.getddo.core.notification.domain.NotificationType;
 import com.getddo.core.notification.domain.NotificationJobStatus;
 
@@ -26,7 +27,8 @@ public record AdminNotificationJobResponse(
 		boolean retryable
 ) {
 	/** 도메인 조회 결과를 확정된 관리자 API 응답 필드로 변환한다. */
-	public static AdminNotificationJobResponse from(AdminNotificationJob value, Instant now) {
-		return new AdminNotificationJobResponse(value.getId(), value.getEventId(), value.getPublicationId(), value.getNotificationType(), value.getStatus(), value.getAttemptCount(), value.getScheduledAt(), value.getNextAttemptAt(), value.getCreatedAt(), value.getCompletedAt(), value.getGenerationStoppedBy(), value.isRetryable(now));
+	public static AdminNotificationJobResponse from(AdminNotificationJobResult result) {
+		AdminNotificationJob value = result.getJob();
+		return new AdminNotificationJobResponse(value.getId(), value.getEventId(), value.getPublicationId(), value.getNotificationType(), value.getStatus(), value.getAttemptCount(), value.getScheduledAt(), value.getNextAttemptAt(), value.getCreatedAt(), value.getCompletedAt(), value.getGenerationStoppedBy(), result.isRetryable());
 	}
 }

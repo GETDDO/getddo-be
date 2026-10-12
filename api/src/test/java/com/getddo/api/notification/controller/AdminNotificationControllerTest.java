@@ -1,8 +1,6 @@
 package com.getddo.api.notification.controller;
 
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,9 +14,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.getddo.api.common.context.CurrentUserArgumentResolver;
 import com.getddo.api.common.exception.GlobalExceptionHandler;
 import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.notification.domain.AdminNotification;
 import com.getddo.core.notification.domain.AdminNotificationJob;
+import com.getddo.core.notification.domain.AdminNotificationJobResult;
 import com.getddo.core.notification.domain.NotificationJobStatus;
 import com.getddo.core.notification.domain.NotificationType;
 import com.getddo.core.notification.domain.MockDeliveryStatus;
@@ -47,8 +45,7 @@ class AdminNotificationControllerTest {
 	@BeforeEach
 	void setUp() {
 		User user = new User(ADMIN_ID, "관리자", UserRole.ADMIN, UserStatus.ACTIVE, null, null, null, null, null, null, null);
-		mvc = MockMvcBuilders.standaloneSetup(new AdminNotificationController(service,
-				new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))))
+		mvc = MockMvcBuilders.standaloneSetup(new AdminNotificationController(service))
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(id -> Optional.of(user))))
 				.build();
@@ -60,7 +57,7 @@ class AdminNotificationControllerTest {
 	void returnsPageEnvelope() throws Exception {
 		// given
 		AdminNotificationJob item = job(UUID.randomUUID(), NotificationJobStatus.FAILED);
-		when(service.findJobs(any(), any())).thenReturn(new PageResult<>(List.of(item), 1, 20, 21));
+		when(service.findJobs(any(), any())).thenReturn(new PageResult<>(List.of(new AdminNotificationJobResult(item, true)), 1, 20, 21));
 		// when / then
 		mvc.perform(get("/api/v1/admin/notification-jobs").header("X-User-ID", ADMIN_ID).header("X-User-Role", "ADMIN"))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isArray())
@@ -108,7 +105,7 @@ class AdminNotificationControllerTest {
 		// given
 		UUID id = UUID.randomUUID();
 		AdminNotificationJob item = job(id, NotificationJobStatus.FAILED);
-		when(service.findJob(any(), eq(id))).thenReturn(item);
+		when(service.findJob(any(), eq(id))).thenReturn(new AdminNotificationJobResult(item, true));
 		// when / then
 		mvc.perform(get("/api/v1/admin/notification-jobs/" + id)
 				.header("X-User-ID", ADMIN_ID).header("X-User-Role", "ADMIN"))
@@ -119,13 +116,29 @@ class AdminNotificationControllerTest {
 				.andExpect(jsonPath("$.data.retryable").value(true));
 	}
 
+	/** HTTP 변환은 Service가 판단한 복구 여부를 그대로 보존한다. */
+	@Test
+	@DisplayName("작업 응답은 Service의 복구 가능 여부를 다시 판단하지 않는다")
+	void preservesServiceRetryability() throws Exception {
+		// given
+		UUID id = UUID.randomUUID();
+		AdminNotificationJob item = job(id, NotificationJobStatus.FAILED);
+		when(service.findJobs(any(), any())).thenReturn(new PageResult<>(List.of(new AdminNotificationJobResult(item, false)), 1, 20, 1));
+		when(service.findJob(any(), eq(id))).thenReturn(new AdminNotificationJobResult(item, false));
+		// when / then
+		mvc.perform(get("/api/v1/admin/notification-jobs").header("X-User-ID", ADMIN_ID).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].retryable").value(false));
+		mvc.perform(get("/api/v1/admin/notification-jobs/" + id).header("X-User-ID", ADMIN_ID).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.retryable").value(false));
+	}
+
 	/** 생성 복구는 완료 응답이 아니라 누적 차수를 유지한 접수 응답이다. */
 	@Test
 	@DisplayName("작업 복구 접수는 202와 PENDING 작업을 반환한다")
 	void acceptsGenerationRetry() throws Exception {
 		// given
 		UUID id = UUID.randomUUID();
-		when(service.retryJob(any(), eq(id))).thenReturn(job(id, NotificationJobStatus.PENDING));
+		when(service.retryJob(any(), eq(id))).thenReturn(new AdminNotificationJobResult(job(id, NotificationJobStatus.PENDING), false));
 		// when / then
 		mvc.perform(post("/api/v1/admin/notification-jobs/" + id + "/retry")
 				.header("X-User-ID", ADMIN_ID).header("X-User-Role", "ADMIN"))

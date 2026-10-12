@@ -20,8 +20,8 @@ import com.getddo.api.notification.dto.response.AdminNotificationJobResponse;
 import com.getddo.api.notification.dto.response.AdminNotificationJobDetailResponse;
 import com.getddo.api.notification.dto.response.AdminNotificationResponse;
 import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.notification.domain.MockDeliveryStatus;
+import com.getddo.core.notification.domain.AdminNotificationJobResult;
 import com.getddo.core.notification.domain.NotificationDeliveryQuery;
 import com.getddo.core.notification.domain.NotificationJobQuery;
 import com.getddo.core.notification.domain.NotificationJobStatus;
@@ -35,7 +35,6 @@ import com.getddo.core.user.domain.User;
 @RequiredArgsConstructor
 public class AdminNotificationController {
 	private final NotificationAdminService service;
-	private final TimeProvider time;
 
 	/** 작업 목록의 선택 필터를 해석하고 공통 페이지 응답으로 변환한다. */
 	@GetMapping("/notification-jobs")
@@ -47,16 +46,15 @@ public class AdminNotificationController {
 			@RequestParam(required = false) UUID eventId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
-		var result = service.findJobs(user, new NotificationJobQuery(page, size, status, notificationType, eventId, from, to));
-		var now = time.now();
-		return ResponseEnvelope.success(result.map(value -> AdminNotificationJobResponse.from(value, now)));
+		PageResult<AdminNotificationJobResult> result = service.findJobs(user, new NotificationJobQuery(page, size, status, notificationType, eventId, from, to));
+		return ResponseEnvelope.success(result.map(AdminNotificationJobResponse::from));
 	}
 
 	/** 작업 상세와 현재 시점의 복구 가능 여부를 반환한다. */
 	@GetMapping("/notification-jobs/{jobId}")
 	public ResponseEnvelope<AdminNotificationJobDetailResponse> job(@CurrentUser(membershipRequired = false) User user,
 			@PathVariable UUID jobId) {
-		return ResponseEnvelope.success(AdminNotificationJobDetailResponse.from(service.findJob(user, jobId), time.now()));
+		return ResponseEnvelope.success(AdminNotificationJobDetailResponse.from(service.findJob(user, jobId)));
 	}
 
 	/** 생성 복구를 접수하고 처리 대기 작업을 202로 반환한다. */
@@ -64,7 +62,7 @@ public class AdminNotificationController {
 	public ResponseEntity<ResponseEnvelope<AdminNotificationJobResponse>> retryJob(
 			@CurrentUser(membershipRequired = false) User user, @PathVariable UUID jobId) {
 		return ResponseEntity.status(HttpStatus.ACCEPTED).body(ResponseEnvelope.success(
-				AdminNotificationJobResponse.from(service.retryJob(user, jobId), time.now())));
+				AdminNotificationJobResponse.from(service.retryJob(user, jobId))));
 	}
 
 	/** 발송 이력을 조회하며 알림의 읽음 상태를 바꾸지 않는다. */

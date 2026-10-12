@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
@@ -22,8 +24,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.audit.repository.AuditLogRepository;
 import com.getddo.core.notification.domain.AdminNotificationJob;
+import com.getddo.core.notification.domain.AdminNotificationJobResult;
 import com.getddo.core.notification.domain.NotificationDelivery;
 import com.getddo.core.notification.domain.NotificationDeliveryQuery;
 import com.getddo.core.notification.domain.NotificationJob;
@@ -97,12 +101,12 @@ class NotificationAdminIntegrationTest {
 		UUID notification = notificationId(id);
 		jdbc.update("update notifications set is_read = true where id = ?", bytes(notification));
 		// when
-		AdminNotificationJob accepted = admin.retryJob(actor, id);
+		AdminNotificationJob accepted = admin.retryJob(actor, id).getJob();
 		// then
 		assertThat(accepted.getAttemptCount()).isEqualTo(1);
 		assertThat(accepted.getAttemptBase()).isEqualTo(1);
 		repository.completeJob(old, NOW);
-		assertThat(admin.findJob(actor, id).getStatus()).isEqualTo(NotificationJobStatus.PENDING);
+		assertThat(admin.findJob(actor, id).getJob().getStatus()).isEqualTo(NotificationJobStatus.PENDING);
 		NotificationJob current = repository.claimNextJob(NOW).orElseThrow();
 		assertThat(current.getAttemptCount()).isEqualTo(2);
 		assertThat(current.getCycleAttemptCount()).isEqualTo(1);
@@ -134,7 +138,7 @@ class NotificationAdminIntegrationTest {
 			if (next != null) clock.set(next);
 		}
 		assertThat(repository.claimNextJob(clock.instant())).isEmpty();
-		assertThat(admin.findJob(actor, id).getStatus()).isEqualTo(NotificationJobStatus.FAILED);
+		assertThat(admin.findJob(actor, id).getJob().getStatus()).isEqualTo(NotificationJobStatus.FAILED);
 	}
 
 	/** 발송 복구 직후 새 선점 전에도 오래된 완료·실패 기록을 차단한다 */
@@ -173,7 +177,7 @@ class NotificationAdminIntegrationTest {
 		UUID start = job(NotificationType.EVENT_START, event);
 		jdbc.update("update notification_jobs set status='FAILED', attempt_count=4 where id=?", bytes(start));
 		// when
-		AdminNotificationJob accepted = admin.retryJob(actor, start);
+		AdminNotificationJob accepted = admin.retryJob(actor, start).getJob();
 		// then
 		assertThat(accepted.getStatus()).isEqualTo(NotificationJobStatus.PENDING);
 		assertThat(accepted.getAttemptBase()).isEqualTo(4);
@@ -181,7 +185,7 @@ class NotificationAdminIntegrationTest {
 		assertThat(auditCount(start)).isEqualTo(1);
 	}
 
-	/** 실제 MySQL에서 V019의 두 CHECK 제약이 잘못된 복구 차수를 거절한다. */
+	/** 실제 MySQL에서 V021의 두 CHECK 제약이 잘못된 복구 차수를 거절한다. */
 	@Test
 	@DisplayName("복구 기준 차수는 음수 또는 누적 차수 초과로 저장할 수 없다")
 	void enforcesRetryBaselineConstraints() {
@@ -200,7 +204,7 @@ class NotificationAdminIntegrationTest {
 					.isInstanceOf(org.springframework.dao.DataAccessException.class)
 					.hasStackTraceContaining("chk_delivery_attempt_base");
 		}
-		assertThat(admin.findJob(actor, id).getAttemptBase()).isZero();
+		assertThat(admin.findJob(actor, id).getJob().getAttemptBase()).isZero();
 	}
 
 	/** 진행 중·성공·중지·오래된 시작 안내는 생성 복구를 거절한다 */
@@ -235,10 +239,10 @@ class NotificationAdminIntegrationTest {
 		jdbc.update("update notification_jobs set created_at=? where id=?", utc(NOW.plusSeconds(1)), bytes(second));
 		jdbc.update("update notification_jobs set created_at=? where id=?", utc(NOW.plusSeconds(2)), bytes(third));
 		// when / then
-		var result = admin.findJobs(actor, new NotificationJobQuery(1, 1, null, NotificationType.RESULT_PUBLISHED,
+		PageResult<AdminNotificationJobResult> result = admin.findJobs(actor, new NotificationJobQuery(1, 1, null, NotificationType.RESULT_PUBLISHED,
 				null, NOW, NOW.plusSeconds(2)));
 		assertThat(result.getTotalElements()).isEqualTo(2);
-		assertThat(result.getItems()).extracting(AdminNotificationJob::getId).containsExactly(second);
+		assertThat(result.getItems()).extracting(value -> value.getJob().getId()).containsExactly(second);
 		assertThat(admin.findJobs(actor, new NotificationJobQuery(3, 1, null, null, null, NOW, NOW.plusSeconds(2)))
 				.getItems()).isEmpty();
 		assertThat(jobs.processNextJob()).isTrue();
@@ -260,7 +264,7 @@ class NotificationAdminIntegrationTest {
 		// when / then
 		assertThatThrownBy(() -> admin.retryJob(actor, id))
 				.isInstanceOf(DataAccessResourceFailureException.class).hasMessage("audit storage unavailable");
-		AdminNotificationJob unchanged = admin.findJob(actor, id);
+		AdminNotificationJob unchanged = admin.findJob(actor, id).getJob();
 		assertThat(unchanged.getStatus()).isEqualTo(NotificationJobStatus.FAILED);
 		assertThat(unchanged.getAttemptCount()).isEqualTo(4);
 		assertThat(unchanged.getAttemptBase()).isEqualTo(2);
@@ -280,8 +284,8 @@ class NotificationAdminIntegrationTest {
 			admin.retryJob(actor, id);
 			throw new IllegalStateException("rollback");
 		})).isInstanceOf(IllegalStateException.class);
-		assertThat(admin.findJob(actor, id).getStatus()).isEqualTo(NotificationJobStatus.FAILED);
-		assertThat(admin.findJob(actor, id).getAttemptBase()).isZero();
+		assertThat(admin.findJob(actor, id).getJob().getStatus()).isEqualTo(NotificationJobStatus.FAILED);
+		assertThat(admin.findJob(actor, id).getJob().getAttemptBase()).isZero();
 		assertThat(auditCount(id)).isZero();
 	}
 
@@ -295,9 +299,9 @@ class NotificationAdminIntegrationTest {
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch gate = new CountDownLatch(1);
 		// when
-		try (var executor = Executors.newFixedThreadPool(2)) {
-			var first = executor.submit(() -> recoverAtGate(id, ready, gate));
-			var second = executor.submit(() -> recoverAtGate(id, ready, gate));
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Future<Boolean> first = executor.submit(() -> recoverAtGate(id, ready, gate));
+			Future<Boolean> second = executor.submit(() -> recoverAtGate(id, ready, gate));
 			boolean bothReady = ready.await(10, TimeUnit.SECONDS);
 			gate.countDown();
 			// then
@@ -318,7 +322,7 @@ class NotificationAdminIntegrationTest {
 		assertThat(admin.findJobs(actor, new NotificationJobQuery(1, 20, null, null, null,
 				NOW.plusNanos(1), NOW.plusSeconds(1))).getItems()).isEmpty();
 		assertThat(admin.findJobs(actor, new NotificationJobQuery(1, 20, null, null, null,
-				NOW, NOW.plusNanos(1))).getItems()).extracting(AdminNotificationJob::getId).containsExactly(id);
+				NOW, NOW.plusNanos(1))).getItems()).extracting(value -> value.getJob().getId()).containsExactly(id);
 	}
 
 	private boolean recoverAtGate(UUID id, CountDownLatch ready, CountDownLatch gate) throws InterruptedException {
