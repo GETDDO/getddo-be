@@ -66,7 +66,7 @@ public class NotificationAdminService {
 		if (!before.isRetryable(now) || !repository.retryJob(id, now)) {
 			throw new BusinessException(NotificationAdminErrorCode.RETRY_NOT_ALLOWED);
 		}
-		audit.record(new AuditLogCommand(actor.id(), "NOTIFICATION_JOB_RETRY", "NOTIFICATION_JOB", id, null,
+		audit.record(new AuditLogCommand(actor.getId(), "NOTIFICATION_JOB_RETRY", "NOTIFICATION_JOB", id, null,
 				Map.of("status", before.getStatus().name(), "attemptCount", before.getAttemptCount()),
 				Map.of("status", "PENDING", "attemptBase", before.getAttemptCount()), null));
 		AdminNotificationJob job = repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
@@ -81,7 +81,7 @@ public class NotificationAdminService {
 		if (!before.isRetryable() || !repository.retryDelivery(id, time.now())) {
 			throw new BusinessException(NotificationAdminErrorCode.RETRY_NOT_ALLOWED);
 		}
-		audit.record(new AuditLogCommand(actor.id(), "NOTIFICATION_DELIVERY_RETRY", "NOTIFICATION", id, null,
+		audit.record(new AuditLogCommand(actor.getId(), "NOTIFICATION_DELIVERY_RETRY", "NOTIFICATION", id, null,
 				Map.of("status", before.getMockDeliveryStatus().name(), "attemptCount", before.getDeliveryAttemptCount()),
 				Map.of("status", "PENDING", "attemptBase", before.getDeliveryAttemptCount()), null));
 		return repository.findDelivery(id).orElseThrow(NotificationAdminService::notFound);
@@ -89,7 +89,7 @@ public class NotificationAdminService {
 
 	/** DB 사용자 문맥의 활성 상태와 관리자 역할을 확인한다. */
 	private static void requireAdmin(User actor) {
-		if (actor == null || actor.id() == null || actor.role() != UserRole.ADMIN || actor.status() != UserStatus.ACTIVE) {
+		if (actor == null || actor.getId() == null || actor.getRole() != UserRole.ADMIN || actor.getStatus() != UserStatus.ACTIVE) {
 			throw new BusinessException(NotificationAdminErrorCode.ADMIN_REQUIRED);
 		}
 	}
