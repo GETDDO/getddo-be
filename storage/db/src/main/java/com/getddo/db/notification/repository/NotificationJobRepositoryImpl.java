@@ -75,7 +75,8 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		while (true) {
 			List<NotificationJob> rows = jdbc.query("""
 				select id, attempt_count from notification_jobs
-				where scheduled_at <= ? and (
+				where json_extract(payload, '$.generationStoppedBy') is null
+				and scheduled_at <= ? and (
 				 (status = 'PENDING' and (next_attempt_at is null or next_attempt_at <= ?))
 				 or (status = 'PROCESSING' and (lease_until is null or lease_until <= ?)))
 				order by scheduled_at, id limit 1 for update skip locked
@@ -105,6 +106,11 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	@Override
 	public NotificationJobRequest findRequest(UUID jobId) {
 		return findRequest(jobId, false);
+	}
+
+	@Override
+	public NotificationJobRequest findRequestForComparison(UUID jobId) {
+		return findRequest(jobId, true);
 	}
 
 	/** 등록 입력 비교는 잠금 읽기로 수행해 호출자의 이전 스냅샷에 영향을 받지 않는다. */
@@ -145,8 +151,11 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public boolean createNotification(NotificationJob job, NotificationJobRequest request, UUID userId, Instant now) {
 		List<Boolean> owned = jdbc.query("""
-			select attempt_count, status, lease_until from notification_jobs where id = ? for update
+			select attempt_count, status, lease_until,
+			json_extract(payload, '$.generationStoppedBy') as stopped_by
+			from notification_jobs where id = ? for update
 			""", (row, index) -> row.getInt("attempt_count") == job.getAttemptCount()
+				&& row.getString("stopped_by") == null
 				&& NotificationJobStatus.PROCESSING.name().equals(row.getString("status"))
 				&& instant(row, "lease_until") != null && instant(row, "lease_until").isAfter(now), bytes(job.getId()));
 		if (owned.isEmpty() || !owned.getFirst()) {
@@ -173,6 +182,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			update notification_jobs set status = 'COMPLETED', completed_at = ?,
 			lease_until = null, next_attempt_at = null, last_error = null
 			where id = ? and status = 'PROCESSING' and attempt_count = ?
+			and json_extract(payload, '$.generationStoppedBy') is null
 			""", time(now), bytes(job.getId()), job.getAttemptCount());
 	}
 
@@ -183,6 +193,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		jdbc.update("""
 			update notification_jobs set status = ?, next_attempt_at = ?, lease_until = null,
 			last_error = ? where id = ? and status = 'PROCESSING' and attempt_count = ?
+			and json_extract(payload, '$.generationStoppedBy') is null
 			""", (nextAttemptAt == null ? NotificationJobStatus.FAILED : NotificationJobStatus.PENDING).name(),
 				time(nextAttemptAt), errorCode, bytes(job.getId()), job.getAttemptCount());
 	}
