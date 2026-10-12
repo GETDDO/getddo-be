@@ -30,7 +30,7 @@ public class TicketExpiryWorker {
 	/** 밀린 응모권이 많아도 한 번의 폴링이 워커를 오래 붙잡지 않도록 처리할 묶음 수를 제한한다. */
 	static final int MAX_BATCHES_PER_POLL = 50;
 	static final String THREAD_NAME_PREFIX = "ticket-expiry-";
-	/** 종료할 때 진행 중인 묶음이 끝나기를 기다리는 최대 시간. 묶음은 하나의 트랜잭션이라 중간에 끊지 않는다. */
+	/** 종료할 때 진행 중인 묶음이 끝나기를 기다리는 최대 시간(초). 넘기면 기다리기를 멈춘다. */
 	private static final int SHUTDOWN_WAIT_SECONDS = 30;
 
 	private final TicketExpiryService service;
@@ -71,8 +71,10 @@ public class TicketExpiryWorker {
 	}
 
 	/**
-	 * 새 실행을 멈추고 진행 중인 묶음이 끝나기를 기다린다. 한 폴링이 최대 {@value #MAX_BATCHES_PER_POLL}묶음을 도는 동안 종료 대기
-	 * 시간을 넘기지 않도록, 진행 중인 폴링도 지금 처리하는 묶음까지만 끝내고 멈춘다. 묶음은 하나의 트랜잭션이라 중간에 끊지 않는다.
+	 * 새 실행을 멈추고 진행 중인 묶음이 끝나기를 최대 {@value #SHUTDOWN_WAIT_SECONDS}초 기다린다. 한 폴링이 최대
+	 * {@value #MAX_BATCHES_PER_POLL}묶음을 도는 동안 이 대기 시간을 넘기지 않도록, 진행 중인 폴링도 지금 처리하는 묶음까지만
+	 * 끝내고 멈춘다. 묶음 하나가 대기 시간보다 오래 걸리면 대기만 먼저 끝나고 프로세스가 내려갈 때 그 묶음은 트랜잭션 단위로
+	 * 롤백되며, 처리하지 못한 응모권은 다음 기동의 첫 폴링이 이어서 만료한다.
 	 */
 	@PreDestroy
 	void stop() {
