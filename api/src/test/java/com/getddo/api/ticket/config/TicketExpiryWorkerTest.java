@@ -1,5 +1,9 @@
 package com.getddo.api.ticket.config;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,16 +63,35 @@ class TicketExpiryWorkerTest {
 	}
 
 	@Test
-	@DisplayName("시작하지 않고 종료해도 예외가 나지 않고, 시작한 워커는 종료할 수 있다")
-	void stopIsSafeWithAndWithoutStart() {
+	@DisplayName("시작하지 않고 종료해도 예외가 나지 않는다")
+	void stopWithoutStartIsSafe() {
 		// given
-		TicketExpiryWorker started = new TicketExpiryWorker(service, BATCH_SIZE, 3_600_000);
 		// when
 		worker.stop();
-		started.start();
-		started.stop();
 		// then
 		verify(service, never()).expireDue(BATCH_SIZE);
+	}
+
+	@Test
+	@DisplayName("시작하면 전용 스레드가 첫 폴링을 바로 실행하고, 종료하면 진행 중인 폴링이 끝난 뒤 멈춘다")
+	void startRunsFirstPollOnDedicatedThreadAndStopWaits() throws InterruptedException {
+		// given
+		CountDownLatch firstPoll = new CountDownLatch(1);
+		AtomicReference<String> threadName = new AtomicReference<>();
+		when(service.expireDue(BATCH_SIZE)).thenAnswer(invocation -> {
+			threadName.set(Thread.currentThread().getName());
+			firstPoll.countDown();
+			return 0;
+		});
+		TicketExpiryWorker started = new TicketExpiryWorker(service, BATCH_SIZE, 3_600_000);
+		// when
+		started.start();
+		boolean polled = firstPoll.await(10, TimeUnit.SECONDS);
+		started.stop();
+		// then
+		assertThat(polled).isTrue();
+		assertThat(threadName.get()).startsWith(TicketExpiryWorker.THREAD_NAME_PREFIX);
+		verify(service, times(1)).expireDue(BATCH_SIZE);
 	}
 
 	@Test
@@ -105,13 +128,17 @@ class TicketExpiryWorkerTest {
 	}
 
 	@Test
-	@DisplayName("처리 중 예외가 나도 폴링 밖으로 던지지 않고 예외 원문은 로그에 남기지 않는다")
+	@DisplayName("처리 중 예외가 나도 폴링 밖으로 던지지 않고 다음 폴링이 이어지며 예외 원문은 로그에 남기지 않는다")
 	void swallowsFailureWithoutLeakingDetails(CapturedOutput output) {
 		// given
-		when(service.expireDue(BATCH_SIZE)).thenThrow(new IllegalStateException("private ticket details"));
+		when(service.expireDue(BATCH_SIZE))
+				.thenThrow(new IllegalStateException("private ticket details"))
+				.thenReturn(0);
 		// when
 		worker.poll();
+		worker.poll();
 		// then
+		verify(service, times(2)).expireDue(BATCH_SIZE);
 		assertThat(output.getOut()).contains(IllegalStateException.class.getName())
 				.doesNotContain("private ticket details");
 	}
