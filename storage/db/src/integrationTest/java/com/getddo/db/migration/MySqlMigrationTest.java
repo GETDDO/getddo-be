@@ -44,14 +44,14 @@ class MySqlMigrationTest {
 
 	/** 빈 DB에 이벤트·알림 인덱스를 포함한 스키마를 적용하고 재실행의 멱등성을 검증한다. */
 	@Test
-	@DisplayName("빈 MySQL에 V001~V011·V014·V016~V019·V021~V023의 44개 테이블·인덱스·추첨 상태·복구 차수와 재실행을 확인한다")
+	@DisplayName("빈 MySQL에 V001~V011·V014·V016~V019·V021~V024의 45개 테이블·인덱스·추첨 상태·복구 차수와 재실행을 확인한다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(appliedMigrations).isEqualTo(19);
+		assertThat(appliedMigrations).isEqualTo(20);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		assertThat(indexColumns("award_cancellations", "uq_award_cancellations_request", 0)).containsExactly("request_key");
@@ -85,7 +85,7 @@ class MySqlMigrationTest {
 					where table_schema = database() and table_name <> 'flyway_schema_history'
 					""")) {
 			assertThat(rows.next()).isTrue();
-			assertThat(rows.getInt(1)).isEqualTo(44);
+			assertThat(rows.getInt(1)).isEqualTo(45);
 		}
 		try (Connection connection = connect();
 			ResultSet rows = connection.createStatement().executeQuery("""

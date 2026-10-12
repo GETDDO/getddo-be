@@ -59,6 +59,13 @@ class AwardCancellationFlowIntegrationTest {
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private MutableClock clock;
 	@Autowired private MySQLContainer mysql;
+	@Autowired private DrawPublicationService publications;
+	@Autowired private DrawResultConfirmationService resultConfirmations;
+	@Autowired private DrawInspectionService inspections;
+	@Autowired private com.getddo.core.user.repository.UserRepository users;
+	@Autowired private com.getddo.core.notification.service.NotificationJobService jobs;
+	@MockitoSpyBean private com.getddo.db.notification.repository.NotificationJobRepositoryImpl jobRecords;
+	@MockitoSpyBean private com.getddo.core.notification.service.MockNotificationSender sender;
 	@MockitoSpyBean private ReplacementDrawRepositoryImpl replacements;
 	@MockitoSpyBean private AwardCancellationRepositoryImpl cancellations;
 	@MockitoSpyBean private DrawResultJpaRepository results;
@@ -365,6 +372,199 @@ class AwardCancellationFlowIntegrationTest {
 				Integer.class, toBytes(win))).isEqualTo(1);
 		verifyNoInteractions(selection);
 	}
+
+	@Test @DisplayName("실제 조회·취소·재추첨·검증·확인·공개·알림 연결은 재요청에 중복되지 않는다")
+	void integratesAdministrationPublicationAndNotification() {
+		// given
+		DrawPublication initial = publications.publishInitial(fixture.eventId()).orElseThrow();
+		DrawResult target = target(fixture);
+		List<Map<String, Object>> tickets = ticketRows(fixture.eventId());
+		long histories = historyCount(fixture.eventId());
+		// when
+		AwardCancellationReceipt canceled = service.cancel(actor, target.getId(), UUID.randomUUID(), "운영자 확인");
+		UUID runId = canceled.cancellation().replacementRunId();
+		assertThat(inspections.verify(users.findById(actor).orElseThrow(), runId).isPassed()).isTrue();
+		DrawPublication updated = resultConfirmations.confirmForPublication(runId, actor);
+		DrawPublication replay = resultConfirmations.confirmForPublication(runId, actor);
+		// then
+		assertThat(updated.revision()).isEqualTo(2);
+		assertThat(replay).isEqualTo(updated);
+		assertThat(updated.entries()).hasSize(3);
+		assertThat(publications.history(fixture.eventId())).containsExactly(initial, updated);
+		DrawPublicationChange change = publications.changes(fixture.eventId()).getLast();
+		assertThat(change.executions()).hasSize(1);
+		assertThat(change.executions().getFirst().runId()).isEqualTo(runId);
+		assertThat(change.executions().getFirst().confirmedBy()).isEqualTo(actor);
+		assertThat(change.executions().getFirst().cancellations().getFirst().reason()).isEqualTo("운영자 확인");
+		assertThat(inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution().cancellations()).hasSize(1);
+		assertThat(inspections.executionAudits(users.findById(actor).orElseThrow(), runId,
+				new com.getddo.core.common.pagination.PageQuery(1, 1)).getTotalElements()).isGreaterThanOrEqualTo(1);
+		assertThat(jobCount(fixture.eventId())).isEqualTo(2);
+		UUID initialJob = jobId(initial), updateJob = jobId(updated);
+		assertThat(jobRecords.findRequest(initialJob).getRecipientIds()).hasSize(5);
+		Set<UUID> changed = Set.of(target.getSelection().getUserId(),
+				canceled.execution().getConfirmation().getResults().getFirst().getSelection().getUserId());
+		assertThat(jobRecords.findRequest(updateJob).getRecipientIds()).containsExactlyInAnyOrderElementsOf(changed);
+		processJobs();
+		assertThat(jdbc.queryForObject("select count(*) from notifications where job_id = ?", Long.class, toBytes(initialJob))).isEqualTo(5);
+		assertThat(jdbc.queryForObject("select count(*) from notifications where job_id = ?", Long.class, toBytes(updateJob))).isEqualTo(2);
+		assertThat(ticketRows(fixture.eventId())).isEqualTo(tickets);
+		assertThat(historyCount(fixture.eventId())).isEqualTo(histories);
+	}
+
+	@Test @DisplayName("여러 실행의 미충원 결과와 서로 다른 확인자를 공개 근거에 보존한다")
+	void preservesMultipleRunEvidenceIncludingUnfilled() {
+		// given
+		Fixture small = event(3, false);
+		List<DrawResult> targets = small.confirmed().getResults().stream().filter(value -> value.getSelection().getUserId() != null).limit(2).toList();
+		UUID otherAdmin = user("ADMIN");
+		// when
+		AwardCancellationReceipt first = service.cancel(actor, targets.getFirst().getId(), UUID.randomUUID(), "첫 번째 사유");
+		clock.set(NOW.plusSeconds(1));
+		AwardCancellationReceipt second = service.cancel(otherAdmin, targets.getLast().getId(), UUID.randomUUID(), "두 번째 사유");
+		assertThat(inspections.verify(users.findById(actor).orElseThrow(), first.cancellation().replacementRunId()).isPassed()).isTrue();
+		assertThat(inspections.verify(users.findById(actor).orElseThrow(), second.cancellation().replacementRunId()).isPassed()).isTrue();
+		resultConfirmations.confirmBeforeInitial(first.cancellation().replacementRunId(), actor);
+		DrawPublication version = resultConfirmations.confirmBeforeInitial(second.cancellation().replacementRunId(), otherAdmin).publication();
+		// then
+		assertThat(first.execution().getConfirmation().getResults().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+		assertThat(second.execution().getConfirmation().getResults().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+		assertThat(version.entries()).hasSize(1);
+		List<DrawPublicationExecution> evidence = publications.changes(small.eventId()).getFirst().executions();
+		assertThat(evidence).hasSize(2);
+		assertThat(evidence.stream().map(DrawPublicationExecution::confirmedBy)).containsExactly(actor, otherAdmin);
+		assertThat(evidence.stream().flatMap(value -> value.cancellations().stream()).map(DrawPublicationCancellation::reason))
+				.containsExactly("첫 번째 사유", "두 번째 사유");
+	}
+
+	@Test @DisplayName("실패 이력의 페이징과 예약·운영자 대기 요약을 실제 실패 후 조회한다")
+	void queriesFailureHistoryAfterRealExecutionFailure() {
+		// given
+		doThrow(new TransientDataAccessResourceException("diagnostic only")).when(selection).select(anyList(), anyList(), anyBoolean());
+		// when
+		AwardCancellationReceipt failed = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "실패 검증");
+		UUID runId = failed.cancellation().replacementRunId();
+		// then
+		DrawExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
+		assertThat(summary.failureCount()).isEqualTo(1);
+		assertThat(summary.latestFailure().getFailureCode()).isEqualTo("TRANSIENT_STORAGE");
+		assertThat(summary.retryAt()).isNotNull();
+		assertThat(summary.waitingForOperator()).isFalse();
+		com.getddo.core.common.pagination.PageResult<DrawFailure> page = inspections.failures(users.findById(actor).orElseThrow(), runId,
+				new com.getddo.core.common.pagination.PageQuery(1, 1));
+		assertThat(page.getItems()).hasSize(1);
+		assertThat(page.getTotalElements()).isEqualTo(1);
+		assertThat(inspections.failures(users.findById(actor).orElseThrow(), runId,
+				new com.getddo.core.common.pagination.PageQuery(2, 1)).getItems()).isEmpty();
+		assertThat(page.getItems().getFirst().getTraceId()).isNull();
+		assertThat(page.getItems().getFirst().getFailureCode()).doesNotContain("diagnostic");
+	}
+
+	@Test @DisplayName("알림 작업 등록 실패는 공개 버전과 새 확인을 모두 롤백하고 재시도는 한 번만 저장한다")
+	void rollsBackPublicationAndConfirmationWhenDurableRegistrationFails() {
+		// given
+		DrawPublication initial = publications.publishInitial(fixture.eventId()).orElseThrow();
+		UUID runId = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "등록 장애").cancellation().replacementRunId();
+		doAnswer(invocation -> {
+			invocation.callRealMethod();
+			throw new TransientDataAccessResourceException("job registration failure after insert");
+		}).when(jobRecords).register(any(), any());
+		// when / then
+		assertThatThrownBy(() -> resultConfirmations.confirmForPublication(runId, actor)).isInstanceOf(TransientDataAccessResourceException.class);
+		assertThat(publications.history(fixture.eventId())).containsExactly(initial);
+		assertThat(jdbc.queryForObject("select count(*) from draw_result_confirmations where draw_run_id = ?", Long.class, toBytes(runId))).isZero();
+		assertThat(jobCount(fixture.eventId())).isEqualTo(1);
+		doCallRealMethod().when(jobRecords).register(any(), any());
+		DrawPublication updated = resultConfirmations.confirmForPublication(runId, actor);
+		assertThat(resultConfirmations.confirmForPublication(runId, actor)).isEqualTo(updated);
+		assertThat(jobCount(fixture.eventId())).isEqualTo(2);
+	}
+
+	@Test @DisplayName("커밋 뒤 모의 발송 실패는 공개 버전을 되돌리지 않고 기존 작업으로 재시도한다")
+	void deliveryFailureDoesNotRevertPublishedVersion() {
+		// given
+		DrawPublication published = publications.publishInitial(fixture.eventId()).orElseThrow();
+		processJobs();
+		doThrow(new IllegalStateException("sender unavailable")).when(sender).send(any());
+		// when
+		assertThat(jobs.processNextDelivery()).isTrue();
+		// then
+		assertThat(publications.history(fixture.eventId())).containsExactly(published);
+		assertThat(jobCount(fixture.eventId())).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select count(*) from notifications where job_id = ?", Long.class, toBytes(jobId(published)))).isEqualTo(5);
+		doCallRealMethod().when(sender).send(any());
+		clock.set(NOW.plusSeconds(600));
+		for (int index = 0; index < 500 && jobs.processNextDelivery(); index++) { }
+		assertThat(jdbc.queryForObject("select count(*) from notifications where job_id = ? and mock_delivery_status = 'SENT'", Long.class, toBytes(jobId(published)))).isEqualTo(5);
+	}
+
+	@Test @DisplayName("같은 실행의 동시 관리자 확인은 확인·공개·알림 작업을 각각 한 번만 저장한다")
+	void simultaneousConfirmationsReuseDurableRecords() throws Exception {
+		// given
+		publications.publishInitial(fixture.eventId()).orElseThrow();
+		UUID runId = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "동시 확인").cancellation().replacementRunId();
+		CountDownLatch start = new CountDownLatch(1);
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Future<DrawPublication> first = executor.submit(() -> { start.await(); return resultConfirmations.confirmForPublication(runId, actor); });
+			Future<DrawPublication> second = executor.submit(() -> { start.await(); return resultConfirmations.confirmForPublication(runId, actor); });
+			// when
+			start.countDown();
+			DrawPublication version = first.get(30, TimeUnit.SECONDS);
+			// then
+			assertThat(second.get(30, TimeUnit.SECONDS)).isEqualTo(version);
+			assertThat(publications.history(fixture.eventId())).hasSize(2);
+			assertThat(jobCount(fixture.eventId())).isEqualTo(2);
+			assertThat(jdbc.queryForObject("select count(*) from draw_result_confirmations where draw_run_id = ?", Long.class, toBytes(runId))).isEqualTo(1);
+			assertThat(jdbc.queryForObject("select count(*) from draw_publication_executions where publication_id = ?", Long.class, toBytes(version.id()))).isEqualTo(1);
+		}
+	}
+
+	@Test @DisplayName("영구 실패는 자동 예약 없이 운영자 대기 상태로 조회되며 오류 원문을 저장하지 않는다")
+	void summarizesOperatorWaitingForPermanentFailure() {
+		// given
+		doThrow(new IllegalStateException("private implementation detail")).when(selection).select(anyList(), anyList(), anyBoolean());
+		// when
+		UUID runId = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "운영자 대기").cancellation().replacementRunId();
+		// then
+		DrawExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
+		assertThat(summary.failureCount()).isEqualTo(1);
+		assertThat(summary.latestFailure().getFailureCode()).isEqualTo("INTERNAL_ERROR");
+		assertThat(summary.retryAt()).isNull();
+		assertThat(summary.waitingForOperator()).isTrue();
+	}
+
+	@Test @DisplayName("재추첨 당첨을 다시 취소해도 과거 검증과 공개 확인 근거는 불변이며 최신 자리만 바꾼다")
+	void preservesHistoricalVerificationAndPublishedEvidenceAcrossGenerations() {
+		// given
+		publications.publishInitial(fixture.eventId()).orElseThrow();
+		AwardCancellationReceipt first = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "첫 교체");
+		UUID firstRun = first.cancellation().replacementRunId();
+		DrawPublication firstVersion = resultConfirmations.confirmForPublication(firstRun, actor);
+		DrawPublicationChange firstEvidence = publications.changes(fixture.eventId()).getLast();
+		DrawResult newWinner = first.execution().getConfirmation().getResults().getFirst();
+		clock.set(NOW.plusSeconds(1));
+		// when
+		AwardCancellationReceipt second = service.cancel(actor, newWinner.getId(), UUID.randomUUID(), "재추첨 당첨 취소");
+		UUID secondRun = second.cancellation().replacementRunId();
+		DrawPublication latest = resultConfirmations.confirmForPublication(secondRun, actor);
+		// then
+		assertThat(inspections.verify(users.findById(actor).orElseThrow(), firstRun).isPassed()).isTrue();
+		assertThat(inspections.verify(users.findById(actor).orElseThrow(), secondRun).isPassed()).isTrue();
+		assertThat(latest.revision()).isEqualTo(3);
+		assertThat(latest.entries()).hasSize(3);
+		assertThat(latest.entries().stream().map(DrawPublication.Entry::resultId)).doesNotContain(newWinner.getId());
+		assertThat(publications.changes(fixture.eventId()).get(1)).usingRecursiveComparison().isEqualTo(firstEvidence);
+		assertThat(publications.history(fixture.eventId()).get(1)).isEqualTo(firstVersion);
+		assertThat(publications.changes(fixture.eventId()).getLast().executions().stream().map(DrawPublicationExecution::runId))
+				.containsExactly(secondRun);
+		assertThat(jobCount(fixture.eventId())).isEqualTo(3);
+	}
+
+	private long jobCount(UUID eventId) { return jdbc.queryForObject("select count(*) from notification_jobs where event_id = ?", Long.class, toBytes(eventId)); }
+	private UUID jobId(DrawPublication version) {
+		return com.getddo.db.common.util.UuidBinary.fromBytes(jdbc.queryForObject("select id from notification_jobs where occurrence_key = ?", byte[].class, "draw-publication:" + version.id()));
+	}
+	private void processJobs() { for (int index = 0; index < 500 && jobs.processNextJob(); index++) { } }
 
 	private Object cancelOrConflict(UUID win, UUID key) {
 		try { return service.cancel(actor, win, key, "사유"); }
