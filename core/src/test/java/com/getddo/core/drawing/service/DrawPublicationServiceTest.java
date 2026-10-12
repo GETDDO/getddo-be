@@ -59,7 +59,7 @@ class DrawPublicationServiceTest {
 		when(publications.saveInitial(eventId, runId, List.of(resultId), NOW)).thenReturn(publication());
 	}
 
-	/** 마감 +5분 경계에 승인 없이 SELECTED만 실제 공개 목록에 저장한다는 시나리오를 검증한다. */
+	/** 마감 +5분 경계에 승인 없이 SELECTED 결과 ID만 저장소 대역에 전달하고 반환된 명단을 검증한다. */
 	@Test
 	@DisplayName("마감 +5분 경계에 승인 없이 SELECTED만 실제 공개 목록에 저장한다")
 	void publishesAtBoundaryWithUnfilledSlot() {
@@ -89,9 +89,9 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
+	/** 미확정·정상 종료를 공개로 처리하지 않는다는 시나리오를 검증한다. */
 	@ParameterizedTest
 	@EnumSource(value = DrawRunStatus.class, names = {"PREPARING", "READY", "RUNNING", "FAILED", "NO_ENTRIES", "NO_CANDIDATES"})
-	/** 미확정·정상 종료를 공개로 처리하지 않는다는 시나리오를 검증한다. */
 	@DisplayName("미확정·정상 종료를 공개로 처리하지 않는다")
 	void blocksUnconfirmedAndTerminalRuns(DrawRunStatus status) {
 		// given
