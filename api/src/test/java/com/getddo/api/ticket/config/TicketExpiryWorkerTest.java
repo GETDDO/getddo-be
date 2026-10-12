@@ -163,18 +163,59 @@ class TicketExpiryWorkerTest {
 	}
 
 	@Test
-	@DisplayName("처리 중 예외가 나도 폴링 밖으로 던지지 않고 다음 폴링이 이어지며 예외 원문은 로그에 남기지 않는다")
+	@DisplayName("처리 중 예외가 나도 폴링 밖으로 던지지 않고 다음 폴링이 이어지며 예외와 원인의 클래스만 남기고 원문은 로그에 남기지 않는다")
 	void swallowsFailureWithoutLeakingDetails(CapturedOutput output) {
 		// given
 		when(service.expireDue(BATCH_SIZE))
-				.thenThrow(new IllegalStateException("private ticket details"))
+				.thenThrow(new IllegalStateException("private ticket details",
+						new UnsupportedOperationException("private cause details")))
 				.thenReturn(0);
 		// when
 		worker.poll();
 		worker.poll();
 		// then
 		verify(service, times(2)).expireDue(BATCH_SIZE);
-		assertThat(output.getOut()).contains(IllegalStateException.class.getName())
+		assertThat(output.getOut())
+				.contains(IllegalStateException.class.getName())
+				.contains(UnsupportedOperationException.class.getName())
+				.doesNotContain("private ticket details")
+				.doesNotContain("private cause details");
+	}
+
+	@Test
+	@DisplayName("원인 예외가 없는 실패도 원인 없음으로 기록하고 던지지 않는다")
+	void logsFailureWithoutCause(CapturedOutput output) {
+		// given
+		when(service.expireDue(BATCH_SIZE)).thenThrow(new IllegalStateException("private ticket details"));
+		// when
+		worker.poll();
+		// then
+		assertThat(output.getOut()).contains(IllegalStateException.class.getName()).contains("causeType=none")
 				.doesNotContain("private ticket details");
+	}
+
+	@Test
+	@DisplayName("종료한 뒤에는 새 묶음을 시작하지 않는다")
+	void doesNotStartBatchAfterStop() {
+		// given
+		worker.stop();
+		// when
+		worker.poll();
+		// then
+		verify(service, never()).expireDue(BATCH_SIZE);
+	}
+
+	@Test
+	@DisplayName("묶음을 처리하는 도중 종료되면 그 묶음까지만 끝내고 다음 묶음은 시작하지 않는다")
+	void stopsBetweenBatchesWhenStoppedMidPoll() {
+		// given
+		when(service.expireDue(BATCH_SIZE)).thenAnswer(invocation -> {
+			worker.stop();
+			return BATCH_SIZE;
+		});
+		// when
+		worker.poll();
+		// then
+		verify(service, times(1)).expireDue(BATCH_SIZE);
 	}
 }
