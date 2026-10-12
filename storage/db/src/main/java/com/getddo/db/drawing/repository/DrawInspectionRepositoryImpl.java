@@ -42,6 +42,47 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		""";
 
 	@Override
+	public DrawExecutionSummary findExecutionSummary(UUID runId) {
+		DrawFailure latest = jdbc.query("select * from draw_failures where draw_run_id = ? order by failed_at desc, id desc limit 1",
+				(row, index) -> failure(row), toBytes(runId)).stream().findFirst().orElse(null);
+		long count = jdbc.queryForObject("select count(*) from draw_failures where draw_run_id = ?", Long.class, toBytes(runId));
+		List<DrawCancellationView> cancellations = jdbc.query("""
+			select c.* from award_cancellations c join draw_results r on r.id = c.draw_result_id
+			where r.draw_run_id = ? or c.draw_run_id = ? order by c.canceled_at, c.id
+			""", (row, index) -> new DrawCancellationView(id(row, "id"), id(row, "draw_result_id"),
+					id(row, "draw_run_id"), id(row, "canceled_by"), row.getString("reason"), instant(row, "canceled_at")),
+				toBytes(runId), toBytes(runId));
+		return jdbc.queryForObject("select status, retry_at from draw_runs where id = ?", (row, index) -> {
+			java.time.Instant retry = instant(row, "retry_at");
+			return new DrawExecutionSummary(count, latest, retry, "FAILED".equals(row.getString("status")) && retry == null, cancellations);
+		}, toBytes(runId));
+	}
+
+	@Override
+	public PageResult<DrawFailure> findFailures(UUID runId, PageQuery page) {
+		long count = jdbc.queryForObject("select count(*) from draw_failures where draw_run_id = ?", Long.class, toBytes(runId));
+		List<DrawFailure> rows = jdbc.query("select * from draw_failures where draw_run_id = ? order by failed_at desc, id desc limit ? offset ?",
+				(row, index) -> failure(row), toBytes(runId), page.getSize(), page.offset());
+		return new PageResult<>(rows, page.getPage(), page.getSize(), count);
+	}
+
+	@Override
+	public PageResult<DrawExecutionAuditView> findExecutionAudits(UUID runId, PageQuery page) {
+		long count = jdbc.queryForObject("select count(*) from audit_logs where target_type = 'DRAW_RUN' and target_id = ?", Long.class, toBytes(runId));
+		List<DrawExecutionAuditView> rows = jdbc.query("""
+			select * from audit_logs where target_type = 'DRAW_RUN' and target_id = ?
+			order by created_at desc, id desc limit ? offset ?
+			""", (row, index) -> new DrawExecutionAuditView(id(row, "id"), id(row, "actor_id"), row.getString("action"),
+					row.getString("reason"), row.getString("before_data"), row.getString("after_data"), row.getString("request_id"),
+					instant(row, "created_at")), toBytes(runId), page.getSize(), page.offset());
+		return new PageResult<>(rows, page.getPage(), page.getSize(), count);
+	}
+
+	private static DrawFailure failure(java.sql.ResultSet row) throws java.sql.SQLException {
+		return new DrawFailure(id(row, "id"), id(row, "draw_run_id"), row.getString("failure_code"), instant(row, "failed_at"), row.getString("trace_id"));
+	}
+
+	@Override
 	public boolean eventExists(UUID eventId) {
 		return jdbc.queryForObject("select count(*) from events where id = ?", Long.class, toBytes(eventId)) > 0;
 	}

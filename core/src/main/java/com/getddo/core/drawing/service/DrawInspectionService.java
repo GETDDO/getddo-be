@@ -19,8 +19,6 @@ import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.DrawCheckRepository;
 import com.getddo.core.drawing.repository.DrawInspectionRepository;
 import com.getddo.core.user.domain.User;
-import com.getddo.core.user.domain.UserRole;
-import com.getddo.core.user.domain.UserStatus;
 
 import static com.getddo.core.drawing.exception.DrawInspectionErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
@@ -50,7 +48,7 @@ public class DrawInspectionService {
 	public DrawRunDetailView detail(User user, UUID runId) {
 		admin(user);
 		DrawRunView run = requireRun(runId);
-		return new DrawRunDetailView(run, orderedResults(run));
+		return new DrawRunDetailView(run, orderedResults(run), repository.findExecutionSummary(runId));
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -65,6 +63,20 @@ public class DrawInspectionService {
 		admin(user);
 		DrawRunView run = requireRun(runId);
 		return orderedResults(run);
+	}
+
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+	public PageResult<DrawFailure> failures(User user, UUID runId, PageQuery page) {
+		admin(user);
+		requireRun(runId);
+		return repository.findFailures(runId, page);
+	}
+
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+	public PageResult<DrawExecutionAuditView> executionAudits(User user, UUID runId, PageQuery page) {
+		admin(user);
+		requireRun(runId);
+		return repository.findExecutionAudits(runId, page);
 	}
 
 	/** 불일치도 검증 결과로 저장한다. 실행·후보·조건·결과에는 쓰기를 수행하지 않는다. */
@@ -105,8 +117,6 @@ public class DrawInspectionService {
 
 	/** API가 공통 사용자 문맥에서 확인한 DB 사용자를 재사용한다. */
 	private void admin(User user) {
-		if (user == null || user.getId() == null || user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) {
-			throw new BusinessException(ADMIN_REQUIRED);
-		}
+		DrawAdminAuthorization.validate(user, ADMIN_REQUIRED);
 	}
 }

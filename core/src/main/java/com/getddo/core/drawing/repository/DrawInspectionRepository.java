@@ -7,12 +7,18 @@ import java.util.UUID;
 import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.drawing.domain.DrawCandidateView;
+import com.getddo.core.drawing.domain.DrawExecutionSummary;
+import com.getddo.core.drawing.domain.DrawExecutionAuditView;
+import com.getddo.core.drawing.domain.DrawFailure;
 import com.getddo.core.drawing.domain.DrawResultView;
 import com.getddo.core.drawing.domain.DrawRunView;
 import com.getddo.core.drawing.domain.DrawVerificationReferences;
 
 /** GD-137 읽기 전용 조회. 실행·결과 저장 및 실패 모델의 소유권을 변경하지 않는다. */
 public interface DrawInspectionRepository {
+	DrawExecutionSummary findExecutionSummary(UUID runId);
+	PageResult<DrawFailure> findFailures(UUID runId, PageQuery page);
+	PageResult<DrawExecutionAuditView> findExecutionAudits(UUID runId, PageQuery page);
 	boolean eventExists(UUID eventId);
 	Optional<DrawRunView> findRun(UUID runId);
 	PageResult<DrawRunView> findRuns(UUID eventId, PageQuery page);

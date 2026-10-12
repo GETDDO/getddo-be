@@ -36,6 +36,20 @@ public class AdminDrawController {
 			@RequestParam(defaultValue = "1") @Min(1) int page, @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
 		return ResponseEnvelope.success(service.candidates(user, drawId, new PageQuery(page, size)).map(DrawCandidateResponse::from));
 	}
+	@GetMapping("/draws/{drawId}/failures")
+	public ResponseEnvelope<PageResult<DrawFailureResponse>> failures(
+			@CurrentUser(membershipRequired = false) User user, @PathVariable UUID drawId,
+			@RequestParam(defaultValue = "1") @Min(1) int page, @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+		return ResponseEnvelope.success(service.failures(user, drawId, new PageQuery(page, size)).map(DrawFailureResponse::from));
+	}
+
+	@GetMapping("/draws/{drawId}/execution-audits")
+	public ResponseEnvelope<PageResult<com.getddo.core.drawing.domain.DrawExecutionAuditView>> executionAudits(
+			@CurrentUser(membershipRequired = false) User user, @PathVariable UUID drawId,
+			@RequestParam(defaultValue = "1") @Min(1) int page, @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+		return ResponseEnvelope.success(service.executionAudits(user, drawId, new PageQuery(page, size)));
+	}
+
 	@PostMapping("/draws/{drawId}/checks")
 	public ResponseEntity<ResponseEnvelope<DrawVerificationResponse>> verify(@CurrentUser(membershipRequired = false) User user, @PathVariable UUID drawId) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ResponseEnvelope.success(

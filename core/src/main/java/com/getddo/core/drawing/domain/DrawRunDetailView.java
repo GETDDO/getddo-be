@@ -8,7 +8,12 @@ import lombok.Getter;
 public final class DrawRunDetailView {
 	private final DrawRunView run;
 	private final List<DrawResultView> results;
+	private final DrawExecutionSummary execution;
 	public DrawRunDetailView(DrawRunView run, List<DrawResultView> results) {
+		this(run, results, null);
+	}
+	public DrawRunDetailView(DrawRunView run, List<DrawResultView> results, DrawExecutionSummary execution) {
+		this.execution = execution;
 		this.run = run;
 		this.results = List.copyOf(results);
 	}

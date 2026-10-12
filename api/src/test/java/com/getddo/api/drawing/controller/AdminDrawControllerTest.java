@@ -48,6 +48,40 @@ class AdminDrawControllerTest {
 		when(repository.findRun(runId)).thenReturn(Optional.of(run()));
 	}
 
+	@Test @DisplayName("실행 상세와 실패·감사 페이징은 같은 실행의 안전한 요약과 처리자를 반환한다")
+	void returnsExecutionSummaryAndHistories() throws Exception {
+		// given
+		DrawFailure failure = new DrawFailure(UUID.randomUUID(), runId, "INTERRUPTED", now, null);
+		DrawCancellationView cancellation = new DrawCancellationView(UUID.randomUUID(), UUID.randomUUID(), runId, actorId, "관리자 취소", now);
+		when(repository.findExecutionSummary(runId)).thenReturn(new DrawExecutionSummary(2, failure, now.plusSeconds(10), false, List.of(cancellation)));
+		when(repository.findFailures(runId, new PageQuery(1, 1))).thenReturn(new PageResult<>(List.of(failure), 1, 1, 2));
+		when(repository.findExecutionAudits(runId, new PageQuery(1, 1))).thenReturn(new PageResult<>(List.of(
+				new DrawExecutionAuditView(UUID.randomUUID(), actorId, "DRAW_RESUME", null, "{}", "{}", null, now)), 1, 1, 2));
+		// when / then
+		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.execution.failureCount").value(2))
+				.andExpect(jsonPath("$.data.execution.latestFailure.message").value("추첨 처리 시도가 중단되었습니다."))
+				.andExpect(jsonPath("$.data.execution.cancellations[0].canceledBy").value(actorId.toString()));
+		mvc.perform(get("/api/v1/admin/draws/{id}/failures", runId).param("size", "1").header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2))
+				.andExpect(jsonPath("$.data.items[0].failureCode").value("INTERRUPTED"));
+		mvc.perform(get("/api/v1/admin/draws/{id}/execution-audits", runId).param("size", "1").header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].actorId").value(actorId.toString()));
+	}
+
+	@Test @DisplayName("실패·감사 이력도 일반 사용자를 거절하고 존재하지 않는 실행은 404를 반환한다")
+	void protectsExecutionHistories() throws Exception {
+		// given / when / then
+		selected = user(UserRole.USER, UserStatus.ACTIVE);
+		for (String suffix : List.of("failures", "execution-audits")) {
+			mvc.perform(get("/api/v1/admin/draws/{id}/" + suffix, runId).header("X-User-ID", actorId).header("X-User-Role", "USER"))
+					.andExpect(status().isForbidden());
+		}
+		selected = user(UserRole.ADMIN, UserStatus.ACTIVE);
+		mvc.perform(get("/api/v1/admin/draws/{id}/failures", UUID.randomUUID()).header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isNotFound());
+	}
+
 	@Test
 	@DisplayName("실행 목록은 승인된 drawType·공통 페이징·이벤트 소속을 반환한다")
 	void listsRunsWithPaging() throws Exception {

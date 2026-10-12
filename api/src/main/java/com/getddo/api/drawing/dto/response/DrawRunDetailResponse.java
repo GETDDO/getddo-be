@@ -7,10 +7,10 @@ import java.util.HashMap;
 import java.util.UUID;
 import com.getddo.core.drawing.domain.*;
 
-/** 승인된 저장 정보 응답. 미확정 실패·취소 상세를 빈 값으로 가장하지 않는다. */
+/** 실행 및 실패·재시도·취소 근거의 관리자 상세 응답. */
 public record DrawRunDetailResponse(UUID id, UUID eventId, int runNumber, DrawType drawType,
 		DrawRunStatus status, UUID originalDrawId, Instant startedAt, Instant confirmedAt, Instant createdAt,
-		String algorithmVersion, DrawRulesResponse rulesSnapshot, Instant snapshotFixedAt, List<DrawResultResponse> results) {
+		String algorithmVersion, DrawRulesResponse rulesSnapshot, Instant snapshotFixedAt, List<DrawResultResponse> results, DrawExecutionSummaryResponse execution) {
 	public DrawRunDetailResponse { results = List.copyOf(results); }
 	public static DrawRunDetailResponse from(DrawRunDetailView detail) {
 		DrawRunView run = detail.getRun();
@@ -21,6 +21,6 @@ public record DrawRunDetailResponse(UUID id, UUID eventId, int runNumber, DrawTy
 		return new DrawRunDetailResponse(run.getId(), run.getEventId(), run.getRunNumber(), run.getDrawType(),
 				run.getStatus(), run.getOriginalDrawId(), run.getStartedAt(), run.getConfirmedAt(), run.getCreatedAt(),
 				run.getAlgorithmVersion(), DrawRulesResponse.from(run), run.getSnapshotFixedAt(), detail.getResults().stream()
-				.map(result -> DrawResultResponse.from(result, ranks.get(result.getPrizeId()), result.getUserId())).toList());
+				.map(result -> DrawResultResponse.from(result, ranks.get(result.getPrizeId()), result.getUserId())).toList(), DrawExecutionSummaryResponse.from(detail.getExecution()));
 	}
 }

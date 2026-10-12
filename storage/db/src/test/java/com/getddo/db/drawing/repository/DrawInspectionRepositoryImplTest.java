@@ -44,8 +44,8 @@ class DrawInspectionRepositoryImplTest {
 		assertThat(references.getOriginalRun()).isSameAs(original);
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbc).query(sql.capture(), org.mockito.ArgumentMatchers.<RowMapper<DrawHistoricalAward>>any(), eq(toBytes(eventId)), eq(2), eq(cutoff));
-		assertThat(sql.getValue()).contains("run.run_number < ?", "run.confirmed_at <= ?", "run.status = 'CONFIRMED'", "result.result_type = 'SELECTED'")
-				.doesNotContain("award_cancellations", "draw_publications");
+		assertThat(sql.getValue()).contains("run.run_number < ?", "run.confirmed_at <= ?", "run.status = 'CONFIRMED'", "left join award_cancellations", "run.run_number", "cancellation.canceled_at")
+				.doesNotContain("draw_publications", "cancellation.id is null", "result.result_type = 'SELECTED'");
 	}
 
 	@Test
