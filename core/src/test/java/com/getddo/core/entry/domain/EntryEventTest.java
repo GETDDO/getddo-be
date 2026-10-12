@@ -14,6 +14,7 @@ import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.user.domain.Membership;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EntryEventTest {
 
@@ -91,6 +92,23 @@ class EntryEventTest {
 		assertThat(vvip.allows(Membership.VIP)).isFalse();
 		assertThat(vvip.allows(Membership.VVIP)).isTrue();
 		assertThat(excellent.allows(null)).isFalse();
+	}
+
+	@Test
+	@DisplayName("모집 시작이 마감보다 앞서지 않거나 누적 상한이 0 이하이면 만들 수 없다")
+	void rejectsInvalidEventData() {
+		// given
+		UUID id = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> new EntryEvent(id, "이벤트", EventType.TICKET, true, 5, MembershipRule.excellent,
+				ENDS_AT, STARTS_AT, EventStatus.OPEN, false)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new EntryEvent(id, "이벤트", EventType.TICKET, true, 5, MembershipRule.excellent,
+				STARTS_AT, STARTS_AT, EventStatus.OPEN, false)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> event(EventType.TICKET, true, 0, MembershipRule.excellent, EventStatus.OPEN, false))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> event(EventType.TICKET, true, -1, MembershipRule.excellent, EventStatus.OPEN, false))
+				.isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test

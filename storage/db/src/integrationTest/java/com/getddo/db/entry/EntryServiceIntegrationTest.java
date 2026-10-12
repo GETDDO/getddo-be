@@ -291,6 +291,30 @@ class EntryServiceIntegrationTest extends EntryIntegrationTestSupport {
 	}
 
 	@Test
+	@DisplayName("차감을 마친 뒤 마감 시각을 지났으면 EVENT_NOT_OPEN으로 실패하고 응모·응모자·차감을 모두 되돌린다")
+	void entryRollsBackWhenDeadlinePassesWhileProcessing() {
+		// given: 처리 시작 시각은 마감 직전이고, 다음에 시계를 읽을 때는 마감 이후가 되도록 읽을 때마다 진행시킨다
+		giveTickets(userId, TicketGrade.BRONZE, 2);
+		Instant endsAt = NOW.plusSeconds(3_600);
+		UUID event = seeds.event("TICKET", true, 5, "excellent", NOW.minusSeconds(3_600), endsAt, "OPEN", null);
+		clock.set(endsAt.minusNanos(500_000));
+		clock.tickEveryRead(true);
+		// when
+		// then
+		assertThatThrownBy(() -> entryService.enter(command(userId, event, UUID.randomUUID(),
+				tickets(TicketGrade.BRONZE, 2))))
+				.satisfies(e -> assertEntryError(e, EntryErrorCode.EVENT_NOT_OPEN));
+		assertThat(count("select count(*) from event_participants where user_id = ? and event_id = ?",
+				bytes(userId), bytes(event))).isZero();
+		assertThat(count("select count(*) from event_entries where user_id = ?", bytes(userId))).isZero();
+		assertThat(spentTickets(userId)).isZero();
+		assertThat(count("""
+				select count(*) from ticket_histories
+				where operation_type = 'USE' and ticket_id in (select id from tickets where user_id = ?)
+				""", bytes(userId))).isZero();
+	}
+
+	@Test
 	@DisplayName("시작 전이거나 취소·종료·삭제된 이벤트에는 응모할 수 없다")
 	void closedCanceledOrDeletedEventsRejectEntry() {
 		// given

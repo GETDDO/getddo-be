@@ -43,9 +43,8 @@ public final class Entry {
 	}
 
 	/** 요청한 만큼 모두 차감한 접수 완료 응모를 만든다. */
-	public static Entry accepted(UUID id, EntryParticipant participant, UUID userId, int ticketCount,
-			Instant acceptedAt) {
-		return new Entry(id, participant.getId(), participant.getEventId(), userId, ticketCount, ticketCount,
-				acceptedAt);
+	public static Entry accepted(UUID id, EntryParticipant participant, int ticketCount, Instant acceptedAt) {
+		return new Entry(id, participant.getId(), participant.getEventId(), participant.getUserId(), ticketCount,
+				ticketCount, acceptedAt);
 	}
 }

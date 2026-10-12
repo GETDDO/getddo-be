@@ -230,7 +230,16 @@ class EntryConcurrencyTest extends EntryIntegrationTestSupport {
 		// then
 		assertThat(outcomes).allSatisfy(outcome -> assertThat(outcome).isInstanceOf(EntryReceipt.class));
 		assertThat(count("select count(*) from event_participants where event_id = ?", bytes(event))).isEqualTo(4);
-		assertThat(count("select count(*) from ticket_histories where operation_type = 'USE'")).isGreaterThanOrEqualTo(8);
+		assertThat(count("""
+				select count(*) from ticket_histories h
+				join event_entries e on e.id = h.event_entry_id
+				join event_participants p on p.id = e.participant_id
+				where h.operation_type = 'USE' and p.event_id = ?
+				""", bytes(event))).isEqualTo(8);
+		for (UUID user : users) {
+			assertThat(spentTickets(user)).isEqualTo(2);
+			assertThat(usedTicketCount(user, event)).isEqualTo(2);
+		}
 	}
 
 	@RepeatedTest(REPEATS)

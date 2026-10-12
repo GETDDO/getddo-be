@@ -107,8 +107,8 @@ public class EntryRecorder {
 		EntryParticipant participant = found.orElseGet(() -> participantRepository
 				.create(EntryParticipant.first(event.getId(), command.getUserId(), acceptedAt)));
 
-		entryRepository.save(Entry.accepted(command.getEntryId(), participant, command.getUserId(),
-				Math.toIntExact(total), acceptedAt));
+		entryRepository.save(Entry.accepted(command.getEntryId(), participant, Math.toIntExact(total),
+				acceptedAt));
 		if (total > 0) {
 			useTickets(event, command, tickets);
 			participantRepository.addUsedTicketCount(participant.getId(), total);

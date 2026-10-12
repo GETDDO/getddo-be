@@ -1,5 +1,7 @@
 package com.getddo.core.entry.service;
 
+import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -75,13 +77,30 @@ class EntryServiceTest {
 		EntryCommand command = command();
 		EntryReceipt receipt = receipt();
 		when(recorder.record(command))
-				.thenThrow(new DataIntegrityViolationException("duplicate"))
+				.thenThrow(new DataIntegrityViolationException("duplicate", duplicateKey()))
 				.thenReturn(receipt);
 		// when
 		EntryReceipt result = service.enter(command);
 		// then
 		assertThat(result).isSameAs(receipt);
 		verify(recorder, times(2)).record(command);
+	}
+
+	@Test
+	@DisplayName("UNIQUE 위반이 아닌 무결성 오류는 다시 처리하지 않고 그대로 던진다")
+	void doesNotRetryNonUniqueIntegrityViolation() {
+		// given
+		EntryCommand command = command();
+		when(recorder.record(command)).thenThrow(new DataIntegrityViolationException("foreign key",
+				new SQLIntegrityConstraintViolationException("Cannot add or update a child row", "23000", 1452)));
+		// when
+		// then
+		assertThatThrownBy(() -> service.enter(command)).isInstanceOf(DataIntegrityViolationException.class);
+		verify(recorder, times(1)).record(command);
+	}
+
+	private static SQLException duplicateKey() {
+		return new SQLIntegrityConstraintViolationException("Duplicate entry", "23000", 1062);
 	}
 
 	@Test

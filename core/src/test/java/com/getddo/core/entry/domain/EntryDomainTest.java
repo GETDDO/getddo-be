@@ -25,12 +25,29 @@ class EntryDomainTest {
 		UUID userId = UUID.randomUUID();
 		EntryParticipant participant = new EntryParticipant(UUID.randomUUID(), eventId, userId, 0, AT);
 		// when
-		Entry entry = Entry.accepted(UUID.randomUUID(), participant, userId, 3, AT);
+		Entry entry = Entry.accepted(UUID.randomUUID(), participant, 3, AT);
 		// then
 		assertThat(entry.getRequestedTicketCount()).isEqualTo(3);
 		assertThat(entry.getDeductedTicketCount()).isEqualTo(3);
 		assertThat(entry.getEventId()).isEqualTo(eventId);
 		assertThat(entry.getParticipantId()).isEqualTo(participant.getId());
+		assertThat(entry.getUserId()).isEqualTo(userId);
+	}
+
+	@Test
+	@DisplayName("응모 요청은 만든 뒤 원본 맵을 바꿔도 달라지지 않고 꺼낸 맵은 바꿀 수 없다")
+	void commandCopiesTickets() {
+		// given
+		Map<TicketGrade, Long> tickets = new java.util.EnumMap<>(TicketGrade.class);
+		tickets.put(TicketGrade.BRONZE, 1L);
+		EntryCommand command = new EntryCommand(UUID.randomUUID(), false, null, UUID.randomUUID(), UUID.randomUUID(),
+				tickets);
+		// when
+		tickets.put(TicketGrade.GOLD, 5L);
+		// then
+		assertThat(command.getTickets()).containsOnlyKeys(TicketGrade.BRONZE);
+		assertThatThrownBy(() -> command.getTickets().put(TicketGrade.SILVER, 1L))
+				.isInstanceOf(UnsupportedOperationException.class);
 	}
 
 	@Test

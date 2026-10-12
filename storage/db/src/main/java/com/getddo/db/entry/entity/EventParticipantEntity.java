@@ -50,6 +50,9 @@ public class EventParticipantEntity {
 
 	/** 누적 차감 수량을 늘린다. */
 	public void addUsedTicketCount(long amount) {
+		if (amount <= 0) {
+			throw new IllegalArgumentException("누적 차감 수량은 늘리는 값만 받는다: " + amount);
+		}
 		this.usedTicketCount = Math.addExact(this.usedTicketCount, amount);
 	}
 }

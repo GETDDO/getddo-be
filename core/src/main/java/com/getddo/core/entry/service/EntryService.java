@@ -1,5 +1,7 @@
 package com.getddo.core.entry.service;
 
+import java.sql.SQLException;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -24,6 +26,9 @@ import com.getddo.core.entry.exception.EntryException;
 @RequiredArgsConstructor
 public class EntryService {
 
+	/** MySQL {@code ER_DUP_ENTRY}: UNIQUE·PK 중복 입력. */
+	private static final int MYSQL_DUPLICATE_ENTRY = 1062;
+
 	private final EntryRecorder recorder;
 
 	/**
@@ -43,10 +48,26 @@ public class EntryService {
 		}
 		try {
 			return recorder.record(command);
-		} catch (DataIntegrityViolationException | PessimisticLockingFailureException concurrentEntry) {
-			// 같은 사용자의 첫 응모나 같은 응모 ID가 동시에 겹쳤다. 롤백된 트랜잭션은 버리고 새 트랜잭션에서 한 번만 다시 처리한다.
-			// 다른 원인의 실패라면 재처리에서도 같은 예외가 나고 그대로 전파된다.
+		} catch (PessimisticLockingFailureException concurrentEntry) {
+			// 동시 응모의 잠금 교착·대기 실패다. 롤백된 트랜잭션은 버리고 새 트랜잭션에서 한 번만 다시 처리한다.
+			return recorder.record(command);
+		} catch (DataIntegrityViolationException violation) {
+			// 같은 사용자의 첫 응모나 같은 응모 ID가 동시에 겹친 UNIQUE 위반만 다시 처리한다. FK·NOT NULL·CHECK 위반은
+			// 재처리해도 같으므로 잠금과 조회를 반복하지 않고 그대로 전파한다.
+			if (!isDuplicateKey(violation)) {
+				throw violation;
+			}
 			return recorder.record(command);
 		}
+	}
+
+	/** 원인 사슬에 MySQL 중복 키 오류(1062)가 있는지 확인한다. */
+	private static boolean isDuplicateKey(Throwable failure) {
+		for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+			if (cause instanceof SQLException sql && sql.getErrorCode() == MYSQL_DUPLICATE_ENTRY) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

@@ -1,5 +1,7 @@
 package com.getddo.core.entry.domain;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -32,6 +34,7 @@ public final class EntryCommand {
 		this.membership = membership;
 		this.eventId = eventId;
 		this.entryId = entryId;
-		this.tickets = tickets;
+		// 호출자가 커맨드를 만든 뒤 맵을 바꿔도 재처리가 같은 요청을 보도록 복사한다. null 키·값은 처리 단계에서 요청 오류로 바꾸므로 허용한다.
+		this.tickets = tickets == null ? null : Collections.unmodifiableMap(new HashMap<>(tickets));
 	}
 }

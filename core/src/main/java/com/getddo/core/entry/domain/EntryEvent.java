@@ -1,6 +1,7 @@
 package com.getddo.core.entry.domain;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -29,7 +30,8 @@ public final class EntryEvent {
 	private final boolean weightingEnabled;
 	/** 사용자별 이벤트 누적 사용 상한. {@code null}이면 상한 없음(월말 소진용). */
 	private final Integer maxTicketsPerUser;
-	private final MembershipRule membershipRule;
+	/** 이 이벤트에 응모할 수 있는 최소 멤버십. */
+	private final Membership requiredMembership;
 	private final Instant startsAt;
 	private final Instant endsAt;
 	private final EventStatus status;
@@ -42,9 +44,15 @@ public final class EntryEvent {
 		this.eventType = Objects.requireNonNull(eventType, "eventType");
 		this.weightingEnabled = weightingEnabled;
 		this.maxTicketsPerUser = maxTicketsPerUser;
-		this.membershipRule = Objects.requireNonNull(membershipRule, "membershipRule");
+		this.requiredMembership = toMembership(Objects.requireNonNull(membershipRule, "membershipRule"));
 		this.startsAt = Objects.requireNonNull(startsAt, "startsAt");
 		this.endsAt = Objects.requireNonNull(endsAt, "endsAt");
+		if (!startsAt.isBefore(endsAt)) {
+			throw new IllegalArgumentException("모집 시작 시각은 마감 시각보다 앞서야 한다.");
+		}
+		if (maxTicketsPerUser != null && maxTicketsPerUser <= 0) {
+			throw new IllegalArgumentException("사용자별 누적 상한은 양수여야 한다.");
+		}
 		this.status = Objects.requireNonNull(status, "status");
 		this.deleted = deleted;
 	}
@@ -80,8 +88,13 @@ public final class EntryEvent {
 		return !deleted && acceptingStatus && !at.isBefore(startsAt) && at.isBefore(endsAt);
 	}
 
-	/** 사용자의 멤버십이 이 이벤트의 최소 허용 등급 이상인지 알려 준다. 등급 순서는 우수 &lt; VIP &lt; VVIP다. */
+	/** 사용자의 멤버십이 이 이벤트의 최소 허용 등급 이상인지 알려 준다. 등급 순서는 {@link Membership} 선언 순서(우수 &lt; VIP &lt; VVIP)다. */
 	public boolean allows(Membership membership) {
-		return membership != null && membership.ordinal() >= membershipRule.ordinal();
+		return membership != null && membership.compareTo(requiredMembership) >= 0;
+	}
+
+	/** 이벤트의 최소 허용 멤버십 코드를 같은 이름의 멤버십으로 바꾼다. 서로 다른 enum의 선언 순서를 비교하지 않기 위해서다. */
+	private static Membership toMembership(MembershipRule rule) {
+		return Membership.valueOf(rule.name().toUpperCase(Locale.ROOT));
 	}
 }
