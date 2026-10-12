@@ -48,3 +48,9 @@ GD-87 공용 실행·실패 파일과 GD-138 취소 모델·생성 흐름은 변
 Java 21로 core·storage:db·api 컴파일과 관련 단위·API 테스트 44건이 통과했다. 전체 `./gradlew test --offline --no-daemon`도 467건(core 294, api 151, storage:db 22) 모두 실패·오류·건너뜀 없이 통과했다. 재추첨 원본 불일치·실제 자리 번호·유지 결과 변조·역대 당첨 후보 제외·후보 부족/0명·사후 취소/공개를 검증한다. API와 JDBC Repository 테스트는 저장소/DB 호출 대역을 사용하며 실제 MySQL 통합 검증과 구분한다.
 
 사용자 요청으로 이번 보완에서 Docker와 `integrationTest`, 전체 `build`는 실행하지 않는다. 과거 버전의 MySQL 통합·전체 build 성공 결과는 이번 버전 2 보완의 연동 검증 결과가 아니다.
+
+## CodeRabbit 리뷰 확인
+
+상세 조회는 결과에 연결된 사용자 ID만 조인하여 읽고 전체 후보 JSON을 조회하지 않는다. 응답 정렬은 저장된 조건의 등수·자리 순이며 현재 경품 등수 변경에 영향을 받지 않는다. 검증 전체 통과 판정은 Service에서 수행하고 영속성 구현에 전달한다. DrawCheckEntity의 필수값은 생성 시 null을 거절한다.
+
+[재추첨 자리 검증 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803111)는 유효한 위험으로 확인했다. 고정 시각까지의 실제 취소와 자리·유지 명단 완전성 검증을 GD-137에 확장할지 GD-169에 남길지 사용자 확인 중이며 현재 검증은 이를 보장하지 않는다. [공통 Entity 예외 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803115)는 채택된 ADR-0001 예외 추가 또는 created_at 새 마이그레이션을 요구하므로 담당 확인 전 확정하지 않는다. 두 스레드는 미해결로 유지한다.
