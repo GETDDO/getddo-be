@@ -129,7 +129,7 @@ public class DrawExecutionControlService {
 	private void requireAdmin(UUID actorId) {
 		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
 		User user = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (user.role() != UserRole.ADMIN || user.status() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		if (user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
 	}
 	/** UTC 밀리초와 난수를 조합한 UUID v7을 같은 시도의 실패 식별자로 사용한다. */
 	private static UUID attemptId(Instant now) {

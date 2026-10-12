@@ -42,7 +42,7 @@ public class TicketController {
 	 */
 	@GetMapping("/me")
 	public ResponseEnvelope<MyTicketsResponse> findMyTickets(@CurrentUser(membershipRequired = false) User user) {
-		return ResponseEnvelope.success(MyTicketsResponse.from(service.getMyTickets(user.id())));
+		return ResponseEnvelope.success(MyTicketsResponse.from(service.getMyTickets(user.getId())));
 	}
 
 	/**
@@ -76,6 +76,6 @@ public class TicketController {
 		TicketHistoryFilter filter = TicketHistoryFilter.of(operationType,
 				from == null ? null : from.toInstant(), to == null ? null : to.toInstant());
 		return ResponseEnvelope.success(
-				service.getMyHistory(user.id(), filter, cursor, size).map(TicketHistoryResponse::from));
+				service.getMyHistory(user.getId(), filter, cursor, size).map(TicketHistoryResponse::from));
 	}
 }
