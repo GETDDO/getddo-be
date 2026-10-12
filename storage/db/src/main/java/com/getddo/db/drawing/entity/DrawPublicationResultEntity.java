@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Immutable;
+import org.springframework.data.domain.Persistable;
 
 import com.getddo.core.drawing.domain.DrawPublication;
 
@@ -16,7 +17,7 @@ import com.getddo.core.drawing.domain.DrawPublication;
 @Immutable
 @Table(name = "draw_publication_results")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DrawPublicationResultEntity {
+public class DrawPublicationResultEntity implements Persistable<DrawPublicationResultId> {
 	@EmbeddedId
 	private DrawPublicationResultId id;
 	@Column(name = "event_id", nullable = false, updatable = false, length = 16)
@@ -25,6 +26,8 @@ public class DrawPublicationResultEntity {
 	private UUID runId;
 	@Column(name = "confirmation_id", updatable = false, length = 16)
 	private UUID confirmationId;
+	@Transient
+	private boolean newEntity = true;
 
 	public DrawPublicationResultEntity(UUID publicationId, UUID eventId, DrawPublication.Entry entry) {
 		id = new DrawPublicationResultId(publicationId, entry.resultId());
@@ -36,4 +39,11 @@ public class DrawPublicationResultEntity {
 	public DrawPublication.Entry toDomain() {
 		return new DrawPublication.Entry(id.getResultId(), runId, confirmationId);
 	}
+
+	@Override
+	public boolean isNew() { return newEntity; }
+
+	@PostLoad
+	@PostPersist
+	private void markPersisted() { newEntity = false; }
 }

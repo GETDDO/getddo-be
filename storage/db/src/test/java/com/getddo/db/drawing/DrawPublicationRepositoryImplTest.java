@@ -114,4 +114,29 @@ class DrawPublicationRepositoryImplTest {
 		verify(versions, never()).findByEventIdOrderByRevisionDesc(any(), any());
 		verifyNoInteractions(entries);
 	}
+
+	@Test
+	@DisplayName("복합키 공개 포함 결과는 신규 저장에 persist를 선택하고 영속화 후 기존 행으로 판정한다")
+	void assignedCompositeKeyUsesPersistForNewRows() {
+		// given
+		DrawPublicationResultEntity entry = new DrawPublicationResultEntity(UUID.randomUUID(), UUID.randomUUID(),
+				new DrawPublication.Entry(UUID.randomUUID(), UUID.randomUUID(), null));
+		jakarta.persistence.metamodel.Metamodel metamodel = mock(jakarta.persistence.metamodel.Metamodel.class);
+		jakarta.persistence.metamodel.EntityType<DrawPublicationResultEntity> entityType = mock(jakarta.persistence.metamodel.EntityType.class);
+		doReturn(entityType).when(metamodel).managedType(DrawPublicationResultEntity.class);
+		when(entityManager.getEntityManagerFactory()).thenReturn(mock(jakarta.persistence.EntityManagerFactory.class));
+		org.springframework.data.jpa.repository.support.JpaEntityInformation<DrawPublicationResultEntity, ?> information =
+				new org.springframework.data.jpa.repository.support.JpaPersistableEntityInformation<>(DrawPublicationResultEntity.class,
+						metamodel, mock(jakarta.persistence.PersistenceUnitUtil.class));
+		org.springframework.data.jpa.repository.support.SimpleJpaRepository<DrawPublicationResultEntity, ?> jpa =
+				new org.springframework.data.jpa.repository.support.SimpleJpaRepository<>(information, entityManager);
+		// when
+		jpa.save(entry);
+		// then
+		assertThat(entry.isNew()).isTrue();
+		verify(entityManager).persist(entry);
+		verify(entityManager, never()).merge(any());
+		ReflectionTestUtils.invokeMethod(entry, "markPersisted");
+		assertThat(information.isNew(entry)).isFalse();
+	}
 }

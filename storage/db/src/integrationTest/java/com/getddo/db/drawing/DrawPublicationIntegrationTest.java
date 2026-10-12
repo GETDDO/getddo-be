@@ -122,7 +122,9 @@ class DrawPublicationIntegrationTest {
 		// given
 		doThrow(new IllegalStateException("공개 목록 저장 실패")).when(entries).saveAllAndFlush(any());
 		// when / then
-		assertThatThrownBy(() -> service.publishInitial(eventId)).isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> service.publishInitial(eventId))
+				.isInstanceOf(org.springframework.dao.InvalidDataAccessApiUsageException.class)
+				.hasRootCauseInstanceOf(IllegalStateException.class);
 		assertThat(count()).isZero();
 		assertThat(service.wasPublished(selectedId())).isFalse();
 		doCallRealMethod().when(entries).saveAllAndFlush(any());
