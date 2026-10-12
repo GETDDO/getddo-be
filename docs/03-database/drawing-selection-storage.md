@@ -1,7 +1,7 @@
 # 추첨 실행·후보 스냅샷·결과 저장
 
-- 상태: 응모 수량·이벤트 잠금·후보 확정 경계 합의 확인 — GD-85 결과 확정 구현은 검토 대기, GD-87 공통 실행 구현은 코드 작성·검증 전
-- 구현 범위: GD-84 최초 실행과 후보·조건 스냅샷 확정, GD-130 추첨 제외 의존성 제거, GD-85 최초 결과 확정, GD-87 공통 실행·실패·동일 실행 재개(코드 작성·검증 전)
+- 상태: 응모 수량·이벤트 잠금·후보 확정 경계 합의 확인 — GD-85 결과 확정 구현은 검토 대기, GD-87 공통 실행 구현은 검토 대기, 최신 기준 전체 build 미완료
+- 구현 범위: GD-84 최초 실행과 후보·조건 스냅샷 확정, GD-130 추첨 제외 의존성 제거, GD-85 최초 결과 확정, GD-87 공통 실행·실패·동일 실행 재개(검토 대기, 최신 기준 전체 build 미완료)
 - 기준: [통합 ERD](schema.dbml), [공용 추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [ADR-014](https://github.com/GETDDO/getddo-spec/blob/main/03-decisions/014-random-ticket-grades.md), [ADR-018](https://github.com/GETDDO/getddo-spec/blob/main/03-decisions/018-pre-issuance-abuse-blocking-and-no-draw-exclusion.md)
 - GD-84에서 추가한 두 정상 종료 상태는 이력 호환성을 위해 유지한다. GD-130 이후 새 실행은 응모자 없음 종료만 생성한다.
 
@@ -96,6 +96,7 @@ GD-85 테스트는 단위 검증과 실제 MySQL의 JPA 왕복·FK/UNIQUE·롤�
 
 - `DrawExecutionService.execute(UUID runId)`는 등록·커밋된 실행만 처리한다. 외부 트랜잭션 안에서는 호출을 거절한다. 취소·새 재추첨 생성·공개는 수행하지 않는다.
 - 관리자 시작은 `execute(runId, actorId)`로 실제 처리자를 전달한다. 이 호출도 운영자 대기를 우회하지 않는다.
+- 실행 가능 이벤트 상태는 최초 OPEN/CLOSED, 재추첨 REDRAWING이며 소유권 획득·입력 준비·확정에서 같은 검사 함수를 사용한다. GD-138은 취소·등록과 함께 REDRAWING 전이를 담당한다.
 - `resume(runId, actorId)`는 활성 관리자 확인 후 실패한 동일 실행을 재개한다. 최초 HTTP 경로는 `resumeInitial`로 INITIAL만 허용한다. 실제 시도를 얻었을 때만 공용 감사 서비스로 `DRAW_EXECUTE` 또는 `DRAW_RESUME`을 기록한다. 진행 중·확정 재요청은 감사 기록을 중복 생성하지 않는다.
 - 이벤트 → 실행 잠금을 유지하며 시도 소유권, 입력 준비, 결과 확정, 실패 저장은 별도 서비스 Bean의 트랜잭션이다. 입력 확정 커밋 뒤 선정하므로 선정 실패에도 스냅샷을 보존한다. CONFIRMED는 저장 결과만 반환한다.
 - PREPARING은 입력 확정 전 상태이며 `attempt_id`가 있으면 준비 시도를 처리 중이다. READY/RUNNING의 고정 입력은 원본에서 재계산하지 않는다. 실패는 FAILED로 저장하되 입력·후보·기존 결과 이력을 수정하지 않는다.
