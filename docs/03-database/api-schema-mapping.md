@@ -5,7 +5,7 @@
 
 공용 API 초안과 초기 스키마의 대응을 정리한다. 공용 요구사항과 도메인 정책은 `getddo-spec`을 따른다.
 
-2026-10-08 GD-93에서 V001~V011을 최신 [DBML](schema.dbml)의 44개 테이블로 교체했다. 아래 테이블 대응과 검토 항목은 교체 전 SQL의 기록이며 현재 스키마의 기준으로 사용하지 않는다. API·서비스 코드의 호환성 수정 및 대응표 재검토는 담당자의 후속 작업이다.
+2026-10-08 GD-93에서 V001~V011을 최신 [DBML](schema.dbml)의 44개 테이블로 교체했다. 아래 V001~V011 테이블 대응과 검토 항목은 교체 전 SQL의 기록이며 현재 스키마의 기준으로 사용하지 않는다. V014 이후 행은 교체 뒤에 추가한 마이그레이션이다. API·서비스 코드의 호환성 수정 및 대응표 재검토는 담당자의 후속 작업이다.
 
 2026-10-05 추첨 ERD 검토안은 이 문서의 V007 초기 정의와 구분한다. 갱신한 공용 계약은 [SPEC 추첨 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md)의 AD01~AD09이며, 후보 연결·결과 FK·실패·검증·공개 이력 설계는 [ADR-0003](../04-decisions/0003-drawing-snapshots-and-publications.md)과 ERD SQL 초안 (`drawing-erd-reviewed-erdcloud.sql`, 정리로 삭제됨; 작성 당시 내용은 Git 이력 참조)을 참고한다. 아래 매핑을 새 설계의 운영 반영 완료로 해석하지 않는다.
 
@@ -28,6 +28,7 @@
 | [V011](../../storage/db/src/main/resources/db/migration/audit/V011__create_audit_tables.sql) | `audit_logs` | AU01~AU02 및 검토·공개 명단·정책·점수 변경 이력 |
 | [V014](../../storage/db/src/main/resources/db/migration/notification/V014__add_notification_worker_indexes.sql) | 알림 생성·발송 대기 및 선점 만료 조회용 인덱스 | GD-68 비동기 알림 처리 기반. 신규 공개 API는 추가하지 않음 |
 | [V016](../../storage/db/src/main/resources/db/migration/drawing/V016__add_initial_draw_terminal_states.sql) | 최초 추첨의 응모자 없음·과거 전원 제외 상태와 입력 CHECK | GD-130 이후 새 전원 제외 실행은 생성하지 않으며 과거 조회는 유지. 공개 API는 추가하지 않음 |
+| [V018](../../storage/db/src/main/resources/db/migration/ticket/V018__add_ticket_usable_lookup_index.sql) | `tickets`의 `(user_id, grade, expires_at)` 인덱스 | GD-133 응모권 차감 서비스의 사용 가능 응모권 조회(사용자·등급·만료 시각 조건, 만료 이른 순). 반환은 응모권 ID로 조회하므로 쓰지 않음. 공개 API는 추가하지 않음 |
 
 ## 확인된 차이와 구현 검토 항목
 

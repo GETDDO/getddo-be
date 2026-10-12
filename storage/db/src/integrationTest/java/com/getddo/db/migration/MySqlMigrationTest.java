@@ -44,23 +44,26 @@ class MySqlMigrationTest {
 
 	/** 빈 DB에 이벤트·알림 인덱스를 포함한 스키마를 적용하고 재실행의 멱등성을 검증한다. */
 	@Test
-	@DisplayName("빈 MySQL에 V001~V011·V014·V016·V017의 44개 테이블·인덱스·추첨 상태와 재실행을 확인한다")
+	@DisplayName("빈 MySQL에 V001~V011·V014·V016·V017·V018의 44개 테이블·인덱스·추첨 상태와 재실행을 확인한다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(appliedMigrations).isEqualTo(14);
+		assertThat(appliedMigrations).isEqualTo(15);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		flyway.validate();
 		assertNullableDeletedAtColumn("events");
-		assertThat(indexColumns("events", "idx_events_list", false))
+		assertThat(indexColumns("events", "idx_events_list", 1))
 				.containsExactly("deleted_at", "created_at", "id");
 		assertIndexExists("notification_jobs", "ix_notification_job_pending");
 		assertIndexExists("notification_jobs", "ix_notification_job_lease");
 		assertIndexExists("notifications", "ix_notification_delivery_retry");
+		assertIndexExists("tickets", "ix_tickets_user_grade_expiry");
+		assertThat(indexColumns("tickets", "ix_tickets_user_grade_expiry", 1))
+				.containsExactly("user_id", "grade", "expires_at");
 		try (Connection connection = connect();
 			ResultSet rows = connection.createStatement().executeQuery("""
 				select column_type from information_schema.columns
@@ -218,21 +221,20 @@ class MySqlMigrationTest {
 
 	/** 유니크 인덱스(PK 포함)의 컬럼을 인덱스 내 순서대로 반환한다. */
 	private static List<String> indexColumns(String tableName, String indexName) throws SQLException {
-		return indexColumns(tableName, indexName, true);
+		return indexColumns(tableName, indexName, 0);
 	}
 
-	/** 일반 인덱스도 검사할 수 있도록 유니크 여부 제한을 선택한다. */
-	private static List<String> indexColumns(String tableName, String indexName, boolean uniqueOnly) throws SQLException {
+	/** {@code nonUnique}가 1이면 UNIQUE가 아닌 인덱스의 컬럼을 순서대로 읽는다. */
+	private static List<String> indexColumns(String tableName, String indexName, int nonUnique) throws SQLException {
 		try (Connection connection = connect();
 			PreparedStatement statement = connection.prepareStatement("""
 					select column_name from information_schema.statistics
-					where table_schema = database() and table_name = ? and index_name = ?
-					and (? = false or non_unique = 0)
+					where table_schema = database() and table_name = ? and index_name = ? and non_unique = ?
 					order by seq_in_index
 					""")) {
 			statement.setString(1, tableName);
 			statement.setString(2, indexName);
-			statement.setBoolean(3, uniqueOnly);
+			statement.setInt(3, nonUnique);
 			List<String> columns = new ArrayList<>();
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {

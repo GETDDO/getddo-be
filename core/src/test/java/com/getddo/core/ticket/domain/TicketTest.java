@@ -89,4 +89,83 @@ class TicketTest {
 		assertThat(new Ticket(UUID.randomUUID(), USER_ID, mission, TicketGrade.GOLD, TicketStatus.SPENT,
 				EXPIRES_AT, 3, ISSUED_AT, ISSUED_AT.plusSeconds(5)).getVersion()).isEqualTo(3);
 	}
+
+	private static Ticket ticketWith(TicketStatus status, Instant expiresAt, long version) {
+		return new Ticket(UUID.randomUUID(), USER_ID, new GrantSource(GrantSourceType.MISSION, UUID.randomUUID()),
+				TicketGrade.SILVER, status, expiresAt, version, ISSUED_AT, ISSUED_AT);
+	}
+
+	@Test
+	@DisplayName("사용하면 사용됨·버전 +1·수정 시각이 사용 시각이 되고 만료 시각과 등급은 그대로이며 원본은 바뀌지 않는다")
+	void useSpendsTicket() {
+		// given
+		Ticket available = ticketWith(TicketStatus.AVAILABLE, EXPIRES_AT, 1);
+		Ticket returned = ticketWith(TicketStatus.RETURNED, EXPIRES_AT, 3);
+		Instant usedAt = ISSUED_AT.plusSeconds(60);
+		// when
+		Ticket spent = available.use(usedAt);
+		Ticket spentAgain = returned.use(usedAt);
+		// then
+		assertThat(spent.getId()).isEqualTo(available.getId());
+		assertThat(spent.getStatus()).isEqualTo(TicketStatus.SPENT);
+		assertThat(spent.getVersion()).isEqualTo(2);
+		assertThat(spent.getUpdatedAt()).isEqualTo(usedAt);
+		assertThat(spent.getCreatedAt()).isEqualTo(ISSUED_AT);
+		assertThat(spent.getExpiresAt()).isEqualTo(EXPIRES_AT);
+		assertThat(spent.getGrade()).isEqualTo(TicketGrade.SILVER);
+		assertThat(spentAgain.getVersion()).isEqualTo(4);
+		assertThat(available.getStatus()).isEqualTo(TicketStatus.AVAILABLE);
+		assertThat(available.getVersion()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("이미 사용·만료된 응모권이나 만료 시각이 지난 응모권은 사용할 수 없다")
+	void useRejectsUnusableTicket() {
+		// given
+		Instant usedAt = EXPIRES_AT;
+		// when
+		// then
+		assertThatThrownBy(() -> ticketWith(TicketStatus.SPENT, EXPIRES_AT.plusSeconds(1), 2).use(usedAt))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> ticketWith(TicketStatus.EXPIRED, EXPIRES_AT.plusSeconds(1), 2).use(usedAt))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> ticketWith(TicketStatus.AVAILABLE, EXPIRES_AT, 1).use(usedAt))
+				.isInstanceOf(IllegalStateException.class);
+		assertThat(ticketWith(TicketStatus.AVAILABLE, EXPIRES_AT, 1).use(usedAt.minusNanos(1000)).getStatus())
+				.isEqualTo(TicketStatus.SPENT);
+	}
+
+	@Test
+	@DisplayName("반환하면 반환됨·버전 +1·새 만료 시각이 되고 등급은 그대로다")
+	void refundReturnsTicket() {
+		// given
+		Ticket spent = ticketWith(TicketStatus.SPENT, EXPIRES_AT, 2);
+		Instant refundedAt = ISSUED_AT.plusSeconds(120);
+		Instant newExpiresAt = Instant.parse("2026-10-31T15:00:00Z");
+		// when
+		Ticket returned = spent.refund(refundedAt, newExpiresAt);
+		// then
+		assertThat(returned.getStatus()).isEqualTo(TicketStatus.RETURNED);
+		assertThat(returned.getVersion()).isEqualTo(3);
+		assertThat(returned.getExpiresAt()).isEqualTo(newExpiresAt);
+		assertThat(returned.getUpdatedAt()).isEqualTo(refundedAt);
+		assertThat(returned.getGrade()).isEqualTo(TicketGrade.SILVER);
+		assertThat(returned.getStatus().isUsable()).isTrue();
+		assertThat(spent.getStatus()).isEqualTo(TicketStatus.SPENT);
+	}
+
+	@Test
+	@DisplayName("사용됨이 아닌 응모권은 반환할 수 없고 새 만료 시각은 반환 시각보다 늦어야 한다")
+	void refundRejectsInvalidInput() {
+		// given
+		Instant refundedAt = ISSUED_AT.plusSeconds(120);
+		// when
+		// then
+		assertThatThrownBy(() -> ticketWith(TicketStatus.AVAILABLE, EXPIRES_AT, 1).refund(refundedAt, EXPIRES_AT))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> ticketWith(TicketStatus.RETURNED, EXPIRES_AT, 3).refund(refundedAt, EXPIRES_AT))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> ticketWith(TicketStatus.SPENT, EXPIRES_AT, 2).refund(refundedAt, refundedAt))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
 }
