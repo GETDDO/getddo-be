@@ -85,10 +85,11 @@ class DrawInspectionIntegrationTest {
 		assertThat(service.detail(admin, runId)).usingRecursiveComparison().isEqualTo(detail);
 		// 저장 가중치 변조는 실패 이력으로 남기며 값을 보정하지 않는다.
 		jdbc.update("update draw_candidates set weight = 2 where draw_run_id = ?", toBytes(runId));
+		clock.set(NOW.plusSeconds(1));
 		DrawVerification failed = service.verify(admin, runId);
 		assertThat(failed.isPassed()).isFalse();
 		List<DrawVerification> history = service.history(admin, runId, new PageQuery(1, 20)).getItems();
-		assertThat(history).hasSize(2).extracting(DrawVerification::getId).contains(passed.getId(), failed.getId());
+		assertThat(history).extracting(DrawVerification::getId).containsExactly(failed.getId(), passed.getId());
 		assertThat(history).filteredOn(item -> item.getId().equals(failed.getId())).first().usingRecursiveComparison().isEqualTo(failed);
 		assertThat(jdbc.queryForObject("select weight from draw_candidates where draw_run_id = ?", Long.class, toBytes(runId))).isEqualTo(2);
 	}
