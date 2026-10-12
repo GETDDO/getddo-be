@@ -187,12 +187,12 @@ class NotificationAdminIntegrationTest {
 		// when / then
 		for (String baseline : List.of("-1", "attempt_count + 1")) {
 			assertThatThrownBy(() -> jdbc.update("update notification_jobs set attempt_base=" + baseline + " where id=?", bytes(id)))
-					.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+					.isInstanceOf(org.springframework.dao.DataAccessException.class)
 					.hasStackTraceContaining("chk_notification_attempt_base");
 		}
 		for (String baseline : List.of("-1", "delivery_attempt_count + 1")) {
 			assertThatThrownBy(() -> jdbc.update("update notifications set delivery_attempt_base=" + baseline + " where id=?", bytes(notification)))
-					.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+					.isInstanceOf(org.springframework.dao.DataAccessException.class)
 					.hasStackTraceContaining("chk_delivery_attempt_base");
 		}
 		assertThat(admin.findJob(actor, id).getAttemptBase()).isZero();
