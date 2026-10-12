@@ -8,6 +8,8 @@ import com.getddo.core.drawing.domain.AwardCancellation;
 
 /** 업무 트랜잭션과 이벤트 선잠금은 호출 서비스가 관리한다. */
 public interface AwardCancellationRepository {
+	/** 기존 영속성의 UUID v7 생성 방식을 재사용한다. 업무 시각과 식별자 생성 시각은 별개다. */
+	UUID nextId();
 	Optional<AwardCancellation> findById(UUID cancellationId);
 	Optional<AwardCancellation> findByDrawResultId(UUID drawResultId);
 	Optional<AwardCancellation> findByRequestKey(UUID requestKey);

@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/** 취소 근거와 이미 등록된 재추첨 실행의 불변 연결. 응모권에는 영향을 주지 않는다. */
+/** 취소 근거와 재추첨 실행의 불변 연결. 과거 미연결 이력은 null로 복원하고 서비스가 실행을 거절한다. */
 public record AwardCancellation(UUID id, UUID drawResultId, UUID replacementRunId,
 		UUID canceledBy, String reason, Instant canceledAt, UUID requestKey) {
 	/** 기존 이력과 영속성 테스트의 키 없는 취소를 복원한다. 신규 등록은 키를 필수 검증한다. */
@@ -15,7 +15,6 @@ public record AwardCancellation(UUID id, UUID drawResultId, UUID replacementRunI
 	public AwardCancellation {
 		Objects.requireNonNull(id, "id");
 		Objects.requireNonNull(drawResultId, "drawResultId");
-		Objects.requireNonNull(replacementRunId, "replacementRunId");
 		Objects.requireNonNull(canceledBy, "canceledBy");
 		Objects.requireNonNull(canceledAt, "canceledAt");
 		if (reason != null) reason = reason.strip();

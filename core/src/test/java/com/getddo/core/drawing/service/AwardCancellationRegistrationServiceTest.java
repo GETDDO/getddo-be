@@ -53,6 +53,7 @@ class AwardCancellationRegistrationServiceTest {
 				UUID.randomUUID(), UUID.randomUUID(), DrawSelectionResultType.SELECTED), NOW);
 		when(results.findConfirmed(any())).thenReturn(new DrawConfirmation(origin, event, NOW, List.of(result)));
 		when(replacements.register(event)).thenReturn(replacement);
+		when(cancellations.nextId()).thenReturn(UUID.fromString("019a75ce-4d80-7000-8000-000000000001"));
 		when(cancellations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 	}
 

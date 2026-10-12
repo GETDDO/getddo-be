@@ -16,6 +16,7 @@ import com.getddo.core.user.domain.*;
 import com.getddo.core.user.repository.UserRepository;
 
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.NOT_FOUND;
+import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.NOT_CANCELABLE;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
 /** AD09는 기존 연결을 조회할 뿐 새 취소나 실행을 등록하지 않는다. */
@@ -33,6 +34,7 @@ public class AwardCancellationQueryService {
 		if (user.role() != UserRole.ADMIN || user.status() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
 		if (cancellationId == null) throw new BusinessException(NOT_FOUND);
 		AwardCancellation cancellation = cancellations.findById(cancellationId).orElseThrow(() -> new BusinessException(NOT_FOUND));
+		if (cancellation.replacementRunId() == null) throw new BusinessException(NOT_CANCELABLE);
 		DrawSnapshot run = snapshots.findRegistered(cancellation.replacementRunId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		if (run.drawType() != DrawType.REPLACEMENT) throw new BusinessException(INVALID_RUN);
 		return run;

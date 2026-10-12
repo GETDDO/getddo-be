@@ -59,8 +59,7 @@ public class AwardCancellationRegistrationService {
 		if (results.findConfirmed(source).getResults().stream().noneMatch(result -> result.getId().equals(winId)
 				&& result.getSelection().getResultType() == DrawSelectionResultType.SELECTED)) throw new BusinessException(NOT_CANCELABLE);
 		UUID runId = replacements.register(target.eventId());
-		UUID random = UUID.randomUUID();
-		UUID id = new UUID((now.toEpochMilli() << 16) | 0x7000L | (random.getMostSignificantBits() & 0xfffL), random.getLeastSignificantBits());
+		UUID id = cancellations.nextId();
 		AwardCancellation saved = cancellations.save(new AwardCancellation(id, winId, runId, actorId, normalized, now, requestKey));
 		audit.record(new AuditLogCommand(actorId, "AWARD_CANCEL", "DRAW_RESULT", winId, normalized,
 				Map.of("isCanceled", false), Map.of("isCanceled", true, "cancellationId", saved.id().toString(),
@@ -80,6 +79,7 @@ public class AwardCancellationRegistrationService {
 	private static AwardCancellation matching(AwardCancellation existing, UUID actorId, UUID winId, String reason) {
 		if (!existing.canceledBy().equals(actorId) || !existing.drawResultId().equals(winId) || !existing.reason().equals(reason))
 			throw new BusinessException(KEY_CONFLICT);
+		if (existing.replacementRunId() == null) throw new BusinessException(NOT_CANCELABLE);
 		return existing;
 	}
 

@@ -17,6 +17,7 @@ import com.getddo.core.user.repository.UserRepository;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.NOT_FOUND;
+import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.NOT_CANCELABLE;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -64,6 +65,14 @@ class AwardCancellationQueryServiceTest {
 
 	private User user(UserRole role, UserStatus status) {
 		return new User(actor, "관리자", role, status, Membership.VIP, null, null, null, null, Instant.EPOCH, Instant.EPOCH);
+	}
+
+	@Test @DisplayName("과거 미연결 취소는 새 실행을 추정하지 않고 서비스에서 거절한다")
+	void rejectsUnlinkedHistoryWithoutLookingUpRun() {
+		when(cancellations.findById(id)).thenReturn(Optional.of(new AwardCancellation(id, UUID.randomUUID(), null,
+				actor, "과거 사유", Instant.EPOCH)));
+		assertCode(() -> query.findConnected(actor, id), NOT_CANCELABLE);
+		verifyNoInteractions(snapshots);
 	}
 	private DrawSnapshot snapshot(DrawType type) { return new DrawSnapshot(run, UUID.randomUUID(), DrawRunStatus.PREPARING, null, null, null, List.of(), type); }
 	private static void assertCode(Runnable operation, com.getddo.core.common.exception.ErrorCode code) {

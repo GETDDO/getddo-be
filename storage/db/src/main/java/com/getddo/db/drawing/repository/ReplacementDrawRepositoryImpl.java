@@ -1,8 +1,10 @@
 package com.getddo.db.drawing.repository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -84,6 +86,7 @@ public class ReplacementDrawRepositoryImpl implements ReplacementDrawRepository 
 		List<DrawResultEntity> entities = results.findAllById(ids);
 		if (entities.size() != ids.size()) throw new BusinessException(INVALID_RUN);
 		// 과거 등수·사용자를 최초 스냅샷에서 복원하며 현재 경품 조건을 재계산하지 않는다.
-		return entities.stream().map(entity -> mapper.toDomain(entity, original)).toList();
+		Map<UUID, DrawResultEntity> byId = entities.stream().collect(Collectors.toMap(DrawResultEntity::getId, entity -> entity));
+		return ids.stream().map(id -> mapper.toDomain(byId.get(id), original)).toList();
 	}
 }

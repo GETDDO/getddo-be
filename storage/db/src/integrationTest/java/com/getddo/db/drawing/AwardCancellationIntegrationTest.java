@@ -89,6 +89,7 @@ class AwardCancellationIntegrationTest {
 		AwardCancellation stored = new TransactionTemplate(transactionManager).execute(status -> cancellations.save(requested));
 		// then
 		assertThat(stored).isNotNull();
+		assertThat(stored.id().version()).isEqualTo(7);
 		assertThat(stored.canceledAt().getNano() % 1000).isZero();
 		assertThat(stored).usingRecursiveComparison().ignoringFields("canceledAt").isEqualTo(requested);
 		assertThat(cancellations.findByDrawResultId(winId)).contains(stored);
@@ -122,7 +123,7 @@ class AwardCancellationIntegrationTest {
 	}
 
 	private AwardCancellation cancellation(Instant canceledAt) {
-		return new AwardCancellation(UUID.randomUUID(), winId, replacementId, actorId, "관리자 사유", canceledAt);
+		return new AwardCancellation(cancellations.nextId(), winId, replacementId, actorId, "관리자 사유", canceledAt);
 	}
 
 	private static LocalDateTime utc(Instant instant) { return LocalDateTime.ofInstant(instant, ZoneOffset.UTC); }

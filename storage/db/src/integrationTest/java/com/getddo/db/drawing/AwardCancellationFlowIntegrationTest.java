@@ -4,6 +4,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -30,6 +33,7 @@ import com.getddo.core.common.exception.ErrorCode;
 import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
 import com.getddo.core.drawing.service.*;
+import com.getddo.db.drawing.entity.DrawResultEntity;
 import com.getddo.db.drawing.repository.*;
 import com.getddo.db.ticket.LockWaitProbe;
 import com.getddo.db.ticket.MutableClock;
@@ -330,6 +334,36 @@ class AwardCancellationFlowIntegrationTest {
 		assertCode(() -> service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "사유"), NOT_CANCELABLE);
 		assertThat(runCount(fixture.eventId())).isEqualTo(1);
 		assertThat(cancellationCount(fixture.eventId())).isZero();
+	}
+
+	@Test @DisplayName("JPA가 역순으로 반환해도 유지 결과를 실행·선정 순서대로 복원한다")
+	void preservesResultOrderWhenJpaReturnsReverseOrder() {
+		List<UUID> expected = fixture.confirmed().getResults().stream()
+				.filter(result -> result.getSelection().getResultType() == DrawSelectionResultType.SELECTED)
+				.sorted(Comparator.comparingInt(result -> result.getSelection().getSelectionOrder()))
+				.map(DrawResult::getId).toList();
+		List<DrawResultEntity> reversed = new ArrayList<>(results.findAllById(expected));
+		Collections.reverse(reversed);
+		doReturn(reversed).when(results).findAllById(any());
+		assertThat(replacements.findCurrentResults(fixture.eventId(), fixture.original()))
+				.extracting(DrawResult::getId).containsExactlyElementsOf(expected);
+	}
+
+	@Test @DisplayName("미연결 과거 취소는 조회 가능하지만 AD05·AD09는 취소 오류로 거절하고 실행을 만들지 않는다")
+	void readsLegacyHistoryAndRejectsExecutionInService() {
+		UUID id = UUID.randomUUID();
+		UUID win = target(fixture).getId();
+		jdbc.update("""
+			insert into award_cancellations (id, draw_result_id, draw_run_id, canceled_by, reason, canceled_at)
+			values (?, ?, null, ?, '과거 사유', ?)
+			""", toBytes(id), toBytes(win), toBytes(actor), utc(NOW));
+		assertThat(cancellations.findById(id).orElseThrow().replacementRunId()).isNull();
+		assertCode(() -> service.cancel(actor, win, UUID.randomUUID(), "새 사유"), NOT_CANCELABLE);
+		assertCode(() -> service.startOrResume(actor, id), NOT_CANCELABLE);
+		assertThat(runCount(fixture.eventId())).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select count(*) from award_cancellations where draw_result_id = ?",
+				Integer.class, toBytes(win))).isEqualTo(1);
+		verifyNoInteractions(selection);
 	}
 
 	private Object cancelOrConflict(UUID win, UUID key) {

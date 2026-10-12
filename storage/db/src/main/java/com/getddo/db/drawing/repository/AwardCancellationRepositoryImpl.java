@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+import org.hibernate.id.uuid.UuidVersion7Strategy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -19,6 +20,11 @@ public class AwardCancellationRepositoryImpl implements AwardCancellationReposit
 	private final AwardCancellationJpaRepository cancellations;
 	private final AwardCancellationMapper mapper;
 	private final EntityManager entityManager;
+
+	@Override
+	public UUID nextId() {
+		return UuidVersion7Strategy.INSTANCE.generateUuid(null);
+	}
 
 	@Override
 	public Optional<AwardCancellation> findById(UUID cancellationId) {
