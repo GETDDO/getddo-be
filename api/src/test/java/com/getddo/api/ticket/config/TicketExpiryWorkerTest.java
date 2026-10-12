@@ -13,6 +13,7 @@ import com.getddo.core.ticket.service.TicketExpiryService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.when;
 class TicketExpiryWorkerTest {
 
 	private static final int BATCH_SIZE = 100;
+	private static final long POLL_DELAY_MILLIS = 60_000;
 
 	@Mock
 	private TicketExpiryService service;
@@ -29,7 +31,7 @@ class TicketExpiryWorkerTest {
 
 	@BeforeEach
 	void setUp() {
-		worker = new TicketExpiryWorker(service, BATCH_SIZE);
+		worker = new TicketExpiryWorker(service, BATCH_SIZE, POLL_DELAY_MILLIS);
 	}
 
 	@Test
@@ -38,8 +40,35 @@ class TicketExpiryWorkerTest {
 		// given
 		// when
 		// then
-		assertThatThrownBy(() -> new TicketExpiryWorker(service, 0)).isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new TicketExpiryWorker(service, -1)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketExpiryWorker(service, 0, POLL_DELAY_MILLIS))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketExpiryWorker(service, -1, POLL_DELAY_MILLIS))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	@DisplayName("폴링 간격이 1ms 미만이면 워커를 만들 수 없다")
+	void rejectsNonPositivePollDelay() {
+		// given
+		// when
+		// then
+		assertThatThrownBy(() -> new TicketExpiryWorker(service, BATCH_SIZE, 0))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new TicketExpiryWorker(service, BATCH_SIZE, -1))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	@DisplayName("시작하지 않고 종료해도 예외가 나지 않고, 시작한 워커는 종료할 수 있다")
+	void stopIsSafeWithAndWithoutStart() {
+		// given
+		TicketExpiryWorker started = new TicketExpiryWorker(service, BATCH_SIZE, 3_600_000);
+		// when
+		worker.stop();
+		started.start();
+		started.stop();
+		// then
+		verify(service, never()).expireDue(BATCH_SIZE);
 	}
 
 	@Test

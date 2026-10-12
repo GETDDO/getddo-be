@@ -10,11 +10,14 @@ import com.getddo.api.support.ApiIntegrationTest;
 import com.getddo.api.ticket.config.TicketExpiryWorker;
 import com.getddo.core.ticket.service.TicketExpiryService;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * 실제 스케줄러가 설정한 주기와 묶음 크기로 만료 서비스를 호출하는지 확인한다. 만료 처리 자체와 DB 동작은 storage 통합
@@ -41,5 +44,19 @@ class TicketExpiryWorkerIntegrationTest {
 		// then
 		assertThat(worker).isNotNull();
 		await().atMost(10, SECONDS).untilAsserted(() -> verify(service, atLeast(2)).expireDue(7));
+	}
+
+	@Test
+	@DisplayName("만료 처리는 알림·추첨 워커가 쓰는 공용 스케줄러가 아니라 전용 스레드에서 실행한다")
+	void runsOnDedicatedThread() {
+		// given
+		AtomicReference<String> threadName = new AtomicReference<>();
+		when(service.expireDue(7)).thenAnswer(invocation -> {
+			threadName.set(Thread.currentThread().getName());
+			return 0;
+		});
+		// when
+		// then
+		await().atMost(10, SECONDS).untilAsserted(() -> assertThat(threadName.get()).startsWith("ticket-expiry-"));
 	}
 }
