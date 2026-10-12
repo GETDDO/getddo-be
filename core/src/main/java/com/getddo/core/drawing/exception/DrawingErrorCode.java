@@ -14,10 +14,14 @@ public enum DrawingErrorCode implements ErrorCode {
 	private final int status;
 	private final String code;
 	private final String message;
+	/** 추첨 업무 오류의 HTTP 상태·공개 코드·안내 문구를 연결한다. */
 	DrawingErrorCode(int status, String code, String message) {
 		this.status = status; this.code = code; this.message = message;
 	}
+	/** 공통 오류 응답에서 사용할 HTTP 상태를 반환한다. */
 	@Override public int getStatus() { return status; }
+	/** 원문 예외 대신 클라이언트에 전달할 추첨 오류 코드를 반환한다. */
 	@Override public String getCode() { return code; }
+	/** 공통 오류 응답에 사용할 관리자·사용자 안내 문구를 반환한다. */
 	@Override public String getMessage() { return message; }
 }

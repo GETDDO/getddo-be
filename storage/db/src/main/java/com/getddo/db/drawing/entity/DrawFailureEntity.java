@@ -27,6 +27,7 @@ public class DrawFailureEntity {
 	private Instant failedAt;
 	@Column(name = "trace_id", updatable = false, length = 100)
 	private String traceId;
+	/** 실패 ID·실행 참조·코드·시각·추적 ID를 그대로 보존해 동일 실패 저장의 멱등성을 유지한다. */
 	public DrawFailureEntity(DrawFailure failure) {
 		id = failure.getId(); runId = failure.getRunId(); failureCode = failure.getFailureCode();
 		failedAt = failure.getFailedAt(); traceId = failure.getTraceId();

@@ -41,6 +41,7 @@ public class DrawExecutionService {
 	@Transactional(propagation = Propagation.NEVER)
 	public DrawExecutionResult resumeInitial(UUID runId, UUID actorId) { return executeClaim(control.claim(runId, actorId, true, true)); }
 
+	/** 소유권을 얻은 호출만 입력 준비와 확정을 진행한다. 준비·선정 롤백 뒤 같은 시도의 실패를 별도 기록하며 복구 거절은 커밋 이후 전달한다. */
 	private DrawExecutionResult executeClaim(DrawExecutionClaim claim) {
 		if (claim.getRejectionCode() != null) throw new BusinessException(claim.getRejectionCode());
 		DrawExecutionState state = claim.getState();
