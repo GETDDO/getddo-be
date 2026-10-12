@@ -43,7 +43,7 @@ class AdminDrawControllerTest {
 		DrawInspectionService service = new DrawInspectionService(repository, checks, new TimeProvider(Clock.fixed(now, ZoneOffset.UTC)));
 		mvc = MockMvcBuilders.standaloneSetup(new AdminDrawController(service))
 				.setControllerAdvice(new GlobalExceptionHandler())
-				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(id -> Optional.of(selected).filter(user -> user.id().equals(id)))))
+				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(id -> Optional.of(selected).filter(user -> user.getId().equals(id)))))
 				.build();
 		when(repository.findRun(runId)).thenReturn(Optional.of(run()));
 	}
@@ -55,7 +55,7 @@ class AdminDrawControllerTest {
 		when(repository.eventExists(eventId)).thenReturn(true);
 		when(repository.findRuns(eventId, new PageQuery(2, 1))).thenReturn(new PageResult<>(List.of(run()), 2, 1, 2));
 		// when / then
-		mvc.perform(get("/api/v1/admin/events/{id}/draws", eventId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name()).param("page", "2").param("size", "1"))
+		mvc.perform(get("/api/v1/admin/events/{id}/draws", eventId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name()).param("page", "2").param("size", "1"))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.page").value(2))
 				.andExpect(jsonPath("$.data.items[0].drawType").value("INITIAL"))
 				.andExpect(jsonPath("$.data.items[0].executionType").doesNotExist());
@@ -69,7 +69,7 @@ class AdminDrawControllerTest {
 		when(repository.findResults(runId)).thenReturn(List.of(new DrawResultView(UUID.randomUUID(), runId,
 				UUID.randomUUID(), eventId, 1, 1, DrawSelectionResultType.SELECTED, UUID.randomUUID(), winnerId, true, true)));
 		// when / then
-		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name()))
+		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name()))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.results[0].wasPublished").value(true))
 				.andExpect(jsonPath("$.data.results[0].isCanceled").value(true))
 				.andExpect(jsonPath("$.data.results[0].userId").value(winnerId.toString()))
@@ -87,10 +87,10 @@ class AdminDrawControllerTest {
 		when(checks.save(eq(runId), eq(actorId), eq(now), eq(false), anyList())).thenReturn(stored);
 		when(checks.findByRun(runId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(stored), 1, 20, 1));
 		// when / then
-		mvc.perform(post("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name()))
+		mvc.perform(post("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name()))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.data.passed").value(false))
 				.andExpect(jsonPath("$.data.verifiedBy").value(actorId.toString()));
-		mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name()))
+		mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name()))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].id").value(stored.getId().toString()));
 	}
 
@@ -100,7 +100,7 @@ class AdminDrawControllerTest {
 		// given
 		when(repository.findCandidates(runId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(), 1, 20, 0));
 		// when / then
-		mvc.perform(get("/api/v1/admin/draws/{id}/participants", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isOk());
+		mvc.perform(get("/api/v1/admin/draws/{id}/participants", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isOk());
 		verify(repository).findCandidates(runId, new PageQuery(1, 20));
 	}
 
@@ -118,7 +118,7 @@ class AdminDrawControllerTest {
 		when(repository.findAllCandidates(runId)).thenReturn(List.of());
 		when(repository.findResults(runId)).thenReturn(List.of());
 		// when / then
-		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name()))
+		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name()))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.drawType").value("REPLACEMENT"))
 				.andExpect(jsonPath("$.data.rulesSnapshot.version").value(2))
 				.andExpect(jsonPath("$.data.rulesSnapshot.originalRunId").value(firstId.toString()))
@@ -132,7 +132,7 @@ class AdminDrawControllerTest {
 	@DisplayName("허용 범위 밖 페이지는 공통 400 응답으로 거절한다")
 	void rejectsInvalidPage(int page, int size) throws Exception {
 		// given / when / then
-		mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())
+		mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())
 				.param("page", Integer.toString(page)).param("size", Integer.toString(size))).andExpect(status().isBadRequest());
 		verifyNoInteractions(checks);
 	}
@@ -143,11 +143,11 @@ class AdminDrawControllerTest {
 		// given / when / then
 		for (User user : List.of(user(UserRole.USER, UserStatus.ACTIVE), user(UserRole.ADMIN, UserStatus.INACTIVE))) {
 			selected = user;
-			mvc.perform(get("/api/v1/admin/events/{id}/draws", eventId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isForbidden());
-			mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isForbidden());
-			mvc.perform(get("/api/v1/admin/draws/{id}/participants", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isForbidden());
-			mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isForbidden());
-			mvc.perform(post("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isForbidden());
+			mvc.perform(get("/api/v1/admin/events/{id}/draws", eventId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
+			mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
+			mvc.perform(get("/api/v1/admin/draws/{id}/participants", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
+			mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
+			mvc.perform(post("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
 		}
 		verifyNoInteractions(checks);
 	}
@@ -157,8 +157,8 @@ class AdminDrawControllerTest {
 	void validatesContextAndIdentifiers() throws Exception {
 		// given / when / then
 		mvc.perform(get("/api/v1/admin/draws/{id}", runId)).andExpect(status().isUnauthorized());
-		mvc.perform(get("/api/v1/admin/draws/not-a-uuid").header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isBadRequest());
-		mvc.perform(get("/api/v1/admin/draws/{id}", UUID.randomUUID()).header("X-User-ID", actorId).header("X-User-Role", selected.role().name())).andExpect(status().isNotFound());
+		mvc.perform(get("/api/v1/admin/draws/not-a-uuid").header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isBadRequest());
+		mvc.perform(get("/api/v1/admin/draws/{id}", UUID.randomUUID()).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isNotFound());
 	}
 
 	private DrawRunView run() {

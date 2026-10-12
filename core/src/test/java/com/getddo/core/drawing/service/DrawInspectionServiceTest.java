@@ -66,7 +66,7 @@ class DrawInspectionServiceTest {
 		// when
 		service.verify(admin, runId);
 		// then
-		verify(checks).save(eq(runId), eq(admin.id()), eq(now), eq(false), argThat(items -> items.stream().anyMatch(item -> !item.isPassed())));
+		verify(checks).save(eq(runId), eq(admin.getId()), eq(now), eq(false), argThat(items -> items.stream().anyMatch(item -> !item.isPassed())));
 		verify(repository).findAllCandidates(runId);
 		verify(repository).findResults(runId);
 	}
@@ -113,7 +113,7 @@ class DrawInspectionServiceTest {
 		service.verify(admin, runId);
 		// then
 		verify(repository).findReplacementReferences(replacement);
-		verify(checks).save(eq(runId), eq(admin.id()), eq(now), eq(true), argThat(items -> items.size() == 7 && items.stream().allMatch(DrawCheckItem::isPassed)));
+		verify(checks).save(eq(runId), eq(admin.getId()), eq(now), eq(true), argThat(items -> items.size() == 7 && items.stream().allMatch(DrawCheckItem::isPassed)));
 	}
 
 	@Test

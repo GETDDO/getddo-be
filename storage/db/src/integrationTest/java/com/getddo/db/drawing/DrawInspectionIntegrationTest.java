@@ -79,7 +79,7 @@ class DrawInspectionIntegrationTest {
 				(row, index) -> row.getObject(1, LocalDateTime.class).toInstant(ZoneOffset.UTC), toBytes(passed.getId()));
 		assertThat(passed.getVerifiedAt().getNano() % 1000).isZero();
 		assertThat(passed.getVerifiedAt()).isEqualTo(storedAt);
-		assertThat(passed.getVerifiedBy()).isEqualTo(admin.id());
+		assertThat(passed.getVerifiedBy()).isEqualTo(admin.getId());
 		assertThat(service.history(admin, runId, new PageQuery(1, 20)).getItems()).hasSize(1);
 		assertThat(runRow()).isEqualTo(before);
 		assertThat(service.detail(admin, runId)).usingRecursiveComparison().isEqualTo(detail);
@@ -140,7 +140,7 @@ class DrawInspectionIntegrationTest {
 		jdbc.update("""
 			insert into award_cancellations (id, draw_result_id, canceled_by, reason, canceled_at)
 			values (?, ?, ?, '관리자 사유', ?)
-			""", toBytes(UUID.randomUUID()), toBytes(selected.getId()), toBytes(admin.id()), utc(NOW));
+			""", toBytes(UUID.randomUUID()), toBytes(selected.getId()), toBytes(admin.getId()), utc(NOW));
 		// when / then: 공개 전에 취소된 결과는 공개 이력이 없다.
 		DrawResultView canceled = service.results(admin, runId).stream().filter(result -> result.getId().equals(selected.getId())).findFirst().orElseThrow();
 		assertThat(canceled.isCanceled()).isTrue();

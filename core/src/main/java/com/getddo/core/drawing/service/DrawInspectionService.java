@@ -78,7 +78,7 @@ public class DrawInspectionService {
 				run.getDrawType() == DrawType.REPLACEMENT ? repository.findReplacementReferences(run)
 						: DrawVerificationReferences.empty());
 		boolean passed = items.stream().allMatch(DrawCheckItem::isPassed);
-		return checks.save(runId, user.id(), time.now(), passed, items);
+		return checks.save(runId, user.getId(), time.now(), passed, items);
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -105,7 +105,7 @@ public class DrawInspectionService {
 
 	/** API가 공통 사용자 문맥에서 확인한 DB 사용자를 재사용한다. */
 	private void admin(User user) {
-		if (user == null || user.id() == null || user.role() != UserRole.ADMIN || user.status() != UserStatus.ACTIVE) {
+		if (user == null || user.getId() == null || user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) {
 			throw new BusinessException(ADMIN_REQUIRED);
 		}
 	}
