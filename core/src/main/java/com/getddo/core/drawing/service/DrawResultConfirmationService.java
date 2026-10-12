@@ -59,7 +59,7 @@ public class DrawResultConfirmationService {
 	private DrawPublicationRun authorizeAndLock(UUID runId, UUID actorId) {
 		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
 		User actor = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (actor.role() != UserRole.ADMIN || actor.status() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		if (actor.getRole() != UserRole.ADMIN || actor.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
 		if (runId == null) throw new BusinessException(RUN_NOT_FOUND);
 		UUID eventId = repository.findEventId(runId).orElseThrow(() -> new BusinessException(RUN_NOT_FOUND));
 		return publications.validateReplacement(eventId, runId);

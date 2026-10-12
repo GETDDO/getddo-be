@@ -34,13 +34,13 @@ public class AdminDrawPublicationController {
 	@PostMapping("/draws/{runId}/publication")
 	public ResponseEnvelope<DrawPublicationResponse> publish(@PathVariable UUID runId,
 			@CurrentUser(membershipRequired = false) User actor) {
-		return ResponseEnvelope.success(DrawPublicationResponse.from(confirmations.confirmForPublication(runId, actor.id())));
+		return ResponseEnvelope.success(DrawPublicationResponse.from(confirmations.confirmForPublication(runId, actor.getId())));
 	}
 
 	@PostMapping("/draws/{runId}/result-confirmation")
 	public ResponseEnvelope<DrawResultConfirmationResponse> confirm(@PathVariable UUID runId,
 			@CurrentUser(membershipRequired = false) User actor) {
-		return ResponseEnvelope.success(DrawResultConfirmationResponse.from(confirmations.confirmBeforeInitial(runId, actor.id())));
+		return ResponseEnvelope.success(DrawResultConfirmationResponse.from(confirmations.confirmBeforeInitial(runId, actor.getId())));
 	}
 
 	@GetMapping("/events/{eventId}/result-changes")
@@ -48,7 +48,7 @@ public class AdminDrawPublicationController {
 			@CurrentUser(membershipRequired = false) User actor,
 			@RequestParam(defaultValue = "1") @Min(1) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-		return ResponseEnvelope.success(queries.changes(eventId, actor.id(), new PageQuery(page, size))
+		return ResponseEnvelope.success(queries.changes(eventId, actor.getId(), new PageQuery(page, size))
 				.map(DrawPublicationChangeResponse::from));
 	}
 }

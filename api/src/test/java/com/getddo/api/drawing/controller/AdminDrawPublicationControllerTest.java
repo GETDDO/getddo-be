@@ -252,7 +252,7 @@ class AdminDrawPublicationControllerTest {
 	}
 
 	private MockHttpServletRequestBuilder selected(MockHttpServletRequestBuilder request) {
-		return request.header("X-User-ID", actorId).header("X-User-Role", actor.role());
+		return request.header("X-User-ID", actorId).header("X-User-Role", actor.getRole());
 	}
 	private List<MockHttpServletRequestBuilder> endpoints() {
 		return List.of(post("/api/v1/admin/draws/{id}/publication", runId),

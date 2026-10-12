@@ -31,7 +31,7 @@ public class DrawPublicationQueryService {
 	public PageResult<DrawPublicationChange> changes(UUID eventId, UUID actorId, PageQuery query) {
 		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
 		User actor = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (actor.role() != UserRole.ADMIN || actor.status() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		if (actor.getRole() != UserRole.ADMIN || actor.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
 		if (eventId == null || !repository.eventExists(eventId)) throw new BusinessException(EVENT_NOT_FOUND);
 		return publications.changes(eventId, query);
 	}
