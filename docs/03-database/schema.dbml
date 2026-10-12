@@ -125,6 +125,7 @@ Enum events_status_enum {
   CANCELED
   REDRAWING
   NO_ENTRANTS
+  // 기존 DB 스키마의 상태. 신규 이벤트에는 사용하지 않으며 공개 조회 계약은 별도 검토한다.
   NO_ELIGIBLE_ENTRANTS
 }
 
@@ -324,7 +325,7 @@ Table event_participants {
     (id, user_id) [unique, name: 'uq_event_participants_3']
   }
 
-  Note: '사용 누적 수량은 실제 장수. 삭제된 추첨 제외 상태·사유·시각의 대체 표현은 보완 필요.'
+  Note: '정상 접수된 이벤트·사용자별 응모자와 실제 누적 차감 장수를 보관한다. 지급 전 차단 기록을 이유로 정상 응모자를 추첨에서 제외하지 않으며 제외 상태·사유·시각의 대체 컬럼을 추가하지 않는다.'
 
   checks {
     `used_ticket_count >= 0` [name: 'chk_participant_used']
