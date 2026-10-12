@@ -1,0 +1,90 @@
+package com.getddo.core.notification.service;
+
+import java.util.Map;
+import java.util.UUID;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
+
+import com.getddo.core.audit.domain.AuditLogCommand;
+import com.getddo.core.audit.service.AuditLogService;
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.notification.domain.AdminNotification;
+import com.getddo.core.notification.domain.AdminNotificationJob;
+import com.getddo.core.notification.domain.NotificationDeliveryQuery;
+import com.getddo.core.notification.domain.NotificationJobQuery;
+import com.getddo.core.notification.exception.NotificationAdminErrorCode;
+import com.getddo.core.notification.repository.NotificationAdminRepository;
+import com.getddo.core.user.domain.User;
+import com.getddo.core.user.domain.UserRole;
+import com.getddo.core.user.domain.UserStatus;
+
+/** 활성 관리자에게 알림 조회와 최종 실패 복구 접수를 제공한다. */
+@Service
+@RequiredArgsConstructor
+public class NotificationAdminService {
+	private final NotificationAdminRepository repository;
+	private final AuditLogService audit;
+	private final TimeProvider time;
+
+	@Transactional(readOnly = true)
+	public PageResult<AdminNotificationJob> findJobs(User actor, NotificationJobQuery query) {
+		requireAdmin(actor);
+		return repository.findJobs(query);
+	}
+
+	@Transactional(readOnly = true)
+	public AdminNotificationJob findJob(User actor, UUID id) {
+		requireAdmin(actor);
+		return repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResult<AdminNotification> findDeliveries(User actor, NotificationDeliveryQuery query) {
+		requireAdmin(actor);
+		return repository.findDeliveries(query);
+	}
+
+	/** 복구 접수와 감사 기록을 함께 커밋한다. 잠금 대기 후 현재 시각으로 시작 안내 자격을 검사한다. */
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public AdminNotificationJob retryJob(User actor, UUID id) {
+		requireAdmin(actor);
+		AdminNotificationJob before = repository.lockJob(id).orElseThrow(NotificationAdminService::notFound);
+		var now = time.now();
+		if (!before.isRetryable(now) || !repository.retryJob(id, now)) {
+			throw new BusinessException(NotificationAdminErrorCode.RETRY_NOT_ALLOWED);
+		}
+		audit.record(new AuditLogCommand(actor.id(), "NOTIFICATION_JOB_RETRY", "NOTIFICATION_JOB", id, null,
+				Map.of("status", before.getStatus().name(), "attemptCount", before.getAttemptCount()),
+				Map.of("status", "PENDING", "attemptBase", before.getAttemptCount()), null));
+		return repository.findJob(id).orElseThrow(NotificationAdminService::notFound);
+	}
+
+	/** 이미 생성된 알림의 읽음·문구를 유지하고 모의 발송만 재접수한다. */
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public AdminNotification retryDelivery(User actor, UUID id) {
+		requireAdmin(actor);
+		AdminNotification before = repository.lockDelivery(id).orElseThrow(NotificationAdminService::notFound);
+		if (!before.isRetryable() || !repository.retryDelivery(id, time.now())) {
+			throw new BusinessException(NotificationAdminErrorCode.RETRY_NOT_ALLOWED);
+		}
+		audit.record(new AuditLogCommand(actor.id(), "NOTIFICATION_DELIVERY_RETRY", "NOTIFICATION", id, null,
+				Map.of("status", before.getMockDeliveryStatus().name(), "attemptCount", before.getDeliveryAttemptCount()),
+				Map.of("status", "PENDING", "attemptBase", before.getDeliveryAttemptCount()), null));
+		return repository.findDelivery(id).orElseThrow(NotificationAdminService::notFound);
+	}
+
+	private static void requireAdmin(User actor) {
+		if (actor == null || actor.id() == null || actor.role() != UserRole.ADMIN || actor.status() != UserStatus.ACTIVE) {
+			throw new BusinessException(NotificationAdminErrorCode.ADMIN_REQUIRED);
+		}
+	}
+
+	private static BusinessException notFound() {
+		return new BusinessException(NotificationAdminErrorCode.NOT_FOUND);
+	}
+}

@@ -74,26 +74,26 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	public Optional<NotificationJob> claimNextJob(Instant now) {
 		while (true) {
 			List<NotificationJob> rows = jdbc.query("""
-				select id, attempt_count from notification_jobs
+				select id, attempt_count, attempt_base from notification_jobs
 				where json_extract(payload, '$.generationStoppedBy') is null
 				and scheduled_at <= ? and (
 				 (status = 'PENDING' and (next_attempt_at is null or next_attempt_at <= ?))
 				 or (status = 'PROCESSING' and (lease_until is null or lease_until <= ?)))
 				order by scheduled_at, id limit 1 for update skip locked
-				""", (row, index) -> new NotificationJob(uuid(row.getBytes("id")), row.getInt("attempt_count")),
+				""", (row, index) -> new NotificationJob(uuid(row.getBytes("id")), row.getInt("attempt_count"), row.getInt("attempt_base")),
 					time(now), time(now), time(now));
 			if (rows.isEmpty()) {
 				return Optional.empty();
 			}
 			NotificationJob previous = rows.getFirst();
-			if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
+			if (previous.getAttemptCount() == Integer.MAX_VALUE || previous.getCycleAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
 				jdbc.update("""
 					update notification_jobs set status = 'FAILED', lease_until = null,
 					next_attempt_at = null, last_error = coalesce(last_error, ?) where id = ?
 					""", NotificationProcessingErrorCode.TEMPORARY_FAILURE.getCode(), bytes(previous.getId()));
 				continue;
 			}
-			NotificationJob job = new NotificationJob(previous.getId(), previous.getAttemptCount() + 1);
+			NotificationJob job = new NotificationJob(previous.getId(), previous.getAttemptCount() + 1, previous.getAttemptBase());
 			jdbc.update("""
 				update notification_jobs set status = 'PROCESSING', attempt_count = ?,
 				lease_until = ?, next_attempt_at = null where id = ?
@@ -151,10 +151,11 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public boolean createNotification(NotificationJob job, NotificationJobRequest request, UUID userId, Instant now) {
 		List<Boolean> owned = jdbc.query("""
-			select attempt_count, status, lease_until,
+			select attempt_count, attempt_base, status, lease_until,
 			json_extract(payload, '$.generationStoppedBy') as stopped_by
 			from notification_jobs where id = ? for update
 			""", (row, index) -> row.getInt("attempt_count") == job.getAttemptCount()
+				&& row.getInt("attempt_base") == job.getAttemptBase()
 				&& row.getString("stopped_by") == null
 				&& NotificationJobStatus.PROCESSING.name().equals(row.getString("status"))
 				&& instant(row, "lease_until") != null && instant(row, "lease_until").isAfter(now), bytes(job.getId()));
@@ -181,9 +182,9 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 		jdbc.update("""
 			update notification_jobs set status = 'COMPLETED', completed_at = ?,
 			lease_until = null, next_attempt_at = null, last_error = null
-			where id = ? and status = 'PROCESSING' and attempt_count = ?
+			where id = ? and status = 'PROCESSING' and attempt_count = ? and attempt_base = ?
 			and json_extract(payload, '$.generationStoppedBy') is null
-			""", time(now), bytes(job.getId()), job.getAttemptCount());
+			""", time(now), bytes(job.getId()), job.getAttemptCount(), job.getAttemptBase());
 	}
 
 	/** 현재 처리 차수의 실패와 다음 시각을 별도 트랜잭션으로 기록한다. 다음 시각이 null이면 최종 실패다. */
@@ -192,10 +193,10 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	public void failJob(NotificationJob job, Instant nextAttemptAt, String errorCode) {
 		jdbc.update("""
 			update notification_jobs set status = ?, next_attempt_at = ?, lease_until = null,
-			last_error = ? where id = ? and status = 'PROCESSING' and attempt_count = ?
+			last_error = ? where id = ? and status = 'PROCESSING' and attempt_count = ? and attempt_base = ?
 			and json_extract(payload, '$.generationStoppedBy') is null
 			""", (nextAttemptAt == null ? NotificationJobStatus.FAILED : NotificationJobStatus.PENDING).name(),
-				time(nextAttemptAt), errorCode, bytes(job.getId()), job.getAttemptCount());
+				time(nextAttemptAt), errorCode, bytes(job.getId()), job.getAttemptCount(), job.getAttemptBase());
 	}
 
 	/** 다음 시도 시각을 발송 선점의 제한 시각으로도 사용한다. 별도 스키마 컬럼은 추가하지 않는다. */
@@ -204,19 +205,19 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 	public Optional<NotificationDelivery> claimNextDelivery(Instant now) {
 		while (true) {
 			List<NotificationDelivery> rows = jdbc.query("""
-				select id, user_id, title, body, link_url, delivery_attempt_count from notifications
+				select id, user_id, title, body, link_url, delivery_attempt_count, delivery_attempt_base from notifications
 				where (mock_delivery_status = 'PENDING'
 				 and (next_delivery_attempt_at is null or next_delivery_attempt_at <= ?))
 				or (mock_delivery_status = 'FAILED' and next_delivery_attempt_at <= ?)
 				order by created_at, id limit 1 for update skip locked
 				""", (row, index) -> new NotificationDelivery(uuid(row.getBytes("id")), uuid(row.getBytes("user_id")),
 					row.getString("title"), row.getString("body"), row.getString("link_url"),
-					row.getInt("delivery_attempt_count")), time(now), time(now));
+					row.getInt("delivery_attempt_count"), row.getInt("delivery_attempt_base")), time(now), time(now));
 			if (rows.isEmpty()) {
 				return Optional.empty();
 			}
 			NotificationDelivery previous = rows.getFirst();
-			if (previous.getAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
+			if (previous.getAttemptCount() == Integer.MAX_VALUE || previous.getCycleAttemptCount() >= NotificationRetryPolicy.MAX_ATTEMPTS) {
 				jdbc.update("""
 					update notifications set mock_delivery_status = 'FAILED', next_delivery_attempt_at = null,
 					last_delivery_error = coalesce(last_delivery_error, ?) where id = ?
@@ -224,7 +225,7 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 				continue;
 			}
 			NotificationDelivery delivery = new NotificationDelivery(previous.getId(), previous.getUserId(),
-					previous.getTitle(), previous.getBody(), previous.getLinkUrl(), previous.getAttemptCount() + 1);
+					previous.getTitle(), previous.getBody(), previous.getLinkUrl(), previous.getAttemptCount() + 1, previous.getAttemptBase());
 			jdbc.update("""
 				update notifications set mock_delivery_status = ?, delivery_attempt_count = ?,
 				next_delivery_attempt_at = ? where id = ?
@@ -242,7 +243,8 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			update notifications set mock_delivery_status = 'SENT', mock_sent_at = ?,
 			next_delivery_attempt_at = null, last_delivery_error = null
 			where id = ? and mock_delivery_status = 'PENDING' and delivery_attempt_count = ?
-			""", time(now), bytes(delivery.getId()), delivery.getAttemptCount());
+			and delivery_attempt_base = ?
+			""", time(now), bytes(delivery.getId()), delivery.getAttemptCount(), delivery.getAttemptBase());
 	}
 
 	/** 현재 발송 차수의 실패와 재시도 시각을 저장한다. 이전 차수의 결과와 읽음 상태는 반영하지 않는다. */
@@ -253,7 +255,8 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			update notifications set mock_delivery_status = 'FAILED', next_delivery_attempt_at = ?,
 			last_delivery_error = ?
 			where id = ? and mock_delivery_status = 'PENDING' and delivery_attempt_count = ?
-			""", time(nextAttemptAt), errorCode, bytes(delivery.getId()), delivery.getAttemptCount());
+			and delivery_attempt_base = ?
+			""", time(nextAttemptAt), errorCode, bytes(delivery.getId()), delivery.getAttemptCount(), delivery.getAttemptBase());
 	}
 
 	/** 기존 BaseEntity와 같은 Hibernate UUID v7 생성기를 JDBC INSERT에도 재사용한다. */
