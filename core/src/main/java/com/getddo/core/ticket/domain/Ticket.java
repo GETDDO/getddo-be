@@ -68,4 +68,47 @@ public final class Ticket {
 		Objects.requireNonNull(issuedAt, "issuedAt");
 		return new Ticket(null, userId, grantSource, grade, TicketStatus.AVAILABLE, expiresAt, 1, issuedAt, issuedAt);
 	}
+
+	/**
+	 * 응모에 사용한 응모권을 만든다. 상태는 사용됨, 버전은 1 증가하고 만료 시각은 그대로다.
+	 *
+	 * @param usedAt 실제 사용 시각. 수정 시각이 된다
+	 * @throws IllegalStateException 사용할 수 없는 상태이거나 이미 만료 시각이 지난 경우
+	 */
+	public Ticket use(Instant usedAt) {
+		Objects.requireNonNull(usedAt, "usedAt");
+		if (!status.isUsable()) {
+			throw new IllegalStateException("사용할 수 있는 상태의 응모권이 아니다.");
+		}
+		if (!expiresAt.isAfter(usedAt)) {
+			throw new IllegalStateException("만료 시각이 지난 응모권은 사용할 수 없다.");
+		}
+		return transitionedTo(TicketStatus.SPENT, expiresAt, usedAt);
+	}
+
+	/**
+	 * 사용했던 응모권을 반환한 새 객체를 만든다. 상태는 반환됨, 버전은 1 증가하고 만료 시각은 새 값으로 바뀐다.
+	 * 등급은 그대로다.
+	 *
+	 * @param refundedAt 실제 반환 시각. 수정 시각이 된다
+	 * @param newExpiresAt 반환 후 만료 시각. 반환 시각보다 늦어야 한다
+	 * @throws IllegalStateException 사용됨 상태가 아닌 경우
+	 * @throws IllegalArgumentException 새 만료 시각이 반환 시각 이전인 경우
+	 */
+	public Ticket refund(Instant refundedAt, Instant newExpiresAt) {
+		Objects.requireNonNull(refundedAt, "refundedAt");
+		Objects.requireNonNull(newExpiresAt, "newExpiresAt");
+		if (status != TicketStatus.SPENT) {
+			throw new IllegalStateException("사용된 응모권만 반환할 수 있다.");
+		}
+		if (!newExpiresAt.isAfter(refundedAt)) {
+			throw new IllegalArgumentException("반환 후 만료 시각은 반환 시각보다 늦어야 한다.");
+		}
+		return transitionedTo(TicketStatus.RETURNED, newExpiresAt, refundedAt);
+	}
+
+	private Ticket transitionedTo(TicketStatus nextStatus, Instant nextExpiresAt, Instant processedAt) {
+		return new Ticket(id, userId, grantSource, grade, nextStatus, nextExpiresAt, version + 1, createdAt,
+				processedAt);
+	}
 }
