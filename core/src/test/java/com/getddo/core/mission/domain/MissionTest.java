@@ -44,6 +44,9 @@ class MissionTest {
 	@Test
 	@DisplayName("제목은 비어 있거나 200자를 넘으면 안 되고 200자는 허용한다")
 	void titleBoundary() {
+		// given
+		// when
+		// then
 		assertThat(register("가".repeat(200), "설명", STARTS, ENDS, null).getTitle()).hasSize(200);
 		assertInvalid(() -> register("가".repeat(201), "설명", STARTS, ENDS, null));
 		assertInvalid(() -> register(" ", "설명", STARTS, ENDS, null));
@@ -52,12 +55,18 @@ class MissionTest {
 	@Test
 	@DisplayName("설명이 비어 있으면 등록할 수 없다")
 	void descriptionRequired() {
+		// given
+		// when
+		// then
 		assertInvalid(() -> register("제목", " ", STARTS, ENDS, null));
 	}
 
 	@Test
 	@DisplayName("종료 시각은 시작 시각보다 늦어야 한다")
 	void endMustBeAfterStart() {
+		// given
+		// when
+		// then
 		assertInvalid(() -> register("제목", "설명", STARTS, STARTS, null));
 		assertInvalid(() -> register("제목", "설명", ENDS, STARTS, null));
 		assertThat(register("제목", "설명", STARTS, STARTS.plusNanos(1000), null)).isNotNull();
@@ -66,6 +75,9 @@ class MissionTest {
 	@Test
 	@DisplayName("이미지 경로는 500자까지 허용한다")
 	void imageKeyBoundary() {
+		// given
+		// when
+		// then
 		assertThat(register("제목", "설명", STARTS, ENDS, "a".repeat(500)).getImageKey()).hasSize(500);
 		assertInvalid(() -> register("제목", "설명", STARTS, ENDS, "a".repeat(501)));
 	}

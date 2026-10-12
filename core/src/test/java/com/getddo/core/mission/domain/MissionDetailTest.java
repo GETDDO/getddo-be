@@ -43,6 +43,9 @@ class MissionDetailTest {
 	@Test
 	@DisplayName("미션 유형과 다른 종류의 문항이 있으면 구성 오류다")
 	void rejectsQuestionsOfOtherType() {
+		// given
+		// when
+		// then
 		assertInvalid(() -> new MissionDetail(mission(MissionType.QUIZ), List.of(), List.of(freeText(1))));
 		assertInvalid(() -> new MissionDetail(mission(MissionType.SURVEY), List.of(shortAnswer(1)), List.of()));
 	}
@@ -50,6 +53,9 @@ class MissionDetailTest {
 	@Test
 	@DisplayName("같은 미션의 문항 표시 순서가 겹치면 구성 오류다")
 	void rejectsDuplicateDisplayOrder() {
+		// given
+		// when
+		// then
 		assertInvalid(() -> new MissionDetail(mission(MissionType.QUIZ), List.of(shortAnswer(1), shortAnswer(1)), List.of()));
 		assertInvalid(() -> new MissionDetail(mission(MissionType.SURVEY), List.of(), List.of(freeText(2), freeText(2))));
 	}

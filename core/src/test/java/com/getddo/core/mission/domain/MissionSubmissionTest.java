@@ -60,6 +60,9 @@ class MissionSubmissionTest {
 	@Test
 	@DisplayName("미션 유형과 다른 종류의 답변이 섞이면 답변 형식 오류다")
 	void rejectsAnswersOfOtherType() {
+		// given
+		// when
+		// then
 		assertInvalidAnswer(() -> MissionSubmission.of(saved(MissionType.QUIZ), USER_ID, false, List.of(),
 				List.of(SurveyAnswer.of(UUID.randomUUID(), null, "의견"))));
 		assertInvalidAnswer(() -> MissionSubmission.of(saved(MissionType.SURVEY), USER_ID, true,
@@ -82,8 +85,11 @@ class MissionSubmissionTest {
 	@Test
 	@DisplayName("답변은 선택지와 입력 문자열 중 정확히 하나만 가져야 한다")
 	void answerHasExactlyOneValue() {
+		// given
 		UUID questionId = UUID.randomUUID();
 		UUID optionId = UUID.randomUUID();
+		// when
+		// then
 		assertThat(QuizAnswer.of(questionId, optionId, null, false).getSelectedOptionId()).isEqualTo(optionId);
 		assertThat(SurveyAnswer.of(questionId, null, "의견").getAnswerText()).isEqualTo("의견");
 		assertInvalidAnswer(() -> QuizAnswer.of(questionId, null, null, false));

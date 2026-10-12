@@ -98,6 +98,9 @@ class MissionRepositoryIntegrationTest extends MissionIntegrationTestSupport {
 	@Test
 	@DisplayName("없는 미션은 비어 있는 결과로 돌려준다")
 	void missingMissionIsEmpty() {
+		// given
+		// when
+		// then
 		assertThat(missionRepository.findById(UUID.randomUUID())).isEmpty();
 		assertThat(missionRepository.findDetailById(UUID.randomUUID())).isEmpty();
 	}
