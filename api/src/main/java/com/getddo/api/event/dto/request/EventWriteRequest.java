@@ -11,11 +11,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.event.exception.EventErrorCode;
+import com.getddo.core.event.exception.EventException;
 
 public record EventWriteRequest(
 		@NotBlank @Size(max = 200) String title,
@@ -46,7 +46,7 @@ public record EventWriteRequest(
 	) {
 		EventRegistration.Prize toPrize() {
 			if (id != null) {
-				throw new BusinessException(EventErrorCode.INVALID_PRIZES);
+				throw new EventException(EventErrorCode.INVALID_PRIZES);
 			}
 			return new EventRegistration.Prize(rank, name, description, imageKey, winnerCount);
 		}
