@@ -38,7 +38,7 @@
 | --- | --- | --- | --- |
 | E04 응모 | `POST /api/v1/events/{eventId}/entries` | `events` | 응모 판단에 필요한 컬럼만 `FOR SHARE`로 읽는다(네이티브 SQL). 응모끼리 막지 않고 추첨의 `FOR UPDATE`는 진행 중 응모를 기다린다. |
 | E04 응모 | 같음 | `event_participants` | 사용자당 이벤트 한 행을 PK로 `FOR UPDATE` 잠그고(없으면 생성) 누적 차감 수량을 늘린다. |
-| E04 응모 | 같음 | `event_entries` | 접수된 응모만 저장한다. ID는 `Idempotency-Key` UUID이고 같은 키의 재요청은 기존 행을 돌려준다. |
+| E04 응모 | 같음 | `event_entries` | 접수된 응모만 저장한다. ID는 `Idempotency-Key` UUID이다. 같은 키로 사용자·이벤트·등급별 `tickets`가 같은 요청이 다시 오면 기존 영수증을 200으로 돌려주고, 하나라도 다르면 409 `ENTRY-009`로 거절한다(등급별 비교는 차감 서비스의 사용 이력 대조로 한다). |
 | E04 응모 | 같음 | `tickets`, `ticket_histories` | 응모 행 저장 뒤 차감 서비스가 응모권을 `SPENT`로 바꾸고 `USE` 이력을 남긴다. |
 | E07 자격 조회 | `GET /api/v1/events/{eventId}/eligibility` | `events`, `event_participants`, `tickets` | 잠금 없이 읽기만 한다. 사용 수량은 응모자 행, 보유 장수는 응모권 조회(T01의 등급별 보유)를 쓴다. |
 
