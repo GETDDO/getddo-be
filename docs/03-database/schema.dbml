@@ -467,7 +467,8 @@ Table notifications {
   is_read boolean [not null, default: 0, note: '읽음 여부']
   mock_delivery_status notifications_mock_delivery_status_enum [not null, note: 'PENDING=발송 대기']
   mock_sent_at datetime(6) [note: '모의 발송 완료 시각 UTC']
-  delivery_attempt_count int [not null, default: 0, note: '모의 발송 시도 횟수']
+  delivery_attempt_count int [not null, default: 0, note: '모의 발송 누적 선점 차수']
+  delivery_attempt_base int [not null, default: 0, note: '현재 수동 발송 복구 구간의 시작 선점 차수']
   next_delivery_attempt_at datetime(6) [note: '다음 모의 발송 재시도 예정 시각 UTC']
   last_delivery_error text [note: '마지막 모의 발송 오류 내용']
 
@@ -477,6 +478,7 @@ Table notifications {
 
   checks {
     `delivery_attempt_count >= 0` [name: 'chk_delivery_attempts']
+    `delivery_attempt_base >= 0 AND delivery_attempt_base <= delivery_attempt_count` [name: 'chk_delivery_attempt_base']
   }
 }
 
@@ -620,7 +622,8 @@ Table notification_jobs {
   notification_type notification_jobs_notification_type_enum [not null, note: '시작·최초 발표·제외·일정 변경·취소·결과 변경. 실제 업무 확정에 연결해 발생 키 고정']
   status notification_jobs_status_enum [not null, note: 'PENDING=대기']
   last_processed_user_id binary(16) [note: '고정 대상 집합에서 UUID 바이트 순으로 마지막 처리한 사용자 ID']
-  attempt_count int [not null, default: 0, note: '작업 실행 시도 횟수']
+  attempt_count int [not null, default: 0, note: '작업 실행 누적 선점 차수']
+  attempt_base int [not null, default: 0, note: '현재 수동 복구 구간의 시작 선점 차수']
   scheduled_at datetime(6) [not null, note: '알림 생성 예정 시각 UTC']
   next_attempt_at datetime(6) [note: '다음 재시도 예정 시각 UTC']
   lease_until datetime(6) [note: '작업 처리권 임대 만료 시각 UTC']
@@ -634,6 +637,7 @@ Table notification_jobs {
 
   checks {
     `attempt_count >= 0` [name: 'chk_notification_attempts']
+    `attempt_base >= 0 AND attempt_base <= attempt_count` [name: 'chk_notification_attempt_base']
   }
 }
 

@@ -27,7 +27,7 @@ public class AdminAwardCancellationController {
 	public ResponseEntity<ResponseEnvelope<AwardCancellationResponse>> cancel(
 			@CurrentUser(membershipRequired = false) User actor, @PathVariable UUID winId,
 			@RequestHeader("Idempotency-Key") UUID requestKey, @Valid @RequestBody AwardCancellationRequest request) {
-		AwardCancellationReceipt receipt = service.cancel(actor.id(), winId, requestKey, request.reason());
+		AwardCancellationReceipt receipt = service.cancel(actor.getId(), winId, requestKey, request.reason());
 		DrawRunStatus status = receipt.execution().getStatus();
 		return ResponseEntity.status(status == DrawRunStatus.CONFIRMED ? 200 : 202)
 				.body(ResponseEnvelope.success(AwardCancellationResponse.from(receipt.cancellation(), status)));
@@ -36,7 +36,7 @@ public class AdminAwardCancellationController {
 	@PostMapping("/cancellations/{cancellationId}/redraws")
 	public ResponseEntity<ResponseEnvelope<DrawExecutionResponse>> startOrResume(
 			@CurrentUser(membershipRequired = false) User actor, @PathVariable UUID cancellationId) {
-		DrawExecutionResult execution = service.startOrResume(actor.id(), cancellationId);
+		DrawExecutionResult execution = service.startOrResume(actor.getId(), cancellationId);
 		return ResponseEntity.status(execution.getStatus() == DrawRunStatus.CONFIRMED ? 200 : 202)
 				.body(ResponseEnvelope.success(DrawExecutionResponse.from(execution)));
 	}

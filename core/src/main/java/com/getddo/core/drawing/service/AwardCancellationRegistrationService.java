@@ -91,6 +91,6 @@ public class AwardCancellationRegistrationService {
 	private void requireAdmin(UUID actorId) {
 		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
 		User user = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (user.role() != UserRole.ADMIN || user.status() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		if (user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
 	}
 }

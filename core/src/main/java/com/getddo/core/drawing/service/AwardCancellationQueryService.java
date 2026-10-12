@@ -31,7 +31,7 @@ public class AwardCancellationQueryService {
 	public DrawSnapshot findConnected(UUID actorId, UUID cancellationId) {
 		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
 		User user = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (user.role() != UserRole.ADMIN || user.status() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		if (user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
 		if (cancellationId == null) throw new BusinessException(NOT_FOUND);
 		AwardCancellation cancellation = cancellations.findById(cancellationId).orElseThrow(() -> new BusinessException(NOT_FOUND));
 		if (cancellation.replacementRunId() == null) throw new BusinessException(NOT_CANCELABLE);
