@@ -66,7 +66,7 @@ public class AdminEventController {
 	public ResponseEnvelope<AdminEventResponse> modify(@CurrentUser User user, @PathVariable UUID eventId,
 			@Valid @RequestBody EventWriteRequest request) {
 		return ResponseEnvelope.success(AdminEventResponse.from(
-				modificationService.modify(eventId, request.toModification(user.id())), timeProvider.now()));
+				modificationService.modify(eventId, request.toModification(user.getId())), timeProvider.now()));
 	}
 
 	/** AE01 관리자 검색. from/to는 양끝 날짜를 포함하는 KST 날짜 범위다. 모집 기간과 겹치면 포함한다. */

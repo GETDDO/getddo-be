@@ -14,8 +14,6 @@ import jakarta.validation.constraints.Size;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.MembershipRule;
-import com.getddo.core.event.exception.EventErrorCode;
-import com.getddo.core.event.exception.EventException;
 
 public record EventWriteRequest(
 		@NotBlank @Size(max = 200) String title,
@@ -29,10 +27,8 @@ public record EventWriteRequest(
 		@NotNull OffsetDateTime endsAt,
 		@NotEmpty List<@NotNull @Valid PrizeWrite> prizes
 ) {
+	/** 등록 요청을 변환한다. 기존 경품 ID의 등록 허용 여부는 Service에서 검증한다. */
 	public EventRegistration toRegistration(UUID actorId) {
-		if (prizes != null && prizes.stream().anyMatch(prize -> prize != null && prize.id() != null)) {
-			throw new EventException(EventErrorCode.INVALID_PRIZES);
-		}
 		return toModification(actorId);
 	}
 

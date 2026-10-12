@@ -24,8 +24,6 @@ import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.MembershipRule;
-import com.getddo.core.event.exception.EventErrorCode;
-import com.getddo.core.event.exception.EventException;
 import com.getddo.db.common.entity.BaseUpdatableEntity;
 
 @Entity
@@ -90,13 +88,16 @@ public class EventEntity extends BaseUpdatableEntity {
 	/**
 	 * 제거된 경품을 삭제하고 유지할 경품은 비어 있는 양수 등수로 옮긴다.
 	 * 저장소가 중간 flush를 수행한 뒤 최종 등수를 적용해 UNIQUE(event_id, prize_rank) 충돌을 피한다.
+	 * 요청의 경품 소유권은 Service에서 검증한다. 여기서는 컬렉션 변경 전에 호출 계약을 확인한다.
+	 *
+	 * @throws IllegalArgumentException 기존 경품 ID가 이 Entity의 경품 목록에 없는 경우
 	 */
 	public void preparePrizeReplacement(List<EventRegistration.Prize> replacement) {
 		Set<UUID> retainedIds = replacement.stream().map(EventRegistration.Prize::getId)
 				.filter(Objects::nonNull).collect(Collectors.toSet());
 		Set<UUID> ownedIds = prizes.stream().map(EventPrizeEntity::getId).collect(Collectors.toSet());
 		if (!ownedIds.containsAll(retainedIds)) {
-			throw new EventException(EventErrorCode.INVALID_PRIZES);
+			throw new IllegalArgumentException("기존 경품 ID는 해당 이벤트의 경품이어야 합니다.");
 		}
 		Set<Integer> reservedRanks = new HashSet<>();
 		prizes.forEach(prize -> reservedRanks.add(prize.getRank()));
