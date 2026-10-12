@@ -64,6 +64,8 @@ class DrawPublicationTest {
 		DrawResultConfirmation confirmation = new DrawResultConfirmation(UUID.randomUUID(), replacementRun,
 				UUID.randomUUID(), NOW);
 		// when / then
+		assertThatThrownBy(() -> DrawPublication.validatedEntries(null))
+				.isInstanceOf(NullPointerException.class).hasMessage("entries");
 		assertThatThrownBy(() -> new DrawPublicationRun(null, eventId, 1, DrawRunStatus.CONFIRMED,
 				NOW, List.of(), null)).isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationRun(initialRun, null, 1, DrawRunStatus.CONFIRMED,

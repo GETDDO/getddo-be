@@ -64,8 +64,9 @@ public final class DrawPublication {
 		}
 	}
 
-	/** 저장 전 포함 결과도 복사·중복 검증해 ID 발급 후의 공개 모델과 같은 명단 불변식을 지킨다. */
+	/** 목록과 원소는 null일 수 없다. 복사·중복 검증으로 저장 전후의 명단 불변식을 지킨다. */
 	public static List<Entry> validatedEntries(List<Entry> entries) {
+		Objects.requireNonNull(entries, "entries");
 		List<Entry> copied = List.copyOf(entries);
 		if (copied.stream().map(Entry::resultId).distinct().count() != copied.size())
 			throw new IllegalArgumentException("duplicate publication result");
