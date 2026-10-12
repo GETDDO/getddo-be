@@ -158,7 +158,7 @@ class AdminEventModificationTest {
 		String request = body(START, "거절", prizeJson(firstPrize, 1, "수정"));
 		modify(body(START.minusSeconds(1), "거절", prizeJson(firstPrize, 1, "수정")))
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("EVENT-012"));
-		jdbc.update("update events set starts_at=? where id=?", utc(Instant.now().minusSeconds(1)), bytes(event));
+		jdbc.update("update events set starts_at=? where id=?", utc(CREATED), bytes(event));
 		modify(request).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("EVENT-011"));
 		jdbc.update("update events set starts_at=?, deleted_at=? where id=?", utc(START), utc(CREATED), bytes(event));
 		modify(request).andExpect(status().isNotFound());

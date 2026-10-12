@@ -113,6 +113,8 @@ class EventModificationServiceTest {
 		when(events.findByIdForUpdate(EVENT)).thenReturn(Optional.of(saved(EventStatus.SCHEDULED, NOW, "기존")));
 		// when / then
 		assertError(EventErrorCode.MODIFICATION_NOT_ALLOWED, settings(START, "변경", PRIZE));
+		verify(events, never()).update(any(), any());
+		verifyNoInteractions(notifications);
 	}
 
 	@Test

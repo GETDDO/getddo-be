@@ -18,6 +18,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EventEntityTest {
 	@Test
+	@DisplayName("임시 등수가 0·음수이면 기존 경품 등수를 변경하지 않고 거절한다")
+	void rejectsNonPositiveTemporaryRanksWithoutChangingPrize() {
+		// given
+		Instant start = Instant.parse("2099-10-12T00:00:00Z");
+		EventEntity event = new EventEntity(new EventRegistration(UUID.randomUUID(), "이벤트", "설명", null,
+				EventType.NO_TICKET, false, null, MembershipRule.vip, start, start.plusSeconds(3600),
+				List.of(new EventRegistration.Prize(2, "경품", null, null, 1))), EventStatus.SCHEDULED);
+		EventPrizeEntity prize = event.getPrizes().getFirst();
+		// when / then
+		for (int invalidRank : new int[]{0, -1}) {
+			assertThatThrownBy(() -> prize.moveToTemporaryRank(invalidRank))
+					.isInstanceOf(IllegalArgumentException.class);
+			assertThat(prize.getRank()).isEqualTo(2);
+		}
+	}
+
+	@Test
 	@DisplayName("경품 소유권 호출 계약이 깨지면 목록 제거·등수 변경 전에 중단한다")
 	void rejectsUnknownPrizeIdBeforeChangingCollection() {
 		// given
