@@ -89,7 +89,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
-	/** 미확정·정상 종료를 공개로 처리하지 않는다는 시나리오를 검증한다. */
+	/** 미확정(PREPARING·READY·RUNNING)·실패(FAILED)·정상 종료(NO_ENTRIES·NO_CANDIDATES)에서 공개 차단과 결과 저장소 미호출을 검증한다. */
 	@ParameterizedTest
 	@EnumSource(value = DrawRunStatus.class, names = {"PREPARING", "READY", "RUNNING", "FAILED", "NO_ENTRIES", "NO_CANDIDATES"})
 	@DisplayName("미확정·정상 종료를 공개로 처리하지 않는다")
