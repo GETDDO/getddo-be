@@ -9,14 +9,14 @@ import com.getddo.core.drawing.service.DrawPublicationService;
 import com.getddo.core.drawing.service.DrawResultConfirmationService;
 import com.getddo.core.drawing.service.DrawPublicationQueryService;
 import com.getddo.core.drawing.service.DrawPublicationAdminAuthorization;
-import com.getddo.core.user.repository.UserRepository;
+import com.getddo.core.drawing.service.DrawAdminAuthorization;
 
 /** 관리자 확인·이력 조회 서비스의 사용자 조회 의존성을 애플리케이션에서 연결한다. */
 @Configuration(proxyBeanMethods = false)
 public class DrawPublicationConfig {
 	@Bean
-	DrawPublicationAdminAuthorization drawPublicationAdminAuthorization(UserRepository users) {
-		return new DrawPublicationAdminAuthorization(users);
+	DrawPublicationAdminAuthorization drawPublicationAdminAuthorization(DrawAdminAuthorization admins) {
+		return new DrawPublicationAdminAuthorization(admins);
 	}
 
 	@Bean

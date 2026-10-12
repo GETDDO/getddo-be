@@ -27,15 +27,20 @@ import static com.getddo.core.drawing.exception.DrawingErrorCode.ADMIN_REQUIRED;
 
 /** 취소·재추첨 등록·멱등 키·감사를 원자적으로 확정한다. 실제 실행은 이 커밋 뒤에 호출한다. */
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @org.springframework.beans.factory.annotation.Autowired)
 public class AwardCancellationRegistrationService {
 	private final AwardCancellationRepository cancellations;
 	private final ReplacementDrawRepository replacements;
 	private final DrawSnapshotRepository snapshots;
 	private final DrawResultRepository results;
-	private final UserRepository users;
+	private final DrawAdminAuthorization admins;
 	private final AuditLogService audit;
 	private final TimeProvider time;
+
+	public AwardCancellationRegistrationService(AwardCancellationRepository cancellations, ReplacementDrawRepository replacements,
+			DrawSnapshotRepository snapshots, DrawResultRepository results, UserRepository users, AuditLogService audit, TimeProvider time) {
+		this(cancellations, replacements, snapshots, results, new DrawAdminAuthorization(users), audit, time);
+	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
 	public AwardCancellation register(UUID actorId, UUID winId, UUID requestKey, String reason) {
@@ -89,8 +94,5 @@ public class AwardCancellationRegistrationService {
 	}
 
 	private void requireAdmin(UUID actorId) {
-		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
-		User user = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
-	}
-}
+		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
+	}}
