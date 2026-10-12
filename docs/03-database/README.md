@@ -31,4 +31,4 @@ Flyway 버전 번호는 중복될 수 없지만 연속일 필요는 없다. 예�
 - [순서 외 실행 설정](https://documentation.red-gate.com/fd/flyway-out-of-order-setting-277579015.html)
 - [검증 오류 코드](https://documentation.red-gate.com/fd/validate-error-codes-287015530.html)
 
-GD-87의 운영 미적용 [V019 실행 제어 필드](../../storage/db/src/main/resources/db/migration/drawing/V019__add_draw_execution_control.sql)는 신규 테이블 없이 기존 draw_runs의 4개 nullable 필드·제약·인덱스를 확장한다. 이 워크트리의 DBML에는 해당 구현안을 표시했으며 운영 DB 적용 완료를 의미하지 않는다. V019는 Testcontainers 임시 MySQL에서 적용·검증했다. 2026-10-12 확인한 원격 dev a98240f에는 V018이 반영되어 있고 V019 번호는 사용되지 않았다. V017 등 다른 작업의 병합·DB 적용 순서는 별도로 확인한다.
+GD-87의 운영 미적용 [V019 실행 제어 필드](../../storage/db/src/main/resources/db/migration/drawing/V019__add_draw_execution_control.sql)는 신규 테이블 없이 기존 draw_runs의 4개 nullable 필드·제약·인덱스를 확장한다. 이 워크트리의 DBML에는 해당 구현안을 표시했으며 운영 DB 적용 완료를 의미하지 않는다. V019는 Testcontainers 임시 MySQL에서 적용·검증했다. 2026-10-12 확인한 원격 dev 0a32422에는 V017 이벤트 인덱스와 V018이 반영되어 있고 V019 번호는 사용되지 않았다. GD-87에서는 V017/V019를 함께 병합해 마이그레이션 16개로 검증한다. 공유·운영 DB 적용 순서는 별도로 확인한다.
