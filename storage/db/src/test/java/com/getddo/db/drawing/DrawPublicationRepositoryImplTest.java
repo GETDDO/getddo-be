@@ -5,11 +5,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Set;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.sql.ResultSet;
 
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -22,6 +27,7 @@ import com.getddo.db.drawing.repository.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static com.getddo.db.common.util.UuidBinary.toBytes;
 
 /** JPA 대역으로 공개·확인 변환을 검증한다. 실제 DB 제약·잠금·시각 정밀도 검증은 아니다. */
 class DrawPublicationRepositoryImplTest {
@@ -30,8 +36,9 @@ class DrawPublicationRepositoryImplTest {
 	private final DrawPublicationResultJpaRepository entries = mock(DrawPublicationResultJpaRepository.class);
 	private final DrawResultConfirmationJpaRepository confirmations = mock(DrawResultConfirmationJpaRepository.class);
 	private final EntityManager entityManager = mock(EntityManager.class);
+	private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
 	private final DrawPublicationRepositoryImpl repository = new DrawPublicationRepositoryImpl(versions, entries,
-			entityManager, mock(JdbcTemplate.class), confirmations);
+			entityManager, jdbc, confirmations);
 
 	@Test
 	@DisplayName("갱신 저장은 유지 결과의 원본 실행과 기존 확인·새 결과의 새 확인을 그대로 연결한다")
@@ -88,6 +95,7 @@ class DrawPublicationRepositoryImplTest {
 	@Test
 	@DisplayName("페이지 조회는 최신 버전과 실제 포함 결과를 일괄 변환하고 전체 건수를 유지한다")
 	void loadsPageWithBatchedEntries() {
+		// given
 		UUID event = UUID.randomUUID(), run = UUID.randomUUID(), id = UUID.randomUUID();
 		DrawPublicationEntity stored = new DrawPublicationEntity(event, run, NOW);
 		ReflectionTestUtils.setField(stored, "id", id);
@@ -96,7 +104,9 @@ class DrawPublicationRepositoryImplTest {
 		when(versions.findByEventIdOrderByRevisionDesc(event, PageRequest.of(1, 1))).thenReturn(List.of(stored));
 		when(entries.findByIdPublicationIdIn(Set.of(id)))
 				.thenReturn(List.of(new DrawPublicationResultEntity(id, event, entry)));
+		// when
 		PageResult<DrawPublication> page = repository.findHistory(event, new PageQuery(2, 1));
+		// then
 		assertThat(page.getTotalElements()).isEqualTo(4);
 		assertThat(page.getPage()).isEqualTo(2);
 		assertThat(page.getItems().getFirst().entries()).containsExactly(entry);
@@ -106,9 +116,12 @@ class DrawPublicationRepositoryImplTest {
 	@Test
 	@DisplayName("큰 페이지 번호는 오프셋 오버플로 없이 빈 페이지를 반환하고 목록을 조회하지 않는다")
 	void hugePageReturnsEmptyWithoutFetchingRows() {
+		// given
 		UUID event = UUID.randomUUID();
 		when(versions.countByEventId(event)).thenReturn(4L);
+		// when
 		PageResult<DrawPublication> page = repository.findHistory(event, new PageQuery(Integer.MAX_VALUE, 100));
+		// then
 		assertThat(page.getItems()).isEmpty();
 		assertThat(page.getTotalElements()).isEqualTo(4);
 		verify(versions, never()).findByEventIdOrderByRevisionDesc(any(), any());
@@ -169,4 +182,102 @@ class DrawPublicationRepositoryImplTest {
 		verifyNoInteractions(versions, entries);
 	}
 
+	@Test
+	@DisplayName("여러 재추첨의 결과와 확인을 실행별 추가 쿼리 없이 배치로 연결하고 미충원을 보존한다")
+	void batchesReplacementResultsAndConfirmations() throws Exception {
+		// given
+		UUID event = UUID.randomUUID(), first = UUID.randomUUID(), second = UUID.randomUUID();
+		UUID selectedId = UUID.randomUUID(), unfilledId = UUID.randomUUID();
+		ResultSet firstRun = runRow(first, event, 1), secondRun = runRow(second, event, 2);
+		when(jdbc.query(anyString(), any(RowMapper.class), any(byte[].class))).thenAnswer(invocation -> {
+			RowMapper<?> mapper = invocation.getArgument(1);
+			return List.of(mapper.mapRow(firstRun, 0), mapper.mapRow(secondRun, 1));
+		});
+		ResultSet selected = resultRow(first, selectedId, event, true), unfilled = resultRow(second, unfilledId, event, false);
+		doAnswer(invocation -> {
+			RowCallbackHandler mapper = invocation.getArgument(1);
+			mapper.processRow(selected);
+			mapper.processRow(unfilled);
+			return null;
+		}).when(jdbc).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
+		DrawResultConfirmationEntity check = new DrawResultConfirmationEntity(first, UUID.randomUUID(), NOW);
+		ReflectionTestUtils.setField(check, "id", UUID.randomUUID());
+		when(confirmations.findByRunIdIn(Set.of(first, second))).thenReturn(List.of(check));
+		// when
+		List<DrawPublicationRun> runs = repository.findReplacementRuns(event);
+		// then
+		assertThat(runs).extracting(DrawPublicationRun::runId).containsExactly(first, second);
+		assertThat(runs.getFirst().confirmation()).isEqualTo(check.toDomain());
+		assertThat(runs.getFirst().results()).extracting(DrawResult::getId).containsExactly(selectedId);
+		assertThat(runs.getLast().confirmation()).isNull();
+		assertThat(runs.getLast().results().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+		assertThat(runs.getLast().results().getFirst().getSelection().getUserId()).isNull();
+		verify(confirmations).findByRunIdIn(Set.of(first, second));
+		verify(confirmations, never()).findByRunId(any());
+		verify(jdbc, times(1)).query(anyString(), any(RowMapper.class), any(byte[].class));
+		verify(jdbc, times(1)).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
+	}
+
+	@Test
+	@DisplayName("재추첨이 없으면 결과와 확인의 빈 IN 조회를 실행하지 않는다")
+	void skipsBatchReadsForNoReplacementRuns() {
+		// given
+		when(jdbc.query(anyString(), any(RowMapper.class), any(byte[].class))).thenReturn(List.of());
+		// when / then
+		assertThat(repository.findReplacementRuns(UUID.randomUUID())).isEmpty();
+		verify(jdbc, never()).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
+		verifyNoInteractions(confirmations);
+	}
+
+	@Test
+	@DisplayName("일괄 조회에서도 다른 이벤트의 경품을 가진 결과는 공개 모델로 변환하지 않는다")
+	void rejectsForeignEventInBatchedResults() throws Exception {
+		// given
+		UUID run = UUID.randomUUID(), event = UUID.randomUUID();
+		ResultSet metadata = runRow(run, event, 1), foreign = resultRow(run, UUID.randomUUID(), UUID.randomUUID(), true);
+		when(jdbc.query(anyString(), any(RowMapper.class), any(byte[].class))).thenAnswer(invocation -> {
+			RowMapper<?> mapper = invocation.getArgument(1);
+			return List.of(mapper.mapRow(metadata, 0));
+		});
+		doAnswer(invocation -> {
+			RowCallbackHandler mapper = invocation.getArgument(1);
+			mapper.processRow(foreign);
+			return null;
+		}).when(jdbc).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
+		// when / then
+		assertThatThrownBy(() -> repository.findReplacementRuns(event)).isInstanceOf(com.getddo.core.common.exception.BusinessException.class);
+		verifyNoInteractions(confirmations);
+	}
+
+	private ResultSet runRow(UUID id, UUID eventId, int number) throws Exception {
+		ResultSet row = mock(ResultSet.class);
+		when(row.getBytes("id")).thenReturn(toBytes(id));
+		when(row.getBytes("event_id")).thenReturn(toBytes(eventId));
+		when(row.getInt("run_number")).thenReturn(number);
+		when(row.getString("status")).thenReturn("CONFIRMED");
+		when(row.getObject("confirmed_at", LocalDateTime.class)).thenReturn(LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
+		return row;
+	}
+
+	private ResultSet resultRow(UUID runId, UUID id, UUID eventId, boolean selected) throws Exception {
+		ResultSet row = mock(ResultSet.class);
+		when(row.getBytes("draw_run_id")).thenReturn(toBytes(runId));
+		when(row.getBytes("id")).thenReturn(toBytes(id));
+		when(row.getBytes("event_prize_id")).thenReturn(toBytes(UUID.randomUUID()));
+		when(row.getBytes("prize_event")).thenReturn(toBytes(eventId));
+		when(row.getInt("prize_rank")).thenReturn(1);
+		when(row.getInt("slot_number")).thenReturn(1);
+		when(row.getString("result_type")).thenReturn(selected ? "SELECTED" : "UNFILLED");
+		when(row.getObject("created_at", LocalDateTime.class)).thenReturn(LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
+		if (selected) {
+			byte[] candidate = toBytes(UUID.randomUUID());
+			when(row.getBytes("candidate_id")).thenReturn(candidate);
+			when(row.getBytes("linked_candidate")).thenReturn(candidate);
+			when(row.getBytes("candidate_event")).thenReturn(toBytes(eventId));
+			when(row.getBytes("participant_event")).thenReturn(toBytes(eventId));
+			when(row.getBytes("user_id")).thenReturn(toBytes(UUID.randomUUID()));
+			when(row.getObject("selection_order", Integer.class)).thenReturn(1);
+		}
+		return row;
+	}
 }

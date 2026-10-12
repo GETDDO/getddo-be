@@ -155,17 +155,26 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 
 	@Override
 	public List<DrawPublicationRun> findReplacementRuns(UUID eventId) {
-		return jdbc.query("""
+		List<ReplacementRunRow> runs = jdbc.query("""
 			select id, event_id, run_number, status, confirmed_at from draw_runs
 			where event_id = ? and draw_type = 'REPLACEMENT' order by run_number
-			""", (row, index) -> {
-			UUID runId = fromBytes(row.getBytes("id"));
-			return new DrawPublicationRun(runId, fromBytes(row.getBytes("event_id")), row.getInt("run_number"),
-					DrawRunStatus.valueOf(row.getString("status")), instant(row, "confirmed_at"),
-					findResults(runId, eventId), confirmations.findByRunId(runId)
-							.map(DrawResultConfirmationEntity::toDomain).orElse(null));
-		}, toBytes(eventId));
+			""", (row, index) -> new ReplacementRunRow(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("event_id")),
+					row.getInt("run_number"), DrawRunStatus.valueOf(row.getString("status")), instant(row, "confirmed_at")), toBytes(eventId));
+		if (runs.isEmpty()) return List.of();
+		Set<UUID> runIds = new HashSet<>();
+		for (ReplacementRunRow run : runs) runIds.add(run.id());
+		Map<UUID, List<DrawResult>> results = findResults(runIds, eventId);
+		Map<UUID, DrawResultConfirmation> checked = new HashMap<>();
+		for (DrawResultConfirmationEntity confirmation : confirmations.findByRunIdIn(runIds)) {
+			DrawResultConfirmation value = confirmation.toDomain();
+			checked.put(value.runId(), value);
+		}
+		return runs.stream().map(run -> new DrawPublicationRun(run.id(), run.eventId(), run.number(), run.status(),
+				run.confirmedAt(), results.getOrDefault(run.id(), List.of()), checked.get(run.id()))).toList();
 	}
+
+	/** JDBC 조회의 실행 메타데이터. 확정 결과·확인 기록은 실행 ID로 일괄 결합한다. */
+	private record ReplacementRunRow(UUID id, UUID eventId, int number, DrawRunStatus status, Instant confirmedAt) { }
 
 	@Override
 	public List<DrawPublicationCancellation> findCancellations(UUID eventId) {
@@ -205,9 +214,12 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	}
 
 	/** GD-87의 확정 결과를 읽으며 경품·원본 후보·실행 후보 연결의 이벤트 일치를 대조한다. */
-	private List<DrawResult> findResults(UUID runId, UUID eventId) {
-		return jdbc.query("""
-			select r.id, r.event_prize_id, r.slot_number, r.selection_order, r.candidate_id, r.result_type,
+	private Map<UUID, List<DrawResult>> findResults(Set<UUID> runIds, UUID eventId) {
+		Map<UUID, List<DrawResult>> results = new HashMap<>();
+		for (UUID runId : runIds) results.put(runId, new ArrayList<>());
+		String placeholders = String.join(",", Collections.nCopies(runIds.size(), "?"));
+		String sql = """
+			select r.draw_run_id, r.id, r.event_prize_id, r.slot_number, r.selection_order, r.candidate_id, r.result_type,
 			r.created_at, prize.prize_rank, prize.event_id as prize_event, p.user_id,
 			p.event_id as participant_event, origin.event_id as candidate_event, link.candidate_id as linked_candidate
 			from draw_results r join event_prizes prize on prize.id = r.event_prize_id
@@ -215,20 +227,28 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			left join event_participants p on p.id = c.participant_id
 			left join draw_runs origin on origin.id = c.draw_run_id
 			left join draw_run_candidates link on link.draw_run_id = r.draw_run_id and link.candidate_id = r.candidate_id
-			where r.draw_run_id = ? order by prize.prize_rank, r.slot_number
-			""", (row, index) -> {
-			DrawSelectionResultType type = DrawSelectionResultType.valueOf(row.getString("result_type"));
-			if (!eventId.equals(nullableUuid(row, "prize_event")) || (type == DrawSelectionResultType.SELECTED
-					&& (!eventId.equals(nullableUuid(row, "participant_event"))
-					|| !eventId.equals(nullableUuid(row, "candidate_event")) || nullableUuid(row, "linked_candidate") == null))) {
-				throw new BusinessException(INVALID_PUBLICATION);
-			}
-			Integer order = row.getObject("selection_order", Integer.class);
-			DrawSelection selection = new DrawSelection(fromBytes(row.getBytes("event_prize_id")),
-					row.getInt("prize_rank"), row.getInt("slot_number"), order, nullableUuid(row, "candidate_id"),
-					nullableUuid(row, "user_id"), type);
-			return new DrawResult(fromBytes(row.getBytes("id")), selection, instant(row, "created_at"));
-		}, toBytes(runId));
+			where r.draw_run_id in (
+			""" + placeholders + ") order by r.draw_run_id, prize.prize_rank, r.slot_number";
+		jdbc.query(sql, (RowCallbackHandler) row -> {
+			results.get(fromBytes(row.getBytes("draw_run_id"))).add(readResult(row, eventId));
+		}, runIds.stream().map(id -> toBytes(id)).toArray());
+		Map<UUID, List<DrawResult>> immutable = new HashMap<>();
+		results.forEach((id, rows) -> immutable.put(id, List.copyOf(rows)));
+		return Map.copyOf(immutable);
+	}
+
+	private DrawResult readResult(ResultSet row, UUID eventId) throws SQLException {
+		DrawSelectionResultType type = DrawSelectionResultType.valueOf(row.getString("result_type"));
+		if (!eventId.equals(nullableUuid(row, "prize_event")) || (type == DrawSelectionResultType.SELECTED
+				&& (!eventId.equals(nullableUuid(row, "participant_event"))
+				|| !eventId.equals(nullableUuid(row, "candidate_event")) || nullableUuid(row, "linked_candidate") == null))) {
+			throw new BusinessException(INVALID_PUBLICATION);
+		}
+		Integer order = row.getObject("selection_order", Integer.class);
+		DrawSelection selection = new DrawSelection(fromBytes(row.getBytes("event_prize_id")),
+				row.getInt("prize_rank"), row.getInt("slot_number"), order, nullableUuid(row, "candidate_id"),
+				nullableUuid(row, "user_id"), type);
+		return new DrawResult(fromBytes(row.getBytes("id")), selection, instant(row, "created_at"));
 	}
 
 	private static UUID nullableUuid(ResultSet row, String column) throws SQLException {

@@ -179,6 +179,12 @@ class DrawPublicationIntegrationTest {
 			entityManager.detach(saved);
 			return confirmations.findById(confirmationId).orElseThrow().toDomain();
 		});
+		// 저장 fixture를 배치 조회해 JDBC IN 구문과 JPA 확인 일괄 조회의 실제 매핑도 검증한다.
+		List<DrawPublicationRun> replacement = repository.findReplacementRuns(eventId);
+		assertThat(replacement).hasSize(1);
+		assertThat(replacement.getFirst().runId()).isEqualTo(replacementRun);
+		assertThat(replacement.getFirst().confirmation()).isEqualTo(checked);
+		assertThat(replacement.getFirst().results()).isEmpty();
 		// when: 보충 후보 없음으로 공개 목록이 비는 버전의 저장 매핑을 확인한다.
 		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
 			versions.saveAndFlush(new DrawPublicationEntity(new DrawPublication(UUID.randomUUID(), eventId,
