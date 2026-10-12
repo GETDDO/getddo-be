@@ -127,7 +127,8 @@ class DrawPublicationIntegrationTest {
 				.hasRootCauseInstanceOf(IllegalStateException.class);
 		assertThat(count()).isZero();
 		assertThat(service.wasPublished(selectedId())).isFalse();
-		doCallRealMethod().when(entries).saveAllAndFlush(any());
+		// Spring Data 인터페이스 spy의 실제 위임을 복원한다. 추상 메서드에 callRealMethod를 지정하지 않는다.
+		reset(entries);
 		assertThat(service.publishInitial(eventId).orElseThrow().revision()).isEqualTo(1);
 		assertThat(count()).isEqualTo(1);
 	}
