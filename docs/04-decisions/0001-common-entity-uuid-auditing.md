@@ -53,3 +53,11 @@ UUID 사용을 전제로 v4와 v7을 비교했다.
 - 예외: 응모 Entity(`EventEntryEntity`, `EventParticipantEntity`)도 `BaseEntity`를 상속하지 않는다. 응모의 ID는 서버가 만들지 않고 클라이언트가 요청 전에 정해 `Idempotency-Key` 헤더로 보낸 UUID를 그대로 PK로 쓴다. 같은 키의 재요청을 새 응모로 처리하지 않으려면 저장 전에 ID가 필요하고, 위 "저장 전 ID가 필요한 요구사항"에 해당한다. 그래서 `EventEntryEntity`는 `Persistable`로 새 행 여부를 알려 INSERT를 강제하고 ID를 Hibernate로 생성하지 않는다. `EventParticipantEntity`의 ID는 UUID v7을 공통 방식으로 생성한다. 두 Entity의 `created_at`은 응모 접수 시각과 같아야 하므로, 응모권 Entity와 같은 이유로 `@CreatedDate`에 맡기지 않고 서비스가 구한 접수 시각(마이크로초로 자른 값)을 직접 넣는다. 이 예외는 응모 두 Entity에 한정한다.
 - 예외 추가(2026-10-12, GD-137 사용자 승인): `DrawCheckEntity`는 `BaseEntity`를 상속하지 않고 ID(UUID v7)만 공통 방식으로 생성한다. 기존 `draw_checks`에는 `created_at`이 없고 검증 시각인 `checked_at`을 기록한다. 검증 Service가 정한 시각을 그대로 저장하며 공통 생성 시각을 추가하기 위한 스키마 변경은 하지 않는다. 필수값은 생성자에서 검사한다. 이 예외는 `DrawCheckEntity`에 한정하며, 여기에 명시하지 않은 Entity는 공통 Entity를 따른다.
 - MySQL 버전·연결 설정과 Flyway SQL은 이번 작업 범위에서 제외한다. DB 변경이나 저장 전 ID가 필요한 요구사항이 생기면 재검토한다.
+
+## 2026-10-13 GD-169 사용자 승인 예외 추가
+
+- 추가 기록 상태: 사용자 선택 A 반영 / 문서 검토 대기. 기존 채택 결정의 이력과 다른 Entity 예외는 유지한다.
+- DrawPublicationEntity와 DrawResultConfirmationEntity는 BaseEntity를 상속하지 않고 기존 UUID v7 생성과 업무 시각 published_at·confirmed_at을 유지한다. 원격 dev의 기존 V007 테이블에는 created_at이 없다.
+- 현재 요구에는 업무 시각과 별도의 생성 시각을 추가할 필요가 없어 두 Entity를 명시적 예외로 인정한다. 상속만 추가해 없는 created_at 컬럼을 매핑하지 않는다.
+- 추후 BaseEntity를 사용하려면 새 마이그레이션으로 created_at을 추가하고 기존 데이터의 채움 근거·시각 정밀도·NOT NULL 전환 및 Entity 매핑을 함께 검토해야 한다. published_at·confirmed_at을 생성 시각으로 임의 치환하거나 기존 Flyway를 수정하지 않는다.
+- 위 두 Entity의 상속·컬럼은 GD-169에서도 유지한다. 새 공개 실행 연결 Entity는 기존 공개 결과 연결과 같은 복합 식별자를 사용하며 독립 생성 시각을 중복 저장하지 않는다.
