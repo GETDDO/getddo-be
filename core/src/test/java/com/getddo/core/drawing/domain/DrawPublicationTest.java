@@ -15,6 +15,7 @@ class DrawPublicationTest {
 	private static final Instant NOW = Instant.parse("2026-10-12T03:00:00Z");
 	private final UUID eventId = UUID.randomUUID(), initialRun = UUID.randomUUID(), replacementRun = UUID.randomUUID();
 
+	/** 유지 결과와 새 결과의 원본 실행·확인 참조를 구분해 보존하고 외부 변경을 차단한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("유지 결과와 새 결과의 원본 실행·확인 참조를 구분해 보존하고 외부 변경을 차단한다")
 	void preservesMixedSourcesAndConfirmationReferences() {
@@ -31,6 +32,7 @@ class DrawPublicationTest {
 		assertThatThrownBy(() -> publication.entries().clear()).isInstanceOf(UnsupportedOperationException.class);
 	}
 
+	/** 최초 공개와 갱신의 버전 경계 및 확인자·확인 시각의 쌍을 검증한다. */
 	@Test
 	@DisplayName("최초 공개와 갱신의 버전 경계 및 확인자·확인 시각의 쌍을 검증한다")
 	void rejectsInvalidRevisionAndIncompleteConfirmation() {
@@ -54,6 +56,7 @@ class DrawPublicationTest {
 				.isInstanceOf(IllegalArgumentException.class).hasMessage("invalid confirmation time");
 	}
 
+	/** 관리자 확인 또는 사유가 없는 갱신 버전을 거절한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("관리자 확인 또는 사유가 없는 갱신 버전을 거절한다")
 	void rejectsUnconfirmedUpdateMetadata() {
@@ -66,6 +69,7 @@ class DrawPublicationTest {
 				.isInstanceOf(IllegalArgumentException.class);
 	}
 
+	/** 공개 이후 확인 시각과 동일 결과의 중복 등록을 거절한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 이후 확인 시각과 동일 결과의 중복 등록을 거절한다")
 	void rejectsFutureConfirmationAndDuplicateResult() {
@@ -80,6 +84,7 @@ class DrawPublicationTest {
 				.isInstanceOf(IllegalArgumentException.class);
 	}
 
+	/** 공개 읽기 모델은 필수 식별자·자리 번호·확인의 실행 관계를 생성 시 검증한다. */
 	@Test
 	@DisplayName("공개 읽기 모델은 필수 식별자·자리 번호·확인의 실행 관계를 생성 시 검증한다")
 	void validatesReadModelIdentityAndRelations() {

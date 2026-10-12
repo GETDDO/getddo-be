@@ -16,6 +16,7 @@ public final class DrawPublicationChange {
 	private final DrawPublication publication;
 	private final List<SlotChange> changes;
 
+	/** 실제 공개 버전과 그 직전 버전 대비 변경 목록을 불변 값으로 보존한다. */
 	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes) {
 		changes = List.copyOf(changes);
 		this.publication = Objects.requireNonNull(publication, "publication");
@@ -33,6 +34,7 @@ public final class DrawPublicationChange {
 		private final UUID afterResultId;
 		private final UUID afterUserId;
 
+		/** 자리별 공개 전후 결과와 사용자를 보존한다. 한쪽 명단에 없는 값은 null이다. */
 		public SlotChange(UUID prizeId, int slotNumber, UUID beforeResultId, UUID beforeUserId,
 			UUID afterResultId, UUID afterUserId) {
 			this.prizeId = Objects.requireNonNull(prizeId, "prizeId");

@@ -18,6 +18,7 @@ public final class DrawResultConfirmation {
 	private final UUID confirmedBy;
 	private final Instant confirmedAt;
 
+	/** 실행과 처리자·확인 시각의 필수값을 검증하고 관리자 확인 기록을 구성한다. */
 	public DrawResultConfirmation(UUID id, UUID runId, UUID confirmedBy, Instant confirmedAt) {
 		Objects.requireNonNull(id, "id");
 		Objects.requireNonNull(runId, "runId");

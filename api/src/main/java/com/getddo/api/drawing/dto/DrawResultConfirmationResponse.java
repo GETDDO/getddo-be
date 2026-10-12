@@ -11,6 +11,7 @@ import com.getddo.core.drawing.domain.DrawResultConfirmation;
 public record DrawResultConfirmationResponse(UUID eventId, UUID confirmationId, UUID runId,
 		UUID confirmedBy, Instant confirmedAt, boolean isPublished, UUID publicationId, Integer revision,
 		Instant publishedAt) {
+	/** 관리자 확인과 실제 공개 여부를 구분하고 미공개 필드는 null로 응답한다. */
 	public static DrawResultConfirmationResponse from(DrawPublicationConfirmation result) {
 		DrawResultConfirmation confirmation = result.confirmation();
 		DrawPublication publication = result.publication();
