@@ -42,7 +42,7 @@ public class NotificationService {
 		if (size < 1 || size > 100) {
 			throw new BusinessException(NotificationErrorCode.INVALID_QUERY);
 		}
-		return repository.findMine(user.id(), cursor, size, isRead);
+		return repository.findMine(user.getId(), cursor, size, isRead);
 	}
 
 	/**
@@ -58,7 +58,7 @@ public class NotificationService {
 	 */
 	@Transactional
 	public UUID markRead(User user, UUID notificationId) {
-		UUID userId = user.id();
+		UUID userId = user.getId();
 		if (repository.markRead(notificationId, userId) == 0
 				&& !repository.belongsTo(notificationId, userId)) {
 			throw new BusinessException(NotificationErrorCode.NOT_FOUND);
@@ -74,6 +74,6 @@ public class NotificationService {
 	 */
 	@Transactional
 	public long markAllRead(User user) {
-		return repository.markAllRead(user.id());
+		return repository.markAllRead(user.getId());
 	}
 }

@@ -55,7 +55,7 @@ class NotificationControllerTest {
 		mvc = MockMvcBuilders.standaloneSetup(new NotificationController(service))
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(
-						new UserService(id -> Optional.of(selectedUser).filter(user -> user.id().equals(id)))))
+						new UserService(id -> Optional.of(selectedUser).filter(user -> user.getId().equals(id)))))
 				.build();
 	}
 
