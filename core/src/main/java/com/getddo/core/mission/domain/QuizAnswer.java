@@ -36,7 +36,7 @@ public final class QuizAnswer {
 	 * @throws com.getddo.core.mission.exception.MissionException 선택지와 입력 문자열 중 정확히 하나가 아닐 때
 	 */
 	public static QuizAnswer of(UUID questionId, UUID selectedOptionId, String answerText, boolean correct) {
-		MissionRules.answer((selectedOptionId != null) != MissionRules.hasText(answerText));
+		MissionRules.answer(selectedOptionId != null ? answerText == null : MissionRules.hasText(answerText));
 		return new QuizAnswer(null, questionId, selectedOptionId, answerText, correct);
 	}
 }

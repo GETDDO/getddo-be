@@ -31,24 +31,25 @@ public final class QuizQuestion {
 		this.displayOrder = displayOrder;
 		this.correctAnswer = correctAnswer;
 		this.options = List.copyOf(options);
+		if (questionType.isChoice()) {
+			// 선택지가 없으면 사용자가 답할 수 없다.
+			MissionRules.definition(correctAnswer == null && !this.options.isEmpty());
+		} else {
+			MissionRules.definition(MissionRules.hasText(correctAnswer) && this.options.isEmpty());
+		}
+		MissionRules.definition(MissionRules.distinctOrders(this.options, QuizOption::getDisplayOrder));
 	}
 
 	/**
 	 * 저장 전 문항을 만든다.
 	 *
 	 * @throws com.getddo.core.mission.exception.MissionException 문항이 비었거나, 단답형에 정답이 없거나 선택지가 있을 때,
-	 *         선택형에 정답 문자열이 있을 때, 선택지 순서가 겹칠 때
+	 *         선택형에 정답 문자열이 있거나 선택지가 없을 때, 선택지 순서가 겹칠 때
 	 */
 	public static QuizQuestion of(QuizQuestionType questionType, String questionText, int displayOrder,
 			String correctAnswer, List<QuizOption> options) {
 		Objects.requireNonNull(questionType, "questionType");
 		MissionRules.definition(MissionRules.hasText(questionText));
-		if (questionType.isChoice()) {
-			MissionRules.definition(correctAnswer == null);
-		} else {
-			MissionRules.definition(MissionRules.hasText(correctAnswer) && options.isEmpty());
-		}
-		MissionRules.definition(MissionRules.distinctOrders(options, QuizOption::getDisplayOrder));
 		return new QuizQuestion(null, questionType, questionText, displayOrder, correctAnswer, options);
 	}
 }

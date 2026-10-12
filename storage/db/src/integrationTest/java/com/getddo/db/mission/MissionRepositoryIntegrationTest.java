@@ -2,6 +2,7 @@ package com.getddo.db.mission;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
@@ -135,6 +136,24 @@ class MissionRepositoryIntegrationTest extends MissionIntegrationTestSupport {
 		assertThat(escaped.getItems()).extracting(Mission::getId).containsExactly(late);
 		assertThat(noWildcard.getItems()).extracting(Mission::getId).containsExactly(late);
 		assertThat(ended.getItems()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("서버 기본 Locale이 터키어여도 영문 대소문자를 구분하지 않고 제목을 찾는다")
+	void keywordSearchIgnoresDefaultLocale() {
+		// given
+		UUID island = saveMission("Island Quiz", MissionType.QUIZ, Instant.parse("2026-10-01T00:00:00Z"));
+		Locale original = Locale.getDefault();
+		// when
+		PageResult<Mission> found;
+		try {
+			Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+			found = missionRepository.search(new MissionSearch(null, null, "ISLAND"), new PageQuery(1, 10));
+		} finally {
+			Locale.setDefault(original);
+		}
+		// then
+		assertThat(found.getItems()).extracting(Mission::getId).containsExactly(island);
 	}
 
 	private UUID saveMission(String title, MissionType type, Instant startsAt) {

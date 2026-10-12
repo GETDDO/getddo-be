@@ -45,6 +45,10 @@ public final class Mission {
 		this.missionType = Objects.requireNonNull(missionType, "missionType");
 		this.startsAt = Objects.requireNonNull(startsAt, "startsAt");
 		this.endsAt = Objects.requireNonNull(endsAt, "endsAt");
+		// 저장소가 복원하는 경로에서도 DB 제약(chk_mission_dates, 컬럼 길이)과 같은 규칙을 지킨다.
+		MissionRules.definition(endsAt.isAfter(startsAt));
+		MissionRules.definition(title.length() <= MAX_TITLE_LENGTH);
+		MissionRules.definition(imageKey == null || imageKey.length() <= MAX_IMAGE_KEY_LENGTH);
 		this.status = Objects.requireNonNull(status, "status");
 		this.imageKey = imageKey;
 		this.createdAt = createdAt;
@@ -63,10 +67,8 @@ public final class Mission {
 		Objects.requireNonNull(description, "description");
 		Objects.requireNonNull(startsAt, "startsAt");
 		Objects.requireNonNull(endsAt, "endsAt");
-		MissionRules.definition(MissionRules.hasText(title) && title.length() <= MAX_TITLE_LENGTH);
+		MissionRules.definition(MissionRules.hasText(title));
 		MissionRules.definition(MissionRules.hasText(description));
-		MissionRules.definition(endsAt.isAfter(startsAt));
-		MissionRules.definition(imageKey == null || imageKey.length() <= MAX_IMAGE_KEY_LENGTH);
 		return new Mission(null, rewardPolicyId, createdBy, title, description, missionType, startsAt, endsAt,
 				MissionStatus.ACTIVE, imageKey, null, null);
 	}

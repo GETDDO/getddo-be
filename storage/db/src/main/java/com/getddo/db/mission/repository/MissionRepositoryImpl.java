@@ -3,6 +3,7 @@ package com.getddo.db.mission.repository;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -132,7 +133,7 @@ public class MissionRepositoryImpl implements MissionRepository {
 		if (keyword == null) {
 			return null;
 		}
-		String escaped = keyword.toLowerCase()
+		String escaped = keyword.toLowerCase(Locale.ROOT)
 				.replace("\\", "\\\\")
 				.replace("%", "\\%")
 				.replace("_", "\\_");

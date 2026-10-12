@@ -31,13 +31,17 @@ public final class QuizQuestionProgress {
 	}
 
 	/**
-	 * 저장된 정답 답변을 근거로 진행 기록을 만든다.
+	 * 저장된 제출에 포함된 정답 답변을 근거로 진행 기록을 만든다. 사용자는 제출의 사용자다.
 	 *
-	 * @throws com.getddo.core.mission.exception.MissionException 정답이 아닌 답변일 때
+	 * @throws com.getddo.core.mission.exception.MissionException 정답이 아닌 답변이거나 그 제출에 포함된 답변이 아닐 때
 	 */
-	public static QuizQuestionProgress of(UUID userId, QuizAnswer correctAnswer) {
+	public static QuizQuestionProgress of(MissionSubmission submission, QuizAnswer correctAnswer) {
+		Objects.requireNonNull(submission, "submission");
 		Objects.requireNonNull(correctAnswer.getId(), "answer.id");
 		MissionRules.answer(correctAnswer.isCorrect());
-		return new QuizQuestionProgress(null, correctAnswer.getQuestionId(), correctAnswer.getId(), userId, null);
+		MissionRules.answer(submission.getQuizAnswers().stream()
+				.anyMatch(answer -> correctAnswer.getId().equals(answer.getId())));
+		return new QuizQuestionProgress(null, correctAnswer.getQuestionId(), correctAnswer.getId(),
+				submission.getUserId(), null);
 	}
 }

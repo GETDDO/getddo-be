@@ -67,6 +67,30 @@ class QuestionTest {
 	}
 
 	@Test
+	@DisplayName("선택형 문항은 선택지가 하나도 없으면 사용자가 답할 수 없으므로 구성 오류다")
+	void choiceQuestionNeedsOptions() {
+		// given
+		// when
+		// then
+		assertInvalid(() -> QuizQuestion.of(QuizQuestionType.OX, "문제", 1, null, List.of()));
+		assertInvalid(() -> QuizQuestion.of(QuizQuestionType.SINGLE_CHOICE, "문제", 1, null, List.of()));
+		assertInvalid(() -> SurveyQuestion.of(SurveyQuestionType.SINGLE_CHOICE, "질문", true, 1, List.of()));
+	}
+
+	@Test
+	@DisplayName("저장소가 복원하는 생성자도 문항 형태 규칙을 지킨다")
+	void restoringConstructorKeepsShapeRules() {
+		// given
+		// when
+		// then
+		assertInvalid(() -> new QuizQuestion(null, QuizQuestionType.SHORT_ANSWER, "문제", 1, "정답", yesNo()));
+		assertInvalid(() -> new QuizQuestion(null, QuizQuestionType.SHORT_ANSWER, "문제", 1, null, List.of()));
+		assertInvalid(() -> new QuizQuestion(null, QuizQuestionType.OX, "문제", 1, "O", yesNo()));
+		assertInvalid(() -> new SurveyQuestion(null, SurveyQuestionType.FREE_TEXT, "질문", false, 1,
+				List.of(SurveyOption.of("가", 1))));
+	}
+
+	@Test
 	@DisplayName("자유 입력 설문은 선택지를 가질 수 없고 단일 선택 설문은 선택지를 가진다")
 	void surveyShape() {
 		// given

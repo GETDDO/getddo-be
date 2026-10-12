@@ -46,6 +46,22 @@ class MissionSubmissionTest {
 	}
 
 	@Test
+	@DisplayName("퀴즈 완료 제출은 답변이 있고 모두 정답일 때만 만들 수 있고 오답 제출은 미완료로 남긴다")
+	void completedQuizRequiresCorrectAnswers() {
+		// given
+		Mission quiz = saved(MissionType.QUIZ);
+		QuizAnswer wrong = QuizAnswer.of(UUID.randomUUID(), null, "오답", false);
+		// when
+		MissionSubmission incomplete = MissionSubmission.of(quiz, USER_ID, false, List.of(wrong), List.of());
+		// then
+		assertThat(incomplete.isCompleted()).isFalse();
+		assertInvalidAnswer(() -> MissionSubmission.of(quiz, USER_ID, true, List.of(wrong), List.of()));
+		assertInvalidAnswer(() -> MissionSubmission.of(quiz, USER_ID, true,
+				List.of(correctText(UUID.randomUUID()), wrong), List.of()));
+		assertInvalidAnswer(() -> MissionSubmission.of(quiz, USER_ID, true, List.of(), List.of()));
+	}
+
+	@Test
 	@DisplayName("저장되지 않은 미션에는 제출을 만들 수 없다")
 	void requiresSavedMission() {
 		// given
@@ -100,21 +116,39 @@ class MissionSubmissionTest {
 	}
 
 	@Test
-	@DisplayName("정답으로 완료한 문항 기록은 저장된 정답 답변을 근거로만 만든다")
-	void progressRequiresSavedCorrectAnswer() {
+	@DisplayName("선택지를 고른 답변에 빈 문자열이나 공백 입력이 함께 있어도 거절한다")
+	void optionAnswerRejectsBlankText() {
 		// given
 		UUID questionId = UUID.randomUUID();
-		UUID answerId = UUID.randomUUID();
-		QuizAnswer savedCorrect = new QuizAnswer(answerId, questionId, null, "정답", true);
-		QuizAnswer savedWrong = new QuizAnswer(answerId, questionId, null, "오답", false);
+		UUID optionId = UUID.randomUUID();
 		// when
-		QuizQuestionProgress progress = QuizQuestionProgress.of(USER_ID, savedCorrect);
+		// then
+		assertInvalidAnswer(() -> QuizAnswer.of(questionId, optionId, "", true));
+		assertInvalidAnswer(() -> QuizAnswer.of(questionId, optionId, " ", true));
+		assertInvalidAnswer(() -> SurveyAnswer.of(questionId, optionId, ""));
+		assertInvalidAnswer(() -> SurveyAnswer.of(questionId, optionId, " "));
+	}
+
+	@Test
+	@DisplayName("정답으로 완료한 문항 기록은 그 제출에 포함된 저장된 정답 답변으로만 만들고 사용자는 제출의 사용자다")
+	void progressRequiresCorrectAnswerOfTheSubmission() {
+		// given
+		Mission mission = saved(MissionType.QUIZ);
+		UUID questionId = UUID.randomUUID();
+		QuizAnswer savedCorrect = new QuizAnswer(UUID.randomUUID(), questionId, null, "정답", true);
+		QuizAnswer savedWrong = new QuizAnswer(UUID.randomUUID(), UUID.randomUUID(), null, "오답", false);
+		QuizAnswer otherSubmissionsAnswer = new QuizAnswer(UUID.randomUUID(), questionId, null, "정답", true);
+		MissionSubmission submission = new MissionSubmission(UUID.randomUUID(), mission.getId(),
+				mission.getRewardPolicyId(), USER_ID, false, STARTS, List.of(savedCorrect, savedWrong), List.of());
+		// when
+		QuizQuestionProgress progress = QuizQuestionProgress.of(submission, savedCorrect);
 		// then
 		assertThat(progress.getQuestionId()).isEqualTo(questionId);
-		assertThat(progress.getCorrectAnswerId()).isEqualTo(answerId);
+		assertThat(progress.getCorrectAnswerId()).isEqualTo(savedCorrect.getId());
 		assertThat(progress.getUserId()).isEqualTo(USER_ID);
-		assertInvalidAnswer(() -> QuizQuestionProgress.of(USER_ID, savedWrong));
-		assertThatNullPointerException().isThrownBy(() -> QuizQuestionProgress.of(USER_ID, correctText(questionId)));
+		assertInvalidAnswer(() -> QuizQuestionProgress.of(submission, savedWrong));
+		assertInvalidAnswer(() -> QuizQuestionProgress.of(submission, otherSubmissionsAnswer));
+		assertThatNullPointerException().isThrownBy(() -> QuizQuestionProgress.of(submission, correctText(questionId)));
 	}
 
 	@Test
@@ -137,6 +171,10 @@ class MissionSubmissionTest {
 		assertThat(claim.getTicketCount()).isEqualTo(1);
 		assertThat(claim.getSourceKey()).isEqualTo("mission:" + mission.getId());
 		assertThatThrownBy(() -> MissionRewardClaim.of(incomplete)).isInstanceOf(MissionException.class);
+		assertThatThrownBy(() -> new MissionRewardClaim(null, mission.getRewardPolicyId(), mission.getId(), submissionId,
+				USER_ID, "mission:" + mission.getId(), 2, null)).isInstanceOf(MissionException.class);
+		assertThatThrownBy(() -> new MissionRewardClaim(null, mission.getRewardPolicyId(), mission.getId(), submissionId,
+				USER_ID, "mission:" + mission.getId(), 0, null)).isInstanceOf(MissionException.class);
 		assertThatNullPointerException().isThrownBy(() -> MissionRewardClaim.of(MissionSubmission.of(mission, USER_ID,
 				true, List.of(), List.of(SurveyAnswer.of(UUID.randomUUID(), null, "의견")))));
 	}

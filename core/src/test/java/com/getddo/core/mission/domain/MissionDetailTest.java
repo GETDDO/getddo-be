@@ -51,6 +51,16 @@ class MissionDetailTest {
 	}
 
 	@Test
+	@DisplayName("해당 유형의 문항이 하나도 없는 미션은 구성 오류다")
+	void rejectsMissionWithoutQuestions() {
+		// given
+		// when
+		// then
+		assertInvalid(() -> new MissionDetail(mission(MissionType.QUIZ), List.of(), List.of()));
+		assertInvalid(() -> new MissionDetail(mission(MissionType.SURVEY), List.of(), List.of()));
+	}
+
+	@Test
 	@DisplayName("같은 미션의 문항 표시 순서가 겹치면 구성 오류다")
 	void rejectsDuplicateDisplayOrder() {
 		// given

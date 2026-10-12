@@ -83,6 +83,23 @@ class MissionTest {
 	}
 
 	@Test
+	@DisplayName("저장소가 복원하는 생성자도 종료가 시작보다 늦지 않거나 제목·이미지 경로가 길이를 넘으면 거절한다")
+	void restoringConstructorKeepsDatabaseInvariants() {
+		// given
+		UUID id = UUID.randomUUID();
+		// when
+		// then
+		assertInvalid(() -> new Mission(id, id, id, "제목", "설명", MissionType.SURVEY, ENDS, STARTS, MissionStatus.ACTIVE,
+				null, STARTS, STARTS));
+		assertInvalid(() -> new Mission(id, id, id, "제목", "설명", MissionType.SURVEY, STARTS, STARTS, MissionStatus.ACTIVE,
+				null, STARTS, STARTS));
+		assertInvalid(() -> new Mission(id, id, id, "가".repeat(201), "설명", MissionType.SURVEY, STARTS, ENDS,
+				MissionStatus.ACTIVE, null, STARTS, STARTS));
+		assertInvalid(() -> new Mission(id, id, id, "제목", "설명", MissionType.SURVEY, STARTS, ENDS, MissionStatus.ACTIVE,
+				"a".repeat(501), STARTS, STARTS));
+	}
+
+	@Test
 	@DisplayName("제출은 시작 시각 정각부터 인정하고 종료 시각 정각부터는 인정하지 않는다")
 	void submissionWindowIsHalfOpen() {
 		// given

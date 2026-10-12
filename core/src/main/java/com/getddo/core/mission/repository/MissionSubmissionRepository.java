@@ -12,7 +12,8 @@ import com.getddo.core.mission.domain.MissionSubmission;
 public interface MissionSubmissionRepository {
 
 	/**
-	 * 제출과 답변을 함께 저장한다. 서버가 제출과 답변의 ID를 만든다.
+	 * 제출과 답변을 함께 저장한다. 서버가 제출과 답변의 ID를 만든다. 여러 행을 쓰므로 호출하는 서비스의 트랜잭션 안에서
+	 * 호출해야 중간에 실패해도 일부만 남지 않는다.
 	 *
 	 * @param submission ID가 없는 제출
 	 * @return ID가 채워진 제출. 답변도 ID를 가진다
@@ -28,7 +29,8 @@ public interface MissionSubmissionRepository {
 	Optional<MissionSubmission> findById(UUID submissionId);
 
 	/**
-	 * 사용자가 해당 미션을 완료한 제출을 조회한다. 완료는 한 번만 인정하므로 최대 한 건이다.
+	 * 사용자가 해당 미션을 완료한 제출을 조회한다. 완료는 한 번만 인정하지만 저장소는 완료 제출의 중복을 막지 않으므로(보상
+	 * 청구만 사용자·미션 유일), 여러 건이면 가장 먼저 저장된 한 건을 돌려준다. 중복 완료 방지는 제출을 처리하는 서비스의 몫이다.
 	 *
 	 * @param userId    사용자 ID
 	 * @param missionId 미션 ID

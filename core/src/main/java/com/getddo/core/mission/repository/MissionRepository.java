@@ -12,7 +12,8 @@ import com.getddo.core.mission.domain.MissionSearch;
 public interface MissionRepository {
 
 	/**
-	 * 미션을 문항·선택지와 함께 한 번에 저장한다. 서버가 모든 ID를 만든다.
+	 * 미션을 문항·선택지와 함께 한 번에 저장한다. 서버가 모든 ID를 만든다. 여러 행을 쓰므로 호출하는 서비스의 트랜잭션
+	 * 안에서 호출해야 중간에 실패해도 일부만 남지 않는다.
 	 *
 	 * @param detail ID가 없는 미션과 문항
 	 * @return ID가 채워진 미션과 문항

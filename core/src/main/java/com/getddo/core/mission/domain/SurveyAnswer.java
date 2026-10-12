@@ -30,7 +30,7 @@ public final class SurveyAnswer {
 	 * @throws com.getddo.core.mission.exception.MissionException 선택지와 입력 문자열 중 정확히 하나가 아닐 때
 	 */
 	public static SurveyAnswer of(UUID questionId, UUID selectedOptionId, String answerText) {
-		MissionRules.answer((selectedOptionId != null) != MissionRules.hasText(answerText));
+		MissionRules.answer(selectedOptionId != null ? answerText == null : MissionRules.hasText(answerText));
 		return new SurveyAnswer(null, questionId, selectedOptionId, answerText);
 	}
 }

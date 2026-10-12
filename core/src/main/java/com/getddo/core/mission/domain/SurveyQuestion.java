@@ -26,19 +26,25 @@ public final class SurveyQuestion {
 		this.required = required;
 		this.displayOrder = displayOrder;
 		this.options = List.copyOf(options);
+		if (questionType == SurveyQuestionType.SINGLE_CHOICE) {
+			// 선택지가 없으면 사용자가 답할 수 없다.
+			MissionRules.definition(!this.options.isEmpty());
+		} else {
+			MissionRules.definition(this.options.isEmpty());
+		}
+		MissionRules.definition(MissionRules.distinctOrders(this.options, SurveyOption::getDisplayOrder));
 	}
 
 	/**
 	 * 저장 전 문항을 만든다.
 	 *
-	 * @throws com.getddo.core.mission.exception.MissionException 문항이 비었거나, 자유 입력에 선택지가 있거나, 선택지 순서가 겹칠 때
+	 * @throws com.getddo.core.mission.exception.MissionException 문항이 비었거나, 자유 입력에 선택지가 있거나, 단일 선택에 선택지가 없거나,
+	 *         선택지 순서가 겹칠 때
 	 */
 	public static SurveyQuestion of(SurveyQuestionType questionType, String questionText, boolean required,
 			int displayOrder, List<SurveyOption> options) {
 		Objects.requireNonNull(questionType, "questionType");
 		MissionRules.definition(MissionRules.hasText(questionText));
-		MissionRules.definition(questionType == SurveyQuestionType.SINGLE_CHOICE || options.isEmpty());
-		MissionRules.definition(MissionRules.distinctOrders(options, SurveyOption::getDisplayOrder));
 		return new SurveyQuestion(null, questionType, questionText, required, displayOrder, options);
 	}
 }

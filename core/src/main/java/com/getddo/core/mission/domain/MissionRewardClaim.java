@@ -37,6 +37,8 @@ public final class MissionRewardClaim {
 		this.missionSubmissionId = Objects.requireNonNull(missionSubmissionId, "missionSubmissionId");
 		this.userId = Objects.requireNonNull(userId, "userId");
 		this.sourceKey = Objects.requireNonNull(sourceKey, "sourceKey");
+		// DB 제약(chk_mission_claim_ticket)과 같다. 완료 보상은 응모권 1장으로 고정이다.
+		MissionRules.definition(ticketCount == REWARD_TICKET_COUNT);
 		this.ticketCount = ticketCount;
 		this.createdAt = createdAt;
 	}

@@ -44,7 +44,8 @@ public final class MissionSubmission {
 	/**
 	 * 저장된 미션에 대한 새 제출을 만든다. 미션의 보상 정책을 제출에 함께 기록한다.
 	 *
-	 * @throws com.getddo.core.mission.exception.MissionException 미션 유형과 다른 종류의 답변이 있거나 같은 문항에 두 번 답했을 때
+	 * @throws com.getddo.core.mission.exception.MissionException 미션 유형과 다른 종류의 답변이 있거나, 같은 문항에 두 번 답했거나,
+	 *         완료한 퀴즈 제출에 답변이 없거나 오답이 있을 때
 	 */
 	public static MissionSubmission of(Mission mission, UUID userId, boolean completed, List<QuizAnswer> quizAnswers,
 			List<SurveyAnswer> surveyAnswers) {
@@ -53,6 +54,10 @@ public final class MissionSubmission {
 				? surveyAnswers.isEmpty() : quizAnswers.isEmpty());
 		MissionRules.answer(distinct(quizAnswers.stream().map(QuizAnswer::getQuestionId).toList()));
 		MissionRules.answer(distinct(surveyAnswers.stream().map(SurveyAnswer::getQuestionId).toList()));
+		if (completed && mission.getMissionType() == MissionType.QUIZ) {
+			// 오답은 완료·보상으로 기록하지 않는다. 다문항 완료 조건은 채점 세부 계약이 정하므로 최소 불변식만 지킨다.
+			MissionRules.answer(!quizAnswers.isEmpty() && quizAnswers.stream().allMatch(QuizAnswer::isCorrect));
+		}
 		return new MissionSubmission(null, mission.getId(), mission.getRewardPolicyId(), userId, completed, null,
 				quizAnswers, surveyAnswers);
 	}
