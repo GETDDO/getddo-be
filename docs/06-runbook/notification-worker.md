@@ -90,7 +90,7 @@ WHERE mock_delivery_status IN ('PENDING', 'FAILED');
 - generationStoppedBy가 있는 생성 작업은 상태와 관계없이 복구하지 않는다. EVENT_START는 미삭제·SCHEDULED·시작 전인 이벤트만 생성 복구한다. 이미 생성된 사용자 알림의 모의 발송에 이 제한을 확대하지 않는다.
 - POST는 202로 접수 결과를 반환하며 실제 성공을 보장하지 않는다. 기존 워커가 처리하고 기존 발생 키·수신자·내용·알림 ID·읽음 상태를 보존한다.
 - 최초 시도와 최대 3회 자동 재시도로 구성된 새 복구 구간을 시작한다. 일시적인 장애만 자동 재시도하고 잘못된 입력·제약 오류는 즉시 최종 실패다. 기존 10초·30초·60초 간격을 유지한다.
-- V021의 attempt_base·delivery_attempt_base에 복구 시점 누적 차수를 보관한다. 워커의 누적 차수는 계속 증가하고 해당 구간 시도 횟수만 차이로 계산한다. 늦은 갱신은 두 차수를 모두 검사한다. 내부 결정과 대안은 [ADR-0004](../04-decisions/0004-notification-manual-retry-fencing.md)를 참고한다.
+- V021의 attempt_base·delivery_attempt_base에 복구 시점 누적 차수를 보관한다. 워커의 누적 차수는 계속 증가하고 해당 구간 시도 횟수만 차이로 계산한다. 늦은 갱신은 두 차수를 모두 검사한다. 내부 결정과 대안은 [ADR-0005](../04-decisions/0005-notification-manual-retry-fencing.md)를 참고한다.
 - 공통 AuditLogService로 접수 관리자·대상·전후 상태·차수를 기록한다. 감사 저장 실패 시 복구 접수도 롤백한다. 조회와 거절된 요청에 별도 감사 기록을 추가하지 않는다.
 - PENDING/PROCESSING/FAILED 상태·시도 횟수를 직접 수정하는 SQL을 지원 복구 절차로 사용하지 않는다.
 

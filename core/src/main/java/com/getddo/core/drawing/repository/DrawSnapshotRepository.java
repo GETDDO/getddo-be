@@ -13,4 +13,11 @@ public interface DrawSnapshotRepository {
 	Optional<DrawSnapshot> findInitial(UUID eventId);
 	List<DrawSnapshotSource.Participant> findParticipants(UUID eventId);
 	DrawSnapshot saveInitial(DrawSnapshot snapshot);
+	/** 호출자는 이벤트를 선잠금한다. 기존 최초 실행이 있으면 그 실행을 반환한다. */
+	DrawSnapshot registerInitial(UUID eventId);
+	Optional<DrawSnapshot> findRegistered(UUID runId);
+	/** 등록된 INITIAL/PREPARING 실행에만 입력을 한 번 저장한다. */
+	DrawSnapshot saveRegisteredInitial(DrawSnapshot snapshot);
+	/** GD-138 준비 서비스가 기존 최초 후보를 연결하고 버전 2 입력을 한 번 확정한다. */
+	DrawSnapshot saveRegisteredReplacement(DrawSnapshot snapshot);
 }

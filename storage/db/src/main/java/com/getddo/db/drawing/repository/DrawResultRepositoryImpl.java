@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,7 +57,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 				(row, index) -> fromBytes(row.getBytes("event_id")), toBytes(runId)).stream().findFirst();
 	}
 
-	/** 서비스의 이벤트 잠금 이후 실행과 불변 입력을 읽는다. 대상 자리 계약이 없는 재추첨 실행은 거절한다. */
+	/** 서비스의 이벤트 잠금 이후 실행과 불변 입력을 읽는다. 실행 종류별로 저장된 입력을 그대로 복원한다. */
 	@Override
 	public Optional<DrawSnapshot> lockSnapshot(UUID runId) {
 		Optional<DrawRunEntity> lockedRun = runs.findForUpdate(runId);
@@ -64,8 +65,9 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			return Optional.empty();
 		}
 		DrawRunEntity run = lockedRun.get();
-		// 재추첨의 대상 자리·유지 결과 스냅샷 계약은 GD-138에서 연결한다.
-		if (run.getDrawType() != DrawType.INITIAL || run.getRunNumber() != 0) invalid();
+		// 재추첨 입력은 버전 2 규칙과 최초 후보 연결을 공통 확정 서비스에서 검증한다.
+		if ((run.getDrawType() == DrawType.INITIAL && run.getRunNumber() != 0)
+				|| (run.getDrawType() == DrawType.REPLACEMENT && run.getRunNumber() < 1)) invalid();
 		return Optional.of(snapshots.toDomain(run, links.findCandidates(runId)));
 	}
 
@@ -94,6 +96,66 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 				invalid();
 			}
 		}
+		if (snapshot.drawType() == DrawType.REPLACEMENT) validateReplacement(snapshot);
+	}
+
+	@Override public void validateAttempt(UUID runId, UUID attemptId) {
+		DrawRunEntity run = runs.findById(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
+		if (!java.util.Objects.equals(run.getAttemptId(), attemptId)) invalid();
+	}
+
+	/** 최초 조건·역대 당첨 제외·연결 취소 자리·유지 결과를 검증한다. 현재 원본으로 입력을 바꾸지 않는다. */
+	private void validateReplacement(DrawSnapshot snapshot) {
+		DrawRunEntity original = runs.findById(snapshot.rules().originalRunId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
+		if (original.getDrawType() != DrawType.INITIAL || original.getStatus() != DrawRunStatus.CONFIRMED
+				|| !original.getEventId().equals(snapshot.eventId())) invalid();
+		DrawSnapshot.Rules rules = snapshots.toDomain(original, List.of()).rules();
+		DrawSnapshot.Rules replacement = snapshot.rules();
+		if (!rules.prizes().equals(replacement.prizes()) || rules.weightingEnabled() != replacement.weightingEnabled()
+				|| !java.util.Objects.equals(rules.eventType(), replacement.eventType())
+				|| !java.util.Objects.equals(rules.membershipRule(), replacement.membershipRule())
+				|| rules.bronzeWeight() != replacement.bronzeWeight() || rules.silverWeight() != replacement.silverWeight()
+				|| rules.goldWeight() != replacement.goldWeight()) invalid();
+		Integer winners = jdbc.queryForObject("""
+			select count(*) from draw_run_candidates link
+			where link.draw_run_id = ? and exists
+			(select 1 from draw_results winner join draw_runs run on run.id = winner.draw_run_id
+			 where winner.candidate_id = link.candidate_id and run.event_id = ?
+			 and run.status = 'CONFIRMED' and winner.result_type = 'SELECTED')
+			""", Integer.class, toBytes(snapshot.runId()), toBytes(snapshot.eventId()));
+		if (winners == null || winners != 0) invalid();
+		Set<String> targetSlots = new HashSet<>();
+		for (DrawSnapshot.Slot slot : replacement.targetSlots()) targetSlots.add(slot.prizeId() + ":" + slot.slotNumber());
+		List<String> canceledSlots = jdbc.query("""
+			select r.event_prize_id, r.slot_number from award_cancellations cancellation
+			join draw_results r on r.id = cancellation.draw_result_id
+			join draw_runs origin on origin.id = r.draw_run_id
+			where cancellation.draw_run_id = ? and origin.event_id = ? and origin.status = 'CONFIRMED'
+			and r.result_type = 'SELECTED'
+			""", (row, index) -> fromBytes(row.getBytes("event_prize_id")) + ":" + row.getInt("slot_number"),
+				toBytes(snapshot.runId()), toBytes(snapshot.eventId()));
+		if (targetSlots.isEmpty() || canceledSlots.size() != targetSlots.size() || !targetSlots.equals(new HashSet<>(canceledSlots))) invalid();
+		validateRetainedAwards(snapshot);
+	}
+
+	/** 서비스가 검증한 유지 결과 ID를 일괄 조회해 사용자·경품·자리와 취소 여부를 대조한다. */
+	private void validateRetainedAwards(DrawSnapshot snapshot) {
+		List<DrawSnapshot.RetainedAward> expected = snapshot.rules().retainedAwards();
+		if (expected.isEmpty()) return;
+		String placeholders = String.join(",", Collections.nCopies(expected.size(), "?"));
+		List<Object> parameters = new ArrayList<>();
+		parameters.add(toBytes(snapshot.eventId()));
+		for (DrawSnapshot.RetainedAward retained : expected) parameters.add(toBytes(retained.resultId()));
+		List<DrawSnapshot.RetainedAward> stored = jdbc.query("""
+			select r.id, p.user_id, r.event_prize_id, r.slot_number
+			from draw_results r join draw_runs run on run.id = r.draw_run_id
+			join draw_candidates c on c.id = r.candidate_id join event_participants p on p.id = c.participant_id
+			where run.event_id = ? and r.id in (%s) and run.status = 'CONFIRMED' and r.result_type = 'SELECTED'
+			and not exists (select 1 from award_cancellations cancellation where cancellation.draw_result_id = r.id)
+			""".formatted(placeholders), (row, index) -> new DrawSnapshot.RetainedAward(
+				fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")),
+				fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number")), parameters.toArray());
+		if (!new HashSet<>(stored).equals(new HashSet<>(expected))) invalid();
 	}
 
 	/** 후보의 참여 이벤트·생성 원본 실행을 검증하고 후보와 사용자의 연결을 기록한다. */
@@ -101,7 +163,8 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			throws SQLException {
 		if (!snapshot.eventId().equals(fromBytes(row.getBytes("participant_event")))
 				|| !snapshot.eventId().equals(fromBytes(row.getBytes("origin_event")))
-				|| !snapshot.runId().equals(fromBytes(row.getBytes("origin_id")))) {
+				|| !(snapshot.drawType() == DrawType.INITIAL ? snapshot.runId() : snapshot.rules().originalRunId())
+						.equals(fromBytes(row.getBytes("origin_id")))) {
 			invalid();
 		}
 		owners.put(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")));

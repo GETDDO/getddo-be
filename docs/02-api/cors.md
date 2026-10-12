@@ -12,13 +12,13 @@
 | --- | --- |
 | `allowed-origins` | `CORS_ALLOWED_ORIGINS` 환경변수. 미설정·빈 값은 허용 origin 없음 |
 | `allowed-methods` | `GET`, `HEAD`, `POST`, `PUT`, `DELETE` |
-| `allowed-headers` | `Content-Type`, `X-User-ID`, `X-User-Role`, `X-User-Membership` |
+| `allowed-headers` | `Content-Type`, `X-User-ID`, `X-User-Role`, `X-User-Membership`, `Idempotency-Key` |
 | `exposed-headers` | 빈 목록 |
 | `allow-credentials` | `false` |
 
 정책은 `api/src/main/resources/application.yaml`에서 관리하고 origin만 환경별로 주입한다. `*`가 포함된 origin은 credentials 값에 관계없이 앱 시작 시 거절한다. 주소를 아직 모르면 비워 둔 채 실행하고, 정해진 뒤 환경변수를 설정하고 앱을 재시작한다. 주소 변경에 Java 코드 수정이나 재빌드는 필요하지 않다.
 
-현재 쿠키를 사용하지 않는 전제로 credentials를 끈다. 사용자 헤더를 보내는 데 credentials 허용은 필요하지 않다. 쿠키 기반 기능을 도입하면 프론트 설정과 함께 재검토한다. `Idempotency-Key`, `Retry-After`, `PATCH`는 소비 기능의 계약이 정해지면 목록을 갱신한다.
+현재 쿠키를 사용하지 않는 전제로 credentials를 끈다. 사용자 헤더를 보내는 데 credentials 허용은 필요하지 않다. 쿠키 기반 기능을 도입하면 프론트 설정과 함께 재검토한다. `Idempotency-Key`는 이벤트 응모(E04)가 응모 ID로 쓰는 UUID라 요청 헤더로 허용한다. `Retry-After`, `PATCH`는 소비 기능의 계약이 정해지면 목록을 갱신한다.
 
 `exposed-headers`는 프론트 JavaScript가 추가로 읽을 **응답 헤더** 목록이다. 예를 들어 `response.headers.get('Retry-After')`가 필요하면 해당 헤더를 추가한다. JSON 본문의 `data`, `code`, `message`를 읽는 데에는 추가 노출 설정이 필요 없다.
 

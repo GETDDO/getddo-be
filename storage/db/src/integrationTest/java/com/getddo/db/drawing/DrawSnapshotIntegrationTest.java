@@ -23,6 +23,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
@@ -523,7 +525,11 @@ class DrawSnapshotIntegrationTest {
 
 	@SpringBootConfiguration
 	@EnableAutoConfiguration
-	@ComponentScan(basePackages = {"com.getddo.core.drawing", "com.getddo.db.drawing"})
+	@ComponentScan(basePackages = {"com.getddo.core.drawing", "com.getddo.db.drawing", "com.getddo.core.audit",
+			"com.getddo.db.audit.mapper", "com.getddo.db.audit.repository",
+			"com.getddo.db.user.mapper", "com.getddo.db.user.repository"})
+	@EntityScan(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user"})
+	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user"})
 	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
 	static class TestApplication {
 		/** 테스트에서 직접 제어할 수 있는 서버 기준 시계를 제공한다. */

@@ -146,9 +146,10 @@ class NotificationAdminIntegrationTest {
 	@DisplayName("발송 복구 직후 새 선점 전에도 오래된 완료·실패 기록을 차단한다")
 	void deliveryRetryInvalidatesOldWorkerImmediately() {
 		// given
-		job(NotificationType.RESULT_PUBLISHED, null);
-		assertThat(jobs.processNextJob()).isTrue();
+		UUID id = job(NotificationType.RESULT_PUBLISHED, null);
+		UUID notification = prepareNotification(id);
 		NotificationDelivery old = repository.claimNextDelivery(NOW).orElseThrow();
+		assertThat(old.getId()).isEqualTo(notification);
 		repository.failDelivery(old, null, "NOTIFICATION-006");
 		jdbc.update("update notifications set is_read=true where id=?", bytes(old.getId()));
 		// when
@@ -185,14 +186,30 @@ class NotificationAdminIntegrationTest {
 		assertThat(auditCount(start)).isEqualTo(1);
 	}
 
+	/** 더 먼저 대기 중인 다른 작업이 있어도 fixture는 대상 ID의 알림만 준비한다. */
+	@Test
+	@DisplayName("알림 fixture는 다른 대기 작업을 처리하지 않고 요청한 작업만 준비한다")
+	void preparesOnlyRequestedJob() {
+		// given
+		UUID earlier = job(NotificationType.RESULT_PUBLISHED, null);
+		jdbc.update("update notification_jobs set scheduled_at=? where id=?", utc(NOW.minusSeconds(1)), bytes(earlier));
+		UUID target = job(NotificationType.RESULT_PUBLISHED, null);
+		// when
+		UUID notification = prepareNotification(target);
+		// then
+		assertThat(notificationId(target)).isEqualTo(notification);
+		assertThat(admin.findJob(actor, target).getJob().getStatus()).isEqualTo(NotificationJobStatus.COMPLETED);
+		assertThat(admin.findJob(actor, earlier).getJob().getStatus()).isEqualTo(NotificationJobStatus.PENDING);
+		assertThat(jdbc.queryForObject("select count(*) from notifications where job_id=?", Long.class, bytes(earlier))).isZero();
+	}
+
 	/** 실제 MySQL에서 V021의 두 CHECK 제약이 잘못된 복구 차수를 거절한다. */
 	@Test
 	@DisplayName("복구 기준 차수는 음수 또는 누적 차수 초과로 저장할 수 없다")
 	void enforcesRetryBaselineConstraints() {
 		// given
 		UUID id = job(NotificationType.RESULT_PUBLISHED, null);
-		assertThat(jobs.processNextJob()).isTrue();
-		UUID notification = notificationId(id);
+		UUID notification = prepareNotification(id);
 		// when / then
 		for (String baseline : List.of("-1", "attempt_count + 1")) {
 			assertThatThrownBy(() -> jdbc.update("update notification_jobs set attempt_base=" + baseline + " where id=?", bytes(id)))
@@ -245,8 +262,7 @@ class NotificationAdminIntegrationTest {
 		assertThat(result.getItems()).extracting(value -> value.getJob().getId()).containsExactly(second);
 		assertThat(admin.findJobs(actor, new NotificationJobQuery(3, 1, null, null, null, NOW, NOW.plusSeconds(2)))
 				.getItems()).isEmpty();
-		assertThat(jobs.processNextJob()).isTrue();
-		UUID notification = notificationId(first);
+		UUID notification = prepareNotification(first);
 		assertThat(admin.findDeliveries(actor, new NotificationDeliveryQuery(1, 20, recipient, null, first, null, null, null))
 				.getItems()).hasSize(1);
 		assertThat(jdbc.queryForObject("select is_read from notifications where id=?", Boolean.class, bytes(notification))).isFalse();
@@ -342,6 +358,18 @@ class NotificationAdminIntegrationTest {
 				"제목", "내용", null, NOW, List.of(recipient)));
 		jobIds.add(id);
 		return id;
+	}
+
+	/** 전역 생성 대기열을 처리하지 않고 지정한 작업의 사용자 알림만 준비한다. */
+	private UUID prepareNotification(UUID id) {
+		jdbc.update("""
+			update notification_jobs set status='PROCESSING', attempt_count=1, lease_until=? where id=?
+			""", utc(NOW.plus(NotificationRetryPolicy.LEASE)), bytes(id));
+		NotificationJob claim = new NotificationJob(id, 1);
+		NotificationJobRequest request = repository.findRequest(id);
+		assertThat(repository.createNotification(claim, request, recipient, NOW)).isTrue();
+		repository.completeJob(claim, NOW);
+		return notificationId(id);
 	}
 
 	private UUID notificationId(UUID job) {
