@@ -1,6 +1,7 @@
 package com.getddo.core.user.domain;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 import lombok.Getter;
@@ -24,10 +25,10 @@ public final class User {
 	public User(UUID id, String name, UserRole role, UserStatus status, Membership membership,
 			String phoneNum, String email, Instant suspendedAt, String suspensionReason,
 			Instant createdAt, Instant updatedAt) {
-		this.id = id;
-		this.name = name;
-		this.role = role;
-		this.status = status;
+		this.id = Objects.requireNonNull(id, "id");
+		this.name = Objects.requireNonNull(name, "name");
+		this.role = Objects.requireNonNull(role, "role");
+		this.status = Objects.requireNonNull(status, "status");
 		this.membership = membership;
 		this.phoneNum = phoneNum;
 		this.email = email;
