@@ -78,7 +78,7 @@ class DrawPublicationPagingTest {
 	@DisplayName("관리자 이력 조회는 권한 확인 뒤 이벤트 존재를 확인하고 없는 이벤트는 404로 거절한다")
 	void validatesAdminBeforeEventAndPages() {
 		// given
-		DrawPublicationQueryService queryService = new DrawPublicationQueryService(publications, repository, users);
+		DrawPublicationQueryService queryService = new DrawPublicationQueryService(publications, repository, new DrawPublicationAdminAuthorization(users));
 		PageQuery query = new PageQuery(1, 20);
 		when(users.findById(actor)).thenReturn(Optional.of(user(UserRole.USER, UserStatus.ACTIVE)));
 		// when / then

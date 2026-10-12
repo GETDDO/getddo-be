@@ -61,8 +61,8 @@ class AdminDrawPublicationControllerTest {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
 		mvc = MockMvcBuilders.standaloneSetup(new AdminDrawPublicationController(
-				new DrawResultConfirmationService(repository, publications, users, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))),
-				new DrawPublicationQueryService(publications, repository, users)))
+				new DrawResultConfirmationService(repository, publications, new DrawPublicationAdminAuthorization(users), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))),
+				new DrawPublicationQueryService(publications, repository, new DrawPublicationAdminAuthorization(users))))
 				.setControllerAdvice(new GlobalExceptionHandler()).setValidator(validator)
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(users))).build();
 	}

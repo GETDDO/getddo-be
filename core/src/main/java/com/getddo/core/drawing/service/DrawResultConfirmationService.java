@@ -13,10 +13,6 @@ import com.getddo.core.drawing.domain.DrawResultConfirmation;
 import com.getddo.core.drawing.domain.DrawPublicationConfirmation;
 import com.getddo.core.drawing.domain.DrawPublication;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
-import com.getddo.core.user.domain.User;
-import com.getddo.core.user.domain.UserRole;
-import com.getddo.core.user.domain.UserStatus;
-import com.getddo.core.user.repository.UserRepository;
 
 import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.*;
 
@@ -25,7 +21,7 @@ import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.*;
 public class DrawResultConfirmationService {
 	private final DrawPublicationRepository repository;
 	private final DrawPublicationService publications;
-	private final UserRepository users;
+	private final DrawPublicationAdminAuthorization admins;
 	private final TimeProvider time;
 
 	/**
@@ -57,9 +53,7 @@ public class DrawResultConfirmationService {
 	}
 
 	private DrawPublicationRun authorizeAndLock(UUID runId, UUID actorId) {
-		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
-		User actor = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (actor.getRole() != UserRole.ADMIN || actor.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		admins.requireActiveAdmin(actorId);
 		if (runId == null) throw new BusinessException(RUN_NOT_FOUND);
 		UUID eventId = repository.findEventId(runId).orElseThrow(() -> new BusinessException(RUN_NOT_FOUND));
 		return publications.validateReplacement(eventId, runId);
