@@ -84,6 +84,24 @@ class CorsConfigTest {
 		});
 	}
 
+	@Test
+	@DisplayName("이벤트 응모의 사전 요청이 Idempotency-Key 헤더를 허용한다")
+	void allowsIdempotencyKeyForEntryPreflight() {
+		// given / when / then
+		runner.run(context -> {
+			mvc(context).perform(options("/api/v1/events/00000000-0000-0000-0000-000000000001/entries")
+					.header("Origin", ORIGIN)
+					.header("Access-Control-Request-Method", "POST")
+					.header("Access-Control-Request-Headers",
+							"Content-Type,Idempotency-Key,X-User-ID,X-User-Role,X-User-Membership"))
+					.andExpect(status().isOk())
+					.andExpect(header().string("Access-Control-Allow-Origin", ORIGIN))
+					.andExpect(header().string("Access-Control-Allow-Headers",
+							"Content-Type, Idempotency-Key, X-User-ID, X-User-Role, X-User-Membership"));
+			assertThat(lookups.get()).isZero();
+		});
+	}
+
 	@ParameterizedTest
 	@ValueSource(strings = {"GET", "HEAD", "POST", "PUT", "DELETE"})
 	@DisplayName("조회·등록·수정·삭제의 사전 요청에 허용 메서드와 JSON 헤더를 응답한다")
