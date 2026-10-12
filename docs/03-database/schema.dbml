@@ -271,9 +271,11 @@ Table award_cancellations {
   canceled_by binary(16) [not null, note: '당첨 취소를 확정한 관리자 ID']
   reason text [not null, note: '당첨 취소 사유']
   canceled_at datetime(6) [not null, note: '당첨 취소 확정 시각 UTC']
+  request_key binary(16) [note: '신규 AD05 요청의 전역 UUID 멱등 키. 과거 이력은 NULL']
 
   indexes {
     draw_result_id [unique, name: 'uq_award_cancellations_1']
+    request_key [unique, name: 'uq_award_cancellations_request']
   }
 }
 
