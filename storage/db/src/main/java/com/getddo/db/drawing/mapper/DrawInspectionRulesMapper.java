@@ -20,6 +20,7 @@ public class DrawInspectionRulesMapper {
 		try {
 			StoredRules stored = json.readValue(value, StoredRules.class);
 			if (stored == null || stored.prizes() == null || stored.prizes().stream().anyMatch(Objects::isNull)
+					|| (stored.version() == 2 && (stored.targetSlots() == null || stored.retainedAwards() == null))
 					|| (stored.targetSlots() != null && stored.targetSlots().stream().anyMatch(Objects::isNull))
 					|| (stored.retainedAwards() != null && stored.retainedAwards().stream().anyMatch(Objects::isNull))) {
 				return new Decoded(null, null);
@@ -27,9 +28,9 @@ public class DrawInspectionRulesMapper {
 			DrawSnapshot.Rules base = new DrawSnapshot.Rules(stored.version(), stored.weightingEnabled(), stored.eventType(),
 					stored.membershipRule(), stored.bronzeWeight(), stored.silverWeight(), stored.goldWeight(), stored.prizes());
 			DrawReplacementRulesView replacement = stored.version() != 2 ? null : new DrawReplacementRulesView(stored.originalRunId(),
-					stored.targetSlots() == null ? List.of() : stored.targetSlots().stream()
+					stored.targetSlots().stream()
 							.map(slot -> new DrawReplacementRulesView.Slot(slot.prizeId(), slot.rank(), slot.slotNumber())).toList(),
-					stored.retainedAwards() == null ? List.of() : stored.retainedAwards().stream()
+					stored.retainedAwards().stream()
 							.map(award -> new DrawReplacementRulesView.RetainedAward(award.resultId(), award.userId(), award.prizeId(), award.slotNumber())).toList());
 			return new Decoded(base, replacement);
 		} catch (JacksonException invalidSnapshot) { return new Decoded(null, null); }

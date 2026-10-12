@@ -1,6 +1,7 @@
 package com.getddo.db.drawing.mapper;
 
 import java.util.UUID;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
@@ -57,13 +58,31 @@ class DrawInspectionRulesMapperTest {
 	}
 
 	@Test
-	@DisplayName("버전 2의 누락 대상 자리를 임의 생성하지 않는다")
-	void doesNotInventMissingSlots() {
+	@DisplayName("버전 2의 누락·null 목록은 명시적인 빈 목록으로 가장하지 않는다")
+	void missingReplacementListsAreInvalid() {
+		// given: 유효한 대상 자리만 있고 유지 목록이 없거나 null인 손상 입력도 포함한다.
+		String slots = ",\"originalRunId\":\"%s\",\"targetSlots\":[{\"prizeId\":\"%s\",\"rank\":1,\"slotNumber\":3}]"
+				.formatted(originalId, prizeId);
+		// when / then
+		for (String extra : List.of("", slots, slots + ",\"retainedAwards\":null", ",\"retainedAwards\":[]",
+				",\"targetSlots\":null,\"retainedAwards\":[]")) {
+			DrawInspectionRulesMapper.Decoded decoded = mapper.decode(json(2, extra));
+			assertThat(decoded.rules()).isNull();
+			assertThat(decoded.replacementRules()).isNull();
+		}
+	}
+
+	@Test
+	@DisplayName("버전 2의 명시적인 빈 유지 목록은 정상 저장 입력으로 복원한다")
+	void explicitEmptyRetainedAwardsRemainValid() {
 		// given / when
-		DrawInspectionRulesMapper.Decoded decoded = mapper.decode(json(2, ""));
+		String extra = ",\"originalRunId\":\"%s\",\"targetSlots\":[{\"prizeId\":\"%s\",\"rank\":1,\"slotNumber\":3}],\"retainedAwards\":[]"
+				.formatted(originalId, prizeId);
+		DrawInspectionRulesMapper.Decoded decoded = mapper.decode(json(2, extra));
 		// then
-		assertThat(decoded.replacementRules().getOriginalRunId()).isNull();
-		assertThat(decoded.replacementRules().getTargetSlots()).isEmpty();
+		assertThat(decoded.rules().version()).isEqualTo(2);
+		assertThat(decoded.replacementRules().getOriginalRunId()).isEqualTo(originalId);
+		assertThat(decoded.replacementRules().getTargetSlots()).hasSize(1);
 		assertThat(decoded.replacementRules().getRetainedAwards()).isEmpty();
 	}
 
