@@ -1,6 +1,9 @@
 package com.getddo.core.drawing.service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Comparator;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
@@ -47,7 +50,7 @@ public class DrawInspectionService {
 	public DrawRunDetailView detail(User user, UUID runId) {
 		admin(user);
 		DrawRunView run = requireRun(runId);
-		return new DrawRunDetailView(run, repository.findAllCandidates(runId), repository.findResults(runId));
+		return new DrawRunDetailView(run, orderedResults(run));
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -60,8 +63,8 @@ public class DrawInspectionService {
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public List<DrawResultView> results(User user, UUID runId) {
 		admin(user);
-		requireRun(runId);
-		return repository.findResults(runId);
+		DrawRunView run = requireRun(runId);
+		return orderedResults(run);
 	}
 
 	/** 불일치도 검증 결과로 저장한다. 실행·후보·조건·결과에는 쓰기를 수행하지 않는다. */
@@ -82,6 +85,17 @@ public class DrawInspectionService {
 		admin(user);
 		requireRun(runId);
 		return checks.findByRun(runId, page);
+	}
+
+	/** 현재 경품 등수가 바뀌어도 응답 순서는 저장된 추첨 조건의 등수·자리 순이다. */
+	private List<DrawResultView> orderedResults(DrawRunView run) {
+		Map<UUID, Integer> ranks = new HashMap<>();
+		if (run.getRules() != null) {
+			for (DrawSnapshotSource.Prize prize : run.getRules().prizes()) ranks.put(prize.id(), prize.rank());
+		}
+		return repository.findResults(run.getId()).stream().sorted(Comparator
+				.comparingInt((DrawResultView result) -> ranks.getOrDefault(result.getPrizeId(), Integer.MAX_VALUE))
+				.thenComparingInt(DrawResultView::getSlotNumber)).toList();
 	}
 
 	private DrawRunView requireRun(UUID runId) {

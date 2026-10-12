@@ -75,14 +75,16 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 	@Override
 	public List<DrawResultView> findResults(UUID runId) {
 		return jdbc.query("""
-			select result.*, prize.event_id as prize_event_id,
+			select result.*, prize.event_id as prize_event_id, participant.user_id,
 			exists(select 1 from draw_publication_results published where published.draw_result_id = result.id) as was_published,
 			exists(select 1 from award_cancellations canceled where canceled.draw_result_id = result.id) as is_canceled
 			from draw_results result join event_prizes prize on prize.id = result.event_prize_id
-			where result.draw_run_id = ? order by result.event_prize_id, result.slot_number
+			left join draw_candidates candidate on candidate.id = result.candidate_id
+			left join event_participants participant on participant.id = candidate.participant_id
+			where result.draw_run_id = ? order by prize.prize_rank, result.slot_number
 			""", (row, index) -> new DrawResultView(id(row, "id"), id(row, "draw_run_id"), id(row, "event_prize_id"),
 				id(row, "prize_event_id"), row.getInt("slot_number"), row.getObject("selection_order", Integer.class),
-				DrawSelectionResultType.valueOf(row.getString("result_type")), id(row, "candidate_id"),
+				DrawSelectionResultType.valueOf(row.getString("result_type")), id(row, "candidate_id"), id(row, "user_id"),
 				row.getBoolean("was_published"), row.getBoolean("is_canceled")), toBytes(runId));
 	}
 

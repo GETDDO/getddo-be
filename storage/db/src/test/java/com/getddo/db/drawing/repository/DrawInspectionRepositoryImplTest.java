@@ -93,6 +93,45 @@ class DrawInspectionRepositoryImplTest {
 		verifyNoInteractions(jdbc);
 	}
 
+	@Test
+	@DisplayName("결과 조회는 당첨자 ID만 조인하고 미충원도 유지하며 등수·자리 순서를 사용한다")
+	void resultsJoinWinnerAndPreserveUnfilled() throws Exception {
+		UUID winner = UUID.randomUUID();
+		ResultSet row = mock(ResultSet.class);
+		when(row.getBytes("user_id")).thenReturn(toBytes(winner));
+		when(row.getString("result_type")).thenReturn("SELECTED");
+		when(jdbc.query(contains("select result.*"), org.mockito.ArgumentMatchers.<RowMapper<DrawResultView>>any(), eq(toBytes(runId))))
+				.thenAnswer(invocation -> {
+					RowMapper<DrawResultView> mapper = invocation.getArgument(1);
+					DrawResultView selected = mapper.mapRow(row, 0);
+					when(row.getBytes("user_id")).thenReturn(null);
+					when(row.getString("result_type")).thenReturn("UNFILLED");
+					return List.of(selected, mapper.mapRow(row, 1));
+				});
+		List<DrawResultView> results = repository.findResults(runId);
+		assertThat(results).hasSize(2);
+		assertThat(results.getFirst().getUserId()).isEqualTo(winner);
+		assertThat(results.getLast().getUserId()).isNull();
+		assertThat(results.getLast().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		verify(jdbc).query(sql.capture(), org.mockito.ArgumentMatchers.<RowMapper<DrawResultView>>any(), eq(toBytes(runId)));
+		assertThat(sql.getValue()).contains("left join draw_candidates", "left join event_participants", "order by prize.prize_rank, result.slot_number")
+				.doesNotContain("entry_snapshot", "eligibility_snapshot");
+	}
+
+	@Test
+	@DisplayName("null 응모 목록은 Jackson 생성자 오류로 처리돼 조회에서 손상 근거 null로 보존된다")
+	void nullEntryArrayDoesNotAbortCandidateRead() throws Exception {
+		ResultSet row = mock(ResultSet.class);
+		when(row.getString("entry_snapshot")).thenReturn("{\"version\":1,\"bronzeCount\":0,\"silverCount\":0,\"goldCount\":0,\"entries\":null}");
+		when(jdbc.query(contains("where link.draw_run_id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawCandidateView>>any(), eq(toBytes(runId))))
+				.thenAnswer(invocation -> {
+					RowMapper<DrawCandidateView> mapper = invocation.getArgument(1);
+					return List.of(mapper.mapRow(row, 0));
+				});
+		assertThat(repository.findAllCandidates(runId).getFirst().getSnapshot().entryEvidence()).isNull();
+	}
+
 	private DrawRunView run(UUID id, DrawType type, UUID firstId, Instant fixedAt) {
 		return new DrawRunView(id, eventId, type == DrawType.INITIAL ? 0 : 2, type, DrawRunStatus.CONFIRMED,
 				firstId, null, null, fixedAt, fixedAt, fixedAt, fixedAt);

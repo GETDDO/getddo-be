@@ -14,15 +14,13 @@ public record DrawRunDetailResponse(UUID id, UUID eventId, int runNumber, DrawTy
 	public DrawRunDetailResponse { results = List.copyOf(results); }
 	public static DrawRunDetailResponse from(DrawRunDetailView detail) {
 		DrawRunView run = detail.getRun();
-		Map<UUID, UUID> users = new HashMap<>();
 		Map<UUID, Integer> ranks = new HashMap<>();
-		for (DrawCandidateView candidate : detail.getCandidates()) users.put(candidate.getSnapshot().id(), candidate.getSnapshot().userId());
 		if (run.getRules() != null) {
 			for (DrawSnapshotSource.Prize prize : run.getRules().prizes()) ranks.put(prize.id(), prize.rank());
 		}
 		return new DrawRunDetailResponse(run.getId(), run.getEventId(), run.getRunNumber(), run.getDrawType(),
 				run.getStatus(), run.getOriginalDrawId(), run.getStartedAt(), run.getConfirmedAt(), run.getCreatedAt(),
 				run.getAlgorithmVersion(), DrawRulesResponse.from(run), run.getSnapshotFixedAt(), detail.getResults().stream()
-				.map(result -> DrawResultResponse.from(result, ranks.get(result.getPrizeId()), users.get(result.getCandidateId()))).toList());
+				.map(result -> DrawResultResponse.from(result, ranks.get(result.getPrizeId()), result.getUserId())).toList());
 	}
 }

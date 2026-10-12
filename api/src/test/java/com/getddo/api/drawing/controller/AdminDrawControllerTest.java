@@ -65,13 +65,14 @@ class AdminDrawControllerTest {
 	@DisplayName("상세는 실제 공개 이력과 취소를 각각 반환하고 미연결 실패 요약을 만들지 않는다")
 	void detailSeparatesPublicationAndCancellation() throws Exception {
 		// given
-		when(repository.findAllCandidates(runId)).thenReturn(List.of());
+		UUID winnerId = UUID.randomUUID();
 		when(repository.findResults(runId)).thenReturn(List.of(new DrawResultView(UUID.randomUUID(), runId,
-				UUID.randomUUID(), eventId, 1, 1, DrawSelectionResultType.SELECTED, UUID.randomUUID(), true, true)));
+				UUID.randomUUID(), eventId, 1, 1, DrawSelectionResultType.SELECTED, UUID.randomUUID(), winnerId, true, true)));
 		// when / then
 		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name()))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.results[0].wasPublished").value(true))
 				.andExpect(jsonPath("$.data.results[0].isCanceled").value(true))
+				.andExpect(jsonPath("$.data.results[0].userId").value(winnerId.toString()))
 				.andExpect(jsonPath("$.data.failureCount").doesNotExist()).andExpect(jsonPath("$.data.cancellations").doesNotExist());
 	}
 

@@ -116,6 +116,28 @@ class DrawInspectionServiceTest {
 		verify(checks).save(eq(runId), eq(admin.id()), eq(now), argThat(items -> items.size() == 7 && items.stream().allMatch(DrawCheckItem::isPassed)));
 	}
 
+	@Test
+	@DisplayName("상세는 전체 후보를 읽지 않고 저장 등수·자리 순으로 사용자 ID를 제공한다")
+	void detailReadsOnlyResultsAndUsesStoredPrizeRanks() {
+		UUID firstPrize = UUID.randomUUID(), secondPrize = UUID.randomUUID(), winner = UUID.randomUUID();
+		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(1, false, "NO_TICKET", "ALL", 1, 3, 5,
+				List.of(new DrawSnapshotSource.Prize(secondPrize, 2, 1), new DrawSnapshotSource.Prize(firstPrize, 1, 2)));
+		DrawRunView run = new DrawRunView(runId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED,
+				null, DrawSnapshotService.ALGORITHM_VERSION, rules, now, now, now, now);
+		DrawResultView second = new DrawResultView(UUID.randomUUID(), runId, secondPrize, eventId, 1, 3,
+				DrawSelectionResultType.SELECTED, UUID.randomUUID(), winner, false, false);
+		DrawResultView firstSlotTwo = new DrawResultView(UUID.randomUUID(), runId, firstPrize, eventId, 2, 2,
+				DrawSelectionResultType.SELECTED, UUID.randomUUID(), winner, false, false);
+		DrawResultView firstSlotOne = new DrawResultView(UUID.randomUUID(), runId, firstPrize, eventId, 1, 1,
+				DrawSelectionResultType.SELECTED, UUID.randomUUID(), winner, false, false);
+		when(repository.findRun(runId)).thenReturn(Optional.of(run));
+		when(repository.findResults(runId)).thenReturn(List.of(second, firstSlotTwo, firstSlotOne));
+		DrawRunDetailView detail = service.detail(admin, runId);
+		assertThat(detail.getResults()).containsExactly(firstSlotOne, firstSlotTwo, second);
+		assertThat(detail.getResults().getFirst().getUserId()).isEqualTo(winner);
+		verify(repository, never()).findAllCandidates(any());
+	}
+
 	private DrawRunView run(DrawRunStatus status) {
 		return new DrawRunView(runId, eventId, 0, DrawType.INITIAL, status, null, null, null, null, null, now, now);
 	}
