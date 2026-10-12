@@ -24,7 +24,7 @@ public class AdminDrawResumeController {
 	private final DrawExecutionService executions;
 	@PostMapping("/{runId}/resume")
 	public ResponseEntity<ResponseEnvelope<DrawExecutionResponse>> resume(@PathVariable UUID runId, @CurrentUser User actor) {
-		DrawExecutionResult result = executions.resumeInitial(runId, actor.id());
+		DrawExecutionResult result = executions.resumeInitial(runId, actor.getId());
 		HttpStatus status = result.getStatus() == DrawRunStatus.CONFIRMED ? HttpStatus.OK : HttpStatus.ACCEPTED;
 		return ResponseEntity.status(status).body(ResponseEnvelope.success(DrawExecutionResponse.from(result)));
 	}

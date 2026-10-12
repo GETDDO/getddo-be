@@ -57,7 +57,7 @@ public class AdminEventController {
 			@CurrentUser User user,
 			@Valid @RequestBody EventWriteRequest request) {
 		AdminEventResponse response = AdminEventResponse.from(
-				registrationService.register(request.toRegistration(user.id())), timeProvider.now());
+				registrationService.register(request.toRegistration(user.getId())), timeProvider.now());
 		return ResponseEntity.status(HttpStatus.CREATED).body(ResponseEnvelope.success(response));
 	}
 

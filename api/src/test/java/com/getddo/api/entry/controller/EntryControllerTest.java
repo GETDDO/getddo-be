@@ -64,7 +64,7 @@ class EntryControllerTest {
 		mvc = MockMvcBuilders.standaloneSetup(new EntryController(entryService, eligibilityService))
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(
-						new UserService(id -> Optional.of(USER).filter(user -> user.id().equals(id)))))
+						new UserService(id -> Optional.of(USER).filter(user -> user.getId().equals(id)))))
 				.build();
 	}
 

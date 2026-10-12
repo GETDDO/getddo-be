@@ -70,7 +70,7 @@ public class EventQueryService {
 		if (user == null) {
 			throw new EventException(EventErrorCode.USER_CONTEXT_REQUIRED);
 		}
-		if (user.status() != UserStatus.ACTIVE || (adminOnly && user.role() != UserRole.ADMIN)) {
+		if (user.getStatus() != UserStatus.ACTIVE || (adminOnly && user.getRole() != UserRole.ADMIN)) {
 			throw new EventException(EventErrorCode.ACCESS_DENIED);
 		}
 	}

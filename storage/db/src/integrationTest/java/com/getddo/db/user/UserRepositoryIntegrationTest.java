@@ -62,7 +62,7 @@ class UserRepositoryIntegrationTest {
 				""", USER_ID.toString(), role.name(), status.name());
 
 		// when / then
-		assertThat(userService.findById(USER_ID)).isEqualTo(new User(
+		assertThat(userService.findById(USER_ID)).usingRecursiveComparison().isEqualTo(new User(
 				USER_ID, "테스트 사용자", role, status, null,
 				null, null, null, null, CREATED, UPDATED));
 	}
@@ -81,7 +81,7 @@ class UserRepositoryIntegrationTest {
 		// when / then
 		assertThat(jdbc.queryForObject("select membership from users where id = unhex(replace(?, '-', ''))",
 				String.class, USER_ID.toString())).isEqualTo(storedCode);
-		assertThat(userService.findById(USER_ID).membership()).isEqualTo(expected);
+		assertThat(userService.findById(USER_ID).getMembership()).isEqualTo(expected);
 		assertThat(jdbc.queryForObject("""
 				select count(*) from users where id = unhex(replace(?, '-', '')) and membership = ?
 				""", Long.class, USER_ID.toString(), lowercaseCode)).isEqualTo(1L);
@@ -101,7 +101,7 @@ class UserRepositoryIntegrationTest {
 				""", USER_ID.toString(), role.name(), status.name());
 
 		// when / then
-		assertThat(userService.findById(USER_ID)).isEqualTo(new User(
+		assertThat(userService.findById(USER_ID)).usingRecursiveComparison().isEqualTo(new User(
 				USER_ID, "테스트 사용자", role, status, Membership.VIP,
 				"01000000000", "user@example.test", SUSPENDED, "테스트 정지 사유", CREATED, UPDATED));
 	}
