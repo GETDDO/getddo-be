@@ -79,13 +79,13 @@ class NotificationAdminIntegrationTest {
 	/** 테스트에서 만든 알림·감사·이벤트·사용자만 정리한다. */
 	@AfterEach
 	void clean() {
-		jdbc.update("delete from audit_logs where actor_id = ?", bytes(actor.id()));
+		jdbc.update("delete from audit_logs where actor_id = ?", bytes(actor.getId()));
 		for (UUID job : jobIds) {
 			jdbc.update("delete from notifications where job_id = ?", bytes(job));
 			jdbc.update("delete from notification_jobs where id = ?", bytes(job));
 		}
 		for (UUID event : events) jdbc.update("delete from events where id = ?", bytes(event));
-		jdbc.update("delete from users where id in (?, ?)", bytes(actor.id()), bytes(recipient));
+		jdbc.update("delete from users where id in (?, ?)", bytes(actor.getId()), bytes(recipient));
 	}
 
 	/** 최종 생성 실패 복구는 기존 알림을 보존하고 오래된 워커를 차단한다 */

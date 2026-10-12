@@ -63,7 +63,7 @@ class CorsConfigTest {
 				}
 				return Optional.of(new User(id, "CORS 사용자", UserRole.USER, UserStatus.ACTIVE,
 						Membership.VIP, null, null, null, null, Instant.EPOCH, Instant.EPOCH))
-						.filter(user -> user.id().equals(USER_ID));
+						.filter(user -> user.getId().equals(USER_ID));
 			});
 
 	@Test

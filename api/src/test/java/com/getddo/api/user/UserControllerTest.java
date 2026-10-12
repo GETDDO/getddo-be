@@ -225,7 +225,7 @@ class UserControllerTest {
 		// given / when / then
 		mvc.perform(request(USER_ID.toString(), "USER", "vvip"))
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("USER-006"));
-		assertThat(users.get(USER_ID).membership()).isEqualTo(Membership.VIP);
+		assertThat(users.get(USER_ID).getMembership()).isEqualTo(Membership.VIP);
 	}
 
 	@Test
@@ -377,7 +377,7 @@ class UserControllerTest {
 		String plain() { return "ok"; }
 
 		@GetMapping("/test/context")
-		String context(@CurrentUser User user) { return user.status().name(); }
+		String context(@CurrentUser User user) { return user.getStatus().name(); }
 
 		@GetMapping("/test/twice")
 		String twice(@CurrentUser User first, @CurrentUser User second) {
