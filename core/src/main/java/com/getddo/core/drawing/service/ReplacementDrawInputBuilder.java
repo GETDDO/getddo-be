@@ -49,7 +49,7 @@ public class ReplacementDrawInputBuilder {
 		}
 		Set<UUID> excludedUsers = new HashSet<>();
 		Set<UUID> resultIds = new HashSet<>();
-		Set<ReplacementDrawInput.Slot> retainedSlots = new HashSet<>();
+		Set<DrawSnapshot.Slot> retainedSlots = new HashSet<>();
 		for (DrawResult result : retainedResults) {
 			validateResult(result, candidates, prizes);
 			DrawSelection selection = result.getSelection();
@@ -66,7 +66,7 @@ public class ReplacementDrawInputBuilder {
 			}
 		}
 		validateResult(canceledResult, candidates, prizes);
-		ReplacementDrawInput.Slot vacant = slot(canceledResult.getSelection());
+		DrawSnapshot.Slot vacant = slot(canceledResult.getSelection());
 		if (!targetFound || retainedSlots.contains(vacant)) invalid();
 		List<DrawSnapshot.Candidate> remaining = new ArrayList<>();
 		for (DrawSnapshot.Candidate candidate : original.candidates()) {
@@ -86,8 +86,8 @@ public class ReplacementDrawInputBuilder {
 				|| selection.getSlotNumber() > prize.winnerCount()) invalid();
 	}
 
-	private static ReplacementDrawInput.Slot slot(DrawSelection selection) {
-		return new ReplacementDrawInput.Slot(selection.getPrizeId(), selection.getRank(), selection.getSlotNumber());
+	private static DrawSnapshot.Slot slot(DrawSelection selection) {
+		return new DrawSnapshot.Slot(selection.getPrizeId(), selection.getRank(), selection.getSlotNumber());
 	}
 
 	private static void invalid() { throw new BusinessException(INVALID_RUN); }

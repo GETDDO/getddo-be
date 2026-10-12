@@ -31,7 +31,7 @@ class ReplacementDrawInputBuilderTest {
 		assertThat(input.candidates()).containsExactly(loser);
 		assertThat(input.candidates().getFirst()).isSameAs(loser);
 		assertThat(input.candidates().getFirst().weight()).isEqualTo(3);
-		assertThat(input.vacantSlots()).containsExactly(new ReplacementDrawInput.Slot(prizeId, 1, 2));
+		assertThat(input.vacantSlots()).containsExactly(new DrawSnapshot.Slot(prizeId, 1, 2));
 		assertThat(input.retainedResults()).containsExactly(retainedResult);
 		assertThat(input.originalRules()).isSameAs(original.rules());
 	}
@@ -54,7 +54,7 @@ class ReplacementDrawInputBuilderTest {
 		ReplacementDrawInput input = builder.build(original(List.of(canceled, retained)), canceledResult,
 				List.of(result(retained, 1)), List.of(canceledResult));
 		assertThat(input.candidates()).isEmpty();
-		assertThat(input.vacantSlots()).containsExactly(new ReplacementDrawInput.Slot(prizeId, 1, 2));
+		assertThat(input.vacantSlots()).containsExactly(new DrawSnapshot.Slot(prizeId, 1, 2));
 	}
 
 	@Test

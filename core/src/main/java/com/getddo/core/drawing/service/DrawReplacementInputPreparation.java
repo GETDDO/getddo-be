@@ -48,7 +48,7 @@ public class DrawReplacementInputPreparation implements DrawInputPreparation {
 		DrawSnapshot.Rules rules = input.originalRules();
 		DrawSnapshot.Rules fixedRules = new DrawSnapshot.Rules(2, rules.weightingEnabled(), rules.eventType(), rules.membershipRule(),
 				rules.bronzeWeight(), rules.silverWeight(), rules.goldWeight(), rules.prizes(), input.originalRunId(),
-				input.vacantSlots().stream().map(slot -> new DrawSnapshot.Slot(slot.prizeId(), slot.rank(), slot.slotNumber())).toList(),
+				input.vacantSlots(),
 				input.retainedResults().stream().map(result -> new DrawSnapshot.RetainedAward(result.getId(),
 						result.getSelection().getUserId(), result.getSelection().getPrizeId(), result.getSelection().getSlotNumber())).toList());
 		return snapshots.saveRegisteredReplacement(new DrawSnapshot(runId, registered.eventId(), DrawRunStatus.READY,
