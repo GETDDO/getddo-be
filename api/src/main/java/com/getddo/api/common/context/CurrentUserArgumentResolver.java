@@ -62,18 +62,18 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 			user = userService.findById(id);
 		}
 		// 헤더 역할로 권한을 부여하지 않고 저장된 역할과 일치하는지 확인한다.
-		if (user.role() != role) {
+		if (user.getRole() != role) {
 			throw new BusinessException(CommonErrorCode.USER_ROLE_MISMATCH);
 		}
-		if (membershipRequired && user.role() == UserRole.USER) {
+		if (membershipRequired && user.getRole() == UserRole.USER) {
 			// DB 멤버십이 없는 USER를 헤더 값으로 보충하지 않는다.
-			if (user.membership() == null) {
+			if (user.getMembership() == null) {
 				throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_REQUIRED);
 			}
-			if (user.membership() != membership) {
+			if (user.getMembership() != membership) {
 				throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_MISMATCH);
 			}
-		} else if (!membershipRequired && membership != null && user.membership() != membership) {
+		} else if (!membershipRequired && membership != null && user.getMembership() != membership) {
 			throw new BusinessException(CommonErrorCode.USER_MEMBERSHIP_MISMATCH);
 		}
 		// 모든 대조가 끝난 뒤 보관한다. ADMIN의 반환 멤버십도 헤더가 아닌 DB 값을 유지한다.

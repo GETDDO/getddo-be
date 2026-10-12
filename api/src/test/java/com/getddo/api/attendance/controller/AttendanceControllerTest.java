@@ -68,7 +68,7 @@ class AttendanceControllerTest {
 		mvc = MockMvcBuilders.standaloneSetup(new AttendanceController(service, queryService))
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(
-						new UserService(id -> Optional.of(USER).filter(user -> user.id().equals(id)))))
+						new UserService(id -> Optional.of(USER).filter(user -> user.getId().equals(id)))))
 				.build();
 	}
 

@@ -1,6 +1,6 @@
 # 시연용 사용자 문맥과 내 정보 API
 
-- 관련 작업: [GD-52](https://ureca4.atlassian.net/browse/GD-52), [GD-81](https://ureca4.atlassian.net/browse/GD-81)
+- 관련 작업: [GD-52](https://ureca4.atlassian.net/browse/GD-52), [GD-81](https://ureca4.atlassian.net/browse/GD-81), [GD-168](https://ureca4.atlassian.net/browse/GD-168)
 - 공용 기준: [사용자 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/user.md), [공통 API 초안](https://github.com/GETDDO/getddo-spec/blob/main/05-api/common.md)
 
 이 문서는 GD-52의 백엔드 구현 사용법이다. 로그인 없이 사전 등록한 사용자를 헤더로 선택하고, DB에서 확인한 정보를 필요한 Controller에 전달한다. 사용자 정보를 변경하거나 로그인·토큰을 발급하지 않는다.
@@ -62,6 +62,7 @@ public ResponseEnvelope<UserProfileResponse> getProfile(@CurrentUser User user) 
 - `CommonErrorCode`: 사용자 헤더 누락·역할 불일치·USER의 DB 멤버십 누락·멤버십 불일치를 정의한다. 공통으로 옮긴 오류의 HTTP 상태·`USER-003`~`USER-006` 코드·메시지는 기존과 같다. 일반 사용자 조회 실패와 U01의 비활성 제한은 `UserErrorCode`에 둔다.
 - `OpenApiConfig`: `@CurrentUser User`를 받는 API에만 사용자 헤더 3개를 Swagger 입력란으로 추가한다. `@CurrentUser`가 User 파라미터를 문서에서 숨기므로 Controller에 헤더별 `@Parameter`를 반복하지 않는다.
 - `UserService.getProfile(User)`: U01의 INACTIVE 제한을 검사하며 응답용 DB 조회를 추가하지 않는다.
+- `User`: 명시적 생성자와 `getXxx()` 접근자를 가진 불변 조회 클래스다. nullable 필드를 보존하며 API에는 응답 DTO로 변환해 전달한다.
 
 조회 결과는 해당 HTTP 요청의 속성에만 저장한다. 같은 요청의 다른 `@CurrentUser User` 파라미터도 이를 재사용하되 각 파라미터의 멤버십 조건은 따로 검증한다. 다음 요청은 새로 조회한다. 전역 사용자 저장소·필터·인터셉터는 사용하지 않는다.
 
