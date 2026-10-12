@@ -1,6 +1,6 @@
 # GD-137 관리자 추첨 조회·검증
 
-- 작업 브랜치: `feat/GD-137`, 기반 0faf75e4. 버전 2 보완에서 원격 `dev` 0a32422, 공용 spec `main` 7076e1b, GD-87 PR #53의 8898852 계약을 확인했다. PR 게시 전 최신 원격 `dev` 91cfbca에 GD-87 #53이 병합됐음을 확인했다. 미커밋 변경을 보존하고 원격 변경을 합치지 않았다.
+- 작업 브랜치: `feat/GD-137`, 최초 기반 0faf75e4. 사용자 승인 후 원격 `dev` b2be294를 merge하여 GD-87 공통 구현과 GD-168 User 변경을 반영했다. 원래 커밋 이력과 기존 응모 Entity 예외를 보존하고 GD-137 사용자 호출을 새 getter에 맞췄다. 공용 spec 확인 기준은 `main` 7076e1b다.
 - 사용자 확인: AD01·AD02·AD03·AD04·AD08 경로·DTO 초안, 불일치 검증의 201/`passed=false` 이력 저장, `executionType` 대신 실제 저장 의미인 `drawType=INITIAL/REPLACEMENT` 사용을 승인했다.
 - 공용 정책 원본: [추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [API 초안](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md). 이 문서는 백엔드 구현·미연결 범위를 설명한다.
 
@@ -37,7 +37,7 @@
 ## 보류한 연결과 담당 요구사항
 
 - [GD-169](https://ureca4.atlassian.net/browse/GD-169)은 GD-87·138·139·137의 실제 서비스 연결과 전체 흐름 통합 검증을 담당한다. GD-137의 독립 조회·재추첨 검증 본체와 단위 테스트는 이 작업에서 보완했다.
-- GD-87 `DrawFailureRepository.count(UUID runId)`·`findLatest(UUID runId)`와 `DrawFailure(id,runId,failureCode,failedAt,traceId)`를 실제 공통 코드 반영 후 AD02에서 재사용해야 한다. GD-87 #53은 원격 dev에 병합됐지만 현재 작업 브랜치에는 공통 구현을 아직 반영하지 않았다. 실패 요약을 0/null로 가장하거나 중복 실패 조회 API를 만들지 않았다.
+- GD-87 `DrawFailureRepository.count(UUID runId)`·`findLatest(UUID runId)`와 `DrawFailure(id,runId,failureCode,failedAt,traceId)`를 실제 공통 코드 반영 후 AD02에서 재사용해야 한다. GD-87 #53 공통 구현은 dev 병합으로 현재 브랜치에 반영됐다. 실패 요약을 AD02에 연결하는 작업은 GD-169에 남아 있으며 이 문서에서 연결 완료로 보고하지 않는다. 실패 요약을 0/null로 가장하거나 중복 실패 조회 API를 만들지 않았다.
 - GD-138 취소 근거 상세 조회와 실제 연결 취소·재추첨 계약은 GD-169에서 연결해야 한다. 원래 결과·실행 ID, 취소 처리자·사유·시각은 실행 시작·재개 처리자·시각과 구분한다. 실행 행위는 공용 감사 계약으로 연결한다.
 - GD-138 취소·재추첨 준비 및 GD-139 공개 서비스는 연결하지 않았다. 기존 저장 관계 조회와 테스트 대역 검증은 실제 담당 서비스 연동 결과가 아니다.
 
@@ -54,3 +54,7 @@ Java 21로 core·storage:db·api 컴파일과 관련 단위·API 테스트 44건
 상세 조회는 결과에 연결된 사용자 ID만 조인하여 읽고 전체 후보 JSON을 조회하지 않는다. 응답 정렬은 저장된 조건의 등수·자리 순이며 현재 경품 등수 변경에 영향을 받지 않는다. 검증 전체 통과 판정은 Service에서 수행하고 영속성 구현에 전달한다. DrawCheckEntity의 필수값은 생성 시 null을 거절한다.
 
 [재추첨 자리 검증 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803111)는 유효한 위험으로 확인했다. 고정 시각까지의 실제 취소와 자리·유지 명단 완전성 검증을 사용자 확인에 따라 GD-169 담당 확인으로 남겼으며 현재 검증은 이를 보장하지 않는다. [공통 Entity 예외 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803115)는 사용자 승인에 따라 ADR-0001에 DrawCheckEntity 예외를 명시했다. 기존 스키마와 서비스 검증 시각을 보존하며 created_at을 추가하지 않는다. 재추첨 자리 검증 스레드는 미해결로 유지한다.
+
+최신 dev 병합 후 검증은 별도 결과로 기록한다. 병합 전 CodeRabbit 수정의 전체 단위 471건 성공과 병합 뒤 결과를 혼동하지 않는다. Docker 기반 통합과 전체 build는 사용자 지시에 따라 로컬에서 수행하지 않는다.
+
+GD-137 User 접근자 수정 후 관련 테스트 실행은 dev의 `NotificationAdminService` 접근자 오류 5건으로 `core:compileJava`에서 실패했다. 테스트는 시작되지 않았고 최신 병합 버전의 통과 건수는 없다. 해당 파일은 사용자 결정에 따라 GD-72 담당 수정으로 남기며 GD-137에서 변경하지 않는다. 이전 병합 전 471건 성공을 최신 코드의 성공으로 표시하지 않는다.
