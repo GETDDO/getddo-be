@@ -25,6 +25,8 @@ import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
 
 import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationExecution;
+import com.getddo.db.drawing.entity.DrawPublicationExecutionEntity;
 import com.getddo.core.drawing.domain.DrawPublishedSlot;
 import com.getddo.core.drawing.domain.DrawPublicationRun;
 import com.getddo.core.drawing.domain.DrawPublicationCancellation;
@@ -52,6 +54,53 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	private final EntityManager entityManager;
 	private final JdbcTemplate jdbc;
 	private final DrawResultConfirmationJpaRepository confirmations;
+	private final DrawPublicationExecutionJpaRepository executionEvidence;
+
+	@Override
+	public void saveExecutionEvidence(UUID publicationId, UUID eventId, List<DrawPublicationExecution> executions) {
+		executionEvidence.saveAllAndFlush(executions.stream()
+				.map(value -> new DrawPublicationExecutionEntity(publicationId, eventId, value)).toList());
+	}
+
+	/** 고정된 버전 연결과 수정하지 않는 확인·취소 근거만 읽는다. */
+	@Override
+	public Map<UUID, List<DrawPublicationExecution>> findExecutionEvidence(Set<UUID> publicationIds) {
+		if (publicationIds.isEmpty()) return Map.of();
+		String placeholders = String.join(",", Collections.nCopies(publicationIds.size(), "?"));
+		String sql = """
+			select link.publication_id, link.draw_run_id, checked.id confirmation_id, checked.confirmed_by, checked.confirmed_at
+			from draw_publication_executions link
+			join draw_result_confirmations checked on checked.id = link.confirmation_id and checked.draw_run_id = link.draw_run_id
+			join draw_runs run on run.id = link.draw_run_id
+			where link.publication_id in (
+			""" + placeholders + ") order by link.publication_id, run.run_number";
+		List<EvidenceRow> rows = jdbc.query(sql, (row, index) -> new EvidenceRow(fromBytes(row.getBytes("publication_id")),
+				fromBytes(row.getBytes("draw_run_id")), fromBytes(row.getBytes("confirmation_id")),
+				fromBytes(row.getBytes("confirmed_by")), instant(row, "confirmed_at")),
+				publicationIds.stream().map(id -> toBytes(id)).toArray());
+		Set<UUID> runIds = new HashSet<>();
+		for (EvidenceRow row : rows) runIds.add(row.runId());
+		Map<UUID, List<DrawPublicationCancellation>> causes = new HashMap<>();
+		if (!runIds.isEmpty()) {
+			String cancellationSql = "select id, draw_result_id, draw_run_id, reason from award_cancellations where draw_run_id in ("
+					+ String.join(",", Collections.nCopies(runIds.size(), "?")) + ") order by canceled_at, id";
+			jdbc.query(cancellationSql, (RowCallbackHandler) row -> {
+				UUID runId = fromBytes(row.getBytes("draw_run_id"));
+				causes.computeIfAbsent(runId, ignored -> new ArrayList<>()).add(new DrawPublicationCancellation(
+						fromBytes(row.getBytes("id")), fromBytes(row.getBytes("draw_result_id")), runId, row.getString("reason")));
+			}, runIds.stream().map(id -> toBytes(id)).toArray());
+		}
+		Map<UUID, List<DrawPublicationExecution>> loaded = new HashMap<>();
+		for (EvidenceRow row : rows) loaded.computeIfAbsent(row.publicationId(), ignored -> new ArrayList<>()).add(
+				new DrawPublicationExecution(row.runId(), row.confirmationId(), row.confirmedBy(), row.confirmedAt(),
+						causes.getOrDefault(row.runId(), List.of())));
+
+		Map<UUID, List<DrawPublicationExecution>> immutable = new HashMap<>();
+		loaded.forEach((id, values) -> immutable.put(id, List.copyOf(values)));
+		return Map.copyOf(immutable);
+	}
+
+	private record EvidenceRow(UUID publicationId, UUID runId, UUID confirmationId, UUID confirmedBy, Instant confirmedAt) { }
 
 	@Override
 	public Optional<DrawPublication> findLatest(UUID eventId) {
@@ -132,7 +181,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 						fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")))),
 				publicationIds.stream().map(id -> toBytes(id)).toArray());
 		Map<UUID, List<DrawPublishedSlot>> immutable = new HashMap<>();
-		loaded.forEach((id, rows) -> immutable.put(id, List.copyOf(rows)));
+		loaded.forEach((id, values) -> immutable.put(id, List.copyOf(values)));
 		return Map.copyOf(immutable);
 	}
 

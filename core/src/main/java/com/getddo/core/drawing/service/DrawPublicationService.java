@@ -41,9 +41,10 @@ public class DrawPublicationService {
 	private final DrawSnapshotRepository snapshots;
 	private final DrawResultRepository results;
 	private final TimeProvider time;
+	private final DrawPublicationNotificationService notifications;
 
 	/**
-	 * 마감 +5분 이후 저장된 최초 확정 결과만 공개한다. 승인·선정·알림을 수행하지 않는다.
+	 * 마감 +5분 이후 저장된 최초 확정 결과만 공개한다. 승인·선정을 수행하지 않고 알림 작업 등록만 연결한다.
 	 * 이벤트 → 실행 순서로 잠그며 목록 저장 실패 시 버전도 롤백한다.
 	 * 공개 시각 전·미준비·정상 종료·취소·재추첨 대기는 빈 Optional을 반환한다.
 	 * GD-86 스케줄러 연결은 별도 계약이며 이 메서드는 스케줄러를 등록하지 않는다.
@@ -78,7 +79,10 @@ public class DrawPublicationService {
 				|| confirmation.getConfirmedAt().isAfter(now)) invalid();
 		List<UUID> selected = validateInitial(snapshot, confirmation);
 		if (!replacement) {
-			return existing.isPresent() ? existing : Optional.of(publications.saveInitial(eventId, snapshot.runId(), selected, now));
+			if (existing.isPresent()) return existing;
+			DrawPublication saved = publications.saveInitial(eventId, snapshot.runId(), selected, now);
+			notifications.register(saved);
+			return Optional.of(saved);
 		}
 		DrawPublicationComposition composed = DrawPublicationAssembler.compose(snapshot, confirmation,
 				publications.findReplacementRuns(eventId), publications.findCancellations(eventId), triggerRunId, now);
@@ -88,8 +92,11 @@ public class DrawPublicationService {
 			if (previous.equals(new HashSet<>(composed.entries()))) return existing;
 		}
 		int revision = existing.map(value -> Math.addExact(value.revision(), 1)).orElse(1);
-		return Optional.of(publications.savePublication(eventId, composed.sourceRunId(), revision,
-				composed.reason(), composed.confirmation(), composed.entries(), now));
+		DrawPublication saved = publications.savePublication(eventId, composed.sourceRunId(), revision,
+				composed.reason(), composed.confirmation(), composed.entries(), now);
+		publications.saveExecutionEvidence(saved.id(), eventId, composed.executions());
+		notifications.register(saved);
+		return Optional.of(saved);
 	}
 
 	/** 확인 전 관계 검증만 수행한다. 기존 실행·결과를 수정하거나 공개 버전을 만들지 않는다. */
@@ -135,7 +142,9 @@ public class DrawPublicationService {
 		List<DrawPublishedSlot> before = List.of();
 		for (DrawPublication publication : publications.findHistory(eventId)) {
 			List<DrawPublishedSlot> after = publications.findPublishedSlots(publication.id());
-			history.add(compare(publication, before, after));
+			DrawPublicationChange change = compare(publication, before, after);
+			history.add(new DrawPublicationChange(publication, change.changes(),
+					publications.findExecutionEvidence(Set.of(publication.id())).getOrDefault(publication.id(), List.of())));
 			before = after;
 		}
 		return List.copyOf(history);
@@ -152,12 +161,14 @@ public class DrawPublicationService {
 		for (DrawPublication version : versions) ids.add(version.id());
 		boundary.ifPresent(version -> ids.add(version.id()));
 		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
+		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
 		List<DrawPublicationChange> changes = new ArrayList<>();
 		for (int index = 0; index < versions.size(); index++) {
 			DrawPublication current = versions.get(index);
 			DrawPublication previous = index + 1 < versions.size() ? versions.get(index + 1) : boundary.orElse(null);
-			changes.add(compare(current, previous == null ? List.of() : slots.getOrDefault(previous.id(), List.of()),
-					slots.getOrDefault(current.id(), List.of())));
+			DrawPublicationChange change = compare(current, previous == null ? List.of() : slots.getOrDefault(previous.id(), List.of()),
+					slots.getOrDefault(current.id(), List.of()));
+			changes.add(new DrawPublicationChange(current, change.changes(), evidence.getOrDefault(current.id(), List.of())));
 		}
 		return new PageResult<>(changes, query.getPage(), query.getSize(), page.getTotalElements());
 	}

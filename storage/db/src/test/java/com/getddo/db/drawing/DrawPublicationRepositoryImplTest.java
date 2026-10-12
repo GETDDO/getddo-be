@@ -38,7 +38,7 @@ class DrawPublicationRepositoryImplTest {
 	private final EntityManager entityManager = mock(EntityManager.class);
 	private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
 	private final DrawPublicationRepositoryImpl repository = new DrawPublicationRepositoryImpl(versions, entries,
-			entityManager, jdbc, confirmations);
+			entityManager, jdbc, confirmations, mock(DrawPublicationExecutionJpaRepository.class));
 
 	@Test
 	@DisplayName("갱신 저장은 유지 결과의 원본 실행과 기존 확인·새 결과의 새 확인을 그대로 연결한다")

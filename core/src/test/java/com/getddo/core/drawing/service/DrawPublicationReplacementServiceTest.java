@@ -71,7 +71,7 @@ class DrawPublicationReplacementServiceTest {
 	void setUp() {
 		when(clock.instant()).thenReturn(NOW);
 		TimeProvider time = new TimeProvider(clock);
-		publications = proxy(new DrawPublicationService(repository, snapshots, results, time));
+		publications = proxy(new DrawPublicationService(repository, snapshots, results, time, mock(DrawPublicationNotificationService.class)));
 		confirmations = proxy(new DrawResultConfirmationService(repository, publications, new DrawPublicationAdminAuthorization(users), time));
 		for (UUID user : List.of(userA, userB, userC, userD)) candidates.put(user, UUID.randomUUID());
 		List<DrawSnapshot.Candidate> inputs = candidates.entrySet().stream().map(entry -> new DrawSnapshot.Candidate(

@@ -116,10 +116,15 @@ public final class DrawPublicationAssembler {
 				.filter(value -> value.result.getSelection().getResultType() == DrawSelectionResultType.SELECTED)
 				.map(value -> new DrawPublication.Entry(value.result.getId(), value.runId,
 						value.confirmation == null ? null : value.confirmation.id())).toList();
+		Set<UUID> visibleRuns = new HashSet<>();
+		for (Included included : visible.values()) if (included.confirmation != null) visibleRuns.add(included.runId);
+		List<DrawPublicationExecution> evidence = ordered.stream().filter(run -> visibleRuns.contains(run.runId()))
+				.map(run -> new DrawPublicationExecution(run.runId(), run.confirmation().id(), run.confirmation().confirmedBy(),
+						run.confirmation().confirmedAt(), linked.getOrDefault(run.runId(), List.of()))).toList();
 		String reason = source == null ? null : linked.get(source.runId()).stream()
 				.map(DrawPublicationCancellation::reason).distinct().collect(java.util.stream.Collectors.joining("\n"));
 		return new DrawPublicationComposition(complete, source == null ? initial.runId() : source.runId(),
-				reason, source == null ? null : source.confirmation(), entries);
+				reason, source == null ? null : source.confirmation(), entries, evidence);
 	}
 
 	private static void validateResult(DrawResult result, Map<UUID, DrawSnapshotSource.Prize> prizes,

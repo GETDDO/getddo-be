@@ -31,7 +31,7 @@ class DrawPublicationPagingTest {
 	private final DrawPublicationRepository repository = mock(DrawPublicationRepository.class);
 	private final UserRepository users = mock(UserRepository.class);
 	private final DrawPublicationService publications = new DrawPublicationService(repository,
-			mock(DrawSnapshotRepository.class), mock(DrawResultRepository.class), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+			mock(DrawSnapshotRepository.class), mock(DrawResultRepository.class), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), mock(DrawPublicationNotificationService.class));
 
 	@Test
 	@DisplayName("페이지 밖의 직전 버전을 포함해 현재 페이지의 실제 변경 전후를 비교한다")

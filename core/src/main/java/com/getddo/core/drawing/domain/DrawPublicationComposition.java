@@ -16,9 +16,16 @@ public final class DrawPublicationComposition {
 	private final String reason;
 	private final DrawResultConfirmation confirmation;
 	private final List<DrawPublication.Entry> entries;
+	private final List<DrawPublicationExecution> executions;
 
 	public DrawPublicationComposition(boolean complete, UUID sourceRunId, String reason,
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> entries) {
+		this(complete, sourceRunId, reason, confirmation, entries, List.of());
+	}
+
+	public DrawPublicationComposition(boolean complete, UUID sourceRunId, String reason,
+			DrawResultConfirmation confirmation, List<DrawPublication.Entry> entries, List<DrawPublicationExecution> executions) {
+		this.executions = List.copyOf(executions);
 		this.complete = complete;
 		this.sourceRunId = Objects.requireNonNull(sourceRunId, "sourceRunId");
 		this.reason = reason;

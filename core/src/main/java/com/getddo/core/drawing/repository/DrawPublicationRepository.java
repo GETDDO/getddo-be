@@ -11,6 +11,7 @@ import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
 
 import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationExecution;
 import com.getddo.core.drawing.domain.DrawPublishedSlot;
 import com.getddo.core.drawing.domain.DrawPublicationRun;
 import com.getddo.core.drawing.domain.DrawPublicationCancellation;
@@ -18,6 +19,8 @@ import com.getddo.core.drawing.domain.DrawResultConfirmation;
 
 /** 공개 전용 저장소. 변경은 서비스가 이벤트 선잠금을 가진 트랜잭션에서 수행한다. */
 public interface DrawPublicationRepository {
+	void saveExecutionEvidence(UUID publicationId, UUID eventId, List<DrawPublicationExecution> executions);
+	Map<UUID, List<DrawPublicationExecution>> findExecutionEvidence(Set<UUID> publicationIds);
 	Optional<DrawPublication> findLatest(UUID eventId);
 	List<DrawPublication> findHistory(UUID eventId);
 	PageResult<DrawPublication> findHistory(UUID eventId, PageQuery query);

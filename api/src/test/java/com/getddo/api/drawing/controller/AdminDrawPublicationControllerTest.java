@@ -158,7 +158,9 @@ class AdminDrawPublicationControllerTest {
 		DrawPublication latest = publication(2);
 		UUID prize = UUID.randomUUID(), before = UUID.randomUUID(), after = UUID.randomUUID();
 		DrawPublicationChange change = new DrawPublicationChange(latest, List.of(new DrawPublicationChange.SlotChange(
-				prize, 1, UUID.randomUUID(), before, UUID.randomUUID(), after)));
+				prize, 1, UUID.randomUUID(), before, UUID.randomUUID(), after)), List.of(
+				new DrawPublicationExecution(runId, UUID.randomUUID(), actorId, NOW, List.of(
+						new DrawPublicationCancellation(UUID.randomUUID(), UUID.randomUUID(), runId, "실행별 사유")))));
 		when(repository.eventExists(eventId)).thenReturn(true);
 		when(publications.changes(eventId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(change), 1, 20, 2));
 		// when / then
@@ -168,6 +170,9 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.totalElements").value(2)).andExpect(jsonPath("$.data.items[0].revision").value(2))
 				.andExpect(jsonPath("$.data.items[0].reason").value("연결 취소 사유"))
 				.andExpect(jsonPath("$.data.items[0].updatedAt").value(NOW.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].runId").value(runId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].confirmedBy").value(actorId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].cancellations[0].reason").value("실행별 사유"))
 				.andExpect(jsonPath("$.data.items[0].changes[0].beforeUserId").value(before.toString()))
 				.andExpect(jsonPath("$.data.items[0].changes[0].afterUserId").value(after.toString()));
 	}

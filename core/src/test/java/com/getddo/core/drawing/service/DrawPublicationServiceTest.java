@@ -34,7 +34,7 @@ class DrawPublicationServiceTest {
 	private final DrawSnapshotRepository snapshots = mock(DrawSnapshotRepository.class);
 	private final DrawResultRepository results = mock(DrawResultRepository.class);
 	private final DrawPublicationService service = new DrawPublicationService(publications, snapshots, results,
-			new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+			new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), mock(DrawPublicationNotificationService.class));
 	private DrawSnapshot snapshot;
 	private DrawResult selected;
 	private DrawResult unfilled;

@@ -15,8 +15,14 @@ import lombok.experimental.Accessors;
 public final class DrawPublicationChange {
 	private final DrawPublication publication;
 	private final List<SlotChange> changes;
+	private final List<DrawPublicationExecution> executions;
 
 	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes) {
+		this(publication, changes, List.of());
+	}
+
+	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes, List<DrawPublicationExecution> executions) {
+		this.executions = List.copyOf(executions);
 		changes = List.copyOf(changes);
 		this.publication = Objects.requireNonNull(publication, "publication");
 		this.changes = changes;
