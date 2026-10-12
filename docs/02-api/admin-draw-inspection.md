@@ -53,4 +53,4 @@ Java 21로 core·storage:db·api 컴파일과 관련 단위·API 테스트 44건
 
 상세 조회는 결과에 연결된 사용자 ID만 조인하여 읽고 전체 후보 JSON을 조회하지 않는다. 응답 정렬은 저장된 조건의 등수·자리 순이며 현재 경품 등수 변경에 영향을 받지 않는다. 검증 전체 통과 판정은 Service에서 수행하고 영속성 구현에 전달한다. DrawCheckEntity의 필수값은 생성 시 null을 거절한다.
 
-[재추첨 자리 검증 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803111)는 유효한 위험으로 확인했다. 고정 시각까지의 실제 취소와 자리·유지 명단 완전성 검증을 GD-137에 확장할지 GD-169에 남길지 사용자 확인 중이며 현재 검증은 이를 보장하지 않는다. [공통 Entity 예외 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803115)는 채택된 ADR-0001 예외 추가 또는 created_at 새 마이그레이션을 요구하므로 담당 확인 전 확정하지 않는다. 두 스레드는 미해결로 유지한다.
+[재추첨 자리 검증 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803111)는 유효한 위험으로 확인했다. 고정 시각까지의 실제 취소와 자리·유지 명단 완전성 검증을 사용자 확인에 따라 GD-169 담당 확인으로 남겼으며 현재 검증은 이를 보장하지 않는다. [공통 Entity 예외 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803115)는 사용자 승인에 따라 ADR-0001에 DrawCheckEntity 예외를 명시했다. 기존 스키마와 서비스 검증 시각을 보존하며 created_at을 추가하지 않는다. 재추첨 자리 검증 스레드는 미해결로 유지한다.
