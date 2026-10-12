@@ -37,7 +37,7 @@ public class DrawPublicationResultEntity implements Persistable<DrawPublicationR
 		confirmationId = entry.confirmationId();
 	}
 
-	/** 저장된 식별자와 업무 참조·시각을 공개 업무의 도메인 값으로 복원한다. */
+	/** 저장된 결과 ID·원본 실행 ID·선택적인 확인 ID를 공개 포함 결과로 복원한다. */
 	public DrawPublication.Entry toDomain() {
 		return new DrawPublication.Entry(id.getResultId(), runId, confirmationId);
 	}

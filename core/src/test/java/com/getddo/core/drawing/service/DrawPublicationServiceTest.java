@@ -39,7 +39,7 @@ class DrawPublicationServiceTest {
 	private DrawResult selected;
 	private DrawResult unfilled;
 
-	/** 각 시나리오에 사용할 공개·확인 서비스와 저장·사용자 대역을 준비한다. */
+	/** 공개 서비스에 필요한 스냅샷·결과·공개 저장소 대역의 응답을 준비한다. */
 	@BeforeEach
 	void setUp() {
 		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(1, false, "NO_TICKET", "NORMAL", 1, 3, 5,
