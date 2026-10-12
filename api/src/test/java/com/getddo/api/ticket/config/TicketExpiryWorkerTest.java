@@ -1,7 +1,11 @@
 package com.getddo.api.ticket.config;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -73,8 +77,8 @@ class TicketExpiryWorkerTest {
 	}
 
 	@Test
-	@DisplayName("시작하면 전용 스레드가 첫 폴링을 바로 실행하고, 종료하면 진행 중인 폴링이 끝난 뒤 멈춘다")
-	void startRunsFirstPollOnDedicatedThreadAndStopWaits() throws InterruptedException {
+	@DisplayName("시작하면 전용 스레드가 첫 폴링을 바로 실행한다")
+	void startRunsFirstPollOnDedicatedThread() throws InterruptedException {
 		// given
 		CountDownLatch firstPoll = new CountDownLatch(1);
 		AtomicReference<String> threadName = new AtomicReference<>();
@@ -92,6 +96,35 @@ class TicketExpiryWorkerTest {
 		assertThat(polled).isTrue();
 		assertThat(threadName.get()).startsWith(TicketExpiryWorker.THREAD_NAME_PREFIX);
 		verify(service, times(1)).expireDue(BATCH_SIZE);
+	}
+
+	@Test
+	@DisplayName("종료는 진행 중인 폴링이 끝나기 전에는 완료되지 않고 끝난 뒤에 완료된다")
+	void stopWaitsForPollInFlight() throws Exception {
+		// given
+		CountDownLatch inFlight = new CountDownLatch(1);
+		CountDownLatch release = new CountDownLatch(1);
+		when(service.expireDue(BATCH_SIZE)).thenAnswer(invocation -> {
+			inFlight.countDown();
+			release.await(10, TimeUnit.SECONDS);
+			return 0;
+		});
+		TicketExpiryWorker started = new TicketExpiryWorker(service, BATCH_SIZE, 3_600_000);
+		ExecutorService stopper = Executors.newSingleThreadExecutor();
+		try {
+			started.start();
+			assertThat(inFlight.await(10, TimeUnit.SECONDS)).isTrue();
+			// when
+			Future<?> stopping = stopper.submit(started::stop);
+			// then
+			assertThatThrownBy(() -> stopping.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+			release.countDown();
+			stopping.get(10, TimeUnit.SECONDS);
+			assertThat(stopping.isDone()).isTrue();
+		} finally {
+			release.countDown();
+			stopper.shutdownNow();
+		}
 	}
 
 	@Test
