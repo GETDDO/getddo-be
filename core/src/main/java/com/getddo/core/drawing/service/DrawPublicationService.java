@@ -132,23 +132,10 @@ public class DrawPublicationService {
 	@Transactional(readOnly = true)
 	public List<DrawPublicationChange> changes(UUID eventId) {
 		List<DrawPublicationChange> history = new ArrayList<>();
-		Map<Slot, DrawPublishedSlot> before = new LinkedHashMap<>();
+		List<DrawPublishedSlot> before = List.of();
 		for (DrawPublication publication : publications.findHistory(eventId)) {
-			Map<Slot, DrawPublishedSlot> after = new LinkedHashMap<>();
-			for (DrawPublishedSlot published : publications.findPublishedSlots(publication.id())) {
-				after.put(new Slot(published.prizeId(), published.slotNumber()), published);
-			}
-			Set<Slot> changedSlots = new LinkedHashSet<>(before.keySet());
-			changedSlots.addAll(after.keySet());
-			List<DrawPublicationChange.SlotChange> changes = new ArrayList<>();
-			for (Slot slot : changedSlots) {
-				DrawPublishedSlot old = before.get(slot), current = after.get(slot);
-				if (Objects.equals(old, current)) continue;
-				changes.add(new DrawPublicationChange.SlotChange(slot.prizeId(), slot.number(),
-						old == null ? null : old.resultId(), old == null ? null : old.userId(),
-						current == null ? null : current.resultId(), current == null ? null : current.userId()));
-			}
-			history.add(new DrawPublicationChange(publication, changes));
+			List<DrawPublishedSlot> after = publications.findPublishedSlots(publication.id());
+			history.add(compare(publication, before, after));
 			before = after;
 		}
 		return List.copyOf(history);

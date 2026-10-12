@@ -1,6 +1,7 @@
 package com.getddo.core.drawing.domain;
 
 import java.util.UUID;
+import java.util.Objects;
 
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
@@ -17,9 +18,10 @@ public final class DrawPublishedSlot {
 	private final UUID userId;
 
 	public DrawPublishedSlot(UUID prizeId, int slotNumber, UUID resultId, UUID userId) {
-		this.prizeId = prizeId;
+		this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
+		if (slotNumber < 1) throw new IllegalArgumentException("slotNumber must be positive");
 		this.slotNumber = slotNumber;
-		this.resultId = resultId;
-		this.userId = userId;
+		this.resultId = Objects.requireNonNull(resultId, "resultId");
+		this.userId = Objects.requireNonNull(userId, "userId");
 	}
 }

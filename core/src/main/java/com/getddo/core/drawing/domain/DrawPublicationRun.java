@@ -3,6 +3,7 @@ package com.getddo.core.drawing.domain;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.Objects;
 
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -21,10 +22,12 @@ public final class DrawPublicationRun {
 
 	public DrawPublicationRun(UUID runId, UUID eventId, int runNumber, DrawRunStatus status,
 			Instant confirmedAt, List<DrawResult> results, DrawResultConfirmation confirmation) {
-		this.runId = runId;
-		this.eventId = eventId;
+		this.runId = Objects.requireNonNull(runId, "runId");
+		this.eventId = Objects.requireNonNull(eventId, "eventId");
 		this.runNumber = runNumber;
-		this.status = status;
+		this.status = Objects.requireNonNull(status, "status");
+		if (confirmation != null && !runId.equals(confirmation.runId()))
+			throw new IllegalArgumentException("confirmation belongs to another run");
 		this.confirmedAt = confirmedAt;
 		this.results = List.copyOf(results);
 		this.confirmation = confirmation;

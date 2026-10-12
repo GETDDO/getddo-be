@@ -56,4 +56,30 @@ class DrawPublicationTest {
 				DrawPublicationType.INITIAL, null, null, null, NOW, List.of(entry, entry)))
 				.isInstanceOf(IllegalArgumentException.class);
 	}
+
+	@Test
+	@DisplayName("공개 읽기 모델은 필수 식별자·자리 번호·확인의 실행 관계를 생성 시 검증한다")
+	void validatesReadModelIdentityAndRelations() {
+		// given
+		DrawResultConfirmation confirmation = new DrawResultConfirmation(UUID.randomUUID(), replacementRun,
+				UUID.randomUUID(), NOW);
+		// when / then
+		assertThatThrownBy(() -> new DrawPublicationRun(null, eventId, 1, DrawRunStatus.CONFIRMED,
+				NOW, List.of(), null)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationRun(initialRun, eventId, 1, DrawRunStatus.CONFIRMED,
+				NOW, List.of(), confirmation)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new DrawPublicationCancellation(null, UUID.randomUUID(), null, "사유"))
+				.isInstanceOf(NullPointerException.class);
+		assertThat(new DrawPublicationCancellation(UUID.randomUUID(), UUID.randomUUID(), null, "사유").replacementRunId()).isNull();
+		assertThatThrownBy(() -> new DrawPublicationChange(null, List.of())).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationChange.SlotChange(UUID.randomUUID(), 0, null, null, null, null))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new DrawPublicationComposition(false, null, null, null, List.of()))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublicationConfirmation(eventId, null, null)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 0, UUID.randomUUID(), UUID.randomUUID()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 1, UUID.randomUUID(), null))
+				.isInstanceOf(NullPointerException.class);
+	}
 }

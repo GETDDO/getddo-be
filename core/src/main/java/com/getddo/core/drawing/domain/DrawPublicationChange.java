@@ -2,6 +2,7 @@ package com.getddo.core.drawing.domain;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Objects;
 
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
@@ -17,7 +18,7 @@ public final class DrawPublicationChange {
 
 	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes) {
 		changes = List.copyOf(changes);
-		this.publication = publication;
+		this.publication = Objects.requireNonNull(publication, "publication");
 		this.changes = changes;
 	}
 
@@ -34,7 +35,8 @@ public final class DrawPublicationChange {
 
 		public SlotChange(UUID prizeId, int slotNumber, UUID beforeResultId, UUID beforeUserId,
 			UUID afterResultId, UUID afterUserId) {
-			this.prizeId = prizeId;
+			this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
+			if (slotNumber < 1) throw new IllegalArgumentException("slotNumber must be positive");
 			this.slotNumber = slotNumber;
 			this.beforeResultId = beforeResultId;
 			this.beforeUserId = beforeUserId;

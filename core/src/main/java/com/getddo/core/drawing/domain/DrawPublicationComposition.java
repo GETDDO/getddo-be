@@ -2,6 +2,7 @@ package com.getddo.core.drawing.domain;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Objects;
 
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -19,7 +20,7 @@ public final class DrawPublicationComposition {
 	public DrawPublicationComposition(boolean complete, UUID sourceRunId, String reason,
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> entries) {
 		this.complete = complete;
-		this.sourceRunId = sourceRunId;
+		this.sourceRunId = Objects.requireNonNull(sourceRunId, "sourceRunId");
 		this.reason = reason;
 		this.confirmation = confirmation;
 		this.entries = List.copyOf(entries);
