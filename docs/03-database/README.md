@@ -4,7 +4,7 @@
 
 - [API·DB 대응과 스키마 검토](api-schema-mapping.md): 공용 API 초안과 현재 Flyway SQL의 대응 및 백엔드 저장 설계 검토 항목.
 - [GD-138 개별 당첨 취소·재추첨 저장](award-cancellation-storage.md): 취소·등록 원자성, 멱등 키와 GD-87 공통 실행 연결.
-- [GD-84·GD-130·GD-85·GD-87 추첨 저장·공통 실행](drawing-selection-storage.md): 후보·결과와 실패·재시도·동일 실행 재개 계약. GD-87은 검토 대기, 최신 기준 전체 build 미완료 상태다.
+- [GD-84·GD-130·GD-85·GD-87 추첨 저장·공통 실행](drawing-selection-storage.md): 후보·결과와 실패·재시도·동일 실행 재개 계약. 구현은 검토 대기이며 GD-138 실제 연결 기준 전체 test/build를 검증했다.
 - [통합 스키마 DBML](schema.dbml): 사용자 최종 SQL을 기준으로 최신화하고 티켓·추첨 근거 제약을 보완한 44개 테이블의 초기 스키마 기준. UNIQUE는 indexes, FK는 Ref, CHECK는 checks 블록으로 정의한다. MySQL 생성식은 DBML 주석에 기록한다.
 - [MySQL 마이그레이션](../../storage/db/src/main/resources/db/migration): V001~V011에 DBML의 44개 테이블과 UNIQUE·FK·CHECK를 반영했다. 사용자 요청에 따라 초기 세팅으로 기존 번호를 유지했다. 적용 이력이 있는 DB에는 체크섬 충돌이 발생할 수 있으므로 적용 여부 확인이 필요하다. 기존 지갑·원장 기반 코드와 변경된 컬럼을 사용하는 코드는 담당자가 후속 수정해야 한다.
 - [출석·연속 출석·미션·게임 테이블 분리 설계](reward-tables.md): 논리 설계 초안 및 DDL 작성 전 미결정 항목.
@@ -32,4 +32,4 @@ Flyway 버전 번호는 중복될 수 없지만 연속일 필요는 없다. 예�
 - [순서 외 실행 설정](https://documentation.red-gate.com/fd/flyway-out-of-order-setting-277579015.html)
 - [검증 오류 코드](https://documentation.red-gate.com/fd/validate-error-codes-287015530.html)
 
-GD-87의 운영 미적용 [V019 실행 제어 필드](../../storage/db/src/main/resources/db/migration/drawing/V019__add_draw_execution_control.sql)는 신규 테이블 없이 기존 draw_runs의 4개 nullable 필드·제약·인덱스를 확장한다. 이 워크트리의 DBML에는 해당 구현안을 표시했으며 운영 DB 적용 완료를 의미하지 않는다. V019는 Testcontainers 임시 MySQL에서 적용·검증했다. 2026-10-12 확인한 원격 dev 0a32422에는 V017 이벤트 인덱스와 V018이 반영되어 있고 V019 번호는 사용되지 않았다. GD-87에서는 V017/V019를 함께 병합해 마이그레이션 16개로 검증한다. 공유·운영 DB 적용 순서는 별도로 확인한다.
+GD-87의 운영 미적용 [V019 실행 제어 필드](../../storage/db/src/main/resources/db/migration/drawing/V019__add_draw_execution_control.sql)는 신규 테이블 없이 기존 draw_runs의 4개 nullable 필드·제약·인덱스를 확장한다. 이 워크트리의 DBML에는 해당 구현안을 표시했으며 운영 DB 적용 완료를 의미하지 않는다. V019는 Testcontainers 임시 MySQL에서 적용·검증했다. 2026-10-12 확인한 원격 dev 0a32422에는 V017 이벤트 인덱스와 V018이 반영되어 있고 V019 번호는 사용되지 않았다. GD-138 연결 브랜치에서는 V017/V019와 [V020 취소 멱등 키](../../storage/db/src/main/resources/db/migration/drawing/V020__add_award_cancellation_request_key.sql)를 포함한 마이그레이션 17개를 검증했다. V020의 nullable request_key·UNIQUE는 임시 MySQL에 적용했고 운영 DB에는 적용하지 않았다. 공유·운영 DB 적용 순서는 별도로 확인한다.
