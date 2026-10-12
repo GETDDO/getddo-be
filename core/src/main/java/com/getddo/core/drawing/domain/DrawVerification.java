@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import lombok.Getter;
 
-/** 저장된 추첨 자료를 표현하는 불변 조회 값이다. */
+/** 검증자·시각과 항목별 결과를 보존한 검증 이력 한 건이다. */
 @Getter
 public final class DrawVerification {
 	private final UUID id;

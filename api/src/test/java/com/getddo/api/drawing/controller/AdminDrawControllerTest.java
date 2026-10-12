@@ -84,7 +84,7 @@ class AdminDrawControllerTest {
 		when(repository.findResults(runId)).thenReturn(List.of());
 		DrawVerification stored = new DrawVerification(UUID.randomUUID(), runId, false,
 				List.of(new DrawCheckItem("RESULTS", false, "저장 결과 불일치")), now, actorId);
-		when(checks.save(eq(runId), eq(actorId), eq(now), anyList())).thenReturn(stored);
+		when(checks.save(eq(runId), eq(actorId), eq(now), eq(false), anyList())).thenReturn(stored);
 		when(checks.findByRun(runId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(stored), 1, 20, 1));
 		// when / then
 		mvc.perform(post("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.role().name()))

@@ -2,6 +2,7 @@ package com.getddo.db.drawing.entity;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Objects;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -37,10 +38,10 @@ public class DrawCheckEntity {
 	private Instant checkedAt;
 
 	public DrawCheckEntity(DrawRunEntity drawRun, UUID checkedBy, boolean passed, String checksSnapshot, Instant checkedAt) {
-		this.drawRun = drawRun;
-		this.checkedBy = checkedBy;
+		this.drawRun = Objects.requireNonNull(drawRun, "drawRun");
+		this.checkedBy = Objects.requireNonNull(checkedBy, "checkedBy");
 		this.passed = passed;
-		this.checksSnapshot = checksSnapshot;
-		this.checkedAt = checkedAt;
+		this.checksSnapshot = Objects.requireNonNull(checksSnapshot, "checksSnapshot");
+		this.checkedAt = Objects.requireNonNull(checkedAt, "checkedAt");
 	}
 }

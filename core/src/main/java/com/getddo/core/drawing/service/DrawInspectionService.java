@@ -77,7 +77,8 @@ public class DrawInspectionService {
 				repository.findAllCandidates(runId), repository.findResults(runId),
 				run.getDrawType() == DrawType.REPLACEMENT ? repository.findReplacementReferences(run)
 						: DrawVerificationReferences.empty());
-		return checks.save(runId, user.id(), time.now(), items);
+		boolean passed = items.stream().allMatch(DrawCheckItem::isPassed);
+		return checks.save(runId, user.id(), time.now(), passed, items);
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)

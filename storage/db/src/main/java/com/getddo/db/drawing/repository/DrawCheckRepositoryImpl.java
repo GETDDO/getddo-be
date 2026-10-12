@@ -27,10 +27,10 @@ public class DrawCheckRepositoryImpl implements DrawCheckRepository {
 	private final EntityManager entityManager;
 
 	@Override
-	public DrawVerification save(UUID runId, UUID actorId, Instant checkedAt, List<DrawCheckItem> items) {
+	public DrawVerification save(UUID runId, UUID actorId, Instant checkedAt, boolean passed, List<DrawCheckItem> items) {
 		DrawRunEntity run = entityManager.getReference(DrawRunEntity.class, runId);
 		DrawCheckEntity entity = repository.saveAndFlush(new DrawCheckEntity(run, actorId,
-				items.stream().allMatch(DrawCheckItem::isPassed), mapper.snapshot(items), checkedAt));
+				passed, mapper.snapshot(items), checkedAt));
 		entityManager.detach(entity);
 		return mapper.toDomain(repository.findById(entity.getId()).orElseThrow());
 	}
