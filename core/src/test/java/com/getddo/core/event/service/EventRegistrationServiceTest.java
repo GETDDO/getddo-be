@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,14 +14,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.event.exception.EventErrorCode;
+import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.repository.EventActorRepository;
 import com.getddo.core.event.repository.EventRepository;
 
@@ -70,12 +72,65 @@ class EventRegistrationServiceTest {
 		verify(events).create(closed, EventStatus.CLOSED);
 	}
 
+	@ParameterizedTest
+	@CsvSource({
+			"0999-12-31T23:59:59.999999Z,1000-01-01T00:00:00Z",
+			"9999-12-31T23:59:59Z,9999-12-31T23:59:59.500000Z",
+			"9999-12-31T23:59:59Z,+10000-01-01T00:00:00Z",
+			"+10000-01-01T00:00:00Z,+10000-01-02T00:00:00Z",
+			"2099-10-01T00:00:00.000000001Z,2099-10-01T00:00:00.000000002Z",
+			"2099-10-01T00:00:00.000000501Z,2099-10-01T00:00:00.000000999Z"
+	})
+	@DisplayName("저장 지원 범위를 벗어나거나 마이크로초 기준으로 같아지는 기간은 저장 전에 거절한다")
+	void rejectsUnstorablePeriodsBeforeAnyWrite(String startsAt, String endsAt) {
+		// given
+		EventRegistration registration = withPeriod(validRegistration(), Instant.parse(startsAt), Instant.parse(endsAt));
+
+		// when / then
+		assertThatThrownBy(() -> service.register(registration))
+				.isInstanceOfSatisfying(EventException.class,
+						error -> assertThat(error.getErrorCode()).isEqualTo(EventErrorCode.INVALID_PERIOD));
+		verifyNoInteractions(events);
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"1000-01-01T00:00:00Z,1000-01-01T00:00:00.000001Z,CLOSED",
+			"9999-12-31T23:59:59.499998Z,9999-12-31T23:59:59.499999Z,SCHEDULED"
+	})
+	@DisplayName("이벤트 시각 저장 지원 범위의 양 끝과 1마이크로초 기간을 허용한다")
+	void acceptsSupportedPeriodBoundaries(String startsAt, String endsAt, EventStatus status) {
+		// given
+		EventRegistration registration = withPeriod(validRegistration(), Instant.parse(startsAt), Instant.parse(endsAt));
+
+		// when
+		service.register(registration);
+
+		// then
+		verify(events).create(registration, status);
+	}
+
+	@Test
+	@DisplayName("마이크로초 미만을 버린 기간으로 저장하고 초기 상태를 판정한다")
+	void usesNormalizedPeriodForStorageAndInitialStatus() {
+		// given: 원본 종료는 현재보다 늦지만 저장 가능한 종료는 현재와 같다.
+		EventRegistration registration = withPeriod(validRegistration(), NOW.minusSeconds(1).plusNanos(123),
+				NOW.plusNanos(999));
+		EventRegistration normalized = withPeriod(registration, NOW.minusSeconds(1), NOW);
+
+		// when
+		service.register(registration);
+
+		// then
+		verify(events).create(normalized, EventStatus.CLOSED);
+	}
+
 	@Test
 	void noTicketEventUsesNoWeightingAndNoTicketLimit() {
 		EventRegistration source = validRegistration();
-		EventRegistration noTicket = new EventRegistration(source.actorId(), source.title(),
-				source.description(), source.imageKey(), EventType.NO_TICKET, false,
-				null, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
+		EventRegistration noTicket = new EventRegistration(source.getActorId(), source.getTitle(),
+				source.getDescription(), source.getImageKey(), EventType.NO_TICKET, false,
+				null, source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(), source.getPrizes());
 
 		service.register(noTicket);
 
@@ -85,9 +140,9 @@ class EventRegistrationServiceTest {
 	@Test
 	void adminCanRegisterUnlimitedWeightedEventRegardlessOfPeriod() {
 		EventRegistration source = validRegistration();
-		EventRegistration unlimited = new EventRegistration(source.actorId(), source.title(),
-				source.description(), source.imageKey(), EventType.TICKET, true,
-				null, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
+		EventRegistration unlimited = new EventRegistration(source.getActorId(), source.getTitle(),
+				source.getDescription(), source.getImageKey(), EventType.TICKET, true,
+				null, source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(), source.getPrizes());
 
 		service.register(unlimited);
 
@@ -97,15 +152,15 @@ class EventRegistrationServiceTest {
 	@Test
 	void duplicatePrizeRankFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration duplicate = new EventRegistration(source.actorId(), source.title(),
-				source.description(), source.imageKey(), source.eventType(), source.weightingEnabled(),
-				source.maxTicketsPerUser(), source.membershipRule(), source.startsAt(), source.endsAt(),
-				List.of(source.prizes().getFirst(),
+		EventRegistration duplicate = new EventRegistration(source.getActorId(), source.getTitle(),
+				source.getDescription(), source.getImageKey(), source.getEventType(), source.isWeightingEnabled(),
+				source.getMaxTicketsPerUser(), source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(),
+				List.of(source.getPrizes().getFirst(),
 						new EventRegistration.Prize(1, "다른 경품", null, null, 2)));
 
 		assertThatThrownBy(() -> service.register(duplicate))
-				.isInstanceOf(BusinessException.class)
-				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+				.isInstanceOf(EventException.class)
+				.satisfies(error -> assertThat(((EventException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_PRIZES));
 		verifyNoInteractions(events);
 	}
@@ -113,14 +168,35 @@ class EventRegistrationServiceTest {
 	@Test
 	void incompatibleTicketRuleFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
-		EventRegistration invalid = new EventRegistration(source.actorId(), source.title(),
-				source.description(), source.imageKey(), EventType.NO_TICKET, true,
-				5, source.membershipRule(), source.startsAt(), source.endsAt(), source.prizes());
+		EventRegistration invalid = new EventRegistration(source.getActorId(), source.getTitle(),
+				source.getDescription(), source.getImageKey(), EventType.NO_TICKET, true,
+				5, source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(), source.getPrizes());
 
 		assertThatThrownBy(() -> service.register(invalid))
-				.isInstanceOf(BusinessException.class)
-				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+				.isInstanceOf(EventException.class)
+				.satisfies(error -> assertThat(((EventException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_CONFIGURATION));
+		verifyNoInteractions(events);
+	}
+
+	@Test
+	@DisplayName("null·빈 경품 목록과 null 경품은 생성 단계가 아닌 업무 검증에서 거절한다")
+	void invalidPrizeListsFailBeforeAnyWrite() {
+		// given
+		EventRegistration source = validRegistration();
+		List<List<EventRegistration.Prize>> invalidLists = Arrays.asList(
+				null, List.of(), Arrays.asList((EventRegistration.Prize) null));
+
+		// when / then
+		for (List<EventRegistration.Prize> prizes : invalidLists) {
+			EventRegistration invalid = new EventRegistration(source.getActorId(), source.getTitle(),
+					source.getDescription(), source.getImageKey(), source.getEventType(), source.isWeightingEnabled(),
+					source.getMaxTicketsPerUser(), source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(),
+					prizes);
+			assertThatThrownBy(() -> service.register(invalid))
+					.isInstanceOfSatisfying(EventException.class,
+							error -> assertThat(error.getErrorCode()).isEqualTo(EventErrorCode.INVALID_PRIZES));
+		}
 		verifyNoInteractions(events);
 	}
 
@@ -129,8 +205,8 @@ class EventRegistrationServiceTest {
 		when(actors.findById(ADMIN_ID)).thenReturn(Optional.of(new EventActorRepository.Actor(true, false)));
 
 		assertThatThrownBy(() -> service.register(validRegistration()))
-				.isInstanceOf(BusinessException.class)
-				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+				.isInstanceOf(EventException.class)
+				.satisfies(error -> assertThat(((EventException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.ADMIN_REQUIRED));
 		verifyNoInteractions(events);
 	}
@@ -159,8 +235,8 @@ class EventRegistrationServiceTest {
 
 		// when / then
 		assertThatThrownBy(() -> service.register(registration))
-				.isInstanceOf(BusinessException.class)
-				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+				.isInstanceOf(EventException.class)
+				.satisfies(error -> assertThat(((EventException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_DETAILS));
 		verifyNoInteractions(events);
 	}
@@ -174,8 +250,8 @@ class EventRegistrationServiceTest {
 
 		// when / then
 		assertThatThrownBy(() -> service.register(registration))
-				.isInstanceOf(BusinessException.class)
-				.satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+				.isInstanceOf(EventException.class)
+				.satisfies(error -> assertThat(((EventException) error).getErrorCode())
 						.isEqualTo(EventErrorCode.INVALID_PRIZES));
 		verifyNoInteractions(events);
 	}
@@ -187,12 +263,12 @@ class EventRegistrationServiceTest {
 
 	private EventRegistration withDescriptions(String description, String prizeDescription) {
 		EventRegistration source = validRegistration();
-		EventRegistration.Prize prize = source.prizes().getFirst();
-		return new EventRegistration(source.actorId(), source.title(), description, source.imageKey(),
-				source.eventType(), source.weightingEnabled(), source.maxTicketsPerUser(), source.membershipRule(),
-				source.startsAt(), source.endsAt(),
-				List.of(new EventRegistration.Prize(prize.rank(), prize.name(), prizeDescription,
-						prize.imageKey(), prize.winnerCount()), source.prizes().get(1)));
+		EventRegistration.Prize prize = source.getPrizes().getFirst();
+		return new EventRegistration(source.getActorId(), source.getTitle(), description, source.getImageKey(),
+				source.getEventType(), source.isWeightingEnabled(), source.getMaxTicketsPerUser(), source.getMembershipRule(),
+				source.getStartsAt(), source.getEndsAt(),
+				List.of(new EventRegistration.Prize(prize.getRank(), prize.getName(), prizeDescription,
+						prize.getImageKey(), prize.getWinnerCount()), source.getPrizes().get(1)));
 	}
 
 	private EventRegistration validRegistration() {
@@ -204,8 +280,8 @@ class EventRegistrationServiceTest {
 	}
 
 	private EventRegistration withPeriod(EventRegistration source, Instant startsAt, Instant endsAt) {
-		return new EventRegistration(source.actorId(), source.title(), source.description(), source.imageKey(),
-				source.eventType(), source.weightingEnabled(), source.maxTicketsPerUser(), source.membershipRule(),
-				startsAt, endsAt, source.prizes());
+		return new EventRegistration(source.getActorId(), source.getTitle(), source.getDescription(), source.getImageKey(),
+				source.getEventType(), source.isWeightingEnabled(), source.getMaxTicketsPerUser(), source.getMembershipRule(),
+				startsAt, endsAt, source.getPrizes());
 	}
 }

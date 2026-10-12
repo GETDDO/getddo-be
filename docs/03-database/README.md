@@ -12,6 +12,8 @@
 
 GD-84의 [V016](../../storage/db/src/main/resources/db/migration/drawing/V016__add_initial_draw_terminal_states.sql)는 최초 추첨 실행에 응모자 없음·전원 제외 정상 종료 상태를 추가했다. GD-130 이후 새 실행은 전원 제외 상태를 만들지 않으며 과거 조회 호환성을 위해 V007·V016과 상태 정의를 유지한다. 현재 동작은 [추첨 저장 설계](drawing-selection-storage.md)를 따른다.
 
+이벤트의 신규 종료 상태는 `NO_ENTRANTS`(응모자 없음)를 사용하며 `NO_ELIGIBLE_ENTRANTS`(전원 추첨 제외)는 사용하지 않는다. 기존 V006·DBML과 Java enum의 값은 DB 상태 매핑을 위해 보존하며, 이를 신규 공개 API의 상태 계약으로 해석하지 않는다. 이벤트 조회의 현재 상태 필터 테스트도 폐지된 상태를 생성하거나 검색 대상으로 사용하지 않는다. 과거 이벤트 상태의 공개 조회 처리는 [공용 이벤트 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/event.md)에 명시된 별도 검토 사항이다. `event_participants`에는 추첨 제외 상태·사유를 대체하는 정보를 추가하지 않는다.
+
 ## 마이그레이션 번호 규칙
 
 Flyway 버전 번호는 중복될 수 없지만 연속일 필요는 없다. 예를 들어 `V012__a.sql`, `V014__b.sql`, `V015__c.sql`만 있으면 존재하는 파일을 `12 → 14 → 15` 순서로 적용한다. `V013`이 없다는 이유로 오류가 발생하거나 실행을 기다리지 않는다. 번호의 빈 구간과 SQL 간 의존성은 별개이므로, `V014`가 `V013`에서 만드는 테이블·컬럼을 사용한다면 필요한 변경이 먼저 적용되어야 한다.
