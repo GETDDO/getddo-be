@@ -356,6 +356,9 @@ Table draw_failures {
   failure_code varchar(50) [not null, note: '실패 분류 코드. 원문 예외 메시지나 개인정보를 저장하지 않음']
   failed_at datetime(6) [not null, note: 'UTC. 기록 저장 시각과 구분']
   trace_id varchar(100) [note: '선택적인 상세 진단 기록 연결 ID. 발급·검색 시스템 연동 전에는 NULL 가능']
+  indexes {
+    (draw_run_id, failed_at, id) [name: 'draw_failure_history_idx']
+  }
 }
 
 Table reward_policies {
@@ -683,10 +686,17 @@ Table draw_runs {
   started_at datetime(6) [note: 'UTC. 시작 전 NULL']
   confirmed_at datetime(6) [note: 'UTC. 확정 전 NULL']
   created_at datetime(6) [not null, note: '추첨 실행 및 작업 등록 시각 UTC']
+  // GD-87 V019 구현안. 운영 DB 적용·실행 검증 전.
+  attempt_id binary(16) [note: '진행 중 시도 ID. 같은 실패 저장의 멱등 ID로 재사용']
+  lease_until datetime(6) [note: 'UTC. 시도 소유권 만료. 이벤트 잠금 아래 복구 여부 재확인']
+  retry_at datetime(6) [note: 'UTC. FAILED에서 NULL이면 운영자 대기, 값이 있으면 자동 재시도 예약']
+  retry_cycle_started_at datetime(6) [note: 'UTC. 재개 후 자동 재시도 구간 경계. 횟수는 실패 이력에서 조회']
 
   indexes {
     (id, event_id) [unique, name: 'uq_draw_runs_event']
     (event_id, run_number) [unique, name: 'uq_draw_runs_1']
+    (status, retry_at) [name: 'draw_retry_due_idx']
+    (status, lease_until) [name: 'draw_lease_due_idx']
   }
 
   checks {
@@ -694,6 +704,8 @@ Table draw_runs {
     `status NOT IN ('READY','RUNNING','CONFIRMED') OR (algorithm_version IS NOT NULL AND rules_snapshot IS NOT NULL AND snapshot_fixed_at IS NOT NULL)` [name: 'chk_draw_fixed_input']
     `status NOT IN ('NO_ENTRIES','NO_CANDIDATES') OR (algorithm_version IS NOT NULL AND rules_snapshot IS NOT NULL AND snapshot_fixed_at IS NOT NULL)` [name: 'chk_draw_empty_fixed_input']
     `status <> 'CONFIRMED' OR confirmed_at IS NOT NULL` [name: 'chk_draw_confirmed_time']
+    `(attempt_id IS NULL AND lease_until IS NULL) OR (attempt_id IS NOT NULL AND lease_until IS NOT NULL AND retry_cycle_started_at IS NOT NULL AND status IN ('PREPARING','READY','RUNNING'))` [name: 'chk_draw_attempt']
+    `retry_at IS NULL OR (status = 'FAILED' AND attempt_id IS NULL AND retry_cycle_started_at IS NOT NULL)` [name: 'chk_draw_retry']
   }
 }
 

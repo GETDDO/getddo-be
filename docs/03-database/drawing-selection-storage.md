@@ -1,7 +1,7 @@
 # 추첨 실행·후보 스냅샷·결과 저장
 
-- 상태: 응모 수량·이벤트 잠금·후보 확정 경계 합의 확인 — GD-85 결과 확정 구현은 검토 대기
-- 구현 범위: GD-84 최초 실행과 후보·조건 스냅샷 확정, GD-130 추첨 제외 의존성 제거, GD-85 최초 실행 결과의 원자적 확정
+- 상태: 응모 수량·이벤트 잠금·후보 확정 경계 합의 확인 — GD-85 결과 확정 구현은 검토 대기, GD-87 공통 실행 구현은 코드 작성·검증 전
+- 구현 범위: GD-84 최초 실행과 후보·조건 스냅샷 확정, GD-130 추첨 제외 의존성 제거, GD-85 최초 결과 확정, GD-87 공통 실행·실패·동일 실행 재개(코드 작성·검증 전)
 - 기준: [통합 ERD](schema.dbml), [공용 추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [ADR-014](https://github.com/GETDDO/getddo-spec/blob/main/03-decisions/014-random-ticket-grades.md), [ADR-018](https://github.com/GETDDO/getddo-spec/blob/main/03-decisions/018-pre-issuance-abuse-blocking-and-no-draw-exclusion.md)
 - GD-84에서 추가한 두 정상 종료 상태는 이력 호환성을 위해 유지한다. GD-130 이후 새 실행은 응모자 없음 종료만 생성한다.
 
@@ -33,16 +33,16 @@
 - `DrawRunCandidateId`의 `(draw_run_id, candidate_id)` 복합 식별자와 `@MapsId` 연관관계로 실행·후보 FK를 매핑한다. 실행별 차수와 최초 실행별 참가자 UNIQUE는 Flyway 스키마와 같은 이름·컬럼으로 선언한다. 이벤트·참가자 등 다른 담당 영역의 참조는 기존 관례에 따라 UUID 값으로 두고 FK 검증은 실제 DB 제약이 담당한다.
 - `DrawSnapshotRepositoryImpl`은 JPA 저장소를 통해 실행·최초 후보·실행별 연결을 저장하고 연결된 후보만 조회한다. PREPARING → 후보 → 연결 → 입력 확정 순서로 flush하며 같은 서비스 트랜잭션에서 커밋·롤백한다. 후보와 연결은 불변 엔티티이며, 실행 입력은 PREPARING에서 한 번만 확정한다.
 - `DrawSnapshotSourceReader`는 기존 이벤트 `FOR UPDATE`와 응모자·응모·USE 이력 조회 SQL만 재사용한다. JDBC로 추첨 테이블을 저장하거나 조회하는 중복 경로는 없다. 다른 담당자의 엔티티·원본 데이터 모델·잠금 순서를 변경하지 않는다.
-- 기존 V007·V016과 DB 구조를 유지한다. JPA 매핑 자체를 위한 새 마이그레이션은 필요하지 않다. `draw_results` 엔티티는 GD-85 범위다.
+- GD-84의 JPA 매핑은 기존 V007·V016 구조를 재사용하며 매핑 자체를 위한 마이그레이션은 추가하지 않는다. GD-87 실행 제어 필드의 별도 V019는 아래 공통 실행 절을 따른다. `draw_results` 엔티티는 GD-85 기반을 재사용한다.
 
-한 트랜잭션에서 PREPARING 실행, `draw_candidates`의 최초 후보 상세 정보, `draw_run_candidates`의 최초 실행별 후보 연결을 저장하고 READY로 전환한다. 중간 저장 실패 시 실행과 후보·연결이 모두 롤백된다.
+기존 `prepareInitial(eventId)` 호환 경로는 한 트랜잭션에서 실행 생성·최초 후보·실행별 연결·READY 전환을 처리하며 준비 실패 시 함께 롤백된다. GD-87 경로는 먼저 실행 등록을 커밋하고, 동일 실행의 후보·연결·입력 확정을 별도 트랜잭션에서 수행한다. 이 경로의 준비 실패는 입력 저장만 롤백하며 등록된 실행 ID는 유지한다.
 
 - 후보의 `entry_snapshot`은 버전 1, 등급별 장수 및 응모별 사용 이력·실제 장수·접수 기록 시각을 보존한다.
 - `eligibility_snapshot`은 버전 1, 사용자 ID·멤버십·역할·명단 확정 시각을 보존한다. 기존 JSON의 `excluded` 필드는 호환성을 위해 유지하며 새 후보에서는 항상 `false`다. 제외 판단 저장소를 조회한 결과를 의미하지 않는다. 과거 JSON은 다시 쓰지 않는다. 개인정보 이름·전화번호·이메일은 저장하지 않는다.
-- 실행의 `rules_snapshot`은 버전 1, 이벤트 유형·가중치 적용 여부·최소 멤버십·등급별 적용 가중치 및 경품 ID·등수·당첨 인원을 보존한다.
+- 최초 실행의 `rules_snapshot`은 버전 1이며 이벤트 유형·가중치 적용 여부·최소 멤버십·등급별 가중치와 경품 조건을 보존한다. GD-87의 REPLACEMENT 버전 2 확장은 아래 공통 실행 절을 따른다.
 - 알고리즘 버전은 `weighted-without-replacement-v1`로 고정한다. GD-56의 기존 선정 로직에 전달할 확정 가중치는 양의 BIGINT 범위에서 검증한다.
 - READY/RUNNING/CONFIRMED 재요청은 원본 응모를 다시 읽지 않고 저장된 후보 연결·조건·가중치를 반환한다. 결과 선정·저장은 아래 GD-85 확정 서비스를 사용한다.
-- 이 구현에서는 롤백된 준비를 같은 이벤트 최초 실행 식별자로 다시 준비한다. 영속 FAILED/PREPARING의 운영자 재개·실패 이력·예약은 GD-87에서 상태 계약을 연결하며 현재는 INVALID_RUN으로 거절한다.
+- 기존 prepareInitial(eventId)은 생성과 입력 준비를 함께 처리하며 영속 FAILED/PREPARING을 거절한다. GD-87 경로는 registerInitial(eventId)의 등록 커밋 후 execute(runId)를 호출한다. 등록 실행의 입력 준비는 prepareRegistered(runId)를 사용하며 실패해도 실행 ID를 유지한다.
 
 ## 정상 종료
 
@@ -71,7 +71,7 @@
 
 ## 결과 원자적 확정 — GD-85
 
-`DrawConfirmationService.confirm(runId)`는 HTTP API가 아닌 내부 서비스다. 현재 GD-84가 생성하는 최초 실행의 스냅샷을 처리한다. 재추첨 실행 생성·대상 자리·유지 결과 입력 계약은 GD-138에서 연결하며, 현재 서비스는 `REPLACEMENT` 실행을 임의로 최초 추첨처럼 처리하지 않고 `INVALID_RUN`으로 거절한다.
+`DrawConfirmationService`는 GD-85 최초 실행 확정 서비스를 기반으로 한다. 기존 `confirm(runId)`와 GD-87의 토큰을 받는 `confirm(runId, attemptId)` 모두 내부 서비스다. 재추첨 실행 생성·대상 자리·유지 결과 입력 계약은 GD-138에서 연결하며, GD-87 확장 경로는 버전 2 REPLACEMENT 입력의 실제 대상 자리·최초 후보·유지 결과를 검증해 확정한다. GD-138의 준비 구현 연결과 통합 검증은 아직 남아 있다.
 
 - 실행 ID로 이벤트 ID를 확인한 뒤 기존 이벤트 `FOR UPDATE` → 실행 `PESSIMISTIC_WRITE` 순서로 잠근다. 동일 이벤트의 확정을 직렬화하여 실행 간 유효 배정 충돌도 검증한다. 응모·취소 흐름의 이벤트 선잠금 합의는 유지하며 이 구현에서 해당 흐름을 변경하지 않는다.
 - 서비스 트랜잭션은 `READ_COMMITTED`를 사용한다. 이벤트 ID 사전 조회가 MySQL의 오래된 일관 읽기 스냅샷을 고정하여, 잠금 대기 후 이전 요청이 저장한 결과를 놓치는 것을 방지한다. Spring Bean을 통해 하나의 업무 트랜잭션으로 호출한다.
@@ -79,8 +79,42 @@
 - 유효 배정은 `CONFIRMED` 실행의 `SELECTED` 결과 중 `award_cancellations`에 연결되지 않은 결과다. 공개 명단에 포함되었는지는 내부 유효 배정 기준과 별개다. 후보 사용자 또는 최초 실행 대상 경품이 기존 유효 배정과 충돌하면 저장 전에 거절한다.
 - GD-56 `DrawingSelectionService`를 재사용한다. 상위 등수부터 선정한 결과의 자리·후보·사용자·선정 순서와 후보 소진 이후 `UNFILLED`를 저장 전에 다시 검증한다.
 - `DrawResultEntity`는 `BaseEntity`의 UUID v7·생성 시각을 사용하고 불변 이력으로 저장한다. 실행 FK, `(draw_run_id, candidate_id)` 후보 연결 복합 FK, 자리·후보·선정 순서 UNIQUE는 V007과 같은 컬럼·이름으로 매핑한다. 미충원의 후보·선정 순서는 NULL이다. 기존 스키마가 지원하므로 신규 마이그레이션은 필요하지 않다.
-- 결과 JPA flush 후 READY → CONFIRMED와 시작·확정 시각을 같은 트랜잭션에서 저장한다. 결과 저장·상태 전환 후 예외도 모두 롤백되어 READY 스냅샷으로 다시 시도할 수 있다. 실패·RUNNING 상태의 운영자 재개와 별도 실패 이력은 GD-87에서 연결한다.
+- 기존 토큰 없는 READY 확정은 결과·CONFIRMED·시작/확정 시각을 함께 저장한다. GD-87 경로는 소유권과 최초 시작 시각을 먼저 커밋하고 자신의 토큰으로 READY/RUNNING의 결과·CONFIRMED·확정 시각을 함께 저장한다. 결과 저장 실패 시 고정 입력과 소유권은 남고 부분 결과는 롤백된다. 이후 실패 이력·FAILED·예약을 별도 트랜잭션에서 확정한다.
 - CONFIRMED 재요청은 선정기·현재 유효 배정·원본 응모 조회 없이 저장된 결과 ID·생성 시각·확정 시각·선정 순서를 반환한다. 경품별 상위 등수·자리 순서로 반환하며 그 등수도 규칙 스냅샷을 사용한다. 최초 응답부터 실제 DB 마이크로초 정밀도를 사용한다. 저장된 결과의 정합성을 검증하지만 난수를 재생하지 않는다.
 - 결과 확정은 공개 명단·알림·이벤트 공개 상태를 변경하지 않는다. 취소 엔티티·취소 처리·공개 버전은 이 작업에서 구현하지 않는다.
 
 GD-85 테스트는 단위 검증과 실제 MySQL의 JPA 왕복·FK/UNIQUE·롤백·재요청·잠금 경합·이벤트 관계·취소 이력에 따른 유효 배정 조회를 포함한다. 실제 실행 결과는 작업 완료 보고에 기록한다.
+
+
+## GD-87 공통 실행·실패·재개 — 구현과 검증
+
+상태: 검토 대기. 이 절은 `feat/GD-87`의 미커밋 구현 설명이다. 관련 단위·HTTP·MySQL 통합 테스트 및 전체 test/build가 통과했다(단위 496건, 통합 375건, 실패·건너뜀 0건). 실제 결과는 [작업 기록](../05-worklogs/석종수/2026-10-12.md)에 기록했다. 운영 DB에는 적용하지 않았다.
+
+문서 재확인 기준: getddo-spec main `a66a157`, 백엔드 원격 dev `a98240f`(2026-10-12). 사용자 승인 후 미커밋 변경을 보존하며 최신 dev `a98240f`를 fast-forward 반영했다. 이번 spec 갱신은 알림 실패 처리 정책이며 추첨 규칙·scope·미결정 사항·추첨 API 초안은 변경되지 않았다.
+
+확정 도메인 정책, Jira의 공통 실행 구현 기준, 이 대화에서 승인한 최초 재개 HTTP 계약을 구분한다. `05-api/drawing.md`의 AD01~AD09는 계속 상세 계약 검토 대기이며, 승인된 최초 `/admin/draws/{runId}/resume` 경로·권한·상태 코드만 로컬 공용 spec에 별도 절로 반영했다. spec 변경은 미커밋·원격 미반영이며 다른 API 상세 계약은 검토 대기로 유지한다. GD-87 재시도 수치와 저장 표현을 공용 장애 복구·취소 전환 정책 전체의 확정으로 해석하지 않는다.
+
+- `DrawExecutionService.execute(UUID runId)`는 등록·커밋된 실행만 처리한다. 외부 트랜잭션 안에서는 호출을 거절한다. 취소·새 재추첨 생성·공개는 수행하지 않는다.
+- 관리자 시작은 `execute(runId, actorId)`로 실제 처리자를 전달한다. 이 호출도 운영자 대기를 우회하지 않는다.
+- `resume(runId, actorId)`는 활성 관리자 확인 후 실패한 동일 실행을 재개한다. 최초 HTTP 경로는 `resumeInitial`로 INITIAL만 허용한다. 실제 시도를 얻었을 때만 공용 감사 서비스로 `DRAW_EXECUTE` 또는 `DRAW_RESUME`을 기록한다. 진행 중·확정 재요청은 감사 기록을 중복 생성하지 않는다.
+- 이벤트 → 실행 잠금을 유지하며 시도 소유권, 입력 준비, 결과 확정, 실패 저장은 별도 서비스 Bean의 트랜잭션이다. 입력 확정 커밋 뒤 선정하므로 선정 실패에도 스냅샷을 보존한다. CONFIRMED는 저장 결과만 반환한다.
+- PREPARING은 입력 확정 전 상태이며 `attempt_id`가 있으면 준비 시도를 처리 중이다. READY/RUNNING의 고정 입력은 원본에서 재계산하지 않는다. 실패는 FAILED로 저장하되 입력·후보·기존 결과 이력을 수정하지 않는다.
+- 별도 제어 테이블 없이 [V019](../../storage/db/src/main/resources/db/migration/drawing/V019__add_draw_execution_control.sql)로 `draw_runs`에 `attempt_id`, `lease_until`, `retry_at`, `retry_cycle_started_at`을 추가한다. 기존 Flyway와 상태 enum은 변경하지 않는다. 실행·예약 조회 인덱스와 실패 이력 인덱스를 추가한다.
+- `FAILED + retry_at NULL`은 운영자 대기, 예약 값이 있으면 예약된 일시적 실패다. 실패 횟수·최근 실패는 `draw_failures`에서 조회하며 실행 행에 집계를 저장하지 않는다.
+- 일시적 저장 오류·중단 시도만 최초 시도 후 10/30/60초로 최대 3회 재시도한다. 네 번째 실패, 정합성 오류, 미분류 오류는 운영자 대기로 간다. 재개는 새 복구 구간을 시작하되 전체 이력은 보존한다. DATETIME(6)에서 구간 경계와 이전 실패 시각이 같으면 1마이크로초 이후를 새 경계로 사용하고 새 실패 시각도 그 경계 이상으로 저장한다.
+- 현재 시도 ID는 UUID v7이며 실패 ID로 재사용한다. 같은 실패 저장의 재요청은 기존 행을 확인해 중복 생성하지 않는다. 예외 원문·개인정보는 기록하거나 응답하지 않는다. 실패 저장 자체의 DB 오류는 호출자에 전파하고, 남은 소유권의 만료 복구가 같은 ID로 INTERRUPTED를 기록한다.
+- 임대는 5분이다. 만료 복구도 이벤트 잠금을 얻은 뒤 상태·토큰을 재확인한다. 실제 선정이 이벤트 잠금을 보유하면 복구 요청은 기다린다. 늦게 도착한 이전 시도의 실패는 새 소유권·확정 상태를 덮어쓰지 않는다. 제어 정보 없는 과거 RUNNING은 운영자 대기로 보내고 자동 재선정하지 않는다.
+- `DrawRetryWorker`는 1초 간격으로 등록 뒤 시작하지 못한 PREPARING/READY·만기 예약·만료 소유권을 최대 20건 조회한다. `getddo.drawing.retry-worker.enabled=false`로 중지할 수 있다. 신규 최초 이벤트 탐색·등록은 GD-86 책임이다. GD-86/GD-138은 등록 커밋 후 즉시 시작하며, 그 사이 프로세스가 중단된 경우 워커가 등록된 같은 실행을 회수한다. 신규 이벤트를 탐색하거나 새 실행을 등록하지 않는다.
+
+### GD-138 입력 연결
+
+`DrawInputPreparation`의 `supports(DrawType)`와 `prepare(UUID runId, UUID attemptId)`를 구현하는 Spring Bean을 제공한다. 공통 준비 서비스가 이벤트·실행 잠금과 소유권을 검증한 같은 트랜잭션에서 호출한다. 준비 구현은 별도 커밋 없이 같은 실행을 READY로 고정해 반환한다. 준비 Bean이 없거나 중복 등록되면 운영자 대기로 전환한다.
+
+- `DrawRunEntity(eventId, runNumber, REPLACEMENT)`는 등록에 필요한 공용 생성자이며 등록·취소 원자성은 GD-138 서비스가 담당한다.
+- `DrawSnapshot`에 `drawType`을 포함한다. 기존 7인자 생성자는 INITIAL로 유지한다.
+- `Rules` 버전 1은 최초 입력과 기존 JSON 호환용이다. 버전 2는 원래 전체 경품·가중치 조건에 `originalRunId`, `targetSlots`, `retainedAwards`를 추가한다.
+- `Slot(prizeId, rank, slotNumber)`는 실제 취소 자리 번호다. `RetainedAward(resultId, userId, prizeId, slotNumber)`는 유지 결과다. GD-138의 입력 구성 결과를 이 공용 표현으로 변환해 `saveRegisteredReplacement(snapshot)`에 전달한다.
+- 재추첨 저장은 최초 후보 행을 새로 만들지 않고 기존 후보 ID만 실행별로 연결한다. 후보가 0명이어도 READY 입력이며 대상 자리를 UNFILLED로 확정한다.
+- 공통 확정은 최초 조건 일치·역대 당첨 후보 제외·연결된 취소 자리·유지 결과 ID·사용자·자리와 현재 유효 배정을 검증한다. 선정기의 가상 자리 번호를 실제 대상 번호로 바꾸며 유지 당첨자·경품을 수정하지 않는다.
+
+GD-86 등록·자동 시작, GD-138 취소·등록·입력 준비·AD09, GD-137 조회와 실제 연결 검증은 후속 작업이다. GD-87 MySQL 통합 테스트 9건은 실패 별도 커밋·예약/횟수 제한·운영자 재개·중복 실패/동시 실행·입력 보존·재추첨 자리 확정을 검증한다. 재추첨 등록·취소는 테스트 SQL 대역이며 GD-138 실제 서비스 연동 결과가 아니다. V019는 Testcontainers 임시 MySQL에 적용했으며 운영 DB에는 적용하지 않았다.
