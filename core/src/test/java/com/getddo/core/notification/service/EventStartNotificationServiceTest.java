@@ -62,7 +62,7 @@ class EventStartNotificationServiceTest {
 
 		ArgumentCaptor<NotificationJobRequest> request = ArgumentCaptor.forClass(NotificationJobRequest.class);
 		verify(jobs).register(request.capture());
-		assertThat(request.getValue().getOccurrenceKey()).isEqualTo("event-start:" + eventId);
+		assertThat(request.getValue().getOccurrenceKey()).isEqualTo("event-start:" + eventId + ":" + NOW.plusSeconds(300));
 		assertThat(request.getValue().getType()).isEqualTo(NotificationType.EVENT_START);
 		assertThat(request.getValue().getEventId()).isEqualTo(eventId);
 		assertThat(request.getValue().getScheduledAt()).isEqualTo(NOW.minusSeconds(300));

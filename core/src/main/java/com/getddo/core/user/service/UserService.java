@@ -20,7 +20,7 @@ public class UserService {
 
 	/** 확인된 활성 사용자의 내 정보를 반환한다. 상태 제한은 U01에만 적용하며 재조회하지 않는다. */
 	public User getProfile(User currentUser) {
-		if (currentUser.status() == UserStatus.INACTIVE) {
+		if (currentUser.getStatus() == UserStatus.INACTIVE) {
 			throw new UserException(UserErrorCode.USER_INACTIVE);
 		}
 		return currentUser;

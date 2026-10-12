@@ -33,7 +33,7 @@ public class DrawSnapshotMapper {
 		DrawSnapshot.Rules rules = run.getRulesSnapshot() == null ? null
 				: json.readValue(run.getRulesSnapshot(), DrawSnapshot.Rules.class);
 		return new DrawSnapshot(run.getId(), run.getEventId(), run.getStatus(), run.getSnapshotFixedAt(),
-				run.getAlgorithmVersion(), rules, candidates.stream().map(this::toDomain).toList());
+				run.getAlgorithmVersion(), rules, candidates.stream().map(this::toDomain).toList(), run.getDrawType());
 	}
 
 	/** 현재 사용자 정보 대신 저장된 자격 근거에서 사용자 식별자와 과거 excluded 값을 복원한다. */

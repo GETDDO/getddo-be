@@ -35,7 +35,7 @@ public class AuditActorTestFixtures {
 		@PostMapping("/test/audit/record")
 		ResponseEnvelope<UUID> record(@CurrentUser User user, @RequestBody ActorRequest request) {
 			// 본문에 처리자 정보가 있어도 사용자 문맥의 ID만 업무 Service로 전달한다.
-			return ResponseEnvelope.success(actorService.record(user.id(), request.targetId()));
+			return ResponseEnvelope.success(actorService.record(user.getId(), request.targetId()));
 		}
 	}
 

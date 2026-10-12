@@ -48,7 +48,7 @@ public class AttendanceController {
 	@PostMapping
 	public ResponseEntity<ResponseEnvelope<AttendanceReceiptResponse>> attend(
 			@CurrentUser(membershipRequired = false) User user) {
-		AttendanceReceipt receipt = service.attend(user.id());
+		AttendanceReceipt receipt = service.attend(user.getId());
 		return ResponseEntity.status(receipt.isCreated() ? HttpStatus.CREATED : HttpStatus.OK)
 				.body(ResponseEnvelope.success(AttendanceReceiptResponse.from(receipt)));
 	}
@@ -61,7 +61,7 @@ public class AttendanceController {
 	 */
 	@GetMapping("/today")
 	public ResponseEnvelope<AttendanceTodayResponse> findToday(@CurrentUser(membershipRequired = false) User user) {
-		return ResponseEnvelope.success(AttendanceTodayResponse.from(queryService.getToday(user.id())));
+		return ResponseEnvelope.success(AttendanceTodayResponse.from(queryService.getToday(user.getId())));
 	}
 
 	/**
@@ -78,6 +78,6 @@ public class AttendanceController {
 			@CurrentUser(membershipRequired = false) User user,
 			@Parameter(description = "조회할 KST 월. YYYY-MM 형식만 허용한다.", example = "2026-10")
 			@RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
-		return ResponseEnvelope.success(AttendanceMonthResponse.from(queryService.getMonth(user.id(), month)));
+		return ResponseEnvelope.success(AttendanceMonthResponse.from(queryService.getMonth(user.getId(), month)));
 	}
 }

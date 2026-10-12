@@ -26,7 +26,7 @@ public class OpenApiTestFixtures {
 
 		@GetMapping("/test/openapi/context")
 		String context(@CurrentUser User first, @CurrentUser User second) {
-			return first.id().toString();
+			return first.getId().toString();
 		}
 
 		@PostMapping(value = "/test/openapi/{id}", produces = MediaType.APPLICATION_JSON_VALUE)

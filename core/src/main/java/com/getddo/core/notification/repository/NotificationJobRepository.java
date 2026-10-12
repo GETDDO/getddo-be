@@ -16,6 +16,8 @@ public interface NotificationJobRepository {
 	Optional<NotificationJob> claimNextJob(Instant now);
 	/** 저장된 발생 사실과 수신자 목록을 읽는다. 재시도 중 다시 계산하지 않는다. */
 	NotificationJobRequest findRequest(UUID jobId);
+	/** 같은 발생 건의 등록 입력은 최신 잠금 읽기로 비교한다. 호출 Service 트랜잭션에 참여한다. */
+	NotificationJobRequest findRequestForComparison(UUID jobId);
 	/** 사용자별 별도 트랜잭션에서 중복 생성 없이 저장한다. 선점이 유효하지 않으면 false다. */
 	boolean createNotification(NotificationJob job, NotificationJobRequest request, UUID userId, Instant now);
 	/** 재선점되지 않은 자신의 선점 차수라면 제한 시간 이후에도 생성 완료를 확정한다. */

@@ -1,9 +1,12 @@
 package com.getddo.db.drawing.repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -19,4 +22,17 @@ public interface DrawRunJpaRepository extends JpaRepository<DrawRunEntity, UUID>
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select run from DrawRunEntity run where run.id = :runId")
 	Optional<DrawRunEntity> findForUpdate(@Param("runId") UUID runId);
+	/** 원본 이벤트를 새로 탐색하지 않고 등록 대기·만기 예약·만료된 시도만 조회한다. */
+	@Query("""
+		select run.id from DrawRunEntity run where
+		(run.attemptId is null and run.status in
+		 (com.getddo.core.drawing.domain.DrawRunStatus.PREPARING, com.getddo.core.drawing.domain.DrawRunStatus.READY))
+		or (run.status = com.getddo.core.drawing.domain.DrawRunStatus.FAILED and run.retryAt <= :now)
+		or (run.attemptId is not null and run.leaseUntil <= :now and run.status in
+		(com.getddo.core.drawing.domain.DrawRunStatus.PREPARING,
+		 com.getddo.core.drawing.domain.DrawRunStatus.READY,
+		 com.getddo.core.drawing.domain.DrawRunStatus.RUNNING))
+		order by coalesce(run.retryAt, run.leaseUntil, run.createdAt), run.id
+		""")
+	List<UUID> findDue(@Param("now") Instant now, Pageable pageable);
 }
