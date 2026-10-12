@@ -18,9 +18,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.audit.repository.AuditLogRepository;
 import com.getddo.core.notification.domain.AdminNotificationJob;
 import com.getddo.core.notification.domain.NotificationDelivery;
 import com.getddo.core.notification.domain.NotificationDeliveryQuery;
@@ -42,6 +44,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest(classes = NotificationJobIntegrationTest.TestApplication.class,
 		properties = "spring.jpa.hibernate.ddl-auto=validate")
@@ -53,6 +57,7 @@ class NotificationAdminIntegrationTest {
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private MutableClock clock;
 	@Autowired private PlatformTransactionManager transactionManager;
+	@MockitoSpyBean private AuditLogRepository auditRepository;
 	private User actor;
 	private UUID recipient;
 	private final List<UUID> jobIds = new ArrayList<>();
@@ -241,6 +246,26 @@ class NotificationAdminIntegrationTest {
 		assertThat(admin.findDeliveries(actor, new NotificationDeliveryQuery(1, 20, recipient, null, first, null, null, null))
 				.getItems()).hasSize(1);
 		assertThat(jdbc.queryForObject("select is_read from notifications where id=?", Boolean.class, bytes(notification))).isFalse();
+	}
+
+	/** 감사 저장소 실패가 실제 Service 트랜잭션의 작업 갱신을 롤백한다. */
+	@Test
+	@DisplayName("감사 저장 실패는 생성 복구 접수와 기준 차수 변경을 롤백한다")
+	void rollsBackRecoveryWhenAuditStorageFails() {
+		// given
+		UUID id = job(NotificationType.RESULT_PUBLISHED, null);
+		jdbc.update("update notification_jobs set status='FAILED', attempt_count=4, attempt_base=2 where id=?", bytes(id));
+		doThrow(new DataAccessResourceFailureException("audit storage unavailable"))
+				.when(auditRepository).append(any());
+		// when / then
+		assertThatThrownBy(() -> admin.retryJob(actor, id))
+				.isInstanceOf(DataAccessResourceFailureException.class).hasMessage("audit storage unavailable");
+		AdminNotificationJob unchanged = admin.findJob(actor, id);
+		assertThat(unchanged.getStatus()).isEqualTo(NotificationJobStatus.FAILED);
+		assertThat(unchanged.getAttemptCount()).isEqualTo(4);
+		assertThat(unchanged.getAttemptBase()).isEqualTo(2);
+		assertThat(unchanged.getNextAttemptAt()).isNull();
+		assertThat(auditCount(id)).isZero();
 	}
 
 	/** 감사 기록과 복구 접수는 호출자 롤백에 함께 취소된다 */
