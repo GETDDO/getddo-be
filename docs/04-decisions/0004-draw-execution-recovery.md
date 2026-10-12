@@ -3,7 +3,7 @@
 - 상태: 제안
 - 작성자 / 날짜: Codex — 석종수 담당자 확인 전 / 2026-10-12
 - 검토자: 담당자 확인 전
-- 관련 작업 기록 / PR: [2026-10-12 작업 기록](https://github.com/GETDDO/getddo-be/blob/docs/GD-87/docs/05-worklogs/%EC%84%9D%EC%A2%85%EC%88%98/2026-10-12.md), [GD-87](https://ureca4.atlassian.net/browse/GD-87), [기능 PR #53](https://github.com/GETDDO/getddo-be/pull/53)
+- 관련 작업 기록 / PR: [2026-10-12 작업 기록](https://github.com/GETDDO/getddo-be/blob/docs/2026-10-12/docs/05-worklogs/%EC%84%9D%EC%A2%85%EC%88%98/2026-10-12.md), [GD-87](https://ureca4.atlassian.net/browse/GD-87), [기능 PR #53](https://github.com/GETDDO/getddo-be/pull/53)
 - 대체한 ADR / 대체된 ADR: 해당 없음
 
 ## 배경
