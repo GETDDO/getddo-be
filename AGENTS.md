@@ -30,6 +30,26 @@
 - 기능 담당과 협업 경계는 `docs/01-conventions/backend-feature-assignments.md`를 기준으로 확인한다.
 - 코드 변경이 다른 담당자의 주 담당 영역이나 공동 경계의 API·데이터 모델·처리 흐름에 영향을 줄 가능성이 있으면 바로 구현하지 않는다. 영향받는 담당 영역과 변경 범위를 먼저 정리하고 사용자 또는 해당 담당자의 명시적인 확인을 받은 뒤 작업한다. 읽기 전용 검토에서는 영향과 확인 필요 사항을 보고하되 코드를 선행 변경하지 않는다.
 
+## 작업별 참고 문서
+
+- 작업 시작 시 [백엔드 컨벤션](docs/01-conventions/README.md), [코드 스타일](docs/01-conventions/code-style.md), [기능 담당과 협업 경계](docs/01-conventions/backend-feature-assignments.md)를 확인한다.
+- 아래 문서는 변경 범위와 관련된 항목을 읽는다. 모든 기능의 문서나 과거 작업 기록을 일괄 읽을 필요는 없다.
+- 문서의 상태·적용 범위와 현재 코드를 함께 확인한다. 코드 스타일과 일부 API·DB 문서는 `검토 대기` 또는 초안이며, 참고한다고 확정 정책으로 격상하지 않는다. 채택된 ADR·확정 계약과 충돌하면 상위 기준을 따르고 차이를 보고한다.
+
+| 작업 | 참고 문서 |
+| --- | --- |
+| 구조·실행·패키지 배치 | [루트 README](README.md) |
+| HTTP API·DTO·검증 | [API 안내](docs/02-api/README.md), [내부 처리 흐름](docs/02-api/internal-flows.md), [검증 시나리오](docs/02-api/verification.md), 공용 `getddo-spec/05-api`의 해당 기능 계약 |
+| 사용자 문맥·감사·CORS | [시연용 사용자 문맥](docs/02-api/user-profile.md), [감사 기록](docs/02-api/audit-recording.md), [CORS](docs/02-api/cors.md) 중 관련 문서 |
+| Entity·Repository·Flyway | [DB 안내](docs/03-database/README.md), [API·DB 대응](docs/03-database/api-schema-mapping.md), [DBML](docs/03-database/schema.dbml), 해당 기능의 저장 문서·실제 마이그레이션 |
+| 기술 결정·공통 모델 | [ADR 목록과 상태](docs/04-decisions/README.md), 해당 변경에 적용되는 ADR. 공통 Entity·UUID·Auditing은 [ADR-0001](docs/04-decisions/0001-common-entity-uuid-auditing.md) 확인 |
+| 배포·워커·실패 복구 | [런북 안내](docs/06-runbook/README.md), 해당 기능의 런북·설정 |
+| 문서·일지·PR | [문서 관리](docs/README.md), [워크로그 세부 규칙](docs/05-worklogs/README.md), [작업 일지 양식](docs/templates/worklog.md), [ADR 양식](docs/templates/adr.md), [PR 템플릿](.github/pull_request_template.md) |
+
+- 구현 검증 시나리오는 실행 결과가 아니다. 실제 테스트 대역 검증과 Service·DB를 연결한 통합 검증을 구분한다.
+- 공통 실행 기능을 사용하거나 다른 기능과 연결할 때는 관련 Jira의 최신 계약과 실제 제공 코드를 확인한다. 문서에 계약이 작성됐다는 사실만으로 코드 제공·연동 완료를 판단하지 않는다.
+- 자동 리뷰에 적용되는 기준은 [.coderabbit.yaml](.coderabbit.yaml)과 연결된 문서에서 확인한다. 리뷰 지적도 현재 코드·확정 계약에 대조하며, 리뷰 설정을 공용 정책의 대체 근거로 사용하지 않는다.
+
 ## 프로젝트 구조
 
 이 프로젝트는 Java 21과 Spring Boot 기반의 멀티모듈 프로젝트다.
@@ -54,6 +74,7 @@ storage:db → core
 
 ## 구현 규칙
 
+- Java 코드 작성·수정 전에 [코드 스타일](docs/01-conventions/code-style.md)의 모듈 책임, 생성자 주입, 객체 생성·불변성, DTO·Mapper, 검증, Entity 조회, 트랜잭션, 오류·응답, 시간·주석·테스트와 명명 기준을 확인한다. 기존 코드의 예외와 문서 상태를 고려하며 단순 포맷 차이만으로 무관한 코드를 일괄 수정하지 않는다.
 - 새로운 구현보다 기존 코드와 프로젝트 관례의 재사용을 우선한다.
 - 불필요한 추상화, 범용화와 미래 요구사항을 가정한 구현을 피한다.
 - 예외 처리는 기존 `ErrorCode`와 `BusinessException` 구조를 우선 사용한다.
@@ -88,6 +109,7 @@ storage:db → core
 - 배포, 장애 확인 또는 복구 절차가 변경되면 `docs/06-runbook`을 갱신한다.
 - 공용 정책 변경은 이 저장소에서 확정하지 않고 `getddo-spec`의 요구사항, 도메인 문서, 공용 ADR과 미결정 사항 관리 규칙을 따른다.
 - 작업 기록과 ADR은 `docs/templates`의 양식을 사용한다.
+- 워크로그의 위치·양식·공유 방식은 [워크로그 세부 규칙](docs/05-worklogs/README.md)을 따른다. 같은 날짜의 기존 기록을 보존하며 `docs/YYYY-MM-DD` 공용 브랜치와 당일 기존 PR을 사용하고 `skip-review` 라벨을 적용한다. 워크로그를 기능 PR에 포함하지 않는다. 일반 문서 안내와 공유 방식이 다르면 이 워크로그 전용 규칙을 따른다.
 - AI가 작성한 작업 기록은 `검토 대기`, ADR은 `제안` 상태로 시작하며 담당자 확인 없이 완료 또는 채택으로 표시하지 않는다.
 - 과거 작업 기록은 확정 정책의 근거로 사용하지 않고 현재 코드와 기준 문서를 다시 확인한다.
 - 비밀번호, 토큰과 개인정보를 문서에 기록하지 않는다.
@@ -99,6 +121,7 @@ storage:db → core
 - 사용자의 명시적인 요청 없이 커밋, push, 브랜치 생성·변경과 Pull Request 생성을 하지 않는다.
 - `main`과 `dev`에 직접 push하지 않는다.
 - 작업 브랜치는 `dev`에서 분기하며 `<타입>/<Jira 이슈 키>` 형식을 사용한다.
+- 워크로그 브랜치에는 위 일반 브랜치 형식 대신 `docs/05-worklogs/README.md`의 날짜 공용 브랜치 예외를 적용한다.
 - PR은 `dev`를 대상으로 하고 최소 1명 이상의 리뷰와 CI 검증 후 병합한다.
 
 ## 금지 사항
