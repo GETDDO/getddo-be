@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import lombok.Builder;
+
 import com.getddo.core.entry.domain.EntryReceipt;
 import com.getddo.core.ticket.domain.TicketGrade;
 
@@ -19,6 +21,7 @@ import com.getddo.core.ticket.domain.TicketGrade;
  * @param deductedTicketCount 차감한 응모권 합계
  * @param deductedTicketsByGrade 등급별 차감 장수. 장수가 0인 등급도 키를 가진다
  */
+@Builder
 public record EntryReceiptResponse(
 		UUID id,
 		UUID eventId,
@@ -35,9 +38,17 @@ public record EntryReceiptResponse(
 
 	/** 서비스가 돌려준 영수증을 응답으로 옮긴다. */
 	public static EntryReceiptResponse from(EntryReceipt receipt) {
-		return new EntryReceiptResponse(receipt.getEntryId(), receipt.getEventId(), receipt.getEventTitle(),
-				receipt.getTicketCount(), receipt.getTicketsByGrade(), receipt.getTicketCount(),
-				receipt.getTicketsByGrade(), EntryStatus.ACCEPTED, receipt.getAcceptedAt(), receipt.getAcceptedAt(),
-				null, null);
+		return EntryReceiptResponse.builder()
+				.id(receipt.getEntryId())
+				.eventId(receipt.getEventId())
+				.eventTitle(receipt.getEventTitle())
+				.requestedTicketCount(receipt.getTicketCount())
+				.requestedTicketsByGrade(receipt.getTicketsByGrade())
+				.deductedTicketCount(receipt.getTicketCount())
+				.deductedTicketsByGrade(receipt.getTicketsByGrade())
+				.status(EntryStatus.ACCEPTED)
+				.requestedAt(receipt.getAcceptedAt())
+				.acceptedAt(receipt.getAcceptedAt())
+				.build();
 	}
 }

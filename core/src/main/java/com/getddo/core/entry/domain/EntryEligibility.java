@@ -14,7 +14,7 @@ public final class EntryEligibility {
 
 	private final UUID eventId;
 	private final boolean canEnter;
-	/** 응모할 수 없는 사유. 응모 오류 이름과 같다. 응모할 수 있으면 비어 있다. */
+	/** 응모할 수 없는 사유. 응모 오류 코드의 상수 이름과 같다(예외: 응모권 부족은 {@code INSUFFICIENT_TICKETS}). 응모할 수 있으면 비어 있다. */
 	private final List<String> reasons;
 	/** 이 이벤트에서 사용자가 누적으로 차감한 응모권 수. */
 	private final long usedTicketCount;
