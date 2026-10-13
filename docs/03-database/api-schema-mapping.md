@@ -5,7 +5,7 @@
 
 공용 API 초안과 초기 스키마의 대응을 정리한다. 공용 요구사항과 도메인 정책은 `getddo-spec`을 따른다.
 
-2026-10-08 GD-93에서 V001~V011을 최신 [DBML](schema.dbml)의 44개 테이블로 교체했다. 아래 V001~V011 테이블 대응과 검토 항목은 교체 전 SQL의 기록이며 현재 스키마의 기준으로 사용하지 않는다. V014 이후 행은 교체 뒤에 추가한 마이그레이션이다. API·서비스 코드의 호환성 수정 및 대응표 재검토는 담당자의 후속 작업이다.
+2026-10-08 GD-93에서 V001~V011을 최신 [DBML](schema.dbml)의 44개 테이블로 교체했다. 아래 V001~V011 테이블 대응과 검토 항목은 교체 전 SQL의 기록이며 현재 스키마의 기준으로 사용하지 않는다. 단 V008 행(`tickets`, `ticket_histories`)과 D03·D04·D09·D11은 현행 기준으로 갱신했다. V014 이후 행은 교체 뒤에 추가한 마이그레이션이다. API·서비스 코드의 호환성 수정 및 대응표 재검토는 담당자의 후속 작업이다.
 
 2026-10-05 추첨 ERD 검토안은 이 문서의 V007 초기 정의와 구분한다. 갱신한 공용 계약은 [SPEC 추첨 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md)의 AD01~AD09이며, 후보 연결·결과 FK·실패·검증·공개 이력 설계는 [ADR-0003](../04-decisions/0003-drawing-snapshots-and-publications.md)과 ERD SQL 초안 (`drawing-erd-reviewed-erdcloud.sql`, 정리로 삭제됨; 작성 당시 내용은 Git 이력 참조)을 참고한다. 아래 매핑을 새 설계의 운영 반영 완료로 해석하지 않는다.
 
@@ -22,13 +22,17 @@
 | [V005](../../storage/db/src/main/resources/db/migration/game/V005__create_game_tables.sql) | `games`, `game_plays`, `user_game_stats`, `game_reward_claims` | G01~G05, AG01~AG03, AR07 |
 | [V006](../../storage/db/src/main/resources/db/migration/event/V006__create_event_tables.sql) | `events`, `event_prizes`, `event_participants`, `event_entries`, `banners` | E01~E09, B01, AE01~AE08, AB01~AB05, AO06~AO07 |
 | [V007](../../storage/db/src/main/resources/db/migration/drawing/V007__create_drawing_tables.sql) | `draw_runs`, `draw_candidates`, `draw_results`, `current_awards`, `award_cancellations`, `publications` | E08~E09, AD01~AD07, 최초 자동 추첨·발표 |
-| [V008](../../storage/db/src/main/resources/db/migration/ticket/V008__create_ticket_tables.sql) | `ticket_wallets`, `ticket_ledger`, `ticket_ledger_allocations`, `ticket_refund_jobs`, `ticket_recovery_targets` | T01~T02, AR04~AR05, AO03~AO05·AO08, 지급·차감·반환·만료 |
+| [V008](../../storage/db/src/main/resources/db/migration/ticket/V008__create_ticket_tables.sql) | `tickets`, `ticket_histories` | T01~T02, AR04~AR05, AO03~AO05·AO08, 지급·차감·반환·만료. 응모권 한 장이 `tickets` 한 행이고 상태 변화는 `ticket_histories`에 추가로만 남긴다 |
 | [V009](../../storage/db/src/main/resources/db/migration/abuse/V009__create_abuse_tables.sql) | `abuse_cases` | AR01~AR07, 탐지 기록 |
 | [V010](../../storage/db/src/main/resources/db/migration/notification/V010__create_notification_tables.sql) | `notification_jobs`, `notifications` | N01~N03, AN01~AN05, 비동기 생성·모의 발송 |
 | [V011](../../storage/db/src/main/resources/db/migration/audit/V011__create_audit_tables.sql) | `audit_logs` | AU01~AU02 및 검토·공개 명단·정책·점수 변경 이력 |
 | [V014](../../storage/db/src/main/resources/db/migration/notification/V014__add_notification_worker_indexes.sql) | 알림 생성·발송 대기 및 선점 만료 조회용 인덱스 | GD-68 비동기 알림 처리 기반. 신규 공개 API는 추가하지 않음 |
 | [V016](../../storage/db/src/main/resources/db/migration/drawing/V016__add_initial_draw_terminal_states.sql) | 최초 추첨의 응모자 없음·과거 전원 제외 상태와 입력 CHECK | GD-130 이후 새 전원 제외 실행은 생성하지 않으며 과거 조회는 유지. 공개 API는 추가하지 않음 |
+| [V017](../../storage/db/src/main/resources/db/migration/event/V017__add_event_list_index.sql) | `events`의 `(deleted_at, created_at, id)` 인덱스 | 사용자·관리자 공용 이벤트 목록 조회(삭제되지 않은 행, 최신순). 공개 API는 추가하지 않음 |
 | [V018](../../storage/db/src/main/resources/db/migration/ticket/V018__add_ticket_usable_lookup_index.sql) | `tickets`의 `(user_id, grade, expires_at)` 인덱스 | GD-133 응모권 차감 서비스의 사용 가능 응모권 조회(사용자·등급·만료 시각 조건, 만료 이른 순). 반환은 응모권 ID로 조회하므로 쓰지 않음. 공개 API는 추가하지 않음 |
+| [V019](../../storage/db/src/main/resources/db/migration/drawing/V019__add_draw_execution_control.sql) | `draw_runs`의 실행 제어 필드(시도 ID, 소유권 만료, 재시도 시각 등)와 조회 인덱스 | GD-87 공통 추첨 실행·실패·재시도·중단 복구. 공개 API는 추가하지 않음 |
+| [V021](../../storage/db/src/main/resources/db/migration/notification/V021__add_notification_retry_baselines.sql) | `notification_jobs`·`notifications`의 수동 복구 기준 차수 | GD-72 관리자 알림 복구. 누적 선점 차수는 유지하고 복구 이후의 자동 재시도 횟수만 새로 센다([ADR-0005](../04-decisions/0005-notification-manual-retry-fencing.md)) |
+| [V022](../../storage/db/src/main/resources/db/migration/drawing/V022__add_award_cancellation_request_key.sql) | `award_cancellations.request_key`와 UNIQUE | GD-138 개별 당첨 취소 요청의 멱등 키. 과거 이력은 NULL |
 | [V023](../../storage/db/src/main/resources/db/migration/ticket/V023__add_ticket_expiry_scan_index.sql) | `tickets`의 `(status, expires_at)` 인덱스 | GD-135 응모권 만료 워커가 만료 시각이 지난 사용 가능·반환됨 응모권을 찾는 조회(`FOR UPDATE SKIP LOCKED`). 공개 API는 추가하지 않음 |
 
 ## 응모 API 현행 매핑 (GD-134)
@@ -60,14 +64,14 @@
 | --- | --- | --- |
 | D01 | V004 `chk_streak_days`는 현재 `consecutive_days BETWEEN 0 AND 31` | 실제 연속 일수 29~31일을 저장할 수 있도록 현재 원격 `dev`에 반영됨. 단계 설정 상한 28일과 구분 |
 | D02 | V006은 `max_tickets_per_user`의 양수 여부만 제한하고 별도 소진용 지정 필드는 없음 | `TICKET`·가중치 적용·상한 null 조합이 월말 소진용 상한 없는 이벤트다. 팀은 월말에만 운영하지만 등록 서비스는 이벤트 날짜가 월말인지 검사하지 않는다. 서비스가 일반 5장·미가중치 1장·미사용 0장 조합을 검증하고, 실제 응모에서는 유효 보유량을 검증한다. [공용 응모권 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/ticket.md)을 따른다 |
-| D03 | V008에 비동기 작업처럼 보이는 `ticket_refund_jobs`가 있음 | 테이블 이름과 상태가 취소 후 별도 반환을 허용하는 근거는 아님. 취소·반환 동시 완료 트랜잭션 설계 필요 |
+| D03 | 취소에 따른 반환은 별도 반환 작업 테이블 없이 동기 처리한다. 옛 `ticket_refund_jobs`는 현재 스키마에 없다 | `TicketRefundService`가 호출자 트랜잭션에서 응모권을 `RETURNED`로 돌리고 `REFUND` 이력을 남긴다. 이벤트 취소 처리에서 이 서비스를 호출하는 연결은 이벤트 담당 영역이며 아직 없다. 연결할 때의 계약은 공용 명세(`02-domain/event.md`)를 따르며 구현 제안은 다음과 같다(제안): 이벤트 상태를 취소로 바꾸는 일과 대상 응모별 `TicketRefundService.refund` 호출을 한 트랜잭션에서 하고, 이벤트 행 잠금으로 진행 중인 응모와의 확정 순서를 보장하며, 반환이 실패하면 취소도 롤백하고, 재시도하면 기존 반환 이력을 재생한다. 연결 뒤에는 반환 실패 롤백과 취소 중 동시 응모의 확정 순서를 통합 테스트로 검증한다 |
 | D04 | 현행 V006의 events에는 `deleted_at`이 있고 banners에는 `event_url`만 있으며 이벤트 FK·`deleted_at`은 없음 | GD-61은 이벤트만 논리 삭제한다. 2026-10-13 사용자 확인에 따라 배너는 관리자 수동 삭제를 유지한다. 공용 명세의 자동 삭제 문구와 차이 및 알림 연동 확인 사항은 [이벤트 삭제 구현](../02-api/event-deletion.md)에 정리한다 |
 | D05 | 검토 현재 상태는 `abuse_cases`, 공개 현재 상태는 `publications`, 게임 판정은 `game_plays`; 별도 검토/공개 변경/검증 결과 이력 테이블 없음 | `audit_logs.before_data/after_data` 등에 구조화된 이력을 저장하는 설계 또는 추가 스키마 검토. 현재 JSON 컬럼 존재만으로 이력 API가 구현되었다고 보지 않음 |
 | D06 | `current_awards`는 현재 당첨 배정이고 공개 revision별 스냅샷 테이블은 없음 | 재추첨 실행 중의 새 배정과 기존 공개 명단을 구분해야 함. `current_awards`를 그대로 공개 조회하지 않고 publication 상태·변경 이력과 일치시키는 설계 필요 |
 | D07 | `game_reward_claims`는 사용자·source_key 및 사용자·게임·보상일 UNIQUE를 모두 가짐 | 현재 원격 `dev`에 추가된 사용자·게임·보상일 UNIQUE를 기준으로 중복 지급을 검증 |
 | D08 | `reward_policies`에 게임별 보상 조건 JSON 또는 검증 버전 필드는 없음. `games.rules`는 현재 게임 규칙 | 다음 일일 기준일 적용이 필요한 게임 보상 조건의 버전·예약 저장 구조 설계 필요 |
-| D09 | 공통 응답·페이징은 존재하나 업무 Controller·DTO·헤더 사용자 문맥 필터는 없음 | 본 문서의 API는 호출 가능한 현재 기능이 아님. 각 담당자 구현 후 Swagger와 계약 대조 필요 |
+| D09 | 업무 Controller·DTO와 사용자 문맥 필터가 기능별로 구현되어 있다(출석, 응모, 응모권 조회, 이벤트 조회·등록, 알림, 추첨 등). 미션은 모델·저장소만 있고 API가 없다 | 본 문서의 API 중 구현되지 않은 것은 호출할 수 없다. 구현된 API는 Swagger와 공용 계약을 대조한다 |
 | D10 | `missions.status`는 `ACTIVE`/`ENDED` 두 값뿐이다(API 초안의 `DRAFT`는 스키마에 없음). 문항별 `quiz_question_progress` 존재 | 시작 전 초안 상태를 쓰려면 새 마이그레이션이 필요하다. 상태 전환·다문항 누적 달성 정책은 테이블에서 역으로 확정하지 않음 |
-| D11 | `ticket_ledger`는 수량 0을 허용하지 않고 출석 단계 정책은 보상 0을 허용 | 보상 기록과 실제 지급 원장을 구분. 지급량 0 허용 범위와 응답 계약 확인 필요 |
+| D11 | 응모권 지급 원장은 `tickets`·`ticket_histories`이며 지급 수량은 1 이상이다. 출석 단계 정책은 보상 0을 허용 | 보상 정책의 수량과 실제 지급을 구분. 지급량 0 허용 범위와 응답 계약 확인 필요 |
 
 위 항목은 최신 SQL의 정적 검토 결과이며 런타임 검증 결과가 아니다. D01·D07은 기존 초안과 달리 현재 `dev`에 반영된 상태를 기록했다.
