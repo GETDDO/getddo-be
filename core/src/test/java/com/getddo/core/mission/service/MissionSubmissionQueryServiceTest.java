@@ -142,14 +142,18 @@ class MissionSubmissionQueryServiceTest {
 	@DisplayName("완료한 제출에 보상 청구가 없으면 저장된 데이터가 어긋난 것이므로 숨기지 않고 실패한다")
 	void failsWhenCompletedSubmissionHasNoClaim() {
 		// given
+		MissionSubmission done = submission(UUID.randomUUID(), true);
 		when(missionRepository.findById(MISSION_ID)).thenReturn(Optional.of(mission()));
 		when(submissionRepository.findByUser(any(), any(), any())).thenReturn(
-				new PageResult<>(List.of(submission(UUID.randomUUID(), true)), 1, 20, 1));
+				new PageResult<>(List.of(done), 1, 20, 1));
 		when(claimRepository.findByUserAndMission(USER_ID, MISSION_ID)).thenReturn(Optional.empty());
 		// when
 		// then
 		assertThatThrownBy(() -> service.findMySubmissions(USER_ID, MISSION_ID, new PageQuery(1, 20)))
-				.isInstanceOf(IllegalStateException.class);
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("submissionId=" + done.getId())
+				.hasMessageContaining("userId=" + USER_ID)
+				.hasMessageContaining("missionId=" + MISSION_ID);
 	}
 
 	@Test

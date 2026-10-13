@@ -1,5 +1,7 @@
 package com.getddo.db.mission;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -125,5 +127,34 @@ class MissionSubmissionQueryServiceIntegrationTest extends MissionIntegrationTes
 		assertThat(firstPage.getItems().get(0).getReward()).isNull();
 		assertThat(secondPage.getItems().get(0).getReward()).isNull();
 		assertThat(firstPage.getTotalElements()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("제출 시각이 같으면 ID 바이트를 부호 없이 비교한 내림차순으로 보여 주고 1·2페이지가 겹치거나 빠지지 않는다")
+	void ordersSubmissionsWithSameCreatedAtByIdDescendingWithoutPageOverlap() {
+		// given
+		MissionDetail quiz = saveQuizMission("퀴즈");
+		MissionSubmissionResult a = submit(userId, quiz, false);
+		MissionSubmissionResult b = submit(userId, quiz, false);
+		MissionSubmissionResult c = submit(userId, quiz, false);
+		List<UUID> expected = List.of(a.getSubmissionId(), b.getSubmissionId(), c.getSubmissionId()).stream()
+				.sorted((left, right) -> Arrays.compareUnsigned(bytes(right), bytes(left))).toList();
+		// when
+		PageResult<MissionSubmissionResult> first = queryService.findMySubmissions(userId, quiz.getMission().getId(),
+				new PageQuery(1, 2));
+		PageResult<MissionSubmissionResult> second = queryService.findMySubmissions(userId, quiz.getMission().getId(),
+				new PageQuery(2, 2));
+		// then
+		assertThat(a.getReceivedAt()).isEqualTo(c.getReceivedAt());
+		assertThat(first.getItems()).extracting(MissionSubmissionResult::getSubmissionId)
+				.containsExactly(expected.get(0), expected.get(1));
+		assertThat(second.getItems()).extracting(MissionSubmissionResult::getSubmissionId)
+				.containsExactly(expected.get(2));
+		assertThat(first.getTotalElements()).isEqualTo(3);
+	}
+
+	/** MySQL BINARY(16) 정렬과 같이 16바이트를 부호 없이 앞에서부터 비교하려고 UUID를 바이트로 바꾼다. */
+	private static byte[] bytes(UUID id) {
+		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
 }

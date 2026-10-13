@@ -418,7 +418,7 @@ class MissionControllerTest {
 	}
 
 	@Test
-	@DisplayName("내 제출 조회의 페이지 기본값은 1페이지 20건이고 범위를 벗어나면 400이며 조회하지 않는다")
+	@DisplayName("내 제출 조회의 페이지 기본값은 1페이지 20건이고 크기 1·100은 허용하며 0·101과 페이지 0은 400이고 조회하지 않는다")
 	void mySubmissionsUsesDefaultsAndRejectsInvalidParameters() throws Exception {
 		// given
 		when(submissionQueryService.findMySubmissions(any(), any(), any()))
@@ -428,11 +428,20 @@ class MissionControllerTest {
 		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty());
 		verify(submissionQueryService).findMySubmissions(USER_ID, MISSION_ID, new PageQuery(1, 20));
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID))
+						.param("page", "1").param("size", "100"))
+				.andExpect(status().isOk());
+		verify(submissionQueryService).findMySubmissions(USER_ID, MISSION_ID, new PageQuery(1, 100));
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)).param("size", "1"))
+				.andExpect(status().isOk());
+		verify(submissionQueryService).findMySubmissions(USER_ID, MISSION_ID, new PageQuery(1, 1));
 		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)).param("page", "0"))
+				.andExpect(status().isBadRequest());
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)).param("size", "0"))
 				.andExpect(status().isBadRequest());
 		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)).param("size", "101"))
 				.andExpect(status().isBadRequest());
-		verify(submissionQueryService, times(1)).findMySubmissions(any(), any(), any());
+		verify(submissionQueryService, times(3)).findMySubmissions(any(), any(), any());
 	}
 
 	@Test

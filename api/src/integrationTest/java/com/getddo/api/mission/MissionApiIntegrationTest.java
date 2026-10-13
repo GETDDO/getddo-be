@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MissionApiIntegrationTest {
 
 	private static final UUID USER = UUID.fromString("00000000-0000-0000-0000-000000000401");
+	private static final UUID OTHER = UUID.fromString("00000000-0000-0000-0000-000000000402");
 	private static final UUID MISSION = UUID.fromString("00000000-0000-0000-0000-000000000410");
 	private static final UUID QUESTION = UUID.fromString("00000000-0000-0000-0000-000000000411");
 	private static final UUID OPTION_OK = UUID.fromString("00000000-0000-0000-0000-000000000412");
@@ -59,6 +60,10 @@ class MissionApiIntegrationTest {
 				insert into users (id, name, role, status, membership, updated_at, created_at)
 				values (?, 'test', 'USER', 'ACTIVE', 'vip', ?, ?)
 				""", bytes(USER), now, now);
+		jdbc.update("""
+				insert into users (id, name, role, status, membership, updated_at, created_at)
+				values (?, 'other', 'USER', 'ACTIVE', 'vip', ?, ?)
+				""", bytes(OTHER), now, now);
 		jdbc.update("""
 				insert into reward_policies (id, created_by, reward_type, reward_ticket_count, effective_from,
 				  effective_until, created_at)
@@ -88,6 +93,13 @@ class MissionApiIntegrationTest {
 
 	@AfterEach
 	void clean() {
+		jdbc.update("delete h from ticket_histories h join tickets t on t.id = h.ticket_id where t.user_id = ?", bytes(OTHER));
+		jdbc.update("delete from tickets where user_id = ?", bytes(OTHER));
+		jdbc.update("delete from mission_reward_claims where user_id = ?", bytes(OTHER));
+		jdbc.update("delete from quiz_question_progress where user_id = ?", bytes(OTHER));
+		jdbc.update("delete a from quiz_answers a join mission_submissions s on s.id = a.submission_id where s.user_id = ?",
+				bytes(OTHER));
+		jdbc.update("delete from mission_submissions where user_id = ?", bytes(OTHER));
 		jdbc.update("delete h from ticket_histories h join tickets t on t.id = h.ticket_id where t.user_id = ?", bytes(USER));
 		jdbc.update("delete from tickets where user_id = ?", bytes(USER));
 		jdbc.update("delete from mission_reward_claims where user_id = ?", bytes(USER));
@@ -99,6 +111,7 @@ class MissionApiIntegrationTest {
 		jdbc.update("delete from mission_quiz_questions where mission_id = ?", bytes(MISSION));
 		jdbc.update("delete from missions where id = ?", bytes(MISSION));
 		jdbc.update("delete from reward_policies where id = ?", bytes(POLICY));
+		jdbc.update("delete from users where id = ?", bytes(OTHER));
 		jdbc.update("delete from users where id = ?", bytes(USER));
 	}
 
@@ -177,15 +190,23 @@ class MissionApiIntegrationTest {
 	}
 
 	private MockHttpServletRequestBuilder submit(UUID key, String body) {
-		return post("/api/v1/missions/{missionId}/submissions", MISSION).headers(headers())
+		return submit(USER, key, body);
+	}
+
+	private MockHttpServletRequestBuilder submit(UUID user, UUID key, String body) {
+		return post("/api/v1/missions/{missionId}/submissions", MISSION).headers(headers(user))
 				.header("Idempotency-Key", key)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(body);
 	}
 
 	private HttpHeaders headers() {
+		return headers(USER);
+	}
+
+	private HttpHeaders headers(UUID user) {
 		HttpHeaders headers = new HttpHeaders();
-		headers.set("X-User-ID", USER.toString());
+		headers.set("X-User-ID", user.toString());
 		headers.set("X-User-Role", "USER");
 		return headers;
 	}
@@ -243,28 +264,35 @@ class MissionApiIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("내 제출 조회는 오답과 완료 제출을 최신순으로 보여 주고 보상은 완료 제출에만 붙으며 없는 미션은 404다")
-	void listsMySubmissionsWithRewardOnlyOnCompleted() throws Exception {
+	@DisplayName("내 제출 조회는 오답과 완료 제출을 보여 주되 보상은 완료 제출에만 붙고 다른 사용자의 제출은 보이지 않으며 없는 미션은 404다")
+	void listsMySubmissionsWithRewardOnlyOnCompletedAndHidesOtherUsers() throws Exception {
 		// given
 		UUID wrongKey = UUID.randomUUID();
 		UUID doneKey = UUID.randomUUID();
+		UUID otherKey = UUID.randomUUID();
 		mvc.perform(submit(wrongKey, answers(OPTION_NO, "겟또"))).andExpect(status().isCreated());
 		mvc.perform(submit(doneKey, answers(OPTION_OK, "겟또"))).andExpect(status().isCreated());
+		mvc.perform(submit(OTHER, otherKey, answers(OPTION_OK, "겟또"))).andExpect(status().isCreated());
+		String done = "$.data.items[?(@.submissionId=='" + doneKey + "')]";
+		String wrong = "$.data.items[?(@.submissionId=='" + wrongKey + "')]";
 		// when
 		// then
 		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", MISSION).headers(headers()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(2))
-				.andExpect(jsonPath("$.data.items[0].submissionId").value(doneKey.toString()))
-				.andExpect(jsonPath("$.data.items[0].isCompleted").value(true))
-				.andExpect(jsonPath("$.data.items[0].reward.ticketCount").value(1))
-				.andExpect(jsonPath("$.data.items[0].reward.grade").isString())
-				.andExpect(jsonPath("$.data.items[1].submissionId").value(wrongKey.toString()))
-				.andExpect(jsonPath("$.data.items[1].isCompleted").value(false))
-				.andExpect(jsonPath("$.data.items[1].reward").value(nullValue()))
+				.andExpect(jsonPath(done + ".isCompleted").value(true))
+				.andExpect(jsonPath(done + ".reward.ticketCount").value(1))
+				.andExpect(jsonPath(done + ".reward.grade").isNotEmpty())
+				.andExpect(jsonPath(wrong + ".isCompleted").value(false))
+				.andExpect(jsonPath(wrong + ".reward.ticketCount").isEmpty())
+				.andExpect(jsonPath("$.data.items[?(@.submissionId=='" + otherKey + "')]").isEmpty())
 				.andExpect(jsonPath("$.data.items[0].answers").doesNotExist())
 				.andExpect(jsonPath("$.data.items[0].isCorrect").doesNotExist())
 				.andExpect(jsonPath("$.data.items[1].selectedOptionId").doesNotExist());
+		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", MISSION).headers(headers(OTHER)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.totalElements").value(1))
+				.andExpect(jsonPath("$.data.items[0].submissionId").value(otherKey.toString()));
 		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", MISSION).param("size", "101").headers(headers()))
 				.andExpect(status().isBadRequest());
 		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", UUID.randomUUID()).headers(headers()))
