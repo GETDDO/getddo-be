@@ -28,6 +28,8 @@ public final class QuizAnswer {
 		this.selectedOptionId = selectedOptionId;
 		this.answerText = answerText;
 		this.correct = correct;
+		// 저장소가 복원하는 경로도 팩터리와 같게 선택지나 입력 문자열 중 정확히 하나만 허용한다.
+		MissionRules.answer(selectedOptionId != null ? answerText == null : MissionRules.hasText(answerText));
 	}
 
 	/**
@@ -36,7 +38,6 @@ public final class QuizAnswer {
 	 * @throws com.getddo.core.mission.exception.MissionException 선택지와 입력 문자열 중 정확히 하나가 아닐 때
 	 */
 	public static QuizAnswer of(UUID questionId, UUID selectedOptionId, String answerText, boolean correct) {
-		MissionRules.answer(selectedOptionId != null ? answerText == null : MissionRules.hasText(answerText));
 		return new QuizAnswer(null, questionId, selectedOptionId, answerText, correct);
 	}
 }

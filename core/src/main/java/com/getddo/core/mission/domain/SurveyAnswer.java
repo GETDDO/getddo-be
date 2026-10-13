@@ -22,6 +22,8 @@ public final class SurveyAnswer {
 		this.questionId = Objects.requireNonNull(questionId, "questionId");
 		this.selectedOptionId = selectedOptionId;
 		this.answerText = answerText;
+		// 저장소가 복원하는 경로도 팩터리와 같게 선택지나 입력 문자열 중 정확히 하나만 허용한다.
+		MissionRules.answer(selectedOptionId != null ? answerText == null : MissionRules.hasText(answerText));
 	}
 
 	/**
@@ -30,7 +32,6 @@ public final class SurveyAnswer {
 	 * @throws com.getddo.core.mission.exception.MissionException 선택지와 입력 문자열 중 정확히 하나가 아닐 때
 	 */
 	public static SurveyAnswer of(UUID questionId, UUID selectedOptionId, String answerText) {
-		MissionRules.answer(selectedOptionId != null ? answerText == null : MissionRules.hasText(answerText));
 		return new SurveyAnswer(null, questionId, selectedOptionId, answerText);
 	}
 }

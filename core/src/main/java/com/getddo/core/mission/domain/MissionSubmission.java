@@ -39,10 +39,16 @@ public final class MissionSubmission {
 		this.createdAt = createdAt;
 		this.quizAnswers = List.copyOf(quizAnswers);
 		this.surveyAnswers = List.copyOf(surveyAnswers);
+		// 저장소가 복원하는 경로와 팩터리가 같은 규칙을 지키도록 미션 유형 없이 판단할 수 있는 규칙은 여기서 검사한다.
+		MissionRules.answer(distinct(this.quizAnswers.stream().map(QuizAnswer::getQuestionId).toList()));
+		MissionRules.answer(distinct(this.surveyAnswers.stream().map(SurveyAnswer::getQuestionId).toList()));
+		// 오답은 완료·보상으로 기록하지 않는다. 다문항 완료 조건은 채점 세부 계약이 정하므로 최소 불변식만 지킨다.
+		MissionRules.answer(!completed || this.quizAnswers.stream().allMatch(QuizAnswer::isCorrect));
 	}
 
 	/**
-	 * 저장된 미션에 대한 새 제출을 만든다. 미션의 보상 정책을 제출에 함께 기록한다.
+	 * 저장된 미션에 대한 새 제출을 만든다. 미션의 보상 정책을 제출에 함께 기록한다. 같은 문항에 두 번 답했거나 완료한 제출에
+	 * 오답이 있는 경우의 거절은 생성자가 맡고, 이 팩터리는 미션 유형이 있어야 판단할 수 있는 규칙을 더한다.
 	 *
 	 * @throws com.getddo.core.mission.exception.MissionException 미션 유형과 다른 종류의 답변이 있거나, 같은 문항에 두 번 답했거나,
 	 *         완료한 퀴즈 제출에 답변이 없거나 오답이 있을 때
@@ -52,11 +58,9 @@ public final class MissionSubmission {
 		Objects.requireNonNull(mission.getId(), "mission.id");
 		MissionRules.answer(mission.getMissionType() == MissionType.QUIZ
 				? surveyAnswers.isEmpty() : quizAnswers.isEmpty());
-		MissionRules.answer(distinct(quizAnswers.stream().map(QuizAnswer::getQuestionId).toList()));
-		MissionRules.answer(distinct(surveyAnswers.stream().map(SurveyAnswer::getQuestionId).toList()));
 		if (completed && mission.getMissionType() == MissionType.QUIZ) {
-			// 오답은 완료·보상으로 기록하지 않는다. 다문항 완료 조건은 채점 세부 계약이 정하므로 최소 불변식만 지킨다.
-			MissionRules.answer(!quizAnswers.isEmpty() && quizAnswers.stream().allMatch(QuizAnswer::isCorrect));
+			// 완료한 퀴즈 제출은 답변이 있어야 한다. 오답이 섞였는지는 생성자가 검사한다.
+			MissionRules.answer(!quizAnswers.isEmpty());
 		}
 		return new MissionSubmission(null, mission.getId(), mission.getRewardPolicyId(), userId, completed, null,
 				quizAnswers, surveyAnswers);

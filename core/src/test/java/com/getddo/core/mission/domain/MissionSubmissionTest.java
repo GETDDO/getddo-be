@@ -62,6 +62,60 @@ class MissionSubmissionTest {
 	}
 
 	@Test
+	@DisplayName("생성자로 직접 만들어도 팩터리와 같은 규칙을 지켜 오답이 있는 제출을 완료로 만들 수 없다")
+	void constructorRejectsCompletedSubmissionWithWrongAnswer() {
+		// given
+		Mission quiz = saved(MissionType.QUIZ);
+		QuizAnswer wrong = QuizAnswer.of(UUID.randomUUID(), null, "오답", false);
+		QuizAnswer correct = correctText(UUID.randomUUID());
+		// when
+		MissionSubmission incomplete = new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, false,
+				null, List.of(wrong), List.of());
+		MissionSubmission completed = new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, true,
+				null, List.of(correct), List.of());
+		// then
+		assertThat(incomplete.isCompleted()).isFalse();
+		assertThat(completed.isCompleted()).isTrue();
+		assertInvalidAnswer(() -> new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, true,
+				null, List.of(wrong), List.of()));
+		assertInvalidAnswer(() -> new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, true,
+				null, List.of(correct, wrong), List.of()));
+	}
+
+	@Test
+	@DisplayName("생성자로 직접 만들어도 같은 문항에 두 번 답한 제출은 거절한다")
+	void constructorRejectsDuplicateQuestionAnswers() {
+		// given
+		Mission survey = saved(MissionType.SURVEY);
+		UUID questionId = UUID.randomUUID();
+		// when
+		// then
+		assertInvalidAnswer(() -> new MissionSubmission(null, survey.getId(), survey.getRewardPolicyId(), USER_ID, true,
+				null, List.of(), List.of(SurveyAnswer.of(questionId, null, "가"), SurveyAnswer.of(questionId, null, "나"))));
+		assertInvalidAnswer(() -> new MissionSubmission(null, UUID.randomUUID(), UUID.randomUUID(), USER_ID, false, null,
+				List.of(correctText(questionId), correctText(questionId)), List.of()));
+	}
+
+	@Test
+	@DisplayName("답변도 생성자로 직접 만들 때 선택지와 입력 문자열 중 정확히 하나만 허용한다")
+	void answerConstructorRequiresExactlyOneValue() {
+		// given
+		UUID questionId = UUID.randomUUID();
+		UUID optionId = UUID.randomUUID();
+		// when
+		QuizAnswer byOption = new QuizAnswer(UUID.randomUUID(), questionId, optionId, null, true);
+		SurveyAnswer byText = new SurveyAnswer(UUID.randomUUID(), questionId, null, "의견");
+		// then
+		assertThat(byOption.getSelectedOptionId()).isEqualTo(optionId);
+		assertThat(byText.getAnswerText()).isEqualTo("의견");
+		assertInvalidAnswer(() -> new QuizAnswer(null, questionId, null, null, false));
+		assertInvalidAnswer(() -> new QuizAnswer(null, questionId, optionId, "정답", true));
+		assertInvalidAnswer(() -> new QuizAnswer(null, questionId, optionId, " ", true));
+		assertInvalidAnswer(() -> new SurveyAnswer(null, questionId, null, null));
+		assertInvalidAnswer(() -> new SurveyAnswer(null, questionId, optionId, "의견"));
+	}
+
+	@Test
 	@DisplayName("저장되지 않은 미션에는 제출을 만들 수 없다")
 	void requiresSavedMission() {
 		// given
