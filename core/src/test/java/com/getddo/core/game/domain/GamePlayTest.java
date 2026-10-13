@@ -1,8 +1,8 @@
 package com.getddo.core.game.domain;
 
 import java.time.Instant;
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -118,7 +118,7 @@ class GamePlayTest {
 	}
 
 	@Test
-	@DisplayName("검증 기준이 있는 복원 객체는 잘못된 결과 조합과 시간·해시 길이 경계를 거절한다")
+	@DisplayName("검증 기준이 있는 복원 객체는 잘못된 결과 조합과 시간·해시 형식 경계를 거절한다")
 	void rejectsInvalidRestoredResults() {
 		// given
 		List<Runnable> invalid = List.of(
@@ -129,6 +129,8 @@ class GamePlayTest {
 				() -> restore(-1L, HASH, END, START),
 				() -> restore(0L, "a".repeat(63), END, START),
 				() -> restore(0L, "a".repeat(65), END, START),
+				() -> restore(0L, "g".repeat(64), END, START),
+				() -> restore(0L, "A".repeat(64), END, START),
 				() -> restore(0L, HASH, START.minusSeconds(1), START),
 				() -> restore(0L, HASH, END, null));
 		// when / then

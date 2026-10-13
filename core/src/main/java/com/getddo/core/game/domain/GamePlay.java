@@ -41,10 +41,13 @@ public final class GamePlay {
 		if (completeContext) {
 			boolean unfinished = completedAt == null && score == null && resultHash == null;
 			boolean completed = completedAt != null && startedAt != null && !completedAt.isBefore(startedAt)
-					&& resultHash != null && resultHash.codePointCount(0, resultHash.length()) == 64
+					&& resultHash != null
 					&& (score == null || score >= 0);
 			if (!unfinished && !completed) {
 				throw new IllegalArgumentException("플레이 결과의 점수·해시·완료 시각 조합이 올바르지 않습니다.");
+			}
+			if (completed) {
+				requireHash(resultHash);
 			}
 		}
 		this.id = id;
