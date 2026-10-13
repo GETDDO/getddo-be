@@ -58,6 +58,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class MissionSubmissionRecorderTest {
 
+	private static final String HASH = "0".repeat(64);
+
 	private static final Instant NOW = Instant.parse("2026-10-13T03:00:00Z");
 	private static final Instant STARTS = Instant.parse("2026-10-01T00:00:00Z");
 	private static final Instant ENDS = Instant.parse("2026-11-01T00:00:00Z");
@@ -131,7 +133,7 @@ class MissionSubmissionRecorderTest {
 			MissionSubmission given = invocation.getArgument(0);
 			return new MissionSubmission(given.getId(), given.getMissionId(), given.getRewardPolicyId(), given.getUserId(),
 					given.isCompleted(), given.getCreatedAt(),
-					given.getQuizAnswers().stream()
+					HASH, given.getQuizAnswers().stream()
 							.map(a -> new QuizAnswer(UUID.randomUUID(), a.getQuestionId(), a.getSelectedOptionId(),
 									a.getAnswerText(), a.isCorrect()))
 							.toList(),
@@ -246,7 +248,7 @@ class MissionSubmissionRecorderTest {
 		// given
 		UUID earlierId = UUID.randomUUID();
 		MissionSubmission earlier = new MissionSubmission(earlierId, missionId, UUID.randomUUID(), userId, true,
-				NOW.minusSeconds(60), List.of(), List.of(new SurveyAnswer(UUID.randomUUID(), q1, q1Ok, null)));
+				NOW.minusSeconds(60), HASH, List.of(), List.of(new SurveyAnswer(UUID.randomUUID(), q1, q1Ok, null)));
 		UUID claimId = UUID.randomUUID();
 		when(submissionRepository.findById(submissionId)).thenReturn(Optional.empty());
 		when(missionRepository.findDetailById(missionId)).thenReturn(Optional.of(survey()));
@@ -271,7 +273,8 @@ class MissionSubmissionRecorderTest {
 	void replaysSameKeyAndRejectsDifferentBody() {
 		// given
 		MissionSubmission stored = new MissionSubmission(submissionId, missionId, UUID.randomUUID(), userId, false,
-				NOW.minusSeconds(60), List.of(new QuizAnswer(UUID.randomUUID(), q1, q1No, null, false)), List.of());
+				NOW.minusSeconds(60), command(option(q1, q1No)).getRequestHash(),
+				List.of(new QuizAnswer(UUID.randomUUID(), q1, q1No, null, false)), List.of());
 		when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(stored));
 		// when
 		MissionSubmissionResult replayed = recorder.record(command(option(q1, q1No)));
@@ -287,23 +290,42 @@ class MissionSubmissionRecorderTest {
 	}
 
 	@Test
-	@DisplayName("같은 제출 ID라도 저장되지 않은 문항의 답변이 더 있으면 다른 본문이라 409이고, 이미 정답으로 완료한 퀴즈 문항이면 같은 요청으로 본다")
-	void rejectsReplayWithExtraAnswers() {
-		// given
-		MissionSubmission survey = new MissionSubmission(submissionId, missionId, UUID.randomUUID(), userId, true,
-				NOW.minusSeconds(60), List.of(), List.of(new SurveyAnswer(UUID.randomUUID(), q1, q1Ok, null)));
+	@DisplayName("같은 제출 ID로 처음 요청에 없던 답변을 더하면 이미 맞힌 문항이어도 다른 본문이라 409이고, 처음 요청 그대로면 저장하지 않은 답변이 있어도 같은 요청이다")
+	void comparesAgainstTheOriginalRequest() {
+		// given: 처음 요청은 이미 정답으로 완료한 q1의 답변을 포함했고 그 답변은 저장되지 않았다
+		MissionSubmissionCommand original = command(option(q1, q1Ok), text(q2, "틀림"));
 		MissionSubmission quizStored = new MissionSubmission(submissionId, missionId, UUID.randomUUID(), userId, false,
-				NOW.minusSeconds(60), List.of(new QuizAnswer(UUID.randomUUID(), q1, q1No, null, false)), List.of());
-		when(progressRepository.findCorrectQuestionIds(any(), any())).thenReturn(Set.of(), Set.of(q2));
+				NOW.minusSeconds(60), original.getRequestHash(),
+				List.of(new QuizAnswer(UUID.randomUUID(), q2, null, "틀림", false)), List.of());
+		MissionSubmission surveyStored = new MissionSubmission(submissionId, missionId, UUID.randomUUID(), userId, true,
+				NOW.minusSeconds(60), command(option(q1, q1Ok)).getRequestHash(), List.of(),
+				List.of(new SurveyAnswer(UUID.randomUUID(), q1, q1Ok, null)));
 		// when
 		// then
-		when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(survey));
-		assertConflict(command(option(q1, q1Ok), text(q2, "의견")));
 		when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(quizStored));
-		assertConflict(command(option(q1, q1No), text(q2, "겟또")));
-		MissionSubmissionResult replayed = recorder.record(command(option(q1, q1No), text(q2, "겟또")));
+		MissionSubmissionResult replayed = recorder.record(original);
 		assertThat(replayed.isCreated()).isFalse();
 		assertThat(replayed.isCompleted()).isFalse();
+		assertConflict(command(option(q1, q1Ok), text(q2, "틀림"), text(UUID.randomUUID(), "더함")));
+		assertConflict(command(text(q2, "틀림")));
+		when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(surveyStored));
+		assertConflict(command(option(q1, q1Ok), text(q2, "의견")));
+		verifyNoInteractions(missionRepository, progressRepository);
+	}
+
+	@Test
+	@DisplayName("같은 제출 ID의 재요청에 같은 문항이 두 번 있으면 저장된 답변과 같아도 신규 제출처럼 답변 형식 오류로 거절한다")
+	void rejectsReplayWithDuplicateQuestions() {
+		// given
+		MissionSubmission stored = new MissionSubmission(submissionId, missionId, UUID.randomUUID(), userId, false,
+				NOW.minusSeconds(60), HASH, List.of(new QuizAnswer(UUID.randomUUID(), q1, q1No, null, false)), List.of());
+		when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(stored));
+		// when
+		// then
+		assertThatThrownBy(() -> recorder.record(command(option(q1, q1No), option(q1, q1Ok))))
+				.isInstanceOfSatisfying(MissionException.class,
+						e -> assertThat(e.getErrorCode()).isEqualTo(MissionErrorCode.INVALID_MISSION_ANSWER));
+		verifyNoInteractions(missionRepository, progressRepository, claimRepository, grantService);
 	}
 
 	@Test

@@ -32,6 +32,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /** 제출·답변·정답 진행·보상 청구의 Entity 매핑, 유일 제약과 일관성을 실제 MySQL 스키마에서 검증한다. */
 class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 
+	private static final String HASH = "0".repeat(64);
+
 	@Autowired
 	private MissionSubmissionRepository submissionRepository;
 	@Autowired
@@ -41,7 +43,7 @@ class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 
 	private MissionSubmission submitQuiz(MissionDetail detail, UUID user, boolean completed) {
 		QuizQuestion shortAnswer = detail.getQuizQuestions().get(1);
-		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), detail.getMission(), user, completed,
+		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), HASH, detail.getMission(), user, completed,
 				List.of(QuizAnswer.of(shortAnswer.getId(), null, completed ? "겟또" : "오답", completed)), List.of());
 		return transaction.execute(status -> submissionRepository.insert(submission));
 	}
@@ -54,7 +56,7 @@ class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 		QuizQuestion choice = mission.getQuizQuestions().get(0);
 		UUID correctOption = choice.getOptions().get(0).getId();
 		clock.set(clock.instant().plusSeconds(30));
-		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), mission.getMission(),
+		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), HASH, mission.getMission(),
 				userId, true, List.of(
 						QuizAnswer.of(choice.getId(), correctOption, null, true),
 						QuizAnswer.of(mission.getQuizQuestions().get(1).getId(), null, "겟또", true)), List.of());
@@ -68,6 +70,9 @@ class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 		MissionSubmission found = submissionRepository.findById(saved.getId()).orElseThrow();
 		assertThat(found.isCompleted()).isTrue();
 		assertThat(found.getUserId()).isEqualTo(userId);
+		assertThat(found.getRequestHash()).isEqualTo(HASH);
+		assertThat(jdbc.queryForObject("select request_hash from mission_submissions where id = ?", String.class,
+				bytes(saved.getId()))).isEqualTo(HASH);
 		assertThat(found.getCreatedAt()).isEqualTo(saved.getCreatedAt());
 		assertThat(found.getQuizAnswers()).extracting(QuizAnswer::getQuestionId)
 				.containsExactlyInAnyOrder(choice.getId(), mission.getQuizQuestions().get(1).getId());
@@ -90,7 +95,7 @@ class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 		SurveyQuestion choice = mission.getSurveyQuestions().get(0);
 		SurveyQuestion text = mission.getSurveyQuestions().get(1);
 		UUID option = choice.getOptions().get(1).getId();
-		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), mission.getMission(), userId, true, List.of(), List.of(
+		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), HASH, mission.getMission(), userId, true, List.of(), List.of(
 				SurveyAnswer.of(choice.getId(), option, null), SurveyAnswer.of(text.getId(), null, "좋아요")));
 		// when
 		MissionSubmission saved = transaction.execute(status -> submissionRepository.insert(submission));
@@ -110,7 +115,7 @@ class MissionSubmissionIntegrationTest extends MissionIntegrationTestSupport {
 		// given
 		MissionDetail mine = saveQuizMission("내 퀴즈");
 		MissionDetail other = saveQuizMission("다른 퀴즈");
-		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), mine.getMission(), userId, false,
+		MissionSubmission submission = MissionSubmission.of(UUID.randomUUID(), clock.instant(), HASH, mine.getMission(), userId, false,
 				List.of(QuizAnswer.of(other.getQuizQuestions().get(1).getId(), null, "오답", false)), List.of());
 		// when
 		// then

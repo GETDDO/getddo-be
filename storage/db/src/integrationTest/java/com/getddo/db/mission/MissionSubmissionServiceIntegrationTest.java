@@ -159,8 +159,8 @@ class MissionSubmissionServiceIntegrationTest extends MissionIntegrationTestSupp
 	}
 
 	@Test
-	@DisplayName("같은 제출 ID로 저장되지 않은 답변을 더 보내면 409이고, 이미 정답으로 완료한 문항의 답변이 더 있으면 같은 요청으로 본다")
-	void rejectsSameKeyWithExtraAnswers() {
+	@DisplayName("같은 제출 ID로 처음 요청에 없던 답변을 더하면 이미 맞힌 문항이어도 409이고, 처음 요청 그대로 재전송하면 저장하지 않은 답변이 있어도 200이다")
+	void comparesSameKeyAgainstTheOriginalRequest() {
 		// given
 		MissionDetail survey = saveSurveyMission("설문 미션");
 		SurveyQuestion required = survey.getSurveyQuestions().get(0);
@@ -173,6 +173,10 @@ class MissionSubmissionServiceIntegrationTest extends MissionIntegrationTestSupp
 		List<QuizQuestion> q = quiz.getQuizQuestions();
 		UUID firstKey = UUID.randomUUID();
 		submit(userId, quizId, firstKey, option(q.get(0), 1));
+		// 다른 제출로 q1을 정답 처리한 뒤, 처음 요청에 q1과 q0(오답)을 함께 보낸 제출은 q1 답변을 저장하지 않는다
+		submit(userId, quizId, UUID.randomUUID(), text(q.get(1), "겟또"));
+		UUID ignoringKey = UUID.randomUUID();
+		submit(userId, quizId, ignoringKey, text(q.get(1), "겟또"), option(q.get(0), 1));
 		// when
 		// then
 		assertThatThrownBy(() -> submit(userId, survey.getMission().getId(), surveyKey, requiredAnswer,
@@ -180,11 +184,13 @@ class MissionSubmissionServiceIntegrationTest extends MissionIntegrationTestSupp
 				.satisfies(e -> assertMissionError(e, MissionErrorCode.IDEMPOTENCY_CONFLICT));
 		assertThatThrownBy(() -> submit(userId, quizId, firstKey, option(q.get(0), 1), text(q.get(1), "겟또")))
 				.satisfies(e -> assertMissionError(e, MissionErrorCode.IDEMPOTENCY_CONFLICT));
-		submit(userId, quizId, UUID.randomUUID(), text(q.get(1), "겟또"));
-		MissionSubmissionResult replay = submit(userId, quizId, firstKey, option(q.get(0), 1), text(q.get(1), "겟또"));
+		MissionSubmissionResult replay = submit(userId, quizId, ignoringKey, text(q.get(1), "겟또"), option(q.get(0), 1));
 		assertThat(replay.isCreated()).isFalse();
-		assertThat(replay.getSubmissionId()).isEqualTo(firstKey);
-		assertThat(submissions(userId)).isEqualTo(3);
+		assertThat(replay.getSubmissionId()).isEqualTo(ignoringKey);
+		assertThatThrownBy(() -> submit(userId, quizId, ignoringKey, option(q.get(0), 1)))
+				.satisfies(e -> assertMissionError(e, MissionErrorCode.IDEMPOTENCY_CONFLICT));
+		assertThat(count("select count(*) from quiz_answers where submission_id = ?", bytes(ignoringKey))).isEqualTo(1);
+		assertThat(submissions(userId)).isEqualTo(4);
 	}
 
 	@Test

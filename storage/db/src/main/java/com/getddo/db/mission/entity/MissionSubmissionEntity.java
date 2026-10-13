@@ -50,17 +50,21 @@ public class MissionSubmissionEntity implements Persistable<UUID> {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	@Column(name = "request_hash", nullable = false, updatable = false, length = 64)
+	private String requestHash;
+
 	@Transient
 	private boolean newEntity = true;
 
 	public MissionSubmissionEntity(UUID id, UUID missionId, UUID rewardPolicyId, UUID userId, boolean completed,
-			Instant createdAt) {
+			Instant createdAt, String requestHash) {
 		this.id = id;
 		this.missionId = missionId;
 		this.rewardPolicyId = rewardPolicyId;
 		this.userId = userId;
 		this.completed = completed;
 		this.createdAt = createdAt;
+		this.requestHash = requestHash;
 	}
 
 	@Override

@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -102,7 +101,7 @@ public class MissionSubmissionRecorder {
 		MissionEvaluation evaluation = detail.evaluate(command.getAnswers(),
 				alreadyCorrectQuestions(command.getUserId(), detail));
 		MissionSubmission saved = submissionRepository.insert(MissionSubmission.of(command.getSubmissionId(), receivedAt,
-				mission, command.getUserId(), evaluation.isCompleted(), evaluation.getQuizAnswers(),
+				command.getRequestHash(), mission, command.getUserId(), evaluation.isCompleted(), evaluation.getQuizAnswers(),
 				evaluation.getSurveyAnswers()));
 		recordCorrectQuestions(saved, evaluation.getNewlyCorrectQuestionIds());
 		// 도착 시각이 기간 안이면 검증이 끝난 시각이 종료 뒤여도 달성·보상을 반영한다.
@@ -137,49 +136,22 @@ public class MissionSubmissionRecorder {
 		return receiptOf(granted);
 	}
 
-	/** 같은 제출 ID로 이미 저장된 제출의 기존 결과를 돌려준다. 다른 사용자·미션·답변이면 충돌이다. */
+	/**
+	 * 같은 제출 ID로 이미 저장된 제출의 기존 결과를 돌려준다. 같은 문항이 두 번 있는 요청은 신규 제출처럼 거절하고, 처음 요청의
+	 * 해시와 다르거나 다른 사용자·미션이면 충돌이다.
+	 */
 	private MissionSubmissionResult replay(MissionSubmissionCommand command, MissionSubmission stored) {
+		List<UUID> questionIds = command.getAnswers().stream().map(MissionAnswerInput::getQuestionId).toList();
+		if (new HashSet<>(questionIds).size() != questionIds.size()) {
+			throw new MissionException(MissionErrorCode.INVALID_MISSION_ANSWER);
+		}
+		// 해시에 사용자와 미션이 들어 있으므로 하나로 다른 사용자·미션·답변을 모두 가려낸다. 저장된 답변은 이미 정답으로 완료한
+		// 문항의 답변이 빠져 있어 처음 요청을 복원하지 못하므로 비교에 쓰지 않는다.
 		if (!stored.getUserId().equals(command.getUserId()) || !stored.getMissionId().equals(command.getMissionId())
-				|| !sameAnswers(command.getUserId(), command.getAnswers(), stored)) {
+				|| !stored.getRequestHash().equals(command.getRequestHash())) {
 			throw new MissionException(MissionErrorCode.IDEMPOTENCY_CONFLICT);
 		}
 		return resultOf(stored, false);
-	}
-
-	/**
-	 * 요청이 저장된 제출과 같은 본문인지 양방향으로 확인한다. 저장된 답변은 모두 요청의 같은 문항 답변과 같아야 하고, 요청에 저장되지
-	 * 않은 문항의 답변이 더 있으면 다른 본문이다. 단, 퀴즈에서 이미 정답으로 완료한 문항에 다시 보낸 답변은 처음에도 저장하지
-	 * 않았으므로, 그 문항이 사용자의 다른 제출로 정답 처리되어 있으면 같은 요청으로 본다. 설문은 문항이 정확히 같아야 한다.
-	 */
-	private boolean sameAnswers(UUID userId, List<MissionAnswerInput> inputs, MissionSubmission stored) {
-		boolean storedAllInRequest = stored.getQuizAnswers().stream().allMatch(answer -> matches(inputs,
-				answer.getQuestionId(), answer.getSelectedOptionId(), answer.getAnswerText()))
-				&& stored.getSurveyAnswers().stream().allMatch(answer -> matches(inputs, answer.getQuestionId(),
-						answer.getSelectedOptionId(), answer.getAnswerText()));
-		if (!storedAllInRequest) {
-			return false;
-		}
-		Set<UUID> storedQuestions = new HashSet<>();
-		stored.getQuizAnswers().forEach(answer -> storedQuestions.add(answer.getQuestionId()));
-		stored.getSurveyAnswers().forEach(answer -> storedQuestions.add(answer.getQuestionId()));
-		List<UUID> extra = inputs.stream().map(MissionAnswerInput::getQuestionId)
-				.filter(questionId -> !storedQuestions.contains(questionId))
-				.toList();
-		if (extra.isEmpty()) {
-			return true;
-		}
-		boolean quiz = !stored.getQuizAnswers().isEmpty();
-		return quiz && progressRepository.findCorrectQuestionIds(userId, extra).containsAll(extra);
-	}
-
-	private static boolean matches(List<MissionAnswerInput> inputs, UUID questionId, UUID optionId, String text) {
-		return inputs.stream().anyMatch(input -> input.getQuestionId().equals(questionId)
-				&& Objects.equals(input.getSelectedOptionId(), optionId)
-				&& Objects.equals(blankToNull(input.getAnswerText()), text));
-	}
-
-	private static String blankToNull(String text) {
-		return text == null || text.isBlank() ? null : text;
 	}
 
 	/** 저장된 제출의 결과를 만든다. 완료한 제출이면 그 보상 청구로 확정된 응모권 지급 결과를 다시 읽는다. */

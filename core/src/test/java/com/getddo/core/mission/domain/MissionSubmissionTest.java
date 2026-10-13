@@ -16,6 +16,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MissionSubmissionTest {
 
+	private static final String HASH = "0".repeat(64);
+
 	private static final UUID USER_ID = UUID.randomUUID();
 	private static final Instant STARTS = Instant.parse("2026-10-01T00:00:00Z");
 
@@ -35,7 +37,7 @@ class MissionSubmissionTest {
 		Mission mission = saved(MissionType.QUIZ);
 		UUID submissionId = UUID.randomUUID();
 		// when
-		MissionSubmission submission = MissionSubmission.of(submissionId, STARTS, mission, USER_ID, true,
+		MissionSubmission submission = MissionSubmission.of(submissionId, STARTS, HASH, mission, USER_ID, true,
 				List.of(correctText(UUID.randomUUID())), List.of());
 		// then
 		assertThat(submission.getMissionId()).isEqualTo(mission.getId());
@@ -53,13 +55,13 @@ class MissionSubmissionTest {
 		Mission quiz = saved(MissionType.QUIZ);
 		QuizAnswer wrong = QuizAnswer.of(UUID.randomUUID(), null, "오답", false);
 		// when
-		MissionSubmission incomplete = MissionSubmission.of(UUID.randomUUID(), STARTS, quiz, USER_ID, false, List.of(wrong), List.of());
+		MissionSubmission incomplete = MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, quiz, USER_ID, false, List.of(wrong), List.of());
 		// then
 		assertThat(incomplete.isCompleted()).isFalse();
-		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, quiz, USER_ID, true, List.of(wrong), List.of()));
-		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, quiz, USER_ID, true,
+		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, quiz, USER_ID, true, List.of(wrong), List.of()));
+		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, quiz, USER_ID, true,
 				List.of(correctText(UUID.randomUUID()), wrong), List.of()));
-		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, quiz, USER_ID, true, List.of(), List.of()));
+		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, quiz, USER_ID, true, List.of(), List.of()));
 	}
 
 	@Test
@@ -71,16 +73,16 @@ class MissionSubmissionTest {
 		QuizAnswer correct = correctText(UUID.randomUUID());
 		// when
 		MissionSubmission incomplete = new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, false,
-				null, List.of(wrong), List.of());
+				null, HASH, List.of(wrong), List.of());
 		MissionSubmission completed = new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, true,
-				null, List.of(correct), List.of());
+				null, HASH, List.of(correct), List.of());
 		// then
 		assertThat(incomplete.isCompleted()).isFalse();
 		assertThat(completed.isCompleted()).isTrue();
 		assertInvalidAnswer(() -> new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, true,
-				null, List.of(wrong), List.of()));
+				null, HASH, List.of(wrong), List.of()));
 		assertInvalidAnswer(() -> new MissionSubmission(null, quiz.getId(), quiz.getRewardPolicyId(), USER_ID, true,
-				null, List.of(correct, wrong), List.of()));
+				null, HASH, List.of(correct, wrong), List.of()));
 	}
 
 	@Test
@@ -92,9 +94,9 @@ class MissionSubmissionTest {
 		// when
 		// then
 		assertInvalidAnswer(() -> new MissionSubmission(null, survey.getId(), survey.getRewardPolicyId(), USER_ID, true,
-				null, List.of(), List.of(SurveyAnswer.of(questionId, null, "가"), SurveyAnswer.of(questionId, null, "나"))));
+				null, HASH, List.of(), List.of(SurveyAnswer.of(questionId, null, "가"), SurveyAnswer.of(questionId, null, "나"))));
 		assertInvalidAnswer(() -> new MissionSubmission(null, UUID.randomUUID(), UUID.randomUUID(), USER_ID, false, null,
-				List.of(correctText(questionId), correctText(questionId)), List.of()));
+				HASH, List.of(correctText(questionId), correctText(questionId)), List.of()));
 	}
 
 	@Test
@@ -125,7 +127,7 @@ class MissionSubmissionTest {
 		// when
 		// then
 		assertThatNullPointerException()
-				.isThrownBy(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, unsaved, USER_ID, false, List.of(), List.of()));
+				.isThrownBy(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, unsaved, USER_ID, false, List.of(), List.of()));
 	}
 
 	@Test
@@ -134,9 +136,9 @@ class MissionSubmissionTest {
 		// given
 		// when
 		// then
-		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, saved(MissionType.QUIZ), USER_ID, false, List.of(),
+		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, saved(MissionType.QUIZ), USER_ID, false, List.of(),
 				List.of(SurveyAnswer.of(UUID.randomUUID(), null, "의견"))));
-		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, saved(MissionType.SURVEY), USER_ID, true,
+		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, saved(MissionType.SURVEY), USER_ID, true,
 				List.of(correctText(UUID.randomUUID())), List.of()));
 	}
 
@@ -147,9 +149,9 @@ class MissionSubmissionTest {
 		UUID questionId = UUID.randomUUID();
 		// when
 		// then
-		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, saved(MissionType.QUIZ), USER_ID, true,
+		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, saved(MissionType.QUIZ), USER_ID, true,
 				List.of(correctText(questionId), correctText(questionId)), List.of()));
-		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, saved(MissionType.SURVEY), USER_ID, true, List.of(),
+		assertInvalidAnswer(() -> MissionSubmission.of(UUID.randomUUID(), STARTS, HASH, saved(MissionType.SURVEY), USER_ID, true, List.of(),
 				List.of(SurveyAnswer.of(questionId, null, "가"), SurveyAnswer.of(questionId, null, "나"))));
 	}
 
@@ -193,7 +195,7 @@ class MissionSubmissionTest {
 		QuizAnswer savedCorrect = new QuizAnswer(UUID.randomUUID(), questionId, null, "정답", true);
 		QuizAnswer savedWrong = new QuizAnswer(UUID.randomUUID(), UUID.randomUUID(), null, "오답", false);
 		MissionSubmission submission = new MissionSubmission(UUID.randomUUID(), mission.getId(),
-				mission.getRewardPolicyId(), USER_ID, false, STARTS, List.of(savedCorrect, savedWrong), List.of());
+				mission.getRewardPolicyId(), USER_ID, false, STARTS, HASH, List.of(savedCorrect, savedWrong), List.of());
 		// when
 		QuizQuestionProgress progress = QuizQuestionProgress.of(submission, savedCorrect.getId());
 		// then
@@ -212,9 +214,9 @@ class MissionSubmissionTest {
 		Mission mission = saved(MissionType.SURVEY);
 		UUID submissionId = UUID.randomUUID();
 		MissionSubmission completed = new MissionSubmission(submissionId, mission.getId(), mission.getRewardPolicyId(),
-				USER_ID, true, STARTS, List.of(), List.of());
+				USER_ID, true, STARTS, HASH, List.of(), List.of());
 		MissionSubmission incomplete = new MissionSubmission(submissionId, mission.getId(), mission.getRewardPolicyId(),
-				USER_ID, false, STARTS, List.of(), List.of());
+				USER_ID, false, STARTS, HASH, List.of(), List.of());
 		// when
 		MissionRewardClaim claim = MissionRewardClaim.of(completed);
 		// then
