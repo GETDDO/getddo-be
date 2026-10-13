@@ -166,10 +166,12 @@ public final class DrawStoredVerification {
 		Map<UUID, DrawSnapshotSource.Prize> prizes = new HashMap<>();
 		for (DrawSnapshotSource.Prize prize : run.getRules().prizes()) prizes.put(prize.id(), prize);
 		Map<String, DrawHistoricalAward> latest = new HashMap<>();
+		Set<String> rounds = new HashSet<>();
 		for (DrawHistoricalAward award : references.getHistoricalAwards()) {
+			if (award.getConfirmedAt() == null || award.getConfirmedAt().isAfter(run.getSnapshotFixedAt())) continue;
 			String key = slotKey(award.getPrizeId(), award.getSlotNumber());
 			DrawHistoricalAward previous = latest.get(key);
-			if (previous != null && previous.getRunNumber() == award.getRunNumber()) return false;
+			if (!rounds.add(key + ":" + award.getRunNumber())) return false;
 			if (previous == null || previous.getRunNumber() < award.getRunNumber()) latest.put(key, award);
 		}
 		Set<String> occupied = new HashSet<>();

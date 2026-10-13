@@ -1,7 +1,8 @@
 # 추첨 공개 알림 연결·장애 확인
 
 - 상태: 검토 대기
-- 작성: Codex / 2026-10-13
+- 담당: 석종수(추첨 호출 연결), 전민규(기존 알림 처리) / 2026-10-13
+- 작성 도구: Codex / 담당자 검토 전
 - 관련 작업: [GD-169](https://ureca4.atlassian.net/browse/GD-169)
 
 ## 처리와 책임
@@ -18,30 +19,11 @@
 4. 생성·발송 재시도와 관리자 재개는 [기존 알림 복구 절차](notification-worker.md)를 따른다. payload를 임의 변경하거나 새로운 수신 목록으로 같은 키를 재등록하지 않는다.
 5. 관리자 추첨 상세의 최근 실패·예약·운영자 대기와 실패/실행 감사 페이지를 대조한다. 추첨 실패 재개와 알림 작업 재개는 별개다.
 
-## 검증과 실행 제한
+## 검증 범위
 
-실제 MySQL 연결 테스트에서 공개 등록 실패 롤백, 중복 확인·공개 재요청, 다중 실행의 미충원 확인 근거, 생성/모의 발송 및 발송 실패 후 기존 작업 재시도를 검증한다. 2026-10-13 전체 test/build가 통과했다. 단위 816건, API 통합 114건, DB 통합 577건으로 전체 1507건이 성공했고 실패·오류·스킵은 0건이다. GD-169 실제 서비스 연결 클래스는 21건이다. 운영 DB와 실제 외부 발송에는 적용하지 않았다.
+공개 등록 실패 롤백, 중복 확인·공개 재요청, 다중 미충원 실행의 확인 근거, 생성·모의 발송 및 발송 실패 후 재시도는 실제 MySQL 연결 테스트로 검증한다. 운영 DB 적용·실제 외부 발송은 검증 범위에 포함하지 않는다. 전체 검증 실행 방법은 [테스트 실행 자원 제한](../01-conventions/test-execution.md)을 참고한다.
 
-Docker 테스트는 공통 잠금과 Gradle 직렬 실행뿐 아니라 Spring 컨텍스트 캐시도 제한한다. 테스트 작업이 하나여도 기본 캐시는 이전 컨텍스트의 MySQL 컨테이너를 보관한다. GD-169 전체 검증 중 이 보관으로 메모리·스왑이 소진되어 해당 테스트를 중단한 뒤, 아래 세션용 init script를 적용해 재검증했다. 다른 작업의 컨테이너를 삭제하거나 일괄 정리하지 않는다.
-
-`/tmp/gd169-test-limits.gradle`:
-
-```groovy
-allprojects {
-    tasks.withType(Test).configureEach {
-        maxParallelForks = 1
-        systemProperty 'spring.test.context.cache.maxSize', '1'
-        systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
-    }
-}
-```
-
-```bash
-flock /tmp/getddo-docker-tests.lock ./gradlew test build \
-  --init-script /tmp/gd169-test-limits.gradle --max-workers=1 --no-parallel
-```
-
-새 컨텍스트 로딩 중 이전 컨텍스트가 잠시 함께 존재할 수 있으므로 컨테이너 수와 가용 메모리도 확인한다. 같은 테스트 JVM에 MySQL 컨테이너가 계속 누적되는 경우 전체 검증 완료로 보고하지 않고 실행을 중단해 설정과 실제 JVM 인자를 확인한다.
+수신 목록은 기존 알림 작업 payload의 JSON에 고정 저장한다. 현재 코드에는 수신자 수에 대한 별도 상한이 없으며, 응모자 수가 늘면 조회 메모리와 payload 크기도 함께 증가한다. 대규모 운영을 적용할 때는 알림 담당과 분할 전달 계약을 별도로 검토한다. 이 문서에서 새 수치 한도나 대상 제외 정책을 정하지 않는다.
 
 ## 이벤트 상태 경계
 

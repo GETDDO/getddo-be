@@ -39,7 +39,7 @@ class DrawExecutionControlServiceTest {
 	private final AuditLogService audit = mock(AuditLogService.class);
 	private final UserRepository users = mock(UserRepository.class);
 	private final DrawExecutionControlService control = new DrawExecutionControlService(results, snapshots,
-			executions, failures, users, audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+			executions, failures, new DrawAdminAuthorization(users), audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 
 	@BeforeEach void setUp() {
 		when(results.findEventId(runId)).thenReturn(Optional.of(eventId));

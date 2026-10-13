@@ -19,7 +19,11 @@ import com.getddo.core.drawing.domain.DrawResultConfirmation;
 
 /** 공개 전용 저장소. 변경은 서비스가 이벤트 선잠금을 가진 트랜잭션에서 수행한다. */
 public interface DrawPublicationRepository {
+	/** savePublication 이후 같은 트랜잭션에서 실행·확인 연결을 저장한다. */
 	void saveExecutionEvidence(UUID publicationId, UUID eventId, List<DrawPublicationExecution> executions);
+	/**
+	 * 페이지·경계 이전 버전 또는 내부 전체 이력의 ID를 일괄 조회한다.
+	 * 근거가 없는 공개 ID는 맵에서 생략한다. 호출자는 getOrDefault로 빈 목록을 사용한다. */
 	Map<UUID, List<DrawPublicationExecution>> findExecutionEvidence(Set<UUID> publicationIds);
 	Optional<DrawPublication> findLatest(UUID eventId);
 	List<DrawPublication> findHistory(UUID eventId);

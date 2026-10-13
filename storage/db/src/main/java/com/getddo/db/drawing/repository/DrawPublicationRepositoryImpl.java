@@ -56,8 +56,10 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	private final DrawResultConfirmationJpaRepository confirmations;
 	private final DrawPublicationExecutionJpaRepository executionEvidence;
 
+	/** 취소 근거는 실행 등록 시 확정된 award_cancellations의 불변 필드를 통해 조회한다. */
 	@Override
 	public void saveExecutionEvidence(UUID publicationId, UUID eventId, List<DrawPublicationExecution> executions) {
+		if (executions.isEmpty()) return;
 		executionEvidence.saveAllAndFlush(executions.stream()
 				.map(value -> new DrawPublicationExecutionEntity(publicationId, eventId, value)).toList());
 	}
@@ -95,7 +97,11 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 				new DrawPublicationExecution(row.runId(), row.confirmationId(), row.confirmedBy(), row.confirmedAt(),
 						causes.getOrDefault(row.runId(), List.of())));
 
-		Map<UUID, List<DrawPublicationExecution>> immutable = new HashMap<>();
+		return immutableCopy(loaded);
+	}
+
+	private static <T> Map<UUID, List<T>> immutableCopy(Map<UUID, List<T>> loaded) {
+		Map<UUID, List<T>> immutable = new HashMap<>();
 		loaded.forEach((id, values) -> immutable.put(id, List.copyOf(values)));
 		return Map.copyOf(immutable);
 	}
@@ -180,9 +186,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 				new DrawPublishedSlot(fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number"),
 						fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")))),
 				publicationIds.stream().map(id -> toBytes(id)).toArray());
-		Map<UUID, List<DrawPublishedSlot>> immutable = new HashMap<>();
-		loaded.forEach((id, values) -> immutable.put(id, List.copyOf(values)));
-		return Map.copyOf(immutable);
+		return immutableCopy(loaded);
 	}
 
 	@Override

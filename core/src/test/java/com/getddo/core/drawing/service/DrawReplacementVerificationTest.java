@@ -228,6 +228,70 @@ class DrawReplacementVerificationTest {
 				.allMatch(DrawCheckItem::isPassed);
 	}
 
+	@Test @DisplayName("최신 회차가 선택된 자리에서 과거 취소 결과를 유지하면 불일치다")
+	void rejectsRetainingOlderRound() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		DrawHistoricalAward old = fixture.references().getHistoricalAwards().getFirst();
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		awards.set(0, history(old, fixedAt.minusSeconds(10)));
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 1,
+				old.getCandidateId(), old.getUserId(), fixedAt.minusSeconds(5), 1, null, DrawSelectionResultType.SELECTED));
+		// when / then
+		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
+	}
+
+	@Test @DisplayName("최신 기록 사이에 놓인 같은 자리·회차 중복도 불일치다")
+	void rejectsDuplicatedRoundRegardlessOfOrdering() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		DrawHistoricalAward old = fixture.references().getHistoricalAwards().getFirst();
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 1,
+				old.getCandidateId(), old.getUserId(), fixedAt.minusSeconds(5), 1, null, DrawSelectionResultType.SELECTED));
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), old.getRunId(), eventId, prizeId, eventId, 1,
+				old.getCandidateId(), old.getUserId(), old.getConfirmedAt(), 0, null, DrawSelectionResultType.SELECTED));
+		// when / then
+		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
+	}
+
+	@Test @DisplayName("최신 회차가 미충원인 자리를 새 취소 대상으로 사용하지 않는다")
+	void rejectsTargetingLatestUnfilledSlot() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 3,
+				null, null, fixedAt.minusSeconds(5), 1, null, DrawSelectionResultType.UNFILLED));
+		// when / then
+		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
+	}
+
+	@Test @DisplayName("고정 시각 뒤 확정된 기록은 자리 최신 회차와 중복 판정에 사용하지 않는다")
+	void ignoresFutureAwardsInSlotVerification() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		for (int round : List.of(0, 1)) awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 3,
+				null, null, fixedAt.plusSeconds(1), round, null, DrawSelectionResultType.UNFILLED));
+		// when
+		List<DrawCheckItem> checks = verifyHistory(fixture, awards);
+		// then
+		assertThat(checks).filteredOn(item -> item.getCode().equals("REPLACEMENT_SLOTS")).allMatch(DrawCheckItem::isPassed);
+		assertFailed(checks, "REPLACEMENT_SOURCE");
+	}
+
+	@Test @DisplayName("과거 결과의 종류가 없으면 복원 시점에 거절한다")
+	void rejectsNullHistoricalResultType() {
+		// given / when / then
+		assertThatNullPointerException().isThrownBy(() -> new DrawHistoricalAward(UUID.randomUUID(), originalId,
+				eventId, prizeId, eventId, 1, null, null, fixedAt, 0, null, null)).withMessage("resultType");
+	}
+
+	private List<DrawCheckItem> verifyHistory(Fixture fixture, List<DrawHistoricalAward> awards) {
+		return DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), awards));
+	}
+
 	private DrawHistoricalAward history(DrawHistoricalAward a, Instant canceledAt) {
 		return new DrawHistoricalAward(a.getId(), a.getRunId(), a.getEventId(), a.getPrizeId(), a.getPrizeEventId(),
 				a.getSlotNumber(), a.getCandidateId(), a.getUserId(), a.getConfirmedAt(), a.getRunNumber(), canceledAt, a.getResultType());

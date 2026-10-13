@@ -13,7 +13,7 @@ import static com.getddo.db.common.util.UuidBinary.fromBytes;
 public class DrawPublicationNotificationRepositoryImpl implements DrawPublicationNotificationRepository {
 	private final JdbcTemplate jdbc;
 	@Override public List<UUID> findParticipants(UUID eventId) {
-		return jdbc.query("select distinct p.user_id from event_participants p where p.event_id = ? and exists (select 1 from event_entries e where e.participant_id = p.id) order by p.user_id",
+		return jdbc.query("select p.user_id from event_participants p where p.event_id = ? and exists (select 1 from event_entries e where e.participant_id = p.id) order by p.user_id",
 				(row, index) -> fromBytes(row.getBytes("user_id")), toBytes(eventId));
 	}
 }

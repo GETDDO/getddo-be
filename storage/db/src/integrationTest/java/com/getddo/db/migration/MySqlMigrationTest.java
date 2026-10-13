@@ -114,6 +114,7 @@ class MySqlMigrationTest {
 		assertThat(indexColumns("ticket_histories", "uq_ticket_histories_refund_source"))
 				.containsExactly("original_use_history_id");
 		assertThat(indexColumns("draw_run_candidates", "PRIMARY")).containsExactly("draw_run_id", "candidate_id");
+		assertThat(indexColumns("draw_publication_executions", "PRIMARY")).containsExactly("publication_id", "draw_run_id");
 		assertThat(indexColumns("draw_publication_results", "PRIMARY"))
 				.containsExactly("publication_id", "draw_result_id");
 		assertThat(indexColumns("user_game_stats", "PRIMARY")).containsExactly("id");
@@ -195,6 +196,35 @@ class MySqlMigrationTest {
 			assertThatThrownBy(() -> execute(connection, insertStats, "0199A0000000700080000000000000A4"))
 					.isInstanceOf(SQLIntegrityConstraintViolationException.class)
 					.hasMessageContaining("uq_user_game_stats_1");
+		}
+	}
+
+	@Test @DisplayName("공개 실행 연결은 다른 이벤트의 실행과 확인을 복합 FK로 거절한다")
+	void rejectsPublicationEvidenceFromAnotherEvent() throws SQLException {
+		// given
+		try (Connection connection = connect()) {
+			connection.setAutoCommit(false);
+			try {
+				String eventA = "0199A0000000700080000000000000E1", eventB = "0199A0000000700080000000000000E2";
+				String runA = "0199A0000000700080000000000000E3", runB = "0199A0000000700080000000000000E4";
+				String publication = "0199A0000000700080000000000000E5", admin = "0199A0000000700080000000000000E6";
+				String check = "0199A0000000700080000000000000E7";
+				execute(connection, "insert into users (id,name,role,status,created_at,updated_at) values (unhex(?),'관리자','ADMIN','ACTIVE',now(6),now(6))", admin);
+				for (String event : List.of(eventA, eventB)) execute(connection, """
+					insert into events (id,title,description,event_type,starts_at,ends_at,status,membership_rule,created_at,updated_at)
+					values (unhex(?),'이벤트','설명','NO_TICKET','2026-10-01','2026-10-02','CLOSED','vip',now(6),now(6))
+					""", event);
+				execute(connection, "insert into draw_runs (id,event_id,run_number,draw_type,status,created_at) values (unhex(?),unhex(?),0,'INITIAL','PREPARING',now(6))", runA, eventA);
+				execute(connection, "insert into draw_runs (id,event_id,run_number,draw_type,status,created_at) values (unhex(?),unhex(?),1,'REPLACEMENT','PREPARING',now(6))", runB, eventB);
+				execute(connection, "insert into draw_publications (id,event_id,source_draw_id,revision,publication_type,published_at) values (unhex(?),unhex(?),unhex(?),1,'INITIAL',now(6))", publication, eventA, runA);
+				execute(connection, "insert into draw_result_confirmations (id,draw_run_id,confirmed_by,confirmed_at) values (unhex(?),unhex(?),unhex(?),now(6))", check, runB, admin);
+				// when / then: 존재하는 공개·실행·확인 ID라도 이벤트가 다르면 연결할 수 없다.
+				assertThatThrownBy(() -> execute(connection, """
+					insert into draw_publication_executions (publication_id,draw_run_id,event_id,confirmation_id)
+					values (unhex(?),unhex(?),unhex(?),unhex(?))
+					""", publication, runB, eventA, check)).isInstanceOf(SQLIntegrityConstraintViolationException.class)
+						.hasMessageContaining("fk_publication_execution_run");
+			} finally { connection.rollback(); }
 		}
 	}
 

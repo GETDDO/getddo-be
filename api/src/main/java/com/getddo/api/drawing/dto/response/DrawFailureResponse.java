@@ -6,10 +6,12 @@ import com.getddo.core.drawing.domain.DrawFailureCode;
 
 /** 저장된 분류 코드와 안전한 안내 문구만 제공한다. 원문 예외를 응답하지 않는다. */
 public record DrawFailureResponse(UUID id, UUID runId, String failureCode, String message, Instant failedAt, String traceId) {
+	/** 실패 기록을 원문 예외 없이 관리자용 응답으로 변환한다. */
 	public static DrawFailureResponse from(DrawFailure failure) {
 		return new DrawFailureResponse(failure.getId(), failure.getRunId(), failure.getFailureCode(), message(failure.getFailureCode()),
 				failure.getFailedAt(), failure.getTraceId());
 	}
+	/** 과거 미분류 코드도 안전한 기본 문구로 처리한다. */
 	private static String message(String code) {
 		try {
 			return switch (DrawFailureCode.valueOf(code)) {

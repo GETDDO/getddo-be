@@ -167,9 +167,11 @@ class AdminDrawControllerTest {
 	@DisplayName("허용 범위 밖 페이지는 공통 400 응답으로 거절한다")
 	void rejectsInvalidPage(int page, int size) throws Exception {
 		// given / when / then
-		mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())
-				.param("page", Integer.toString(page)).param("size", Integer.toString(size))).andExpect(status().isBadRequest());
-		verifyNoInteractions(checks);
+		for (String suffix : List.of("checks", "failures", "execution-audits")) {
+			mvc.perform(get("/api/v1/admin/draws/{id}/" + suffix, runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())
+					.param("page", Integer.toString(page)).param("size", Integer.toString(size))).andExpect(status().isBadRequest());
+		}
+		verifyNoInteractions(repository, checks);
 	}
 
 	@Test
@@ -178,13 +180,16 @@ class AdminDrawControllerTest {
 		// given / when / then
 		for (User user : List.of(user(UserRole.USER, UserStatus.ACTIVE), user(UserRole.ADMIN, UserStatus.INACTIVE))) {
 			selected = user;
+			for (String suffix : List.of("failures", "execution-audits")) {
+				mvc.perform(get("/api/v1/admin/draws/{id}/" + suffix, runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
+			}
 			mvc.perform(get("/api/v1/admin/events/{id}/draws", eventId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
 			mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
 			mvc.perform(get("/api/v1/admin/draws/{id}/participants", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
 			mvc.perform(get("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
 			mvc.perform(post("/api/v1/admin/draws/{id}/checks", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isForbidden());
 		}
-		verifyNoInteractions(checks);
+		verifyNoInteractions(repository, checks);
 	}
 
 	@Test

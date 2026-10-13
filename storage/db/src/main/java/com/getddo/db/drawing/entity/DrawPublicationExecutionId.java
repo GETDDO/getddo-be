@@ -2,6 +2,7 @@ package com.getddo.db.drawing.entity;
 
 import java.io.Serializable;
 import java.util.UUID;
+import java.util.Objects;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
@@ -22,7 +23,7 @@ public class DrawPublicationExecutionId implements Serializable {
 	private UUID runId;
 
 	public DrawPublicationExecutionId(UUID publicationId, UUID runId) {
-		this.publicationId = publicationId;
-		this.runId = runId;
+		this.publicationId = Objects.requireNonNull(publicationId, "publicationId");
+		this.runId = Objects.requireNonNull(runId, "runId");
 	}
 }

@@ -20,14 +20,13 @@ import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.user.domain.*;
-import com.getddo.core.user.repository.UserRepository;
 
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.ADMIN_REQUIRED;
 
 /** 취소·재추첨 등록·멱등 키·감사를 원자적으로 확정한다. 실제 실행은 이 커밋 뒤에 호출한다. */
 @Service
-@RequiredArgsConstructor(onConstructor_ = @org.springframework.beans.factory.annotation.Autowired)
+@RequiredArgsConstructor
 public class AwardCancellationRegistrationService {
 	private final AwardCancellationRepository cancellations;
 	private final ReplacementDrawRepository replacements;
@@ -36,11 +35,6 @@ public class AwardCancellationRegistrationService {
 	private final DrawAdminAuthorization admins;
 	private final AuditLogService audit;
 	private final TimeProvider time;
-
-	public AwardCancellationRegistrationService(AwardCancellationRepository cancellations, ReplacementDrawRepository replacements,
-			DrawSnapshotRepository snapshots, DrawResultRepository results, UserRepository users, AuditLogService audit, TimeProvider time) {
-		this(cancellations, replacements, snapshots, results, new DrawAdminAuthorization(users), audit, time);
-	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
 	public AwardCancellation register(UUID actorId, UUID winId, UUID requestKey, String reason) {
@@ -95,4 +89,5 @@ public class AwardCancellationRegistrationService {
 
 	private void requireAdmin(UUID actorId) {
 		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
-	}}
+	}
+}

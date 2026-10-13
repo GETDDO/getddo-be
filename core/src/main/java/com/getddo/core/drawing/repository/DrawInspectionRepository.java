@@ -16,6 +16,7 @@ import com.getddo.core.drawing.domain.DrawVerificationReferences;
 
 /** GD-137 읽기 전용 조회. 실행·결과 저장 및 실패 모델의 소유권을 변경하지 않는다. */
 public interface DrawInspectionRepository {
+	/** findRun으로 존재를 확인한 실행만 조회한다. 호출자는 같은 조회 트랜잭션을 유지한다. */
 	DrawExecutionSummary findExecutionSummary(UUID runId);
 	PageResult<DrawFailure> findFailures(UUID runId, PageQuery page);
 	PageResult<DrawExecutionAuditView> findExecutionAudits(UUID runId, PageQuery page);

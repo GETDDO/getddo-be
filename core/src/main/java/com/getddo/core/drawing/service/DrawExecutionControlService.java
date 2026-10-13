@@ -17,12 +17,11 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
-import com.getddo.core.user.repository.UserRepository;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
 /** 시도 소유권·실패 이력·예약을 실행/선정 롤백과 별도로 확정한다. */
 @Service
-@RequiredArgsConstructor(onConstructor_ = @org.springframework.beans.factory.annotation.Autowired)
+@RequiredArgsConstructor
 public class DrawExecutionControlService {
 	private static final long[] RETRY_SECONDS = {10, 30, 60};
 	private final DrawResultRepository results;
@@ -32,11 +31,6 @@ public class DrawExecutionControlService {
 	private final DrawAdminAuthorization admins;
 	private final AuditLogService audit;
 	private final TimeProvider time;
-
-	public DrawExecutionControlService(DrawResultRepository results, DrawSnapshotRepository snapshots, DrawExecutionRepository executions,
-			DrawFailureRepository failures, UserRepository users, AuditLogService audit, TimeProvider time) {
-		this(results, snapshots, executions, failures, new DrawAdminAuthorization(users), audit, time);
-	}
 
 	/** 등록 트랜잭션은 이미 커밋돼 있어야 한다. 같은 실행의 자동·운영자 요청을 직렬화한다. */
 	@Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
@@ -130,7 +124,9 @@ public class DrawExecutionControlService {
 	private DrawExecutionState lock(UUID id) { return executions.lockRun(id).orElseThrow(() -> new BusinessException(INVALID_RUN)); }
 	private void requireAdmin(UUID actorId) {
 		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
-	}	/** UTC 밀리초와 난수를 조합한 UUID v7을 같은 시도의 실패 식별자로 사용한다. */
+	}
+
+	/** UTC 밀리초와 난수를 조합한 UUID v7을 같은 시도의 실패 식별자로 사용한다. */
 	private static UUID attemptId(Instant now) {
 		UUID random = UUID.randomUUID();
 		return new UUID((now.toEpochMilli() << 16) | 0x7000L | (random.getMostSignificantBits() & 0xfffL), random.getLeastSignificantBits());

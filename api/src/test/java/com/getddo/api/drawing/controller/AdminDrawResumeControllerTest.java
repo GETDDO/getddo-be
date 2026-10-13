@@ -47,7 +47,7 @@ class AdminDrawResumeControllerTest {
 		UserRepository userRepository = id -> Optional.ofNullable(users.get(id));
 		TimeProvider time = new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC));
 		DrawExecutionControlService control = new DrawExecutionControlService(results, snapshots, executions,
-				mock(DrawFailureRepository.class), userRepository, mock(AuditLogService.class), time);
+				mock(DrawFailureRepository.class), new DrawAdminAuthorization(userRepository), mock(AuditLogService.class), time);
 		DrawExecutionService service = new DrawExecutionService(control, attempts, preparations, time);
 		mvc = MockMvcBuilders.standaloneSetup(new AdminDrawResumeController(service))
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(userRepository)))
@@ -66,14 +66,10 @@ class AdminDrawResumeControllerTest {
 	@Test @DisplayName("재개 중 응모자 없음으로 종료되면 200과 정상 종료 상태를 반환한다")
 	void returnsCompletedNoEntries() throws Exception {
 		// given
-		DrawExecutionService execution = mock(DrawExecutionService.class);
-		when(execution.resumeInitial(runId, adminId)).thenReturn(new DrawExecutionResult(runId, DrawRunStatus.NO_ENTRIES, null));
-		UserRepository users = id -> Optional.of(user(adminId, UserRole.ADMIN, UserStatus.ACTIVE));
-		MockMvc terminalMvc = MockMvcBuilders.standaloneSetup(new AdminDrawResumeController(execution))
-				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(users)))
-				.setControllerAdvice(new GlobalExceptionHandler()).build();
+		when(executions.lockRun(runId)).thenReturn(Optional.of(state(DrawType.INITIAL, DrawRunStatus.FAILED)));
+		when(attempts.execute(eq(runId), any())).thenReturn(new DrawExecutionResult(runId, DrawRunStatus.NO_ENTRIES, null));
 		// when / then
-		terminalMvc.perform(post(path()).header("X-User-ID", adminId).header("X-User-Role", "ADMIN"))
+		mvc.perform(post(path()).header("X-User-ID", adminId).header("X-User-Role", "ADMIN"))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("NO_ENTRIES"))
 				.andExpect(jsonPath("$.data.confirmation").value(nullValue()));
 	}

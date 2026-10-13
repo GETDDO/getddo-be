@@ -59,6 +59,7 @@ class DrawPublicationReplacementServiceTest {
 	private final List<DrawPublicationRun> runs = new ArrayList<>();
 	private final List<DrawPublicationCancellation> cancellations = new ArrayList<>();
 	private final MemoryTransactions transactions = new MemoryTransactions();
+	private final DrawPublicationNotificationService notifications = mock(DrawPublicationNotificationService.class);
 	private DrawPublicationService publications;
 	private DrawResultConfirmationService confirmations;
 	private DrawPublication latest;
@@ -71,8 +72,8 @@ class DrawPublicationReplacementServiceTest {
 	void setUp() {
 		when(clock.instant()).thenReturn(NOW);
 		TimeProvider time = new TimeProvider(clock);
-		publications = proxy(new DrawPublicationService(repository, snapshots, results, time, mock(DrawPublicationNotificationService.class)));
-		confirmations = proxy(new DrawResultConfirmationService(repository, publications, new DrawPublicationAdminAuthorization(users), time));
+		publications = proxy(new DrawPublicationService(repository, snapshots, results, time, notifications));
+		confirmations = proxy(new DrawResultConfirmationService(repository, publications, new DrawAdminAuthorization(users), time));
 		for (UUID user : List.of(userA, userB, userC, userD)) candidates.put(user, UUID.randomUUID());
 		List<DrawSnapshot.Candidate> inputs = candidates.entrySet().stream().map(entry -> new DrawSnapshot.Candidate(
 				entry.getValue(), UUID.randomUUID(), entry.getKey(), 0, 1, null, null)).toList();
@@ -263,6 +264,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(publications.publishConfirmed(eventId, run)).contains(published);
 		assertThat(latest).isEqualTo(published);
 		assertThat(history).hasSize(2);
+		verify(notifications, times(2)).register(any());
 		verify(repository, times(1)).saveConfirmation(eq(run), eq(actorId), any());
 		verify(repository, times(1)).savePublication(eq(eventId), eq(run), eq(2), any(), any(), anyList(), any());
 	}
@@ -316,6 +318,12 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(latest.entries()).containsExactly(new DrawPublication.Entry(resultB.getId(), initialRun, null));
 		assertThat(latest.revision()).isEqualTo(2);
 		assertThat(publications.wasPublished(unfilled.getId())).isFalse();
+		org.mockito.ArgumentCaptor<List<DrawPublicationExecution>> evidence = org.mockito.ArgumentCaptor.forClass(List.class);
+		verify(repository).saveExecutionEvidence(eq(latest.id()), eq(eventId), evidence.capture());
+		assertThat(evidence.getValue()).hasSize(1);
+		assertThat(evidence.getValue().getFirst().runId()).isEqualTo(run);
+		assertThat(evidence.getValue().getFirst().confirmationId()).isEqualTo(checked.get(run).id());
+		assertThat(evidence.getValue().getFirst().confirmedAt()).isEqualTo(checked.get(run).confirmedAt());
 	}
 
 	@Test
@@ -331,6 +339,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(checked).isEmpty();
 		assertThat(latest).isEqualTo(first);
 		assertThat(history).hasSize(1);
+		verify(notifications).register(first);
 		doAnswer(invocation -> save(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3),
 				invocation.getArgument(4), invocation.getArgument(5), invocation.getArgument(6))).when(repository)
 				.savePublication(eq(eventId), any(), anyInt(), any(), any(), anyList(), any());
@@ -370,6 +379,7 @@ class DrawPublicationReplacementServiceTest {
 			assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo(initialPublication ? latest : firstResult);
 			assertThat(checked).hasSize(1);
 			assertThat(history).hasSize(initialPublication ? 1 : 2);
+			verify(notifications, times(initialPublication ? 1 : 2)).register(any());
 			verify(repository, times(1)).saveConfirmation(eq(run), eq(actorId), any());
 		} finally {
 			release.countDown(); executor.shutdownNow();

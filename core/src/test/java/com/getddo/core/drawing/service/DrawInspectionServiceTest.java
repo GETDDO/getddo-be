@@ -35,6 +35,8 @@ class DrawInspectionServiceTest {
 		// given / when / then
 		for (User user : List.of(user(UserRole.USER, UserStatus.ACTIVE), user(UserRole.ADMIN, UserStatus.INACTIVE))) {
 			assertThatThrownBy(() -> service.runs(user, eventId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
+			assertThatThrownBy(() -> service.failures(user, runId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
+			assertThatThrownBy(() -> service.executionAudits(user, runId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
 			assertThatThrownBy(() -> service.detail(user, runId)).isInstanceOf(BusinessException.class);
 			assertThatThrownBy(() -> service.candidates(user, runId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
 			assertThatThrownBy(() -> service.verify(user, runId)).isInstanceOf(BusinessException.class);

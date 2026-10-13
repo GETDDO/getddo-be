@@ -61,8 +61,8 @@ class AdminDrawPublicationControllerTest {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
 		mvc = MockMvcBuilders.standaloneSetup(new AdminDrawPublicationController(
-				new DrawResultConfirmationService(repository, publications, new DrawPublicationAdminAuthorization(users), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))),
-				new DrawPublicationQueryService(publications, repository, new DrawPublicationAdminAuthorization(users))))
+				new DrawResultConfirmationService(repository, publications, new DrawAdminAuthorization(users), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))),
+				new DrawPublicationQueryService(publications, repository, new DrawAdminAuthorization(users))))
 				.setControllerAdvice(new GlobalExceptionHandler()).setValidator(validator)
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(users))).build();
 	}
@@ -157,10 +157,11 @@ class AdminDrawPublicationControllerTest {
 		// given
 		DrawPublication latest = publication(2);
 		UUID prize = UUID.randomUUID(), before = UUID.randomUUID(), after = UUID.randomUUID();
+		UUID confirmationId = UUID.randomUUID(), cancellationId = UUID.randomUUID(), resultId = UUID.randomUUID();
 		DrawPublicationChange change = new DrawPublicationChange(latest, List.of(new DrawPublicationChange.SlotChange(
 				prize, 1, UUID.randomUUID(), before, UUID.randomUUID(), after)), List.of(
-				new DrawPublicationExecution(runId, UUID.randomUUID(), actorId, NOW, List.of(
-						new DrawPublicationCancellation(UUID.randomUUID(), UUID.randomUUID(), runId, "실행별 사유")))));
+				new DrawPublicationExecution(runId, confirmationId, actorId, NOW, List.of(
+						new DrawPublicationCancellation(cancellationId, resultId, runId, "실행별 사유")))));
 		when(repository.eventExists(eventId)).thenReturn(true);
 		when(publications.changes(eventId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(change), 1, 20, 2));
 		// when / then
@@ -171,10 +172,25 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.items[0].reason").value("연결 취소 사유"))
 				.andExpect(jsonPath("$.data.items[0].updatedAt").value(NOW.toString()))
 				.andExpect(jsonPath("$.data.items[0].executions[0].runId").value(runId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].confirmationId").value(confirmationId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].confirmedAt").value(NOW.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].cancellations[0].id").value(cancellationId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].cancellations[0].resultId").value(resultId.toString()))
 				.andExpect(jsonPath("$.data.items[0].executions[0].confirmedBy").value(actorId.toString()))
 				.andExpect(jsonPath("$.data.items[0].executions[0].cancellations[0].reason").value("실행별 사유"))
 				.andExpect(jsonPath("$.data.items[0].changes[0].beforeUserId").value(before.toString()))
 				.andExpect(jsonPath("$.data.items[0].changes[0].afterUserId").value(after.toString()));
+	}
+
+	@Test @DisplayName("근거 연결이 없는 과거 공개 버전은 executions 빈 배열을 반환한다")
+	void historyWithoutEvidenceReturnsEmptyExecutions() throws Exception {
+		// given
+		when(repository.eventExists(eventId)).thenReturn(true);
+		when(publications.changes(eventId, new PageQuery(1, 20))).thenReturn(new PageResult<>(
+				List.of(new DrawPublicationChange(publication(1), List.of())), 1, 20, 1));
+		// when / then
+		mvc.perform(selected(get("/api/v1/admin/events/{id}/result-changes", eventId)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].executions").isEmpty());
 	}
 
 	@Test

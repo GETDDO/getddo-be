@@ -37,8 +37,90 @@ class DrawPublicationRepositoryImplTest {
 	private final DrawResultConfirmationJpaRepository confirmations = mock(DrawResultConfirmationJpaRepository.class);
 	private final EntityManager entityManager = mock(EntityManager.class);
 	private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
+	private final DrawPublicationExecutionJpaRepository evidence = mock(DrawPublicationExecutionJpaRepository.class);
 	private final DrawPublicationRepositoryImpl repository = new DrawPublicationRepositoryImpl(versions, entries,
-			entityManager, jdbc, confirmations, mock(DrawPublicationExecutionJpaRepository.class));
+			entityManager, jdbc, confirmations, evidence);
+
+	@Test @DisplayName("빈 공개 실행 근거는 저장·조회 없이 빈 맵을 반환한다")
+	void skipsEmptyExecutionEvidence() {
+		// given / when / then
+		repository.saveExecutionEvidence(UUID.randomUUID(), UUID.randomUUID(), List.of());
+		assertThat(repository.findExecutionEvidence(Set.of())).isEmpty();
+		verifyNoInteractions(evidence, jdbc);
+	}
+
+	@Test @DisplayName("공개 실행 연결은 버전·이벤트·확인 ID를 그대로 저장한다")
+	void savesExecutionIdentity() {
+		// given
+		UUID version = UUID.randomUUID(), event = UUID.randomUUID();
+		DrawPublicationExecution execution = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), NOW, List.of());
+		doAnswer(invocation -> {
+			List<DrawPublicationExecutionEntity> rows = invocation.getArgument(0);
+			assertThat(rows).singleElement().satisfies(row -> {
+				assertThat(row.getId()).isEqualTo(new DrawPublicationExecutionId(version, execution.runId()));
+				assertThat(row.getEventId()).isEqualTo(event);
+				assertThat(row.getConfirmationId()).isEqualTo(execution.confirmationId());
+			});
+			return rows;
+		}).when(evidence).saveAllAndFlush(anyList());
+		// when
+		repository.saveExecutionEvidence(version, event, List.of(execution));
+		// then
+		verify(evidence).saveAllAndFlush(anyList());
+	}
+
+	@Test @DisplayName("버전의 실행별 확인·취소 근거를 일괄 연결하고 불변 맵과 목록으로 반환한다")
+	void readsBatchedExecutionEvidence() throws Exception {
+		// given
+		UUID version = UUID.randomUUID(), missing = UUID.randomUUID(), runA = UUID.randomUUID(), runB = UUID.randomUUID();
+		UUID checkA = UUID.randomUUID(), checkB = UUID.randomUUID(), actor = UUID.randomUUID();
+		ResultSet first = evidenceRow(version, runA, checkA, actor), second = evidenceRow(version, runB, checkB, actor);
+		when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class))).thenAnswer(invocation -> {
+			RowMapper<?> mapper = invocation.getArgument(1);
+			return List.of(mapper.mapRow(first, 0), mapper.mapRow(second, 1));
+		});
+		UUID cancelA = UUID.randomUUID(), cancelB = UUID.randomUUID(), resultA = UUID.randomUUID(), resultB = UUID.randomUUID();
+		ResultSet causeA = cancellationRow(runA, cancelA, resultA, "첫 사유"), causeB = cancellationRow(runA, cancelB, resultB, "다음 사유");
+		doAnswer(invocation -> {
+			RowCallbackHandler handler = invocation.getArgument(1);
+			handler.processRow(causeA);
+			handler.processRow(causeB);
+			return null;
+		}).when(jdbc).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
+		// when
+		java.util.Map<UUID, List<DrawPublicationExecution>> loaded = repository.findExecutionEvidence(Set.of(version, missing));
+		// then
+		assertThat(loaded).doesNotContainKey(missing);
+		assertThat(loaded.get(version)).extracting(DrawPublicationExecution::runId).containsExactly(runA, runB);
+		assertThat(loaded.get(version).getFirst().confirmationId()).isEqualTo(checkA);
+		assertThat(loaded.get(version).getFirst().confirmedBy()).isEqualTo(actor);
+		assertThat(loaded.get(version).getFirst().confirmedAt()).isEqualTo(NOW);
+		assertThat(loaded.get(version).getFirst().cancellations()).usingRecursiveComparison().isEqualTo(List.of(
+				new DrawPublicationCancellation(cancelA, resultA, runA, "첫 사유"), new DrawPublicationCancellation(cancelB, resultB, runA, "다음 사유")));
+		assertThat(loaded.get(version).getLast().cancellations()).isEmpty();
+		assertThatThrownBy(() -> loaded.put(missing, List.of())).isInstanceOf(UnsupportedOperationException.class);
+		assertThatThrownBy(() -> loaded.get(version).clear()).isInstanceOf(UnsupportedOperationException.class);
+		verify(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+		verify(jdbc).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
+	}
+
+	private ResultSet evidenceRow(UUID version, UUID run, UUID confirmation, UUID actor) throws Exception {
+		ResultSet row = mock(ResultSet.class);
+		when(row.getBytes("publication_id")).thenReturn(toBytes(version));
+		when(row.getBytes("draw_run_id")).thenReturn(toBytes(run));
+		when(row.getBytes("confirmation_id")).thenReturn(toBytes(confirmation));
+		when(row.getBytes("confirmed_by")).thenReturn(toBytes(actor));
+		when(row.getObject("confirmed_at", LocalDateTime.class)).thenReturn(LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
+		return row;
+	}
+	private ResultSet cancellationRow(UUID run, UUID id, UUID result, String reason) throws Exception {
+		ResultSet row = mock(ResultSet.class);
+		when(row.getBytes("draw_run_id")).thenReturn(toBytes(run));
+		when(row.getBytes("id")).thenReturn(toBytes(id));
+		when(row.getBytes("draw_result_id")).thenReturn(toBytes(result));
+		when(row.getString("reason")).thenReturn(reason);
+		return row;
+	}
 
 	@Test
 	@DisplayName("갱신 저장은 유지 결과의 원본 실행과 기존 확인·새 결과의 새 확인을 그대로 연결한다")

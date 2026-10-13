@@ -532,13 +532,11 @@ class DrawSnapshotIntegrationTest {
 	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification"})
 	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
 	static class TestApplication {
-		@Bean com.getddo.core.drawing.service.DrawPublicationAdminAuthorization publicationAdmins(com.getddo.core.drawing.service.DrawAdminAuthorization admins) {
-			return new com.getddo.core.drawing.service.DrawPublicationAdminAuthorization(admins);
-		}
+
 		@Bean com.getddo.core.drawing.service.DrawResultConfirmationService resultConfirmations(
 				com.getddo.core.drawing.repository.DrawPublicationRepository repository,
 				com.getddo.core.drawing.service.DrawPublicationService publications,
-				com.getddo.core.drawing.service.DrawPublicationAdminAuthorization admins, TimeProvider time) {
+				com.getddo.core.drawing.service.DrawAdminAuthorization admins, TimeProvider time) {
 			return new com.getddo.core.drawing.service.DrawResultConfirmationService(repository, publications, admins, time);
 		}
 

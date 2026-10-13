@@ -139,12 +139,18 @@ public class DrawPublicationService {
 	@Transactional(readOnly = true)
 	public List<DrawPublicationChange> changes(UUID eventId) {
 		List<DrawPublicationChange> history = new ArrayList<>();
+		List<DrawPublication> versions = publications.findHistory(eventId);
+		if (versions.isEmpty()) return List.of();
+		Set<UUID> ids = new HashSet<>();
+		for (DrawPublication version : versions) ids.add(version.id());
+		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
+		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
 		List<DrawPublishedSlot> before = List.of();
-		for (DrawPublication publication : publications.findHistory(eventId)) {
-			List<DrawPublishedSlot> after = publications.findPublishedSlots(publication.id());
+		for (DrawPublication publication : versions) {
+			List<DrawPublishedSlot> after = slots.getOrDefault(publication.id(), List.of());
 			DrawPublicationChange change = compare(publication, before, after);
 			history.add(new DrawPublicationChange(publication, change.changes(),
-					publications.findExecutionEvidence(Set.of(publication.id())).getOrDefault(publication.id(), List.of())));
+					evidence.getOrDefault(publication.id(), List.of())));
 			before = after;
 		}
 		return List.copyOf(history);

@@ -21,7 +21,7 @@ import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.*;
 public class DrawResultConfirmationService {
 	private final DrawPublicationRepository repository;
 	private final DrawPublicationService publications;
-	private final DrawPublicationAdminAuthorization admins;
+	private final DrawAdminAuthorization admins;
 	private final TimeProvider time;
 
 	/**
@@ -53,7 +53,7 @@ public class DrawResultConfirmationService {
 	}
 
 	private DrawPublicationRun authorizeAndLock(UUID runId, UUID actorId) {
-		admins.requireActiveAdmin(actorId);
+		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
 		if (runId == null) throw new BusinessException(RUN_NOT_FOUND);
 		UUID eventId = repository.findEventId(runId).orElseThrow(() -> new BusinessException(RUN_NOT_FOUND));
 		return publications.validateReplacement(eventId, runId);

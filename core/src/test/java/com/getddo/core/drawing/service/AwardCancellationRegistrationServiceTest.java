@@ -39,7 +39,7 @@ class AwardCancellationRegistrationServiceTest {
 	private final UserRepository users = mock(UserRepository.class);
 	private final AuditLogService audit = mock(AuditLogService.class);
 	private final AwardCancellationRegistrationService service = new AwardCancellationRegistrationService(cancellations,
-			replacements, snapshots, results, users, audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+			replacements, snapshots, results, new DrawAdminAuthorization(users), audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 
 	@BeforeEach void setUp() {
 		when(users.findById(actor)).thenReturn(Optional.of(user(UserRole.ADMIN, UserStatus.ACTIVE)));

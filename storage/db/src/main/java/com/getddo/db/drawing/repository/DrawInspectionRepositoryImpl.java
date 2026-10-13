@@ -47,11 +47,14 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 				(row, index) -> failure(row), toBytes(runId)).stream().findFirst().orElse(null);
 		long count = jdbc.queryForObject("select count(*) from draw_failures where draw_run_id = ?", Long.class, toBytes(runId));
 		List<DrawCancellationView> cancellations = jdbc.query("""
-			select c.* from award_cancellations c join draw_results r on r.id = c.draw_result_id
-			where r.draw_run_id = ? or c.draw_run_id = ? order by c.canceled_at, c.id
+			select c.* from award_cancellations c where c.draw_run_id = ?
+			union all
+			select c.* from draw_results r join award_cancellations c on c.draw_result_id = r.id
+			where r.draw_run_id = ? and (c.draw_run_id is null or c.draw_run_id <> ?)
+			order by canceled_at, id
 			""", (row, index) -> new DrawCancellationView(id(row, "id"), id(row, "draw_result_id"),
 					id(row, "draw_run_id"), id(row, "canceled_by"), row.getString("reason"), instant(row, "canceled_at")),
-				toBytes(runId), toBytes(runId));
+				toBytes(runId), toBytes(runId), toBytes(runId));
 		return jdbc.queryForObject("select status, retry_at from draw_runs where id = ?", (row, index) -> {
 			java.time.Instant retry = instant(row, "retry_at");
 			return new DrawExecutionSummary(count, latest, retry, "FAILED".equals(row.getString("status")) && retry == null, cancellations);

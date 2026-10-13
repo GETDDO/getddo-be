@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import com.getddo.core.common.exception.BusinessException;
+import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PUBLICATION;
 import com.getddo.core.drawing.domain.DrawPublication;
 import com.getddo.core.drawing.domain.DrawPublicationType;
 import com.getddo.core.drawing.domain.DrawPublishedSlot;
@@ -39,8 +41,10 @@ public class DrawPublicationNotificationService {
 				"/events/" + publication.eventId() + "/results", publication.publishedAt(), users));
 	}
 
+	/** 실제 직전 공개와 비교해 교체된 자리의 이전·새 사용자만 중복 없이 반환한다. */
 	private List<UUID> changedUsers(DrawPublication publication) {
-		DrawPublication previous = publications.findPrevious(publication.eventId(), publication.revision()).orElseThrow();
+		DrawPublication previous = publications.findPrevious(publication.eventId(), publication.revision())
+				.orElseThrow(() -> new BusinessException(INVALID_PUBLICATION));
 		Map<Slot, DrawPublishedSlot> before = index(publications.findPublishedSlots(previous.id()));
 		Map<Slot, DrawPublishedSlot> after = index(publications.findPublishedSlots(publication.id()));
 		Set<Slot> slots = new LinkedHashSet<>(before.keySet());
@@ -55,6 +59,7 @@ public class DrawPublicationNotificationService {
 		return List.copyOf(changed);
 	}
 
+	/** 경품과 자리 번호로 명단을 대응시켜 유지 당첨자를 변경 대상에서 제외한다. */
 	private static Map<Slot, DrawPublishedSlot> index(List<DrawPublishedSlot> rows) {
 		Map<Slot, DrawPublishedSlot> indexed = new LinkedHashMap<>();
 		for (DrawPublishedSlot row : rows) indexed.put(new Slot(row.prizeId(), row.slotNumber()), row);

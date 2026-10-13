@@ -25,11 +25,11 @@ public final class DrawPublicationComposition {
 
 	public DrawPublicationComposition(boolean complete, UUID sourceRunId, String reason,
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> entries, List<DrawPublicationExecution> executions) {
-		this.executions = List.copyOf(executions);
 		this.complete = complete;
 		this.sourceRunId = Objects.requireNonNull(sourceRunId, "sourceRunId");
 		this.reason = reason;
 		this.confirmation = confirmation;
-		this.entries = List.copyOf(entries);
+		this.entries = List.copyOf(Objects.requireNonNull(entries, "entries"));
+		this.executions = List.copyOf(Objects.requireNonNull(executions, "executions"));
 	}
 }

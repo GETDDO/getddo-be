@@ -43,10 +43,16 @@ class DrawPublicationPagingTest {
 		when(repository.findHistory(event, query)).thenReturn(new PageResult<>(List.of(third), 1, 1, 3));
 		when(repository.findPrevious(event, 3)).thenReturn(Optional.of(second));
 		when(repository.findPublishedSlots(Set.of(third.id(), second.id()))).thenReturn(Map.of(third.id(), List.of(latest), second.id(), List.of(middle)));
+		DrawPublicationExecution currentEvidence = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW, List.of());
+		DrawPublicationExecution boundaryEvidence = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW.minusSeconds(1), List.of());
+		when(repository.findExecutionEvidence(Set.of(third.id(), second.id()))).thenReturn(
+				Map.of(third.id(), List.of(currentEvidence), second.id(), List.of(boundaryEvidence)));
 		// when
 		PageResult<DrawPublicationChange> changes = publications.changes(event, query);
 		// then
 		assertThat(changes.getTotalElements()).isEqualTo(3);
+		assertThat(changes.getItems().getFirst().executions()).containsExactly(currentEvidence);
+		verify(repository).findExecutionEvidence(Set.of(third.id(), second.id()));
 		assertThat(changes.getItems().getFirst().changes()).containsExactly(new DrawPublicationChange.SlotChange(prize,
 				1, middle.resultId(), middle.userId(), latest.resultId(), latest.userId()));
 		verify(repository, never()).findHistory(event);
@@ -78,7 +84,7 @@ class DrawPublicationPagingTest {
 	@DisplayName("관리자 이력 조회는 권한 확인 뒤 이벤트 존재를 확인하고 없는 이벤트는 404로 거절한다")
 	void validatesAdminBeforeEventAndPages() {
 		// given
-		DrawPublicationQueryService queryService = new DrawPublicationQueryService(publications, repository, new DrawPublicationAdminAuthorization(users));
+		DrawPublicationQueryService queryService = new DrawPublicationQueryService(publications, repository, new DrawAdminAuthorization(users));
 		PageQuery query = new PageQuery(1, 20);
 		when(users.findById(actor)).thenReturn(Optional.of(user(UserRole.USER, UserStatus.ACTIVE)));
 		// when / then

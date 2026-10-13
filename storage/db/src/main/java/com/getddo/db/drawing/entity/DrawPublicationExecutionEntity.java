@@ -1,6 +1,7 @@
 package com.getddo.db.drawing.entity;
 
 import java.util.UUID;
+import java.util.Objects;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -21,8 +22,9 @@ public class DrawPublicationExecutionEntity implements Persistable<DrawPublicati
 	@Column(name = "confirmation_id", nullable = false, updatable = false, length = 16) private UUID confirmationId;
 	@Transient private boolean newEntity = true;
 	public DrawPublicationExecutionEntity(UUID publicationId, UUID eventId, DrawPublicationExecution execution) {
+		Objects.requireNonNull(execution, "execution");
 		this.id = new DrawPublicationExecutionId(publicationId, execution.runId());
-		this.eventId = eventId;
+		this.eventId = Objects.requireNonNull(eventId, "eventId");
 		this.confirmationId = execution.confirmationId();
 	}
 	@Override public boolean isNew() { return newEntity; }

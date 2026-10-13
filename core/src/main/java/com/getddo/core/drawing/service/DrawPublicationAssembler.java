@@ -116,6 +116,7 @@ public final class DrawPublicationAssembler {
 				.filter(value -> value.result.getSelection().getResultType() == DrawSelectionResultType.SELECTED)
 				.map(value -> new DrawPublication.Entry(value.result.getId(), value.runId,
 						value.confirmation == null ? null : value.confirmation.id())).toList();
+		// visible에는 미충원 자리도 남는다. 확인이 있는 항목의 실행만 근거에 포함한다.
 		Set<UUID> visibleRuns = new HashSet<>();
 		for (Included included : visible.values()) if (included.confirmation != null) visibleRuns.add(included.runId);
 		List<DrawPublicationExecution> evidence = ordered.stream().filter(run -> visibleRuns.contains(run.runId()))

@@ -22,10 +22,9 @@ public final class DrawPublicationChange {
 	}
 
 	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes, List<DrawPublicationExecution> executions) {
-		this.executions = List.copyOf(executions);
-		changes = List.copyOf(changes);
 		this.publication = Objects.requireNonNull(publication, "publication");
-		this.changes = changes;
+		this.changes = List.copyOf(Objects.requireNonNull(changes, "changes"));
+		this.executions = List.copyOf(Objects.requireNonNull(executions, "executions"));
 	}
 
 	@Getter

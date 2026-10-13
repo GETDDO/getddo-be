@@ -1,6 +1,12 @@
 package com.getddo.db.drawing;
 
 import java.time.Instant;
+import com.getddo.core.user.repository.UserRepository;
+import com.getddo.core.notification.service.NotificationJobService;
+import com.getddo.db.notification.repository.NotificationJobRepositoryImpl;
+import com.getddo.core.notification.service.MockNotificationSender;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.pagination.PageQuery;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -41,6 +47,7 @@ import com.getddo.db.ticket.MutableClock;
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.ADMIN_REQUIRED;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
+import static com.getddo.db.common.util.UuidBinary.fromBytes;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -62,15 +69,16 @@ class AwardCancellationFlowIntegrationTest {
 	@Autowired private DrawPublicationService publications;
 	@Autowired private DrawResultConfirmationService resultConfirmations;
 	@Autowired private DrawInspectionService inspections;
-	@Autowired private com.getddo.core.user.repository.UserRepository users;
-	@Autowired private com.getddo.core.notification.service.NotificationJobService jobs;
-	@MockitoSpyBean private com.getddo.db.notification.repository.NotificationJobRepositoryImpl jobRecords;
-	@MockitoSpyBean private com.getddo.core.notification.service.MockNotificationSender sender;
+	@Autowired private UserRepository users;
+	@Autowired private NotificationJobService jobs;
+	@MockitoSpyBean private NotificationJobRepositoryImpl jobRecords;
+	@MockitoSpyBean private MockNotificationSender sender;
 	@MockitoSpyBean private ReplacementDrawRepositoryImpl replacements;
 	@MockitoSpyBean private AwardCancellationRepositoryImpl cancellations;
 	@MockitoSpyBean private DrawResultJpaRepository results;
 	@MockitoSpyBean private DrawingSelectionService selection;
 	@MockitoSpyBean private AuditLogRepositoryImpl auditRecords;
+	@MockitoSpyBean private DrawPublicationRepositoryImpl publicationRecords;
 	private UUID actor;
 	private Fixture fixture;
 
@@ -398,7 +406,7 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(change.executions().getFirst().cancellations().getFirst().reason()).isEqualTo("운영자 확인");
 		assertThat(inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution().cancellations()).hasSize(1);
 		assertThat(inspections.executionAudits(users.findById(actor).orElseThrow(), runId,
-				new com.getddo.core.common.pagination.PageQuery(1, 1)).getTotalElements()).isGreaterThanOrEqualTo(1);
+				new PageQuery(1, 1)).getTotalElements()).isGreaterThanOrEqualTo(1);
 		assertThat(jobCount(fixture.eventId())).isEqualTo(2);
 		UUID initialJob = jobId(initial), updateJob = jobId(updated);
 		assertThat(jobRecords.findRequest(initialJob).getRecipientIds()).hasSize(5);
@@ -432,6 +440,12 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(version.entries()).hasSize(1);
 		List<DrawPublicationExecution> evidence = publications.changes(small.eventId()).getFirst().executions();
 		assertThat(evidence).hasSize(2);
+		DrawRunDetailView unfilledDetail = inspections.detail(users.findById(actor).orElseThrow(), first.cancellation().replacementRunId());
+		assertThat(unfilledDetail.getResults()).singleElement().satisfies(result -> {
+			assertThat(result.getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+			assertThat(result.getUserId()).isNull();
+			assertThat(result.isWasPublished()).isFalse();
+		});
 		assertThat(evidence.stream().map(DrawPublicationExecution::confirmedBy)).containsExactly(actor, otherAdmin);
 		assertThat(evidence.stream().flatMap(value -> value.cancellations().stream()).map(DrawPublicationCancellation::reason))
 				.containsExactly("첫 번째 사유", "두 번째 사유");
@@ -450,12 +464,12 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(summary.latestFailure().getFailureCode()).isEqualTo("TRANSIENT_STORAGE");
 		assertThat(summary.retryAt()).isNotNull();
 		assertThat(summary.waitingForOperator()).isFalse();
-		com.getddo.core.common.pagination.PageResult<DrawFailure> page = inspections.failures(users.findById(actor).orElseThrow(), runId,
-				new com.getddo.core.common.pagination.PageQuery(1, 1));
+		PageResult<DrawFailure> page = inspections.failures(users.findById(actor).orElseThrow(), runId,
+				new PageQuery(1, 1));
 		assertThat(page.getItems()).hasSize(1);
 		assertThat(page.getTotalElements()).isEqualTo(1);
 		assertThat(inspections.failures(users.findById(actor).orElseThrow(), runId,
-				new com.getddo.core.common.pagination.PageQuery(2, 1)).getItems()).isEmpty();
+				new PageQuery(2, 1)).getItems()).isEmpty();
 		assertThat(page.getItems().getFirst().getTraceId()).isNull();
 		assertThat(page.getItems().getFirst().getFailureCode()).doesNotContain("diagnostic");
 	}
@@ -503,19 +517,30 @@ class AwardCancellationFlowIntegrationTest {
 		// given
 		publications.publishInitial(fixture.eventId()).orElseThrow();
 		UUID runId = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "동시 확인").cancellation().replacementRunId();
-		CountDownLatch start = new CountDownLatch(1);
+		CountDownLatch storing = new CountDownLatch(1), release = new CountDownLatch(1);
+		doAnswer(invocation -> {
+			Object stored = invocation.callRealMethod();
+			storing.countDown();
+			if (!release.await(45, TimeUnit.SECONDS)) throw new IllegalStateException("공개 잠금 해제 대기 실패");
+			return stored;
+		}).when(publicationRecords).savePublication(eq(fixture.eventId()), eq(runId), anyInt(), any(), any(), anyList(), any());
 		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-			Future<DrawPublication> first = executor.submit(() -> { start.await(); return resultConfirmations.confirmForPublication(runId, actor); });
-			Future<DrawPublication> second = executor.submit(() -> { start.await(); return resultConfirmations.confirmForPublication(runId, actor); });
-			// when
-			start.countDown();
-			DrawPublication version = first.get(30, TimeUnit.SECONDS);
-			// then
-			assertThat(second.get(30, TimeUnit.SECONDS)).isEqualTo(version);
-			assertThat(publications.history(fixture.eventId())).hasSize(2);
-			assertThat(jobCount(fixture.eventId())).isEqualTo(2);
-			assertThat(jdbc.queryForObject("select count(*) from draw_result_confirmations where draw_run_id = ?", Long.class, toBytes(runId))).isEqualTo(1);
-			assertThat(jdbc.queryForObject("select count(*) from draw_publication_executions where publication_id = ?", Long.class, toBytes(version.id()))).isEqualTo(1);
+			Future<DrawPublication> first = executor.submit(() -> resultConfirmations.confirmForPublication(runId, actor));
+			try {
+				assertThat(storing.await(20, TimeUnit.SECONDS)).isTrue();
+				// when
+				Future<DrawPublication> second = executor.submit(() -> resultConfirmations.confirmForPublication(runId, actor));
+				new LockWaitProbe(mysql).awaitLockWaits(1);
+				assertThat(second.isDone()).isFalse();
+				release.countDown();
+				DrawPublication version = first.get(30, TimeUnit.SECONDS);
+				// then
+				assertThat(second.get(30, TimeUnit.SECONDS)).isEqualTo(version);
+				assertThat(publications.history(fixture.eventId())).hasSize(2);
+				assertThat(jobCount(fixture.eventId())).isEqualTo(2);
+				assertThat(jdbc.queryForObject("select count(*) from draw_result_confirmations where draw_run_id = ?", Long.class, toBytes(runId))).isEqualTo(1);
+				assertThat(jdbc.queryForObject("select count(*) from draw_publication_executions where publication_id = ?", Long.class, toBytes(version.id()))).isEqualTo(1);
+			} finally { release.countDown(); }
 		}
 	}
 
@@ -558,11 +583,21 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(publications.changes(fixture.eventId()).getLast().executions().stream().map(DrawPublicationExecution::runId))
 				.containsExactly(secondRun);
 		assertThat(jobCount(fixture.eventId())).isEqualTo(3);
+		DrawRunDetailView previousDetail = inspections.detail(users.findById(actor).orElseThrow(), firstRun);
+		assertThat(previousDetail.getResults()).filteredOn(result -> result.getId().equals(newWinner.getId()))
+				.singleElement().satisfies(result -> {
+					assertThat(result.isCanceled()).isTrue();
+					assertThat(result.isWasPublished()).isTrue();
+				});
+		assertThat(previousDetail.getExecution().cancellations()).extracting(DrawCancellationView::id)
+				.containsExactly(first.cancellation().id(), second.cancellation().id());
+		assertThat(inspections.detail(users.findById(actor).orElseThrow(), secondRun).getExecution().cancellations())
+				.extracting(DrawCancellationView::id).containsExactly(second.cancellation().id());
 	}
 
 	private long jobCount(UUID eventId) { return jdbc.queryForObject("select count(*) from notification_jobs where event_id = ?", Long.class, toBytes(eventId)); }
 	private UUID jobId(DrawPublication version) {
-		return com.getddo.db.common.util.UuidBinary.fromBytes(jdbc.queryForObject("select id from notification_jobs where occurrence_key = ?", byte[].class, "draw-publication:" + version.id()));
+		return fromBytes(jdbc.queryForObject("select id from notification_jobs where occurrence_key = ?", byte[].class, "draw-publication:" + version.id()));
 	}
 	private void processJobs() { for (int index = 0; index < 500 && jobs.processNextJob(); index++) { } }
 
@@ -629,7 +664,7 @@ class AwardCancellationFlowIntegrationTest {
 	private long cancellationCount(UUID event) { return jdbc.queryForObject("select count(*) from award_cancellations where draw_run_id in (select id from draw_runs where event_id = ?)", Long.class, toBytes(event)); }
 	private long resultCount(UUID run) { return jdbc.queryForObject("select count(*) from draw_results where draw_run_id = ?", Long.class, toBytes(run)); }
 	private long auditCount(String action, UUID target) { return jdbc.queryForObject("select count(*) from audit_logs where action = ? and target_id = ?", Long.class, action, toBytes(target)); }
-	private UUID auditActor(String action, UUID target) { return com.getddo.db.common.util.UuidBinary.fromBytes(jdbc.queryForObject("select actor_id from audit_logs where action = ? and target_id = ?", byte[].class, action, toBytes(target))); }
+	private UUID auditActor(String action, UUID target) { return fromBytes(jdbc.queryForObject("select actor_id from audit_logs where action = ? and target_id = ?", byte[].class, action, toBytes(target))); }
 	private long historyCount(UUID event) { return jdbc.queryForObject("select count(*) from ticket_histories h join event_entries e on e.id = h.event_entry_id join event_participants p on p.id = e.participant_id where p.event_id = ?", Long.class, toBytes(event)); }
 	private List<Map<String, Object>> ticketRows(UUID event) {
 		return jdbc.queryForList("select hex(t.id) as id, t.status, t.version, t.grade from tickets t join ticket_histories h on h.ticket_id = t.id join event_entries e on e.id = h.event_entry_id join event_participants p on p.id = e.participant_id where p.event_id = ? order by t.id", toBytes(event));
