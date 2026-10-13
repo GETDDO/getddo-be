@@ -2,6 +2,7 @@ package com.getddo.core.game.domain;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,48 @@ class GamePlayTest {
 		assertThat(legacy.getScore()).isEqualTo(-1L);
 		assertThat(legacy.getResultHash()).isNull();
 		assertThat(legacy.getCompletedAt()).isEqualTo(legacyCompletion);
+	}
+
+	@Test
+	@DisplayName("검증 기준이 있는 복원 객체는 잘못된 결과 조합과 시간·해시 길이 경계를 거절한다")
+	void rejectsInvalidRestoredResults() {
+		// given
+		List<Runnable> invalid = List.of(
+				() -> restore(0L, null, null, START),
+				() -> restore(null, HASH, null, START),
+				() -> restore(0L, HASH, null, START),
+				() -> restore(null, null, END, START),
+				() -> restore(-1L, HASH, END, START),
+				() -> restore(0L, "a".repeat(63), END, START),
+				() -> restore(0L, "a".repeat(65), END, START),
+				() -> restore(0L, HASH, START.minusSeconds(1), START),
+				() -> restore(0L, HASH, END, null));
+		// when / then
+		for (Runnable input : invalid) {
+			assertThatThrownBy(input::run).isInstanceOf(IllegalArgumentException.class);
+		}
+	}
+
+	@Test
+	@DisplayName("검증 기준이 있는 미완료·0점 완료·무효 완료를 복원하며 시작과 같은 완료 시각도 허용한다")
+	void restoresValidResultStates() {
+		// given / when
+		GamePlay unfinished = restore(null, null, null, START);
+		GamePlay zero = restore(0L, HASH, START, START);
+		GamePlay invalid = restore(null, HASH, END, START);
+		// then
+		assertThat(unfinished.isCompleted()).isFalse();
+		assertThat(zero.isValid()).isTrue();
+		assertThat(zero.getScore()).isZero();
+		assertThat(zero.getCompletedAt()).isEqualTo(START);
+		assertThat(invalid.isCompleted()).isTrue();
+		assertThat(invalid.isValid()).isFalse();
+		assertThat(invalid.getResultHash()).isEqualTo(HASH);
+	}
+
+	private GamePlay restore(Long score, String hash, Instant completedAt, Instant startedAt) {
+		return new GamePlay(UUID.randomUUID(), GAME, USER, "color-word-v1", "{}", HASH,
+				"color-word-generator-v1", 123456789L, startedAt, score, hash, completedAt);
 	}
 
 	private GamePlay started() {

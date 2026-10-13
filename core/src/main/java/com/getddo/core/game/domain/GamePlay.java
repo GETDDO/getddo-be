@@ -38,6 +38,15 @@ public final class GamePlay {
 		if (!noContext && !completeContext) {
 			throw new IllegalArgumentException("검증 기준은 모두 null이거나 모두 설정되어야 합니다.");
 		}
+		if (completeContext) {
+			boolean unfinished = completedAt == null && score == null && resultHash == null;
+			boolean completed = completedAt != null && startedAt != null && !completedAt.isBefore(startedAt)
+					&& resultHash != null && resultHash.codePointCount(0, resultHash.length()) == 64
+					&& (score == null || score >= 0);
+			if (!unfinished && !completed) {
+				throw new IllegalArgumentException("플레이 결과의 점수·해시·완료 시각 조합이 올바르지 않습니다.");
+			}
+		}
 		this.id = id;
 		this.gameId = Objects.requireNonNull(gameId, "gameId");
 		this.userId = Objects.requireNonNull(userId, "userId");
