@@ -31,6 +31,13 @@ public final class GamePlay {
 	public GamePlay(UUID id, UUID gameId, UUID userId, String ruleVersion, String rulesSnapshot,
 			String playTokenHash, String generatorVersion, Long generationSeed, Instant startedAt,
 			Long score, String resultHash, Instant completedAt) {
+		boolean noContext = rulesSnapshot == null && playTokenHash == null
+				&& generatorVersion == null && generationSeed == null;
+		boolean completeContext = rulesSnapshot != null && playTokenHash != null
+				&& generatorVersion != null && generationSeed != null;
+		if (!noContext && !completeContext) {
+			throw new IllegalArgumentException("검증 기준은 모두 null이거나 모두 설정되어야 합니다.");
+		}
 		this.id = id;
 		this.gameId = Objects.requireNonNull(gameId, "gameId");
 		this.userId = Objects.requireNonNull(userId, "userId");

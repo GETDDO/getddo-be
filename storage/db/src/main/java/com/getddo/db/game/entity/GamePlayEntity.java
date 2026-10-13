@@ -2,6 +2,7 @@ package com.getddo.db.game.entity;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Objects;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -64,9 +65,9 @@ public class GamePlayEntity extends BaseEntity {
 			Long score,
 			String resultHash,
 			Instant completedAt) {
-		this.gameId = gameId;
-		this.userId = userId;
-		this.ruleVersion = ruleVersion;
+		this.gameId = Objects.requireNonNull(gameId, "gameId");
+		this.userId = Objects.requireNonNull(userId, "userId");
+		this.ruleVersion = Objects.requireNonNull(ruleVersion, "ruleVersion");
 		this.rulesSnapshot = rulesSnapshot;
 		this.playTokenHash = playTokenHash;
 		this.generatorVersion = generatorVersion;

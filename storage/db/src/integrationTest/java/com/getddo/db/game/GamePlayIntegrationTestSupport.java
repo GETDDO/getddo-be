@@ -26,7 +26,8 @@ import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 		properties = "spring.jpa.hibernate.ddl-auto=validate")
 abstract class GamePlayIntegrationTestSupport {
 
-	protected static final String HASH = "a".repeat(64);
+	protected static final String PLAY_TOKEN_HASH = "a".repeat(64);
+	protected static final String RESULT_HASH = "b".repeat(64);
 	protected static final String RULES = "{\"initialLives\":3,\"pointsPerCorrect\":10}";
 	@Autowired protected GameRepository games;
 	@Autowired protected GamePlayRepository plays;
@@ -61,11 +62,11 @@ abstract class GamePlayIntegrationTestSupport {
 
 	protected GamePlay start() {
 		return transaction.execute(status -> plays.insert(
-				GamePlay.start(game, userId, HASH, "color-word-generator-v1", 4294967295L)));
+				GamePlay.start(game, userId, PLAY_TOKEN_HASH, "color-word-generator-v1", 4294967295L)));
 	}
 
 	protected GamePlay complete(GamePlay play, Long score) {
-		return transaction.execute(status -> plays.complete(play.complete(score, HASH, time.now())));
+		return transaction.execute(status -> plays.complete(play.complete(score, RESULT_HASH, time.now())));
 	}
 
 }

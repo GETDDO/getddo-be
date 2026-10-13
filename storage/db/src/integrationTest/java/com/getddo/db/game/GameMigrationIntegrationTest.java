@@ -36,7 +36,7 @@ class GameMigrationIntegrationTest {
 		UUID user = seeds.user();
 		TicketGrantSeeds.GameParents parents = seeds.gameParents(user);
 		jdbc.update("""
-				update game_plays set score = 0, result_hash = ?, completed_at = '2026-09-01 00:00:01'
+				update game_plays set score = 0, result_hash = ?, completed_at = '2026-08-31 23:59:59'
 				where id = ?
 				""", "a".repeat(64), bytes(parents.playId()));
 		UUID claimId = seeds.gameClaim(user, parents, 1);

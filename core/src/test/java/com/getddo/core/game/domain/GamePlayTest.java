@@ -85,6 +85,37 @@ class GamePlayTest {
 		assertThat(invalid.complete(10L, HASH, END.plusSeconds(1))).isSameAs(invalid);
 	}
 
+	@Test
+	@DisplayName("복원 생성자는 검증 기준 4개 필드의 모든 부분 조합을 거절한다")
+	void rejectsPartialVerificationContext() {
+		// given
+		for (int mask = 1; mask < 15; mask++) {
+			String rules = (mask & 1) != 0 ? "{}" : null;
+			String token = (mask & 2) != 0 ? HASH : null;
+			String generator = (mask & 4) != 0 ? "v1" : null;
+			Long seed = (mask & 8) != 0 ? 1L : null;
+			// when / then
+			assertThatThrownBy(() -> new GamePlay(UUID.randomUUID(), GAME, USER, "v1",
+					rules, token, generator, seed, START, null, null, null))
+					.isInstanceOf(IllegalArgumentException.class);
+		}
+	}
+
+	@Test
+	@DisplayName("검증 기준이 모두 없는 과거 행은 시간 역전과 기존 결과 조합을 그대로 복원한다")
+	void preservesLegacyResultFields() {
+		// given
+		Instant legacyCompletion = START.minusSeconds(1);
+		// when
+		GamePlay legacy = new GamePlay(UUID.randomUUID(), GAME, USER, "v1", null, null, null, null,
+				START, -1L, null, legacyCompletion);
+		// then
+		assertThat(legacy.hasVerificationContext()).isFalse();
+		assertThat(legacy.getScore()).isEqualTo(-1L);
+		assertThat(legacy.getResultHash()).isNull();
+		assertThat(legacy.getCompletedAt()).isEqualTo(legacyCompletion);
+	}
+
 	private GamePlay started() {
 		return new GamePlay(UUID.randomUUID(), GAME, USER, "color-word-v1", "{}", HASH,
 				"color-word-generator-v1", 123456789L, START, null, null, null);

@@ -26,13 +26,13 @@ class GamePlayConcurrencyIntegrationTest extends GamePlayIntegrationTestSupport 
 	void preservesFirstResultUnderConcurrentSubmission() throws Exception {
 		// given
 		GamePlay play = start();
-		GamePlay submitted = play.complete(20L, HASH, time.now().plusSeconds(1));
+		GamePlay submitted = play.complete(20L, RESULT_HASH, time.now().plusSeconds(1));
 		CountDownLatch locked = new CountDownLatch(1);
 		CountDownLatch release = new CountDownLatch(1);
 		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
 			Future<GamePlay> first = executor.submit(() -> transaction.execute(status -> {
 				GamePlay current = plays.findForUpdate(play.getId(), userId, game.getId()).orElseThrow();
-				GamePlay completed = plays.complete(current.complete(10L, HASH, time.now()));
+				GamePlay completed = plays.complete(current.complete(10L, RESULT_HASH, time.now()));
 				entityManager.flush();
 				locked.countDown();
 				try {

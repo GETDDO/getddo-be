@@ -26,7 +26,7 @@ class GamePlayRepositoryIntegrationTest extends GamePlayIntegrationTestSupport {
 		GamePlay started = start();
 		// when
 		assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
-			plays.complete(started.complete(10L, HASH, time.now()));
+			plays.complete(started.complete(10L, RESULT_HASH, time.now()));
 			entityManager.flush();
 			throw new IllegalStateException("후속 처리 실패");
 		})).isInstanceOf(IllegalStateException.class).hasMessage("후속 처리 실패");
@@ -44,7 +44,7 @@ class GamePlayRepositoryIntegrationTest extends GamePlayIntegrationTestSupport {
 		// given
 		GamePlay started = start();
 		// when / then
-		assertThatThrownBy(() -> plays.complete(started.complete(10L, HASH, time.now())))
+		assertThatThrownBy(() -> plays.complete(started.complete(10L, RESULT_HASH, time.now())))
 				.isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
 		assertThat(plays.find(started.getId(), userId, game.getId()).orElseThrow().isCompleted()).isFalse();
 	}
@@ -83,8 +83,10 @@ class GamePlayRepositoryIntegrationTest extends GamePlayIntegrationTestSupport {
 		GamePlay replay = complete(started, 999L);
 		// then
 		assertThat(replay).usingRecursiveComparison().isEqualTo(first);
+		assertThat(replay.getPlayTokenHash()).isEqualTo(PLAY_TOKEN_HASH);
+		assertThat(replay.getResultHash()).isEqualTo(RESULT_HASH);
 		assertThatThrownBy(() -> transaction.executeWithoutResult(status ->
-				plays.complete(started.complete(100L, "b".repeat(64), time.now()))))
+				plays.complete(started.complete(100L, "c".repeat(64), time.now()))))
 				.hasRootCauseInstanceOf(IllegalStateException.class);
 		assertThat(transaction.<Optional<GamePlay>>execute(status -> plays.find(first.getId(), userId, game.getId()))).get()
 				.usingRecursiveComparison().isEqualTo(first);
@@ -102,7 +104,8 @@ class GamePlayRepositoryIntegrationTest extends GamePlayIntegrationTestSupport {
 		assertThat(reloaded.isCompleted()).isTrue();
 		assertThat(reloaded.isValid()).isFalse();
 		assertThat(reloaded.getScore()).isNull();
-		assertThat(reloaded.getResultHash()).isEqualTo(HASH);
+		assertThat(reloaded.getResultHash()).isEqualTo(RESULT_HASH);
+		assertThat(reloaded.getPlayTokenHash()).isEqualTo(PLAY_TOKEN_HASH);
 	}
 
 	@Test
@@ -113,7 +116,7 @@ class GamePlayRepositoryIntegrationTest extends GamePlayIntegrationTestSupport {
 		// when
 		// then
 		assertThat(legacy.hasVerificationContext()).isFalse();
-		assertThatThrownBy(() -> legacy.complete(10L, HASH, time.now())).isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> legacy.complete(10L, RESULT_HASH, time.now())).isInstanceOf(IllegalStateException.class);
 		assertThatThrownBy(() -> jdbc.update("update game_plays set generation_seed = 1 where id = ?",
 				bytes(legacy.getId()))).isInstanceOf(DataAccessException.class)
 				.hasMessageContaining("chk_game_play_context");
