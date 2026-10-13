@@ -45,7 +45,7 @@ class DrawRunExecutionStateTest {
 	}
 
 	/** REPLACEMENT 실행에서 NO_ENTRIES 입력 확정이 IllegalArgumentException으로 거절되는지 검증한다. */
-	@Test @DisplayName("후보가 없는 재추첨도 최초 종료 상태로 바꾸지 않고 READY로 준비한다")
+	@Test @DisplayName("재추첨 실행의 NO_ENTRIES 입력 확정을 거절한다")
 	void replacementCannotTerminateAsInitialNoEntries() {
 		// given
 		DrawRunEntity run = new DrawRunEntity(UUID.randomUUID(), 1, DrawType.REPLACEMENT);
