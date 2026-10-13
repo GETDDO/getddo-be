@@ -50,6 +50,7 @@ class AdminDrawPublicationControllerTest {
 	private DrawResultConfirmation confirmation;
 	private MockMvc mvc;
 
+	/** 각 시나리오에 사용할 공개·확인 서비스와 저장·사용자 대역을 준비한다. */
 	@BeforeEach
 	void setUp() {
 		actor = user(UserRole.ADMIN, UserStatus.ACTIVE);
@@ -67,6 +68,7 @@ class AdminDrawPublicationControllerTest {
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(users))).build();
 	}
 
+	/** 공개 전 확인 재요청은 원래 확인자·시각과 미공개 상태를 보존한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 전 확인 재요청은 원래 확인자·시각과 미공개 상태를 보존한다")
 	void preInitialConfirmationDoesNotClaimPublicationAndRetryKeepsOriginalActorAndTime() throws Exception {
@@ -86,6 +88,7 @@ class AdminDrawPublicationControllerTest {
 		verify(repository, times(1)).saveConfirmation(runId, actorId, NOW);
 	}
 
+	/** 확인 완료로 최초 명단이 공개되면 실제 공개 버전을 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("확인 완료로 최초 명단이 공개되면 실제 공개 버전을 반환한다")
 	void preInitialConfirmationCanReturnActualFirstPublication() throws Exception {
@@ -99,6 +102,7 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.revision").value(1)).andExpect(jsonPath("$.data.publishedAt").value(NOW.toString()));
 	}
 
+	/** 최초 공개 전 갱신과 최초 공개 후 신규 사전 확인을 거절한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 공개 전 갱신과 최초 공개 후 신규 사전 확인을 거절한다")
 	void publicationRequiresInitialAndPreInitialRouteRejectsNewConfirmationAfterPublication() throws Exception {
@@ -114,6 +118,7 @@ class AdminDrawPublicationControllerTest {
 		verify(publications, never()).publishConfirmed(any(), any());
 	}
 
+	/** 공개 후 재요청은 확인을 덮어쓰지 않고 실제 최신 버전을 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 후 재요청은 확인을 덮어쓰지 않고 실제 최신 버전을 반환한다")
 	void publishedConfirmationRetryReturnsActualLatestVersionWithoutOverwritingCheck() throws Exception {
@@ -136,6 +141,7 @@ class AdminDrawPublicationControllerTest {
 		verify(repository, never()).saveConfirmation(any(), any(), any());
 	}
 
+	/** 최초 공개 후 새 확인은 연결된 최신 공개 메타데이터를 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 공개 후 새 확인은 연결된 최신 공개 메타데이터를 반환한다")
 	void firstPostPublicationConfirmationUsesLinkedPublicationMetadata() throws Exception {
@@ -151,6 +157,7 @@ class AdminDrawPublicationControllerTest {
 		verify(publications).publishConfirmed(eventId, runId);
 	}
 
+	/** 실제 공개 변경 이력을 기본 페이지와 UTC 시각으로 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("실제 공개 변경 이력을 기본 페이지와 UTC 시각으로 반환한다")
 	void historyReturnsOnlyActualChangesWithDefaultPageMetadataAndUtcTimes() throws Exception {
@@ -172,6 +179,7 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.items[0].changes[0].afterUserId").value(after.toString()));
 	}
 
+	/** 큰 페이지는 전체 건수를 보존한 빈 목록을 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("큰 페이지는 전체 건수를 보존한 빈 목록을 반환한다")
 	void customOutOfRangePageIsEmptyWithTotalPreserved() throws Exception {
@@ -186,6 +194,7 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.totalElements").value(3));
 	}
 
+	/** 형식과 범위가 잘못된 페이지 조건은 400으로 거절한다는 시나리오를 검증한다. */
 	@ParameterizedTest
 	@CsvSource({"page,0", "page,-1", "size,0", "size,101", "size,-1", "page,abc", "page,2147483648"})
 	@DisplayName("형식과 범위가 잘못된 페이지 조건은 400으로 거절한다")
@@ -197,6 +206,7 @@ class AdminDrawPublicationControllerTest {
 		verifyNoInteractions(repository, publications);
 	}
 
+	/** 모든 공개 관리자 API는 활성 관리자만 허용한다는 시나리오를 검증한다. */
 	@ParameterizedTest
 	@CsvSource({"USER,ACTIVE", "ADMIN,INACTIVE"})
 	@DisplayName("모든 공개 관리자 API는 활성 관리자만 허용한다")
@@ -210,6 +220,7 @@ class AdminDrawPublicationControllerTest {
 		verifyNoInteractions(repository, publications);
 	}
 
+	/** 사용자 문맥 누락은 401이고 역할 불일치는 403임을 검증한다. */
 	@Test
 	@DisplayName("사용자 문맥 누락은 401이고 역할 불일치는 403이다")
 	void missingContextIs401AndRoleMismatchIs403() throws Exception {
@@ -222,6 +233,7 @@ class AdminDrawPublicationControllerTest {
 		verifyNoInteractions(repository, publications);
 	}
 
+	/** 없는 실행은 404이고 확인 불가 실행은 409임을 검증한다. */
 	@ParameterizedTest
 	@ValueSource(strings = {"publication", "result-confirmation"})
 	@DisplayName("없는 실행은 404이고 확인 불가 실행은 409이다")
@@ -237,6 +249,7 @@ class AdminDrawPublicationControllerTest {
 		verify(repository, never()).saveConfirmation(any(), any(), any());
 	}
 
+	/** 없는 이벤트는 404이고 잘못된 경로 UUID는 400임을 검증한다. */
 	@Test
 	@DisplayName("없는 이벤트는 404이고 잘못된 경로 UUID는 400이다")
 	void missingEventIs404AndMalformedPathIdsAre400() throws Exception {
@@ -251,19 +264,24 @@ class AdminDrawPublicationControllerTest {
 		mvc.perform(selected(post("/api/v1/admin/draws/bad/result-confirmation"))).andExpect(status().isBadRequest());
 	}
 
+	/** 시험 요청에 선택한 사용자 식별자와 역할 헤더를 연결한다. */
 	private MockHttpServletRequestBuilder selected(MockHttpServletRequestBuilder request) {
 		return request.header("X-User-ID", actorId).header("X-User-Role", actor.getRole());
 	}
+	/** 같은 권한 검사를 검증할 세 관리자 요청을 구성한다. */
 	private List<MockHttpServletRequestBuilder> endpoints() {
 		return List.of(post("/api/v1/admin/draws/{id}/publication", runId),
 				post("/api/v1/admin/draws/{id}/result-confirmation", runId), get("/api/v1/admin/events/{id}/result-changes", eventId));
 	}
+	/** 지정 역할과 상태를 가진 시험용 사용자 문맥을 구성한다. */
 	private User user(UserRole role, UserStatus status) {
 		return new User(actorId, "관리자", role, status, null, null, null, null, null, NOW, NOW);
 	}
+	/** 선택적인 관리자 확인을 가진 확정 재추첨 조회 대역을 구성한다. */
 	private DrawPublicationRun run(DrawResultConfirmation check) {
 		return new DrawPublicationRun(runId, eventId, 2, DrawRunStatus.CONFIRMED, NOW, List.of(), check);
 	}
+	/** 시험에 필요한 공개 버전 메타데이터와 포함 결과를 구성한다. */
 	private DrawPublication publication(int revision) {
 		return new DrawPublication(UUID.randomUUID(), eventId, UUID.randomUUID(), revision,
 				revision == 1 ? DrawPublicationType.INITIAL : DrawPublicationType.UPDATE,

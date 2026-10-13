@@ -62,6 +62,7 @@ class DrawPublicationIntegrationTest {
 	private DrawSnapshot snapshot;
 	private DrawConfirmation confirmed;
 
+	/** MySQL 저장 fixture와 공개 서비스를 준비한다. 전체 취소·실행 연결 검증과 구분한다. */
 	@BeforeEach
 	void setUp() {
 		clock.set(NOW);
@@ -90,6 +91,7 @@ class DrawPublicationIntegrationTest {
 		confirmed = confirmation.confirm(snapshot.runId());
 	}
 
+	/** 실제 최초 확정 결과를 공개하고 JPA 왕복·DB 시각·반복 공개를 보존한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("실제 최초 확정 결과를 공개하고 JPA 왕복·DB 시각·반복 공개를 보존한다")
 	void publishesAndReplaysStoredVersion() {
@@ -116,6 +118,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(count()).isEqualTo(1);
 	}
 
+	/** 목록 저장 실패는 공개 버전도 롤백하고 같은 최초 공개를 재시도한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("목록 저장 실패는 공개 버전도 롤백하고 같은 최초 공개를 재시도한다")
 	void rollsBackVersionWhenEntriesFail() {
@@ -133,6 +136,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(count()).isEqualTo(1);
 	}
 
+	/** 공개 후 취소되어도 실제 공개 기록은 true이고 원본 버전은 보존된다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 후 취소되어도 실제 공개 기록은 true이고 원본 버전은 보존된다")
 	void preservesHistoryAfterCancellation() {
@@ -147,6 +151,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(count()).isEqualTo(1);
 	}
 
+	/** 최초 공개 전 취소 기록은 공개 이력으로 계산하지 않고 전체 최초 공개를 지연한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 공개 전 취소 기록은 공개 이력으로 계산하지 않고 전체 최초 공개를 지연한다")
 	void delaysPublicationForCancellationFixture() {
@@ -158,6 +163,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(count()).isZero();
 	}
 
+	/** 재추첨 확인·미충원 갱신 저장 fixture에서 확인 시각·공개 시각·이전 공개를 구분한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("재추첨 확인·미충원 갱신 저장 fixture에서 확인 시각·공개 시각·이전 공개를 구분한다")
 	void mapsConfirmationAndUpdateHistoryFixture() {
@@ -209,6 +215,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(confirmations.findByRunId(replacementRun).orElseThrow().toDomain()).isEqualTo(checked);
 	}
 
+	/** 실제 이벤트 잠금 경합에서도 동시 최초 공개는 동일한 한 버전만 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("실제 이벤트 잠금 경합에서도 동시 최초 공개는 동일한 한 버전만 반환한다")
 	void concurrentRequestsPublishOnce() throws Exception {
@@ -239,6 +246,7 @@ class DrawPublicationIntegrationTest {
 		}
 	}
 
+	/** 저장 fixture에서 선정 결과 식별자를 조회한다. */
 	private UUID selectedId() {
 		return confirmed.getResults().stream().filter(result -> result.getSelection().getResultType() == DrawSelectionResultType.SELECTED)
 				.findFirst().orElseThrow().getId();
@@ -250,8 +258,10 @@ class DrawPublicationIntegrationTest {
 			values (?, ?, ?, '관리자 취소 저장 fixture', ?)
 			""", toBytes(UUID.randomUUID()), toBytes(selectedId()), toBytes(userId), utc(NOW));
 	}
+	/** 저장 fixture 이벤트의 실제 공개 버전 수를 조회한다. */
 	private long count() {
 		return jdbc.queryForObject("select count(*) from draw_publications where event_id = ?", Long.class, toBytes(eventId));
 	}
+	/** 시험용 Instant를 DB fixture에 사용할 UTC LocalDateTime으로 변환한다. */
 	private static LocalDateTime utc(Instant value) { return LocalDateTime.ofInstant(value, ZoneOffset.UTC); }
 }

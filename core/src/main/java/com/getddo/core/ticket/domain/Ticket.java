@@ -107,6 +107,24 @@ public final class Ticket {
 		return transitionedTo(TicketStatus.RETURNED, newExpiresAt, refundedAt);
 	}
 
+	/**
+	 * 만료 시각이 지난 사용 가능 응모권을 만료한 새 객체를 만든다. 상태는 만료됨, 버전은 1 증가하고 만료 시각은 그대로다.
+	 * 사용 가능한 시각 경계와 같아 만료 시각 정각부터 만료할 수 있다.
+	 *
+	 * @param expiredAt 실제 만료 처리 시각. 수정 시각이 된다
+	 * @throws IllegalStateException 사용 가능한 상태가 아니거나 아직 만료 시각이 되지 않은 경우
+	 */
+	public Ticket expire(Instant expiredAt) {
+		Objects.requireNonNull(expiredAt, "expiredAt");
+		if (!status.isUsable()) {
+			throw new IllegalStateException("사용할 수 있는 상태의 응모권만 만료할 수 있다.");
+		}
+		if (expiresAt.isAfter(expiredAt)) {
+			throw new IllegalStateException("아직 만료 시각이 되지 않은 응모권은 만료할 수 없다.");
+		}
+		return transitionedTo(TicketStatus.EXPIRED, expiresAt, expiredAt);
+	}
+
 	private Ticket transitionedTo(TicketStatus nextStatus, Instant nextExpiresAt, Instant processedAt) {
 		return new Ticket(id, userId, grantSource, grade, nextStatus, nextExpiresAt, version + 1, createdAt,
 				processedAt);

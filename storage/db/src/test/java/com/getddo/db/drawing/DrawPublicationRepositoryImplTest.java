@@ -40,6 +40,7 @@ class DrawPublicationRepositoryImplTest {
 	private final DrawPublicationRepositoryImpl repository = new DrawPublicationRepositoryImpl(versions, entries,
 			entityManager, jdbc, confirmations);
 
+	/** 갱신 저장은 유지 결과의 원본 실행과 기존 확인·새 결과의 새 확인을 그대로 연결한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("갱신 저장은 유지 결과의 원본 실행과 기존 확인·새 결과의 새 확인을 그대로 연결한다")
 	void preservesMixedSourcesAndConfirmationIds() {
@@ -75,6 +76,7 @@ class DrawPublicationRepositoryImplTest {
 		verify(entityManager, never()).refresh(any());
 	}
 
+	/** 확인 저장 응답은 생성 ID와 실제 재조회한 확인자·시각을 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("확인 저장 응답은 생성 ID와 실제 재조회한 확인자·시각을 반환한다")
 	void returnsReloadedConfirmation() {
@@ -92,6 +94,7 @@ class DrawPublicationRepositoryImplTest {
 		verify(entityManager, never()).refresh(any());
 	}
 
+	/** 페이지 조회는 최신 버전과 실제 포함 결과를 일괄 변환하고 전체 건수를 유지한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("페이지 조회는 최신 버전과 실제 포함 결과를 일괄 변환하고 전체 건수를 유지한다")
 	void loadsPageWithBatchedEntries() {
@@ -113,6 +116,7 @@ class DrawPublicationRepositoryImplTest {
 		verify(entries, never()).findByIdPublicationIdOrderByIdResultId(any());
 	}
 
+	/** 큰 페이지 번호는 오프셋 오버플로 없이 빈 페이지를 반환하고 목록을 조회하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("큰 페이지 번호는 오프셋 오버플로 없이 빈 페이지를 반환하고 목록을 조회하지 않는다")
 	void hugePageReturnsEmptyWithoutFetchingRows() {
@@ -128,6 +132,7 @@ class DrawPublicationRepositoryImplTest {
 		verifyNoInteractions(entries);
 	}
 
+	/** 복합키 공개 포함 결과는 신규 저장에 persist를 선택하고 영속화 후 기존 행으로 판정한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("복합키 공개 포함 결과는 신규 저장에 persist를 선택하고 영속화 후 기존 행으로 판정한다")
 	void assignedCompositeKeyUsesPersistForNewRows() {
@@ -153,6 +158,7 @@ class DrawPublicationRepositoryImplTest {
 		assertThat(information.isNew(entry)).isFalse();
 	}
 
+	/** 공개 Entity는 ID 발급 전 필수 메타데이터를 검증하고 실제 ID를 임의로 만들지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 Entity는 ID 발급 전 필수 메타데이터를 검증하고 실제 ID를 임의로 만들지 않는다")
 	void validatesMetadataBeforeIdGeneration() {
@@ -170,6 +176,7 @@ class DrawPublicationRepositoryImplTest {
 		assertThat(entity.getType()).isEqualTo(DrawPublicationType.INITIAL);
 	}
 
+	/** 공개 목록 중복은 ID 발급 전 거절하며 저장소에 부분 버전을 쓰지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 목록 중복은 ID 발급 전 거절하며 저장소에 부분 버전을 쓰지 않는다")
 	void rejectsDuplicateEntriesBeforeSavingVersion() {
@@ -182,6 +189,7 @@ class DrawPublicationRepositoryImplTest {
 		verifyNoInteractions(versions, entries);
 	}
 
+	/** 여러 재추첨의 결과와 확인을 실행별 추가 쿼리 없이 배치로 연결하고 미충원을 보존한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("여러 재추첨의 결과와 확인을 실행별 추가 쿼리 없이 배치로 연결하고 미충원을 보존한다")
 	void batchesReplacementResultsAndConfirmations() throws Exception {
@@ -218,6 +226,7 @@ class DrawPublicationRepositoryImplTest {
 		verify(jdbc, times(1)).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
 	}
 
+	/** 재추첨이 없으면 결과와 확인의 빈 IN 조회를 실행하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("재추첨이 없으면 결과와 확인의 빈 IN 조회를 실행하지 않는다")
 	void skipsBatchReadsForNoReplacementRuns() {
@@ -229,6 +238,7 @@ class DrawPublicationRepositoryImplTest {
 		verifyNoInteractions(confirmations);
 	}
 
+	/** 일괄 조회에서도 다른 이벤트의 경품을 가진 결과는 공개 모델로 변환하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("일괄 조회에서도 다른 이벤트의 경품을 가진 결과는 공개 모델로 변환하지 않는다")
 	void rejectsForeignEventInBatchedResults() throws Exception {
@@ -249,6 +259,7 @@ class DrawPublicationRepositoryImplTest {
 		verifyNoInteractions(confirmations);
 	}
 
+	/** 배치 실행 조회 변환을 검증할 시험용 JDBC 실행 행을 구성한다. */
 	private ResultSet runRow(UUID id, UUID eventId, int number) throws Exception {
 		ResultSet row = mock(ResultSet.class);
 		when(row.getBytes("id")).thenReturn(toBytes(id));
@@ -259,6 +270,7 @@ class DrawPublicationRepositoryImplTest {
 		return row;
 	}
 
+	/** 배치 결과 조회 변환을 검증할 선정 또는 미충원 JDBC 행을 구성한다. */
 	private ResultSet resultRow(UUID runId, UUID id, UUID eventId, boolean selected) throws Exception {
 		ResultSet row = mock(ResultSet.class);
 		when(row.getBytes("draw_run_id")).thenReturn(toBytes(runId));

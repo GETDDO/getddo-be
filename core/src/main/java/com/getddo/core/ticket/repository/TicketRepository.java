@@ -41,6 +41,16 @@ public interface TicketRepository {
 	 */
 	List<Ticket> findUsableForUpdate(UUID userId, TicketGrade grade, Instant now, int limit);
 
+	/**
+	 * 만료 시각이 지났지만 아직 사용 가능 상태인 응모권을 최대 {@code limit}장 잠가 읽는다. 다른 처리가 이미 잠근
+	 * 응모권(차감 중이거나 다른 서버의 만료 처리 중)은 기다리지 않고 건너뛰므로, 차감이나 다른 만료 처리와 교착하지 않고
+	 * 건너뛴 응모권은 다음 호출에서 처리된다. 읽는 순서는 정해져 있지 않다.
+	 *
+	 * @param now 이 시각까지 만료 시각이 지난 응모권만 읽는다(만료 시각 정각 포함)
+	 * @param limit 최대 개수
+	 */
+	List<Ticket> findDueForExpiryForUpdate(Instant now, int limit);
+
 	/** 응모권을 ID 오름차순으로 잠가 읽는다. 없는 ID는 결과에서 빠진다. */
 	List<Ticket> findAllForUpdate(Collection<UUID> ids);
 

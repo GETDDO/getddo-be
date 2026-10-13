@@ -31,18 +31,21 @@ public class AdminDrawPublicationController {
 	private final DrawResultConfirmationService confirmations;
 	private final DrawPublicationQueryService queries;
 
+	/** 확인된 재추첨을 반영하고 실제 최신 공개 버전을 응답한다. */
 	@PostMapping("/draws/{runId}/publication")
 	public ResponseEnvelope<DrawPublicationResponse> publish(@PathVariable UUID runId,
 			@CurrentUser(membershipRequired = false) User actor) {
 		return ResponseEnvelope.success(DrawPublicationResponse.from(confirmations.confirmForPublication(runId, actor.getId())));
 	}
 
+	/** 최초 공개 전 재추첨의 관리자 확인과 실제 공개 여부를 응답한다. */
 	@PostMapping("/draws/{runId}/result-confirmation")
 	public ResponseEnvelope<DrawResultConfirmationResponse> confirm(@PathVariable UUID runId,
 			@CurrentUser(membershipRequired = false) User actor) {
 		return ResponseEnvelope.success(DrawResultConfirmationResponse.from(confirmations.confirmBeforeInitial(runId, actor.getId())));
 	}
 
+	/** 실제 공개 버전 간 변경 이력을 페이지 응답으로 변환한다. */
 	@GetMapping("/events/{eventId}/result-changes")
 	public ResponseEnvelope<PageResult<DrawPublicationChangeResponse>> changes(@PathVariable UUID eventId,
 			@CurrentUser(membershipRequired = false) User actor,

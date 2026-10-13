@@ -20,6 +20,7 @@ public final class DrawPublicationRun {
 	private final List<DrawResult> results;
 	private final DrawResultConfirmation confirmation;
 
+	/** 재추첨 실행 식별자·양수 차수·확인 참조를 검증하고 결과 목록을 복사한다. */
 	public DrawPublicationRun(UUID runId, UUID eventId, int runNumber, DrawRunStatus status,
 			Instant confirmedAt, List<DrawResult> results, DrawResultConfirmation confirmation) {
 		this.runId = Objects.requireNonNull(runId, "runId");

@@ -39,6 +39,7 @@ class DrawPublicationServiceTest {
 	private DrawResult selected;
 	private DrawResult unfilled;
 
+	/** 공개 서비스에 필요한 스냅샷·결과·공개 저장소 대역의 응답을 준비한다. */
 	@BeforeEach
 	void setUp() {
 		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(1, false, "NO_TICKET", "NORMAL", 1, 3, 5,
@@ -58,6 +59,7 @@ class DrawPublicationServiceTest {
 		when(publications.saveInitial(eventId, runId, List.of(resultId), NOW)).thenReturn(publication());
 	}
 
+	/** 마감 +5분 경계에 승인 없이 SELECTED 결과 ID만 저장소 대역에 전달하고 반환된 명단을 검증한다. */
 	@Test
 	@DisplayName("마감 +5분 경계에 승인 없이 SELECTED만 실제 공개 목록에 저장한다")
 	void publishesAtBoundaryWithUnfilledSlot() {
@@ -75,6 +77,7 @@ class DrawPublicationServiceTest {
 		verify(publications).saveInitial(eventId, runId, List.of(resultId), NOW);
 	}
 
+	/** 마감 +5분 직전에는 내부 확정 결과도 읽거나 공개하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("마감 +5분 직전에는 내부 확정 결과도 읽거나 공개하지 않는다")
 	void blocksBeforeBoundary() {
@@ -86,6 +89,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
+	/** 미확정(PREPARING·READY·RUNNING)·실패(FAILED)·정상 종료(NO_ENTRIES·NO_CANDIDATES)에서 공개 차단과 결과 저장소 미호출을 검증한다. */
 	@ParameterizedTest
 	@EnumSource(value = DrawRunStatus.class, names = {"PREPARING", "READY", "RUNNING", "FAILED", "NO_ENTRIES", "NO_CANDIDATES"})
 	@DisplayName("미확정·정상 종료를 공개로 처리하지 않는다")
@@ -99,6 +103,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
+	/** 취소 또는 재추첨이 있으면 유지 명단만 먼저 공개하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("취소 또는 재추첨이 있으면 유지 명단만 먼저 공개하지 않는다")
 	void delaysWholeInitialListForPendingReplacement() {
@@ -115,6 +120,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
+	/** 최초 결과 준비 지연 후 재호출하면 실제 완료 시각에 공개한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 결과 준비 지연 후 재호출하면 실제 완료 시각에 공개한다")
 	void publishesAfterDelayedPreparation() {
@@ -126,6 +132,7 @@ class DrawPublicationServiceTest {
 		verify(publications, times(1)).saveInitial(eventId, runId, List.of(resultId), NOW);
 	}
 
+	/** 최초 공개 재요청은 저장된 버전·시각을 그대로 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 공개 재요청은 저장된 버전·시각을 그대로 반환한다")
 	void replaysExistingPublication() {
@@ -139,6 +146,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
+	/** 미충원 자리도 누락된 불완전 결과는 최초 공개를 거절한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("미충원 자리도 누락된 불완전 결과는 최초 공개를 거절한다")
 	void rejectsPartialResult() {
@@ -149,6 +157,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
+	/** 같은 경품 자리의 중복 결과를 공개하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("같은 경품 자리의 중복 결과를 공개하지 않는다")
 	void rejectsDuplicateSlot() {
@@ -160,6 +169,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveInitial(any(), any(), anyList(), any());
 	}
 
+	/** 취소 이벤트에는 최초 공개 버전을 만들지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("취소 이벤트에는 최초 공개 버전을 만들지 않는다")
 	void blocksCanceledEvent() {
@@ -170,6 +180,7 @@ class DrawPublicationServiceTest {
 		verifyNoInteractions(results);
 	}
 
+	/** 실제 버전 간 변경 이력은 유지 자리를 제외하고 교체·미충원 자리의 전후를 보존한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("실제 버전 간 변경 이력은 유지 자리를 제외하고 교체·미충원 자리의 전후를 보존한다")
 	void comparesActualPublishedVersions() {
@@ -198,9 +209,11 @@ class DrawPublicationServiceTest {
 				prizeId, 1, resultId, userId, null, null));
 	}
 
+	/** 지정 마감 시각과 상태를 가진 시험용 이벤트를 구성한다. */
 	private DrawSnapshotSource.Event event(Instant endsAt, EventStatus status) {
 		return new DrawSnapshotSource.Event(eventId, EventType.NO_TICKET, false, endsAt, status, false, "NORMAL", List.of());
 	}
+	/** 시험에 필요한 공개 버전 메타데이터와 포함 결과를 구성한다. */
 	private DrawPublication publication() {
 		return new DrawPublication(UUID.randomUUID(), eventId, runId, 1, DrawPublicationType.INITIAL,
 				null, null, null, NOW, List.of(new DrawPublication.Entry(resultId, runId, null)));
