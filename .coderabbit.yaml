@@ -272,29 +272,29 @@ knowledge_base:
         applyTo: 'storage/db/**/*'
       - files: 'docs/02-api/user-profile.md'
         applyTo: 'api/**/*.java, core/**/*.java'
-      - files: 'GETDDO/getddo-spec:00-requirements/functional-requirements.md, GETDDO/getddo-spec:00-requirements/scope.md, GETDDO/getddo-spec:02-domain/glossary.md'
+      - files: 'Uplus-GETDDO/getddo-spec:00-requirements/functional-requirements.md, Uplus-GETDDO/getddo-spec:00-requirements/scope.md, Uplus-GETDDO/getddo-spec:02-domain/glossary.md'
         applyTo: '**/*'
-      - files: 'GETDDO/getddo-spec:02-domain/attendance.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/attendance.md'
         applyTo: '**/attendance/**'
-      - files: 'GETDDO/getddo-spec:02-domain/ticket.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/ticket.md'
         applyTo: '**/ticket/**, **/attendance/**, **/entry/**, **/mission/**, **/game/**, **/abuse/**'
-      - files: 'GETDDO/getddo-spec:02-domain/entry.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/entry.md'
         applyTo: '**/entry/**, **/event/**, **/drawing/**'
-      - files: 'GETDDO/getddo-spec:02-domain/event.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/event.md'
         applyTo: '**/event/**, **/entry/**, **/drawing/**'
-      - files: 'GETDDO/getddo-spec:02-domain/drawing.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/drawing.md'
         applyTo: '**/drawing/**, **/abuse/**'
-      - files: 'GETDDO/getddo-spec:02-domain/mission.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/mission.md'
         applyTo: '**/mission/**'
-      - files: 'GETDDO/getddo-spec:02-domain/game.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/game.md'
         applyTo: '**/game/**'
-      - files: 'GETDDO/getddo-spec:02-domain/notification.md'
+      - files: 'Uplus-GETDDO/getddo-spec:02-domain/notification.md'
         applyTo: '**/notification/**'
-      - files: 'GETDDO/getddo-spec:05-api/*.md'
+      - files: 'Uplus-GETDDO/getddo-spec:05-api/*.md'
         applyTo: 'api/**/*.java, docs/02-api/**/*.md'
   # CodeRabbit 설치에 getddo-spec 읽기 권한이 있어야 한다. 원문은 해당 저장소의 기본 브랜치에서 읽는다.
   linked_repositories:
-    - repository: GETDDO/getddo-spec
+    - repository: Uplus-GETDDO/getddo-spec
       instructions: >-
         GETDDO의 공용 요구사항·범위·용어·도메인 정책·API 계약 원본이다.
         현재 문서의 상태와 적용 범위를 읽고 확정 요구사항, 확정 도메인 규칙, 채택 ADR 순으로 검토한다.
