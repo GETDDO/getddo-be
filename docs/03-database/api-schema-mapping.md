@@ -34,6 +34,7 @@
 | [V021](../../storage/db/src/main/resources/db/migration/notification/V021__add_notification_retry_baselines.sql) | `notification_jobs`·`notifications`의 수동 복구 기준 차수 | GD-72 관리자 알림 복구. 누적 선점 차수는 유지하고 복구 이후의 자동 재시도 횟수만 새로 센다([ADR-0005](../04-decisions/0005-notification-manual-retry-fencing.md)) |
 | [V022](../../storage/db/src/main/resources/db/migration/drawing/V022__add_award_cancellation_request_key.sql) | `award_cancellations.request_key`와 UNIQUE | GD-138 개별 당첨 취소 요청의 멱등 키. 과거 이력은 NULL |
 | [V023](../../storage/db/src/main/resources/db/migration/ticket/V023__add_ticket_expiry_scan_index.sql) | `tickets`의 `(status, expires_at)` 인덱스 | GD-135 응모권 만료 워커가 만료 시각이 지난 사용 가능·반환됨 응모권을 찾는 조회(`FOR UPDATE SKIP LOCKED`). 공개 API는 추가하지 않음 |
+| [V025](../../storage/db/src/main/resources/db/migration/mission/V025__add_mission_submission_request_hash.sql) | `mission_submissions.request_hash` | GD-175 미션 제출(M03)의 같은 제출 ID 재전송 본문 비교. 처음 요청의 SHA-256을 보존한다. 이 컬럼을 기록하기 전의 제출은 빈 문자열이다. 공개 API는 추가하지 않음 |
 
 ## 응모 API 현행 매핑 (GD-134)
 
@@ -62,7 +63,7 @@
 
 | API | 경로 | 테이블 | 접근 |
 | --- | --- | --- | --- |
-| M03 제출 | `POST /api/v1/missions/{missionId}/submissions` | `mission_submissions` | ID는 `Idempotency-Key` UUID이다. 같은 키로 같은 요청이 다시 오면 기존 결과를 200으로, 다른 사용자·미션·답변이면 409 `MISSION-005`로 거절한다. 서버가 받은 시각을 `created_at`에 저장한다. |
+| M03 제출 | `POST /api/v1/missions/{missionId}/submissions` | `mission_submissions` | ID는 `Idempotency-Key` UUID이다. 같은 키로 같은 요청이 다시 오면 기존 결과를 200으로, 처음 요청과 다른 본문(사용자·미션·답변 구성)이면 409 `MISSION-005`로 거절한다. 같은 본문인지는 처음 요청의 해시(`request_hash`)로 판정한다. 서버가 받은 시각을 `created_at`에 저장한다. |
 | M03 제출 | 같음 | `missions`, 문항·선택지 테이블 | 읽기만 한다. 운영 기간은 서버가 제출을 받은 시각이 `[starts_at, ends_at)`이고 `ACTIVE`일 때만 인정한다. |
 | M03 제출 | 같음 | `quiz_answers`, `survey_answers` | 서버가 채점한 답변을 저장한다. 이미 정답으로 완료한 퀴즈 문항에 다시 보낸 답변은 채점·저장하지 않는다. |
 | M03 제출 | 같음 | `quiz_question_progress` | 이번 제출로 처음 맞힌 문항을 문항 ID 순서로 기록한다(퀴즈는 문항별 정답을 누적하며 모든 문항을 맞히면 완료). |
