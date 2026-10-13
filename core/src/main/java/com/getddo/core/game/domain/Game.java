@@ -25,6 +25,15 @@ public final class Game {
 		this.description = description;
 		this.rules = Objects.requireNonNull(rules, "rules");
 		this.ruleVersion = Objects.requireNonNull(ruleVersion, "ruleVersion");
+		if (code.isBlank() || code.codePointCount(0, code.length()) > 50) {
+			throw new IllegalArgumentException("code는 공백이 아닌 1~50자여야 합니다.");
+		}
+		if (name.isBlank() || name.codePointCount(0, name.length()) > 100) {
+			throw new IllegalArgumentException("name은 공백이 아닌 1~100자여야 합니다.");
+		}
+		if (ruleVersion.isBlank() || ruleVersion.codePointCount(0, ruleVersion.length()) > 30) {
+			throw new IllegalArgumentException("ruleVersion은 공백이 아닌 1~30자여야 합니다.");
+		}
 		this.active = active;
 	}
 
