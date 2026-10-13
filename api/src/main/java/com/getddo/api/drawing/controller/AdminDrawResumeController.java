@@ -22,7 +22,7 @@ import com.getddo.core.user.domain.User;
 @RequiredArgsConstructor
 public class AdminDrawResumeController {
 	private final DrawExecutionService executions;
-	/** 최초 추첨의 동일 실행 재개를 서비스에 위임하고, 확정 결과는 200·그 밖의 실행 상태는 202로 반환한다. 실행 종류와 관리자 권한은 서비스에서 검증한다. */
+	/** 최초 추첨의 동일 실행 재개를 서비스에 위임하고, CONFIRMED·NO_ENTRIES 정상 종료는 200·그 밖의 실행 상태는 202로 반환한다. 실행 종류와 관리자 권한은 서비스에서 검증한다. */
 	@PostMapping("/{runId}/resume")
 	public ResponseEntity<ResponseEnvelope<DrawExecutionResponse>> resume(@PathVariable UUID runId, @CurrentUser User actor) {
 		DrawExecutionResult result = executions.resumeInitial(runId, actor.getId());
