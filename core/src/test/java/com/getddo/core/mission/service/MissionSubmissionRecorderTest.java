@@ -287,6 +287,26 @@ class MissionSubmissionRecorderTest {
 	}
 
 	@Test
+	@DisplayName("같은 제출 ID라도 저장되지 않은 문항의 답변이 더 있으면 다른 본문이라 409이고, 이미 정답으로 완료한 퀴즈 문항이면 같은 요청으로 본다")
+	void rejectsReplayWithExtraAnswers() {
+		// given
+		MissionSubmission survey = new MissionSubmission(submissionId, missionId, UUID.randomUUID(), userId, true,
+				NOW.minusSeconds(60), List.of(), List.of(new SurveyAnswer(UUID.randomUUID(), q1, q1Ok, null)));
+		MissionSubmission quizStored = new MissionSubmission(submissionId, missionId, UUID.randomUUID(), userId, false,
+				NOW.minusSeconds(60), List.of(new QuizAnswer(UUID.randomUUID(), q1, q1No, null, false)), List.of());
+		when(progressRepository.findCorrectQuestionIds(any(), any())).thenReturn(Set.of(), Set.of(q2));
+		// when
+		// then
+		when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(survey));
+		assertConflict(command(option(q1, q1Ok), text(q2, "의견")));
+		when(submissionRepository.findById(submissionId)).thenReturn(Optional.of(quizStored));
+		assertConflict(command(option(q1, q1No), text(q2, "겟또")));
+		MissionSubmissionResult replayed = recorder.record(command(option(q1, q1No), text(q2, "겟또")));
+		assertThat(replayed.isCreated()).isFalse();
+		assertThat(replayed.isCompleted()).isFalse();
+	}
+
+	@Test
 	@DisplayName("없는 미션은 404, 운영 기간이 아니거나 종료된 미션은 409로 거절하고 아무것도 저장하지 않는다")
 	void rejectsMissingAndClosedMission() {
 		// given

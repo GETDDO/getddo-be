@@ -159,6 +159,35 @@ class MissionSubmissionServiceIntegrationTest extends MissionIntegrationTestSupp
 	}
 
 	@Test
+	@DisplayName("같은 제출 ID로 저장되지 않은 답변을 더 보내면 409이고, 이미 정답으로 완료한 문항의 답변이 더 있으면 같은 요청으로 본다")
+	void rejectsSameKeyWithExtraAnswers() {
+		// given
+		MissionDetail survey = saveSurveyMission("설문 미션");
+		SurveyQuestion required = survey.getSurveyQuestions().get(0);
+		SurveyQuestion optional = survey.getSurveyQuestions().get(1);
+		UUID surveyKey = UUID.randomUUID();
+		MissionAnswerInput requiredAnswer = new MissionAnswerInput(required.getId(), required.getOptions().get(0).getId(), null);
+		submit(userId, survey.getMission().getId(), surveyKey, requiredAnswer);
+		MissionDetail quiz = saveQuizMission("퀴즈 미션");
+		UUID quizId = quiz.getMission().getId();
+		List<QuizQuestion> q = quiz.getQuizQuestions();
+		UUID firstKey = UUID.randomUUID();
+		submit(userId, quizId, firstKey, option(q.get(0), 1));
+		// when
+		// then
+		assertThatThrownBy(() -> submit(userId, survey.getMission().getId(), surveyKey, requiredAnswer,
+				new MissionAnswerInput(optional.getId(), null, "추가 의견")))
+				.satisfies(e -> assertMissionError(e, MissionErrorCode.IDEMPOTENCY_CONFLICT));
+		assertThatThrownBy(() -> submit(userId, quizId, firstKey, option(q.get(0), 1), text(q.get(1), "겟또")))
+				.satisfies(e -> assertMissionError(e, MissionErrorCode.IDEMPOTENCY_CONFLICT));
+		submit(userId, quizId, UUID.randomUUID(), text(q.get(1), "겟또"));
+		MissionSubmissionResult replay = submit(userId, quizId, firstKey, option(q.get(0), 1), text(q.get(1), "겟또"));
+		assertThat(replay.isCreated()).isFalse();
+		assertThat(replay.getSubmissionId()).isEqualTo(firstKey);
+		assertThat(submissions(userId)).isEqualTo(3);
+	}
+
+	@Test
 	@DisplayName("이미 완료한 미션을 새 제출 ID로 다시 제출하면 기존 완료 결과를 돌려주고 마감 뒤에도 같다")
 	void returnsExistingCompletionOnResubmission() {
 		// given

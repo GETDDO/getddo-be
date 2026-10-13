@@ -188,6 +188,9 @@ class MissionControllerTest {
 		doThrow(new MissionException(MissionErrorCode.INVALID_MISSION_ANSWER)).when(submissionService).submit(any());
 		mvc.perform(submit(answers())).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MISSION-002"));
 		doThrow(new TicketException(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND)).when(submissionService).submit(any());
-		mvc.perform(submit(answers())).andExpect(jsonPath("$.success").value(false));
+		mvc.perform(submit(answers()))
+				.andExpect(status().is(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND.getStatus()))
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.code").value(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND.getCode()));
 	}
 }

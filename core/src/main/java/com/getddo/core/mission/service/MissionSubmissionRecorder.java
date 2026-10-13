@@ -2,6 +2,7 @@ package com.getddo.core.mission.service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -139,21 +140,36 @@ public class MissionSubmissionRecorder {
 	/** 같은 제출 ID로 이미 저장된 제출의 기존 결과를 돌려준다. 다른 사용자·미션·답변이면 충돌이다. */
 	private MissionSubmissionResult replay(MissionSubmissionCommand command, MissionSubmission stored) {
 		if (!stored.getUserId().equals(command.getUserId()) || !stored.getMissionId().equals(command.getMissionId())
-				|| !sameAnswers(command.getAnswers(), stored)) {
+				|| !sameAnswers(command.getUserId(), command.getAnswers(), stored)) {
 			throw new MissionException(MissionErrorCode.IDEMPOTENCY_CONFLICT);
 		}
 		return resultOf(stored, false);
 	}
 
 	/**
-	 * 저장된 답변이 모두 요청의 같은 문항 답변과 같은지 확인한다. 이미 정답으로 완료한 문항에 다시 보낸 답변은 저장하지 않았으므로
-	 * 요청에 저장되지 않은 문항의 답변이 더 있어도 같은 요청으로 본다.
+	 * 요청이 저장된 제출과 같은 본문인지 양방향으로 확인한다. 저장된 답변은 모두 요청의 같은 문항 답변과 같아야 하고, 요청에 저장되지
+	 * 않은 문항의 답변이 더 있으면 다른 본문이다. 단, 퀴즈에서 이미 정답으로 완료한 문항에 다시 보낸 답변은 처음에도 저장하지
+	 * 않았으므로, 그 문항이 사용자의 다른 제출로 정답 처리되어 있으면 같은 요청으로 본다. 설문은 문항이 정확히 같아야 한다.
 	 */
-	private static boolean sameAnswers(List<MissionAnswerInput> inputs, MissionSubmission stored) {
-		return stored.getQuizAnswers().stream().allMatch(answer -> matches(inputs, answer.getQuestionId(),
-				answer.getSelectedOptionId(), answer.getAnswerText()))
+	private boolean sameAnswers(UUID userId, List<MissionAnswerInput> inputs, MissionSubmission stored) {
+		boolean storedAllInRequest = stored.getQuizAnswers().stream().allMatch(answer -> matches(inputs,
+				answer.getQuestionId(), answer.getSelectedOptionId(), answer.getAnswerText()))
 				&& stored.getSurveyAnswers().stream().allMatch(answer -> matches(inputs, answer.getQuestionId(),
 						answer.getSelectedOptionId(), answer.getAnswerText()));
+		if (!storedAllInRequest) {
+			return false;
+		}
+		Set<UUID> storedQuestions = new HashSet<>();
+		stored.getQuizAnswers().forEach(answer -> storedQuestions.add(answer.getQuestionId()));
+		stored.getSurveyAnswers().forEach(answer -> storedQuestions.add(answer.getQuestionId()));
+		List<UUID> extra = inputs.stream().map(MissionAnswerInput::getQuestionId)
+				.filter(questionId -> !storedQuestions.contains(questionId))
+				.toList();
+		if (extra.isEmpty()) {
+			return true;
+		}
+		boolean quiz = !stored.getQuizAnswers().isEmpty();
+		return quiz && progressRepository.findCorrectQuestionIds(userId, extra).containsAll(extra);
 	}
 
 	private static boolean matches(List<MissionAnswerInput> inputs, UUID questionId, UUID optionId, String text) {

@@ -1,5 +1,6 @@
 package com.getddo.core.mission.domain;
 
+import java.text.Normalizer;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -151,8 +152,13 @@ class MissionEvaluationTest {
 		assertThat(question.isCorrect(null, "서울\t시청")).isTrue();
 		assertThat(question.isCorrect(null, "서울시청")).isFalse();
 		assertThat(question.isCorrect(null, "부산 시청")).isFalse();
-		assertThat(new QuizQuestion(shortQuestionId, QuizQuestionType.SHORT_ANSWER, "문제", 1, "한글",
-				List.of()).isCorrect(null, "한글")).isTrue();
+		String composed = "한글";
+		String decomposed = Normalizer.normalize(composed, Normalizer.Form.NFD);
+		assertThat(decomposed).isNotEqualTo(composed);
+		QuizQuestion hangul = new QuizQuestion(shortQuestionId, QuizQuestionType.SHORT_ANSWER, "문제", 1, composed, List.of());
+		assertThat(hangul.isCorrect(null, decomposed)).isTrue();
+		assertThat(new QuizQuestion(shortQuestionId, QuizQuestionType.SHORT_ANSWER, "문제", 1, decomposed, List.of())
+				.isCorrect(null, composed)).isTrue();
 	}
 
 	@Test

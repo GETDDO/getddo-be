@@ -23,7 +23,6 @@ import com.getddo.core.mission.exception.MissionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -139,6 +138,5 @@ class MissionSubmissionServiceTest {
 					e -> assertThat(e.getErrorCode()).isEqualTo(MissionErrorCode.INVALID_MISSION_ANSWER));
 		}
 		verifyNoInteractions(recorder);
-		org.mockito.Mockito.verify(recorder, org.mockito.Mockito.never()).record(any());
 	}
 }
