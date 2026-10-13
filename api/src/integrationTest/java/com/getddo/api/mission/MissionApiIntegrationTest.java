@@ -21,9 +21,12 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.getddo.api.support.ApiIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -195,5 +198,48 @@ class MissionApiIntegrationTest {
 	private static byte[] bytes(UUID id) {
 		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits())
 				.putLong(id.getLeastSignificantBits()).array();
+	}
+
+	@Test
+	@DisplayName("목록과 상세는 시드한 미션을 보여 주고 완료 전에는 completed=false, 완료 뒤에는 true이며 정답은 응답에 없다")
+	void listAndDetailShowMissionWithCompletionAndNoAnswers() throws Exception {
+		// given
+		String missionFilter = "$.data.items[?(@.id=='" + MISSION + "')]";
+		// when
+		// then
+		mvc.perform(get("/api/v1/missions").param("missionType", "QUIZ").param("size", "100").headers(headers()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath(missionFilter + ".title").value("API 테스트 미션"))
+				.andExpect(jsonPath(missionFilter + ".rewardTicketCount").value(1))
+				.andExpect(jsonPath(missionFilter + ".completed").value(false));
+		mvc.perform(get("/api/v1/missions/{missionId}", MISSION).headers(headers()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.id").value(MISSION.toString()))
+				.andExpect(jsonPath("$.data.completed").value(false))
+				.andExpect(jsonPath("$.data.questions.length()").value(2))
+				.andExpect(jsonPath("$.data.questions[0].id").value(QUESTION.toString()))
+				.andExpect(jsonPath("$.data.questions[0].options.length()").value(2))
+				.andExpect(jsonPath("$.data.questions[1].id").value(SHORT_QUESTION.toString()))
+				.andExpect(content().string(not(containsString("겟또"))))
+				.andExpect(content().string(not(containsString("correct"))));
+		mvc.perform(submit(UUID.randomUUID(), answers(OPTION_OK, "겟또"))).andExpect(status().isCreated());
+		mvc.perform(get("/api/v1/missions").param("missionType", "QUIZ").param("size", "100").headers(headers()))
+				.andExpect(jsonPath(missionFilter + ".completed").value(true));
+		mvc.perform(get("/api/v1/missions/{missionId}", MISSION).headers(headers()))
+				.andExpect(jsonPath("$.data.completed").value(true));
+	}
+
+	@Test
+	@DisplayName("목록의 잘못된 페이지 크기는 400이고 없는 미션의 상세 조회는 404 MISSION-003이다")
+	void rejectsInvalidSizeAndUnknownMission() throws Exception {
+		// given
+		// when
+		// then
+		mvc.perform(get("/api/v1/missions").param("size", "0").headers(headers()))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.success").value(false));
+		mvc.perform(get("/api/v1/missions/{missionId}", UUID.randomUUID()).headers(headers()))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("MISSION-003"));
 	}
 }

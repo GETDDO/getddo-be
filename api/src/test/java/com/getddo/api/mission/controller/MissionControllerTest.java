@@ -1,6 +1,9 @@
 package com.getddo.api.mission.controller;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,11 +18,27 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.getddo.api.common.context.CurrentUserArgumentResolver;
 import com.getddo.api.common.exception.GlobalExceptionHandler;
+import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.mission.domain.Mission;
+import com.getddo.core.mission.domain.MissionDetail;
+import com.getddo.core.mission.domain.MissionDetailView;
 import com.getddo.core.mission.domain.MissionRewardReceipt;
+import com.getddo.core.mission.domain.MissionStatus;
+import com.getddo.core.mission.domain.MissionSummary;
+import com.getddo.core.mission.domain.MissionType;
+import com.getddo.core.mission.domain.QuizOption;
+import com.getddo.core.mission.domain.QuizQuestion;
+import com.getddo.core.mission.domain.QuizQuestionType;
+import com.getddo.core.mission.domain.SurveyOption;
+import com.getddo.core.mission.domain.SurveyQuestion;
+import com.getddo.core.mission.domain.SurveyQuestionType;
 import com.getddo.core.mission.domain.MissionSubmissionCommand;
 import com.getddo.core.mission.domain.MissionSubmissionResult;
 import com.getddo.core.mission.exception.MissionErrorCode;
 import com.getddo.core.mission.exception.MissionException;
+import com.getddo.core.mission.service.MissionQueryService;
 import com.getddo.core.mission.service.MissionSubmissionService;
 import com.getddo.core.ticket.domain.TicketGrade;
 import com.getddo.core.ticket.exception.TicketErrorCode;
@@ -32,13 +51,18 @@ import com.getddo.core.user.service.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -53,12 +77,17 @@ class MissionControllerTest {
 	private static final UUID OPTION_ID = UUID.randomUUID();
 	private static final Instant RECEIVED_AT = Instant.parse("2026-10-13T03:00:00Z");
 
+	private static final Instant NOW = Instant.parse("2026-10-13T03:00:00Z");
+	private static final String SECRET_ANSWER = "비밀정답문자열";
+
+	private final MissionQueryService queryService = mock(MissionQueryService.class);
 	private final MissionSubmissionService submissionService = mock(MissionSubmissionService.class);
 	private MockMvc mvc;
 
 	@BeforeEach
 	void setUp() {
-		mvc = MockMvcBuilders.standaloneSetup(new MissionController(submissionService))
+		mvc = MockMvcBuilders.standaloneSetup(new MissionController(queryService, submissionService,
+						new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))))
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(
 						new UserService(id -> Optional.of(USER).filter(user -> user.getId().equals(id)))))
@@ -192,5 +221,145 @@ class MissionControllerTest {
 				.andExpect(status().is(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND.getStatus()))
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.code").value(TicketErrorCode.TICKET_GRANT_SOURCE_NOT_FOUND.getCode()));
+	}
+
+	private static Mission mission(UUID id, MissionType type, String title) {
+		return new Mission(id, UUID.randomUUID(), UUID.randomUUID(), title, "설명입니다", type,
+				Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-11-01T00:00:00Z"), MissionStatus.ACTIVE,
+				"mission/key.png", Instant.parse("2026-09-30T00:00:00Z"), Instant.parse("2026-09-30T00:00:00Z"));
+	}
+
+	private static MissionDetail quizDetail() {
+		UUID correct = UUID.randomUUID();
+		QuizQuestion single = new QuizQuestion(UUID.randomUUID(), QuizQuestionType.SINGLE_CHOICE, "고르세요", 1, null,
+				List.of(new QuizOption(correct, "정답 선택지", 1, true), new QuizOption(UUID.randomUUID(), "오답", 2, false)));
+		QuizQuestion shortAnswer = new QuizQuestion(UUID.randomUUID(), QuizQuestionType.SHORT_ANSWER, "단어는?", 2,
+				SECRET_ANSWER, List.of());
+		return new MissionDetail(mission(MISSION_ID, MissionType.QUIZ, "퀴즈"), List.of(single, shortAnswer), List.of());
+	}
+
+	private static MissionDetail surveyDetail() {
+		SurveyQuestion free = new SurveyQuestion(UUID.randomUUID(), SurveyQuestionType.FREE_TEXT, "의견은?", false, 2,
+				List.of());
+		SurveyQuestion choice = new SurveyQuestion(UUID.randomUUID(), SurveyQuestionType.SINGLE_CHOICE, "만족도는?",
+				true, 1, List.of(new SurveyOption(UUID.randomUUID(), "좋음", 1), new SurveyOption(UUID.randomUUID(), "보통", 2)));
+		return new MissionDetail(mission(MISSION_ID, MissionType.SURVEY, "설문"), List.of(), List.of(free, choice));
+	}
+
+	@Test
+	@DisplayName("목록은 미션 요약과 완료 표시, 고정 보상 장수, 서버 시각을 봉투에 담고 조건을 서비스에 전달한다")
+	void listsMissionsWithCompletionAndPaging() throws Exception {
+		// given
+		UUID done = UUID.randomUUID();
+		UUID open = UUID.randomUUID();
+		when(queryService.findMissions(eq(USER_ID), eq(MissionType.QUIZ), any())).thenReturn(new PageResult<>(
+				List.of(new MissionSummary(mission(done, MissionType.QUIZ, "끝낸 미션"), true),
+						new MissionSummary(mission(open, MissionType.QUIZ, "새 미션"), false)), 2, 5, 12));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions")).param("page", "2").param("size", "5").param("missionType", "QUIZ"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.page").value(2))
+				.andExpect(jsonPath("$.data.size").value(5))
+				.andExpect(jsonPath("$.data.totalElements").value(12))
+				.andExpect(jsonPath("$.data.items[0].id").value(done.toString()))
+				.andExpect(jsonPath("$.data.items[0].title").value("끝낸 미션"))
+				.andExpect(jsonPath("$.data.items[0].missionType").value("QUIZ"))
+				.andExpect(jsonPath("$.data.items[0].startsAt").value("2026-10-01T00:00:00Z"))
+				.andExpect(jsonPath("$.data.items[0].endsAt").value("2026-11-01T00:00:00Z"))
+				.andExpect(jsonPath("$.data.items[0].rewardTicketCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].completed").value(true))
+				.andExpect(jsonPath("$.data.items[0].imageUrl").value(nullValue()))
+				.andExpect(jsonPath("$.data.items[0].serverTime").value("2026-10-13T03:00:00Z"))
+				.andExpect(jsonPath("$.data.items[1].completed").value(false))
+				.andExpect(content().string(not(containsString("description"))));
+		verify(queryService).findMissions(USER_ID, MissionType.QUIZ, new PageQuery(2, 5));
+	}
+
+	@Test
+	@DisplayName("목록의 페이지 기본값은 1페이지 20건이고 유형 조건이 없으면 전체를 조회한다")
+	void listUsesDefaults() throws Exception {
+		// given
+		when(queryService.findMissions(any(), any(), any())).thenReturn(new PageResult<>(List.of(), 1, 20, 0));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions"))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items").isEmpty());
+		verify(queryService).findMissions(USER_ID, null, new PageQuery(1, 20));
+	}
+
+	@Test
+	@DisplayName("목록의 페이지 번호나 크기가 범위를 벗어나거나 유형이 알 수 없는 값이면 400이고 조회하지 않는다")
+	void rejectsInvalidListParameters() throws Exception {
+		// given
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions")).param("page", "0")).andExpect(status().isBadRequest());
+		mvc.perform(asUser(get("/api/v1/missions")).param("size", "0")).andExpect(status().isBadRequest());
+		mvc.perform(asUser(get("/api/v1/missions")).param("size", "101")).andExpect(status().isBadRequest());
+		mvc.perform(asUser(get("/api/v1/missions")).param("missionType", "GAME")).andExpect(status().isBadRequest());
+		verifyNoInteractions(queryService);
+	}
+
+	@Test
+	@DisplayName("설문 상세는 설명과 문항을 표시 순서대로 담고 선택 문항의 필수 여부와 선택지를 옮긴다")
+	void returnsSurveyDetailInDisplayOrder() throws Exception {
+		// given
+		when(queryService.findMission(USER_ID, MISSION_ID)).thenReturn(new MissionDetailView(surveyDetail(), false));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}", MISSION_ID)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.id").value(MISSION_ID.toString()))
+				.andExpect(jsonPath("$.data.description").value("설명입니다"))
+				.andExpect(jsonPath("$.data.completed").value(false))
+				.andExpect(jsonPath("$.data.rewardTicketCount").value(1))
+				.andExpect(jsonPath("$.data.serverTime").value("2026-10-13T03:00:00Z"))
+				.andExpect(jsonPath("$.data.questions.length()").value(2))
+				.andExpect(jsonPath("$.data.questions[0].displayOrder").value(1))
+				.andExpect(jsonPath("$.data.questions[0].questionType").value("SINGLE_CHOICE"))
+				.andExpect(jsonPath("$.data.questions[0].required").value(true))
+				.andExpect(jsonPath("$.data.questions[0].options.length()").value(2))
+				.andExpect(jsonPath("$.data.questions[0].options[0].optionText").value("좋음"))
+				.andExpect(jsonPath("$.data.questions[0].options[1].displayOrder").value(2))
+				.andExpect(jsonPath("$.data.questions[1].questionType").value("FREE_TEXT"))
+				.andExpect(jsonPath("$.data.questions[1].required").value(false))
+				.andExpect(jsonPath("$.data.questions[1].options").isEmpty());
+	}
+
+	@Test
+	@DisplayName("퀴즈 상세는 모든 문항을 필수로 표시하고 정답 문자열과 선택지의 정답 여부를 응답에 담지 않는다")
+	void neverExposesQuizAnswers() throws Exception {
+		// given
+		when(queryService.findMission(USER_ID, MISSION_ID)).thenReturn(new MissionDetailView(quizDetail(), true));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}", MISSION_ID)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.completed").value(true))
+				.andExpect(jsonPath("$.data.questions[0].required").value(true))
+				.andExpect(jsonPath("$.data.questions[1].required").value(true))
+				.andExpect(jsonPath("$.data.questions[1].questionType").value("SHORT_ANSWER"))
+				.andExpect(jsonPath("$.data.questions[0].options[0].optionText").value("정답 선택지"))
+				.andExpect(content().string(not(containsString(SECRET_ANSWER))))
+				.andExpect(content().string(not(containsString("correct"))))
+				.andExpect(content().string(not(containsString("isCorrect"))))
+				.andExpect(jsonPath("$.data.questions[0].options[0].correct").doesNotExist())
+				.andExpect(jsonPath("$.data.questions[1].correctAnswer").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("없는 미션의 상세 조회는 404 MISSION-003이다")
+	void detailOfMissingMissionIsNotFound() throws Exception {
+		// given
+		when(queryService.findMission(USER_ID, MISSION_ID))
+				.thenThrow(new MissionException(MissionErrorCode.MISSION_NOT_FOUND));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}", MISSION_ID)))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.code").value("MISSION-003"));
 	}
 }
