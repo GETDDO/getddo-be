@@ -18,6 +18,7 @@ public final class DrawPublicationComposition {
 	private final List<DrawPublication.Entry> entries;
 	private final List<DrawPublicationExecution> executions;
 
+	/** 전체 준비 여부와 공개 가능 명단을 보존하며 최초 결과의 확인 정보는 null을 허용한다. */
 	public DrawPublicationComposition(boolean complete, UUID sourceRunId, String reason,
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> entries) {
 		this(complete, sourceRunId, reason, confirmation, entries, List.of());

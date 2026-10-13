@@ -33,6 +33,7 @@ class DrawPublicationPagingTest {
 	private final DrawPublicationService publications = new DrawPublicationService(repository,
 			mock(DrawSnapshotRepository.class), mock(DrawResultRepository.class), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), mock(DrawPublicationNotificationService.class));
 
+	/** 페이지 밖의 직전 버전을 포함해 현재 페이지의 실제 변경 전후를 비교한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("페이지 밖의 직전 버전을 포함해 현재 페이지의 실제 변경 전후를 비교한다")
 	void comparesBoundaryVersionAndBatchesSlots() {
@@ -66,6 +67,7 @@ class DrawPublicationPagingTest {
 				new DrawPublicationChange.SlotChange(prize, 1, null, null, original.resultId(), original.userId()));
 	}
 
+	/** 조회 범위 밖의 페이지는 전체 건수를 유지하고 불필요한 이전 버전 조회를 하지 않는다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("조회 범위 밖의 페이지는 전체 건수를 유지하고 불필요한 이전 버전 조회를 하지 않는다")
 	void returnsEmptyPageWithTotal() {
@@ -80,6 +82,7 @@ class DrawPublicationPagingTest {
 		verify(repository, never()).findPublishedSlots(anySet());
 	}
 
+	/** 관리자 이력 조회는 권한 확인 뒤 이벤트 존재를 확인하고 없는 이벤트는 404로 거절한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("관리자 이력 조회는 권한 확인 뒤 이벤트 존재를 확인하고 없는 이벤트는 404로 거절한다")
 	void validatesAdminBeforeEventAndPages() {
@@ -103,11 +106,14 @@ class DrawPublicationPagingTest {
 		assertThat(queryService.changes(event, actor, query).getItems()).isEmpty();
 	}
 
+	/** 시험에 필요한 공개 버전 메타데이터와 포함 결과를 구성한다. */
 	private DrawPublication publication(int revision) {
 		return new DrawPublication(UUID.randomUUID(), event, UUID.randomUUID(), revision,
 				revision == 1 ? DrawPublicationType.INITIAL : DrawPublicationType.UPDATE,
 				revision == 1 ? null : "사유", revision == 1 ? null : actor, revision == 1 ? null : NOW, NOW, List.of());
 	}
+	/** 시험용 경품 자리의 실제 공개 결과와 사용자 값을 구성한다. */
 	private DrawPublishedSlot slot() { return new DrawPublishedSlot(prize, 1, UUID.randomUUID(), UUID.randomUUID()); }
+	/** 지정 역할과 상태를 가진 시험용 사용자 문맥을 구성한다. */
 	private User user(UserRole role, UserStatus status) { return new User(actor, "조회 사용자", role, status, Membership.VIP, null, null, null, null, NOW, NOW); }
 }

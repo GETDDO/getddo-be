@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 이벤트와 경품을 한 번에 등록하기 위한 불변 업무 입력. */
+/** 이벤트·경품 등록과 수정에서 공유하는 불변 설정 입력. 수정에서는 기존 경품 ID를 전달한다. */
 @Getter
 @EqualsAndHashCode
 public final class EventRegistration {
@@ -55,10 +55,16 @@ public final class EventRegistration {
 	@RequiredArgsConstructor
 	@EqualsAndHashCode
 	public static final class Prize {
+		private final UUID id;
 		private final int rank;
 		private final String name;
 		private final String description;
 		private final String imageKey;
 		private final int winnerCount;
+
+		/** 등록·새 경품 추가에서는 저장소가 ID를 발급한다. */
+		public Prize(int rank, String name, String description, String imageKey, int winnerCount) {
+			this(null, rank, name, description, imageKey, winnerCount);
+		}
 	}
 }

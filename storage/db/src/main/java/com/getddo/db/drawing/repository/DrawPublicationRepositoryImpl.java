@@ -108,16 +108,19 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 
 	private record EvidenceRow(UUID publicationId, UUID runId, UUID confirmationId, UUID confirmedBy, Instant confirmedAt) { }
 
+	/** 이벤트의 가장 높은 버전인 실제 공개 기록을 조회한다. */
 	@Override
 	public Optional<DrawPublication> findLatest(UUID eventId) {
 		return publications.findFirstByEventIdOrderByRevisionDesc(eventId).map(this::toDomain);
 	}
 
+	/** 이벤트의 실제 공개 이력을 조회한다. 전체 조회는 버전 오름차순, 페이지 조회는 내림차순이다. */
 	@Override
 	public List<DrawPublication> findHistory(UUID eventId) {
 		return publications.findByEventIdOrderByRevisionAsc(eventId).stream().map(this::toDomain).toList();
 	}
 
+	/** 이벤트의 실제 공개 이력을 조회한다. 전체 조회는 버전 오름차순, 페이지 조회는 내림차순이다. */
 	@Override
 	public PageResult<DrawPublication> findHistory(UUID eventId, PageQuery query) {
 		long total = publications.countByEventId(eventId);
@@ -138,18 +141,21 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return new PageResult<>(page, query.getPage(), query.getSize(), total);
 	}
 
+	/** 지정 버전보다 작은 버전 중 가장 최근 실제 공개 기록을 조회한다. */
 	@Override
 	public Optional<DrawPublication> findPrevious(UUID eventId, int revision) {
 		return publications.findFirstByEventIdAndRevisionLessThanOrderByRevisionDesc(eventId, revision)
 				.map(this::toDomain);
 	}
 
+	/** 이벤트 식별자의 저장 여부를 확인한다. */
 	@Override
 	public boolean eventExists(UUID eventId) {
 		Integer exists = jdbc.queryForObject("select exists(select 1 from events where id = ?)", Integer.class, toBytes(eventId));
 		return exists != null && exists == 1;
 	}
 
+	/** 결과가 현재 취소됐는지와 무관하게 과거 공개 포함 기록의 존재를 확인한다. */
 	@Override
 	public boolean wasPublished(UUID resultId) { return entries.existsByIdResultId(resultId); }
 
@@ -189,6 +195,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return immutableCopy(loaded);
 	}
 
+	/** 이벤트에 기존 취소나 재추첨 실행이 존재하는지 확인한다. */
 	@Override
 	public boolean hasCancellationOrReplacement(UUID eventId) {
 		Integer count = jdbc.queryForObject("""
@@ -200,12 +207,14 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return count != null && count > 0;
 	}
 
+	/** 기존 추첨 실행이 속한 이벤트 식별자를 조회한다. */
 	@Override
 	public Optional<UUID> findEventId(UUID runId) {
 		return jdbc.query("select event_id from draw_runs where id = ?",
 				(row, index) -> fromBytes(row.getBytes("event_id")), toBytes(runId)).stream().findFirst();
 	}
 
+	/** 이벤트의 재추첨 실행과 결과·관리자 확인을 일괄 조회해 실행 ID로 연결한다. */
 	@Override
 	public List<DrawPublicationRun> findReplacementRuns(UUID eventId) {
 		List<ReplacementRunRow> runs = jdbc.query("""
@@ -229,6 +238,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	/** JDBC 조회의 실행 메타데이터. 확정 결과·확인 기록은 실행 ID로 일괄 결합한다. */
 	private record ReplacementRunRow(UUID id, UUID eventId, int number, DrawRunStatus status, Instant confirmedAt) { }
 
+	/** 이벤트의 기존 결과에 연결된 취소 사유와 재추첨 실행 참조를 조회한다. */
 	@Override
 	public List<DrawPublicationCancellation> findCancellations(UUID eventId) {
 		return jdbc.query("""
@@ -251,6 +261,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return confirmations.findById(id).orElseThrow().toDomain();
 	}
 
+	/** 공개 메타데이터와 포함 결과를 저장하고 재조회한 실제 공개 버전을 반환한다. */
 	@Override
 	public DrawPublication savePublication(UUID eventId, UUID sourceRunId, int revision, String reason,
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> included, Instant publishedAt) {
@@ -290,6 +301,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return Map.copyOf(immutable);
 	}
 
+	/** SQL 결과의 이벤트·후보 연결을 대조하고 선정 또는 미충원 결과를 복원한다. */
 	private DrawResult readResult(ResultSet row, UUID eventId) throws SQLException {
 		DrawSelectionResultType type = DrawSelectionResultType.valueOf(row.getString("result_type"));
 		if (!eventId.equals(nullableUuid(row, "prize_event")) || (type == DrawSelectionResultType.SELECTED
@@ -304,10 +316,12 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return new DrawResult(fromBytes(row.getBytes("id")), selection, instant(row, "created_at"));
 	}
 
+	/** SQL의 선택적인 바이너리 UUID를 변환하고 값이 없으면 null을 반환한다. */
 	private static UUID nullableUuid(ResultSet row, String column) throws SQLException {
 		byte[] bytes = row.getBytes(column);
 		return bytes == null ? null : fromBytes(bytes);
 	}
+	/** DB 시각을 UTC Instant로 변환하며 SQL NULL은 그대로 유지한다. */
 	private static Instant instant(ResultSet row, String column) throws SQLException {
 		java.time.LocalDateTime value = row.getObject(column, java.time.LocalDateTime.class);
 		return value == null ? null : value.toInstant(java.time.ZoneOffset.UTC);
@@ -327,6 +341,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return toDomain(publications.findById(publicationId).orElseThrow());
 	}
 
+	/** 저장된 식별자와 업무 참조·시각을 공개 업무의 도메인 값으로 복원한다. */
 	private DrawPublication toDomain(DrawPublicationEntity publication) {
 		return publication.toDomain(entries.findByIdPublicationIdOrderByIdResultId(publication.getId())
 				.stream().map(DrawPublicationResultEntity::toDomain).toList());

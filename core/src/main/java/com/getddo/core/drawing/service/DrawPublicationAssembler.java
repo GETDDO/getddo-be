@@ -21,6 +21,7 @@ import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID
 
 /** 저장된 결과를 취소 연결과 실제 자리로 병합한다. 선정·취소·실행 생성·실패 재개를 하지 않는다. */
 public final class DrawPublicationAssembler {
+	/** 명단 구성은 정적 함수로만 제공하므로 인스턴스 생성을 막는다. */
 	private DrawPublicationAssembler() { }
 
 	/**
@@ -128,6 +129,7 @@ public final class DrawPublicationAssembler {
 				reason, source == null ? null : source.confirmation(), entries, evidence);
 	}
 
+	/** 경품 자리·등수·결과 ID 중복 및 선정 후보와 사용자의 연결을 검증한다. */
 	private static void validateResult(DrawResult result, Map<UUID, DrawSnapshotSource.Prize> prizes,
 			Map<UUID, UUID> candidates, Set<UUID> resultIds) {
 		DrawSelection selection = result.getSelection();
@@ -138,6 +140,7 @@ public final class DrawPublicationAssembler {
 				&& !Objects.equals(candidates.get(selection.getCandidateId()), selection.getUserId())) invalid();
 	}
 
+	/** 현재 구성 명단에 동일한 선정 사용자가 여러 자리로 포함되지 않았는지 검증한다. */
 	private static void validateUsers(Map<Slot, Included> list) {
 		Set<UUID> users = new HashSet<>();
 		for (Included value : list.values()) {
@@ -146,21 +149,25 @@ public final class DrawPublicationAssembler {
 		}
 	}
 
+	/** 결과의 경품 식별자와 자리 번호를 비교 키로 구성한다. */
 	private static Slot slot(DrawResult result) {
 		return new Slot(result.getSelection().getPrizeId(), result.getSelection().getSlotNumber());
 	}
+	/** 공개 명단의 연결 또는 구성 불일치를 업무 예외로 거절한다. */
 	private static void invalid() { throw new BusinessException(INVALID_PUBLICATION); }
 
 	@EqualsAndHashCode
 	private static final class Slot {
 		private final UUID prizeId;
 		private final int number;
+		/** 동일 경품의 동일 자리를 식별하는 비교 키를 구성한다. */
 		private Slot(UUID prizeId, int number) { this.prizeId = prizeId; this.number = number; }
 	}
 	private static final class Included {
 		private final DrawResult result;
 		private final UUID runId;
 		private final DrawResultConfirmation confirmation;
+		/** 명단 결과에 원본 실행과 선택적인 관리자 확인 기록을 연결한다. */
 		private Included(DrawResult result, UUID runId, DrawResultConfirmation confirmation) {
 			this.result = result; this.runId = runId; this.confirmation = confirmation;
 		}

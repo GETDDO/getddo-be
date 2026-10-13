@@ -14,12 +14,14 @@ import com.getddo.core.drawing.service.DrawAdminAuthorization;
 @Configuration(proxyBeanMethods = false)
 public class DrawPublicationConfig {
 
+	/** 공개 저장소·권한 검사·시각 제공자를 관리자 확인 서비스에 연결한다. */
 	@Bean
 	DrawResultConfirmationService drawResultConfirmationService(DrawPublicationRepository repository,
 			DrawPublicationService publications, DrawAdminAuthorization admins, TimeProvider time) {
 		return new DrawResultConfirmationService(repository, publications, admins, time);
 	}
 
+	/** 관리자 권한 검사와 공개 변경 이력 조회 의존성을 연결한다. */
 	@Bean
 	DrawPublicationQueryService drawPublicationQueryService(DrawPublicationService publications,
 			DrawPublicationRepository repository, DrawAdminAuthorization admins) {

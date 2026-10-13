@@ -23,6 +23,7 @@ public record DrawSnapshot(UUID runId, UUID eventId, DrawRunStatus status, Insta
 	public record Rules(int version, boolean weightingEnabled, String eventType, String membershipRule,
 			int bronzeWeight, int silverWeight, int goldWeight, List<DrawSnapshotSource.Prize> prizes,
 			UUID originalRunId, List<Slot> targetSlots, List<RetainedAward> retainedAwards) {
+		/** 재추첨 확장 필드 없이 규칙을 생성해 기존 최초 입력 호출과 저장 형식의 호환성을 유지한다. */
 		public Rules(int version, boolean weightingEnabled, String eventType, String membershipRule,
 				int bronzeWeight, int silverWeight, int goldWeight, List<DrawSnapshotSource.Prize> prizes) {
 			this(version, weightingEnabled, eventType, membershipRule, bronzeWeight, silverWeight, goldWeight,

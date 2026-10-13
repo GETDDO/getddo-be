@@ -38,7 +38,7 @@ public record DrawPublicationChangeResponse(UUID id, UUID publicationId, int rev
 	}
 
 	public record SlotChange(UUID prizeId, int slotNumber, UUID beforeUserId, UUID afterUserId) {
-		/** 자리별 변경 전후 사용자를 응답 모델에 대응시킨다. */
+		/** 경품 자리의 공개 전후 사용자만 응답 값으로 변환한다. */
 		static SlotChange from(DrawPublicationChange.SlotChange change) {
 			return new SlotChange(change.prizeId(), change.slotNumber(), change.beforeUserId(), change.afterUserId());
 		}

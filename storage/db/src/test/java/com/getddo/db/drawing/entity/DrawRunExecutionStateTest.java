@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.*;
 class DrawRunExecutionStateTest {
 	private static final Instant NOW = Instant.parse("2026-10-12T03:00:00Z");
 
+	/** 처리 중 응모자 없음으로 종료하면 CHECK 제약에 맞게 소유권을 함께 해제한다. */
 	@Test @DisplayName("처리 중 응모자 없음으로 종료하면 CHECK 제약에 맞게 소유권을 함께 해제한다")
 	void releasesLeaseForNoEntries() {
 		// given
@@ -24,6 +25,7 @@ class DrawRunExecutionStateTest {
 		assertThat(run.getLeaseUntil()).isNull();
 	}
 
+	/** 고정 입력 실패·재개는 입력과 최초 시작 시각을 보존한다. */
 	@Test @DisplayName("고정 입력 실패·재개는 입력과 최초 시작 시각을 보존한다")
 	void preservesFixedInputAndFirstStart() {
 		// given
@@ -42,7 +44,8 @@ class DrawRunExecutionStateTest {
 		assertThat(run.getRetryAt()).isNull();
 	}
 
-	@Test @DisplayName("후보가 없는 재추첨도 최초 종료 상태로 바꾸지 않고 READY로 준비한다")
+	/** REPLACEMENT 실행에서 NO_ENTRIES 입력 확정이 IllegalArgumentException으로 거절되는지 검증한다. */
+	@Test @DisplayName("재추첨 실행의 NO_ENTRIES 입력 확정을 거절한다")
 	void replacementCannotTerminateAsInitialNoEntries() {
 		// given
 		DrawRunEntity run = new DrawRunEntity(UUID.randomUUID(), 1, DrawType.REPLACEMENT);

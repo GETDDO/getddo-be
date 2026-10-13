@@ -41,6 +41,7 @@ class AdminDrawResumeControllerTest {
 	private final DrawExecutionPreparationService preparations = mock(DrawExecutionPreparationService.class);
 	private MockMvc mvc;
 
+	/** 실제 사용자 문맥과 공통 실행 흐름을 사용하는 MVC 환경을 준비하고 영속성·확정 의존성을 대역한다. */
 	@BeforeEach void setUp() {
 		Map<UUID, User> users = Map.of(adminId, user(adminId, UserRole.ADMIN, UserStatus.ACTIVE),
 				userId, user(userId, UserRole.USER, UserStatus.ACTIVE), inactiveAdminId, user(inactiveAdminId, UserRole.ADMIN, UserStatus.INACTIVE));
@@ -74,6 +75,7 @@ class AdminDrawResumeControllerTest {
 				.andExpect(jsonPath("$.data.confirmation").value(nullValue()));
 	}
 
+	/** 확정된 최초 실행은 200과 저장 결과를 반환한다. */
 	@Test @DisplayName("확정된 최초 실행은 200과 저장 결과를 반환한다")
 	void returnsStoredConfirmation() throws Exception {
 		// given
@@ -86,6 +88,7 @@ class AdminDrawResumeControllerTest {
 		verify(attempts, never()).execute(any(), any());
 	}
 
+	/** 진행 중 최초 실행은 202로 현재 상태만 반환한다. */
 	@Test @DisplayName("진행 중 최초 실행은 202로 현재 상태만 반환한다")
 	void returnsInProgressWithoutReselecting() throws Exception {
 		// given
@@ -97,6 +100,7 @@ class AdminDrawResumeControllerTest {
 		verifyNoInteractions(preparations);
 	}
 
+	/** 최초 재개 API는 재추첨 실행을 409로 거절한다. */
 	@Test @DisplayName("최초 재개 API는 재추첨 실행을 409로 거절한다")
 	void rejectsReplacement() throws Exception {
 		// given
@@ -107,6 +111,7 @@ class AdminDrawResumeControllerTest {
 		verifyNoInteractions(attempts, preparations);
 	}
 
+	/** 비관리자·비활성 관리자는 실행 상태를 변경하기 전에 403으로 거절한다. */
 	@Test @DisplayName("비관리자·비활성 관리자는 실행 상태를 변경하기 전에 403으로 거절한다")
 	void rejectsUnauthorizedActors() throws Exception {
 		// given / when / then
@@ -117,6 +122,7 @@ class AdminDrawResumeControllerTest {
 		verifyNoInteractions(results, executions, attempts, preparations);
 	}
 
+	/** 잘못된 실행 UUID는 400, 사용자 문맥 누락은 401로 거절한다. */
 	@Test @DisplayName("잘못된 실행 UUID는 400, 사용자 문맥 누락은 401로 거절한다")
 	void rejectsMalformedOrMissingInput() throws Exception {
 		// given / when / then
@@ -125,12 +131,15 @@ class AdminDrawResumeControllerTest {
 		mvc.perform(post(path())).andExpect(status().isUnauthorized());
 		verifyNoInteractions(results, executions, attempts, preparations);
 	}
+	/** 현재 테스트 실행 ID의 최초 재개 경로를 구성한다. */
 	private String path() { return "/api/v1/admin/draws/" + runId + "/resume"; }
+	/** HTTP 권한·상태 분기를 검증할 종류별 실행 상태를 구성한다. */
 	private DrawExecutionState state(DrawType type, DrawRunStatus status) {
 		return new DrawExecutionState(runId, eventId, type, status, NOW.minusSeconds(1),
 				status == DrawRunStatus.RUNNING ? UUID.randomUUID() : null,
 				status == DrawRunStatus.RUNNING ? NOW.plusSeconds(300) : null, null, NOW.minusSeconds(1));
 	}
+	/** 역할·활성 상태가 서로 다른 사용자 문맥을 구성한다. */
 	private User user(UUID id, UserRole role, UserStatus status) {
 		return new User(id, "검증 사용자", role, status, Membership.VIP, null, null, null, null, NOW, NOW);
 	}

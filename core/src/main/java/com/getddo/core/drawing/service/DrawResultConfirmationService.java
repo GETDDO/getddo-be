@@ -52,6 +52,7 @@ public class DrawResultConfirmationService {
 		return finish(run, actorId).publication();
 	}
 
+	/** 활성 관리자와 실행 존재를 확인한 뒤 이벤트 선잠금 아래 재추첨 결과를 검증한다. */
 	private DrawPublicationRun authorizeAndLock(UUID runId, UUID actorId) {
 		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
 		if (runId == null) throw new BusinessException(RUN_NOT_FOUND);
@@ -59,6 +60,7 @@ public class DrawResultConfirmationService {
 		return publications.validateReplacement(eventId, runId);
 	}
 
+	/** 기존 확인을 재사용하거나 새 확인을 저장하고 공개 가능한 전체 명단을 반영한다. */
 	private DrawPublicationConfirmation finish(DrawPublicationRun run, UUID actorId) {
 		DrawResultConfirmation confirmation = run.confirmation();
 		if (confirmation == null) confirmation = repository.saveConfirmation(run.runId(), actorId, time.now());

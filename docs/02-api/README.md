@@ -10,6 +10,8 @@ GD-52의 요청 헤더와 Controller 사용법은 [시연용 사용자 문맥과
 
 GD-55의 내부 Service 호출과 트랜잭션 규칙은 [감사 로그 기록 기능](audit-recording.md)에 정리합니다.
 
+GD-60의 수정 제한·경품 교체와 GD-70 알림 연결은 [이벤트·경품 수정](event-modification.md)에 정리합니다.
+
 ## 접속
 
 DB 연결 등 애플리케이션 실행 준비를 마친 뒤 `./gradlew :api:bootRun`으로 실행합니다.
