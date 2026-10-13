@@ -43,6 +43,8 @@ public class EventRepositoryImpl implements EventRepository {
 	// Hibernate 7.4에서는 fetch 대상 잠금을 지정하는 Scope API가 필요하다. JPA 4 전환 시 대체한다.
 	@SuppressWarnings("removal")
 	public Optional<RegisteredEvent> findByIdForUpdate(UUID eventId) {
+		// 이벤트 행을 먼저 잠가 같은 이벤트의 수정 요청을 경품 조회 전에 직렬화한다.
+		// 아래 fetch 조회에서도 이벤트를 잠그지만, 이벤트 → 경품의 잠금 순서를 명시적으로 고정한다.
 		if (jpaRepository.findByIdForUpdate(eventId).isEmpty()) {
 			return Optional.empty();
 		}
