@@ -29,6 +29,14 @@ class MySqlMigrationTest {
 	@Container
 	static final MySQLContainer MYSQL = MySqlTestContainers.create();
 
+	/**
+	 * 이미 병합된 마이그레이션 버전. 발견 결과와 무관한 독립된 기준이라 파일을 지우거나 번호를 바꾸면 이 목록과 어긋나 실패한다.
+	 * 새 마이그레이션을 추가할 때는 이 목록을 고치지 않는다(PR끼리 충돌하지 않게 하려는 것이다). 기존 버전을 정리할 때만 고친다.
+	 * 버전 20은 건너뛰었다.
+	 */
+	private static final List<Integer> MERGED_VERSIONS = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+			14, 16, 17, 18, 19, 21, 22, 23);
+
 	private static Flyway flyway;
 	private static int appliedMigrations;
 
@@ -51,9 +59,10 @@ class MySqlMigrationTest {
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		// 마이그레이션 파일이 늘 때마다 이 값을 고치면 PR끼리 충돌하므로, 개수를 적지 않고 Flyway가 찾은 전부가 적용됐는지 확인한다.
+		// 마이그레이션이 늘 때마다 개수를 고치면 PR끼리 충돌하므로 전체 개수는 적지 않는다. Flyway가 찾은 전부가 적용됐는지 확인하고,
+		// 이미 병합된 버전이 삭제·번호 변경되지 않았는지는 아래의 독립된 기준 목록으로 확인한다.
 		assertThat(appliedMigrations).isEqualTo(flyway.info().all().length);
-		assertThat(appliedMigrations).isPositive();
+		assertThat(appliedVersions()).containsAll(MERGED_VERSIONS);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		assertThat(indexColumns("award_cancellations", "uq_award_cancellations_request", 0)).containsExactly("request_key");
@@ -229,6 +238,13 @@ class MySqlMigrationTest {
 	}
 
 	/** 유니크 인덱스(PK 포함)의 컬럼을 인덱스 내 순서대로 반환한다. */
+	/** 적용된 마이그레이션의 버전 번호. */
+	private static List<Integer> appliedVersions() {
+		return java.util.Arrays.stream(flyway.info().applied())
+				.map(info -> Integer.parseInt(info.getVersion().getVersion()))
+				.toList();
+	}
+
 	private static List<String> indexColumns(String tableName, String indexName) throws SQLException {
 		return indexColumns(tableName, indexName, 0);
 	}
