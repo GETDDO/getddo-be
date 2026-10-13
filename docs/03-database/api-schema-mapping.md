@@ -45,7 +45,7 @@
 
 ## 미션 모델·저장소 현행 매핑 (GD-167)
 
-미션 API(M01~M04, AM01~AM03)는 아직 없고, 그 API가 쓸 도메인 모델과 저장소만 `V003` 테이블에 매핑해 두었다. 새 마이그레이션은 없다.
+미션 제출 API(M03)는 구현되어 있고, 조회(M01·M02·M04)와 관리자(AM01~AM03) API는 아직 없다. 모두 `V003` 테이블을 쓰며 새 마이그레이션은 없다.
 
 | 도메인 객체 | 테이블 | 저장소 | 비고 |
 | --- | --- | --- | --- |
@@ -53,6 +53,19 @@
 | `MissionSubmission` + 답변 | `mission_submissions`, `quiz_answers`, `survey_answers` | `MissionSubmissionRepository` | 제출 시각은 서버가 저장한 시각(`created_at`)이다. 답변의 `mission_id`는 복합 외래 키가 제출·문항의 소속 미션을 맞춘다. |
 | `QuizQuestionProgress` | `quiz_question_progress` | `QuizQuestionProgressRepository` | 사용자·문항 단위로 정답 완료를 한 번만 기록한다. |
 | `MissionRewardClaim` | `mission_reward_claims` | `MissionRewardClaimRepository` | 사용자·미션 단위로 한 번만 청구한다. 응모권은 1장으로 고정이다. |
+
+### 미션 제출 API 현행 매핑 (GD-175)
+
+| API | 경로 | 테이블 | 접근 |
+| --- | --- | --- | --- |
+| M03 제출 | `POST /api/v1/missions/{missionId}/submissions` | `mission_submissions` | ID는 `Idempotency-Key` UUID이다. 같은 키로 같은 요청이 다시 오면 기존 결과를 200으로, 다른 사용자·미션·답변이면 409 `MISSION-005`로 거절한다. 서버가 받은 시각을 `created_at`에 저장한다. |
+| M03 제출 | 같음 | `missions`, 문항·선택지 테이블 | 읽기만 한다. 운영 기간은 서버가 제출을 받은 시각이 `[starts_at, ends_at)`이고 `ACTIVE`일 때만 인정한다. |
+| M03 제출 | 같음 | `quiz_answers`, `survey_answers` | 서버가 채점한 답변을 저장한다. 이미 정답으로 완료한 퀴즈 문항에 다시 보낸 답변은 채점·저장하지 않는다. |
+| M03 제출 | 같음 | `quiz_question_progress` | 이번 제출로 처음 맞힌 문항을 문항 ID 순서로 기록한다(퀴즈는 문항별 정답을 누적하며 모든 문항을 맞히면 완료). |
+| M03 제출 | 같음 | `mission_reward_claims` | 완료하면 사용자·미션당 한 번 청구한다. 이미 완료한 미션의 재제출은 기존 완료 결과를 돌려준다. |
+| M03 제출 | 같음 | `tickets`, `ticket_histories` | 보상 청구 저장 뒤 지급 서비스가 같은 트랜잭션에서 응모권을 지급한다(`GRANT` 이력, 사유는 미션 제목). |
+
+제출·답변·정답 진행·보상 청구·응모권 지급은 한 트랜잭션(`READ COMMITTED`)이다. 같은 사용자의 동시 완료는 제출 PK, `(user_id, quiz_question_id)`, `(user_id, mission_id)` 유일 제약이 직렬화하고, 늦은 요청은 새 트랜잭션에서 한 번 다시 처리해 먼저 확정된 결과를 본다.
 
 ## 확인된 차이와 구현 검토 항목
 
