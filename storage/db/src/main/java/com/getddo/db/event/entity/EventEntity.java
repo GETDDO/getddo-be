@@ -143,6 +143,11 @@ public class EventEntity extends BaseUpdatableEntity {
 	public Instant getStartsAt() { return startsAt; }
 	public Instant getEndsAt() { return endsAt; }
 	public EventStatus getStatus() { return status; }
+	/** 호출 서비스의 삭제 조건 검증 후 삭제 시각을 기록한다. 이벤트·경품 행은 보존한다. */
+	public void markDeleted(Instant deletedAt) {
+		this.deletedAt = Objects.requireNonNull(deletedAt, "deletedAt");
+	}
+
 	public Instant getDeletedAt() { return deletedAt; }
 	public MembershipRule getMembershipRule() { return membershipRule; }
 	public List<EventPrizeEntity> getPrizes() { return List.copyOf(prizes); }

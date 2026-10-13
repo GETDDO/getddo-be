@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import com.getddo.core.event.repository.EventActorRepository;
 import com.getddo.db.common.util.UuidBinary;
 
-/** 이벤트 등록 권한 검증에 필요한 요청자의 DB 역할·상태를 읽는다. */
+/** 이벤트 등록·수정·삭제 권한 검증에 필요한 요청자의 DB 역할·상태를 읽는다. */
 @Repository
 public class EventActorRepositoryImpl implements EventActorRepository {
 	private final JdbcTemplate jdbc;

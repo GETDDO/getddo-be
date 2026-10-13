@@ -34,6 +34,7 @@ import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.service.EventQueryService;
 import com.getddo.core.event.service.EventRegistrationService;
 import com.getddo.core.event.service.EventModificationService;
+import com.getddo.core.event.service.EventDeletionService;
 import com.getddo.core.user.domain.User;
 import com.getddo.core.user.domain.UserRole;
 import com.getddo.core.user.domain.UserStatus;
@@ -50,6 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -62,6 +64,7 @@ class EventResponseContractTest {
 	private static final Instant ENDS_AT = Instant.parse("2026-10-03T09:00:00Z");
 	private EventQueryService queries;
 	private EventRegistrationService registrations;
+	private EventDeletionService deletions;
 	private MockMvc mvc;
 	private User actor;
 
@@ -69,13 +72,14 @@ class EventResponseContractTest {
 	void setUp() {
 		queries = mock(EventQueryService.class);
 		registrations = mock(EventRegistrationService.class);
+		deletions = mock(EventDeletionService.class);
 		UserService users = mock(UserService.class);
 		actor = new User(ACTOR_ID, "관리자", UserRole.ADMIN,
 				UserStatus.ACTIVE, null, null, null, null, null, NOW, NOW);
 		when(users.findById(ACTOR_ID)).thenReturn(actor);
 		TimeProvider time = new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC));
 		mvc = MockMvcBuilders.standaloneSetup(new EventController(queries, time),
-				new AdminEventController(registrations, mock(EventModificationService.class), queries, time))
+				new AdminEventController(registrations, mock(EventModificationService.class), deletions, queries, time))
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(users))
 				.setControllerAdvice(new GlobalExceptionHandler()).build();
 	}
@@ -249,6 +253,29 @@ class EventResponseContractTest {
 				.andExpect(jsonPath("$.code").value("USER-003"))
 				.andExpect(jsonPath("$.message").value("사용자 정보 헤더가 필요합니다."))
 				.andExpect(jsonPath("$.data").value(nullValue()));
+	}
+
+	@Test
+	@DisplayName("관리자 삭제는 변환된 이벤트 UUID·사용자 ID를 전달하고 200·data null을 반환한다")
+	void deletionResponsePreservesItsContract() throws Exception {
+		// given / when / then
+		mvc.perform(delete("/api/v1/admin/events/" + EVENT_ID)
+				.header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data").value(nullValue()));
+		verify(deletions).delete(EVENT_ID, ACTOR_ID);
+	}
+
+	@Test
+	@DisplayName("삭제 요청의 UUID 변환 실패는 서비스를 호출하지 않고 COMMON-005로 거절한다")
+	void invalidDeletionUuidDoesNotCallService() throws Exception {
+		// given / when / then
+		mvc.perform(delete("/api/v1/admin/events/invalid")
+				.header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("COMMON-005"));
+		verifyNoInteractions(deletions);
 	}
 
 	private static RegisteredEvent event(EventStatus status) {

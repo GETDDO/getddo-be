@@ -38,6 +38,34 @@ class EventChangeNotificationServiceTest {
 	@InjectMocks private EventChangeNotificationService service;
 
 	@Test
+	@DisplayName("삭제된 이벤트의 시작 작업만 중지하고 별도 안내 작업은 등록하지 않는다")
+	void stopsStartGenerationForDeletedEvent() {
+		// given
+		UUID event = UUID.randomUUID();
+		when(repository.isDeletedEvent(event)).thenReturn(true);
+		// when
+		service.stopForDeletedEvent(event);
+		// then
+		var order = inOrder(repository);
+		order.verify(repository).lockEvent(event);
+		order.verify(repository).isDeletedEvent(event);
+		order.verify(repository).stopStartJobs(event, "event-deleted:" + event);
+		verifyNoInteractions(jobs, jobRepository);
+	}
+
+	@Test
+	@DisplayName("삭제가 저장되지 않은 이벤트와 null 식별자는 시작 작업을 중지하지 않는다")
+	void rejectsUnsavedDeletion() {
+		// given
+		UUID event = UUID.randomUUID();
+		// when / then
+		assertThatThrownBy(() -> service.stopForDeletedEvent(null)).isInstanceOf(NotificationProcessingException.class);
+		assertThatThrownBy(() -> service.stopForDeletedEvent(event)).isInstanceOf(NotificationProcessingException.class);
+		verify(repository, never()).stopStartJobs(any(), any());
+		verifyNoInteractions(jobs, jobRepository);
+	}
+
+	@Test
 	@DisplayName("이전 시작 작업을 멈춘 뒤 실제 수신자에게만 한국 시각으로 변경 안내를 등록한다")
 	void registersScheduleChange() {
 		// given

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,22 +32,25 @@ import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.service.EventQueryService;
 import com.getddo.core.event.service.EventRegistrationService;
 import com.getddo.core.event.service.EventModificationService;
+import com.getddo.core.event.service.EventDeletionService;
 import com.getddo.core.user.domain.User;
 
-/** 관리자 이벤트 등록·조회·수정 API. 입력 형식과 응답 변환을 맡고 권한·업무 규칙은 서비스에 위임한다. */
+/** 관리자 이벤트 CRUD API. 입력 형식과 응답 변환을 맡고 권한·업무 규칙은 서비스에 위임한다. */
 @RestController
 @RequestMapping("/api/v1/admin/events")
 public class AdminEventController {
 	private final EventRegistrationService registrationService;
 	private final EventModificationService modificationService;
+	private final EventDeletionService deletionService;
 	private final EventQueryService queryService;
 	private final TimeProvider timeProvider;
 
 	public AdminEventController(EventRegistrationService registrationService, EventModificationService modificationService,
-			EventQueryService queryService,
+			EventDeletionService deletionService, EventQueryService queryService,
 			TimeProvider timeProvider) {
 		this.registrationService = registrationService;
 		this.modificationService = modificationService;
+		this.deletionService = deletionService;
 		this.queryService = queryService;
 		this.timeProvider = timeProvider;
 	}
@@ -67,6 +71,13 @@ public class AdminEventController {
 			@Valid @RequestBody EventWriteRequest request) {
 		return ResponseEnvelope.success(AdminEventResponse.from(
 				modificationService.modify(eventId, request.toModification(user.getId())), timeProvider.now()));
+	}
+
+	/** AE05: 삭제 조건·논리 삭제는 서비스에 위임하고 데이터 없는 성공 JSON을 반환한다. */
+	@DeleteMapping("/{eventId}")
+	public ResponseEnvelope<Void> delete(@CurrentUser User user, @PathVariable UUID eventId) {
+		deletionService.delete(eventId, user.getId());
+		return ResponseEnvelope.success(null);
 	}
 
 	/** AE01 관리자 검색. from/to는 양끝 날짜를 포함하는 KST 날짜 범위다. 모집 기간과 겹치면 포함한다. */

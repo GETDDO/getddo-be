@@ -58,6 +58,22 @@ public class EventChangeNotificationService {
 		return id;
 	}
 
+	/**
+	 * 이벤트 논리 삭제를 flush한 같은 트랜잭션에서 호출한다.
+	 * 기존 알림·작업 이력은 유지하고 남은 시작 알림 생성만 중지한다. 삭제 안내는 생성하지 않는다.
+	 */
+	@Transactional
+	public void stopForDeletedEvent(UUID eventId) {
+		if (eventId == null) {
+			throw new NotificationProcessingException(NotificationProcessingErrorCode.INVALID_JOB);
+		}
+		repository.lockEvent(eventId);
+		if (!repository.isDeletedEvent(eventId)) {
+			throw new NotificationProcessingException(NotificationProcessingErrorCode.INVALID_JOB);
+		}
+		repository.stopStartJobs(eventId, "event-deleted:" + eventId);
+	}
+
 	private NotificationJobRequest request(EventNotificationChange change, List<UUID> recipients) {
 		boolean scheduleChanged = change.getType() == NotificationType.EVENT_SCHEDULE_CHANGED;
 		String body = "\"" + change.getEventTitle() + "\" 이벤트가 취소되었습니다.";

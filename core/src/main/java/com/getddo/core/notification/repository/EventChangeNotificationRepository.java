@@ -14,6 +14,8 @@ public interface EventChangeNotificationRepository {
 	Optional<UUID> findChangeJobId(String occurrenceKey);
 	/** 저장된 이벤트가 전달된 변경·취소 상태인지 확인한다. */
 	boolean matchesSavedChange(EventNotificationChange change);
+	/** 저장된 이벤트에 논리 삭제 시각이 기록됐는지 최신 잠금 읽기로 확인한다. */
+	boolean isDeletedEvent(UUID eventId);
 	/** 시작 작업의 향후 생성을 막는다. 작업·알림 이력을 삭제하지 않는다. */
 	void stopStartJobs(UUID eventId, String occurrenceKey);
 	/** 시작 알림이 알림함에 생성된 사용자만 반환한다. 발송·읽음 상태는 조건이 아니다. */
