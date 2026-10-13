@@ -29,6 +29,14 @@ class MySqlMigrationTest {
 	@Container
 	static final MySQLContainer MYSQL = MySqlTestContainers.create();
 
+	/**
+	 * 이미 병합된 마이그레이션 버전. 발견 결과와 무관한 독립된 기준이라 파일을 지우거나 번호를 바꾸면 이 목록과 어긋나 실패한다.
+	 * 새 마이그레이션을 추가할 때는 이 목록을 고치지 않는다(PR끼리 충돌하지 않게 하려는 것이다). 기존 버전을 정리할 때만 고친다.
+	 * 버전 20은 건너뛰었다.
+	 */
+	private static final List<Integer> MERGED_VERSIONS = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+			14, 16, 17, 18, 19, 21, 22, 23);
+
 	private static Flyway flyway;
 	private static int appliedMigrations;
 
@@ -44,15 +52,17 @@ class MySqlMigrationTest {
 
 	/** 빈 DB에 이벤트·알림 인덱스를 포함한 스키마를 적용하고 재실행의 멱등성을 검증한다. */
 	@Test
-	@DisplayName("빈 MySQL에 전체 마이그레이션을 적용하고 44개 테이블·인덱스와 재실행을 확인한다")
+	@DisplayName("빈 MySQL에 전체 마이그레이션이 적용되어 44개 테이블·인덱스·추첨 상태·복구 차수를 갖추고 재실행해도 다시 적용되지 않는다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		// 다른 기능의 마이그레이션이 합쳐져도 전체 파일이 빠짐없이 적용되어야 한다.
-		assertThat(appliedMigrations).isPositive().isEqualTo(flyway.info().all().length);
+		// 마이그레이션이 늘 때마다 개수를 고치면 PR끼리 충돌하므로 전체 개수는 적지 않는다. Flyway가 찾은 전부가 적용됐는지 확인하고,
+		// 이미 병합된 버전이 삭제·번호 변경되지 않았는지는 아래의 독립된 기준 목록으로 확인한다.
+		assertThat(appliedMigrations).isEqualTo(flyway.info().all().length);
+		assertThat(appliedVersions()).containsAll(MERGED_VERSIONS);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		assertThat(indexColumns("award_cancellations", "uq_award_cancellations_request", 0)).containsExactly("request_key");
@@ -225,6 +235,13 @@ class MySqlMigrationTest {
 				return List.of(rows.getString(1), rows.getString(2));
 			}
 		}
+	}
+
+	/** 적용된 마이그레이션의 버전 번호. */
+	private static List<Integer> appliedVersions() {
+		return java.util.Arrays.stream(flyway.info().applied())
+				.map(info -> Integer.parseInt(info.getVersion().getVersion()))
+				.toList();
 	}
 
 	/** 유니크 인덱스(PK 포함)의 컬럼을 인덱스 내 순서대로 반환한다. */

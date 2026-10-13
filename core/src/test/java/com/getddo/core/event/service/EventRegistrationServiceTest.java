@@ -150,6 +150,22 @@ class EventRegistrationServiceTest {
 	}
 
 	@Test
+	@DisplayName("등록 요청에 기존 경품 ID가 있으면 Service가 저장 전에 거절한다")
+	void existingPrizeIdFailsBeforeAnyWrite() {
+		// given
+		EventRegistration source = validRegistration();
+		EventRegistration invalid = new EventRegistration(source.getActorId(), source.getTitle(),
+				source.getDescription(), source.getImageKey(), source.getEventType(), source.isWeightingEnabled(),
+				source.getMaxTicketsPerUser(), source.getMembershipRule(), source.getStartsAt(), source.getEndsAt(),
+				List.of(new EventRegistration.Prize(UUID.randomUUID(), 1, "기존 경품", null, null, 1)));
+		// when / then
+		assertThatThrownBy(() -> service.register(invalid))
+				.isInstanceOfSatisfying(EventException.class,
+						error -> assertThat(error.getErrorCode()).isEqualTo(EventErrorCode.INVALID_PRIZES));
+		verifyNoInteractions(events);
+	}
+
+	@Test
 	void duplicatePrizeRankFailsBeforeAnyWrite() {
 		EventRegistration source = validRegistration();
 		EventRegistration duplicate = new EventRegistration(source.getActorId(), source.getTitle(),

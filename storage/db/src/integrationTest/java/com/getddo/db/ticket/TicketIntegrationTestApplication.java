@@ -18,7 +18,7 @@ import com.getddo.db.support.MySqlTestConfiguration;
 /**
  * 응모권·출석·응모 통합 테스트 컨텍스트.
  *
- * <p>응모권·출석·응모의 Entity·JPA Repository만 등록하고, core의 Service와 storage:db의 저장소 구현을 함께 올려
+ * <p>응모권·출석·응모·미션의 Entity·JPA Repository만 등록하고, core의 Service와 storage:db의 저장소 구현을 함께 올려
  * 실제 호출 경로를 검증한다. 출석은 응모권 지급을, 응모는 응모권 차감을 호출하므로 도메인을 한 컨텍스트에서 검증한다.</p>
  */
 @SpringBootConfiguration
@@ -26,9 +26,12 @@ import com.getddo.db.support.MySqlTestConfiguration;
 @ComponentScan(basePackages = {
 		"com.getddo.core.ticket", "com.getddo.db.ticket",
 		"com.getddo.core.attendance", "com.getddo.db.attendance",
-		"com.getddo.core.entry", "com.getddo.db.entry"})
-@EntityScan(basePackages = {"com.getddo.db.ticket", "com.getddo.db.attendance", "com.getddo.db.entry"})
-@EnableJpaRepositories(basePackages = {"com.getddo.db.ticket", "com.getddo.db.attendance", "com.getddo.db.entry"})
+		"com.getddo.core.entry", "com.getddo.db.entry",
+		"com.getddo.core.mission", "com.getddo.db.mission"})
+@EntityScan(basePackages = {"com.getddo.db.ticket", "com.getddo.db.attendance", "com.getddo.db.entry",
+		"com.getddo.db.mission"})
+@EnableJpaRepositories(basePackages = {"com.getddo.db.ticket", "com.getddo.db.attendance", "com.getddo.db.entry",
+		"com.getddo.db.mission"})
 @Import({JpaAuditingConfig.class, MySqlTestConfiguration.class})
 public class TicketIntegrationTestApplication {
 

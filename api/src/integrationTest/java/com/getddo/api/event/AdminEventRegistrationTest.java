@@ -68,6 +68,23 @@ class AdminEventRegistrationTest {
 	}
 
 	@Test
+	@DisplayName("DTO 변환을 거친 등록 요청의 경품 ID도 Service에서 400으로 거절하고 저장하지 않는다")
+	void registrationWithPrizeIdIsRejectedWithoutAnyWrite() throws Exception {
+		// given
+		UUID adminId = insertUser("ADMIN");
+		String request = validRequest().replace("\"rank\": 2", "\"id\": \"" + UUID.randomUUID() + "\", \"rank\": 2");
+		long previousEvents = count("events");
+		long previousPrizes = count("event_prizes");
+		// when / then
+		mvc.perform(post("/api/v1/admin/events")
+				.header("X-User-ID", adminId.toString()).header("X-User-Role", "ADMIN")
+				.contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("EVENT-004"));
+		assertThat(count("events")).isEqualTo(previousEvents);
+		assertThat(count("event_prizes")).isEqualTo(previousPrizes);
+	}
+
+	@Test
 	void duplicateRankAndNonAdminDoNotCreatePartialData() throws Exception {
 		UUID adminId = insertUser("ADMIN");
 		UUID userId = insertUser("USER");
