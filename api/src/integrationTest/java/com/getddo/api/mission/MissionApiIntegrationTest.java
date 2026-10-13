@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.getddo.api.support.ApiIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -284,7 +285,7 @@ class MissionApiIntegrationTest {
 				.andExpect(jsonPath(done + ".reward.ticketCount").value(1))
 				.andExpect(jsonPath(done + ".reward.grade").isNotEmpty())
 				.andExpect(jsonPath(wrong + ".isCompleted").value(false))
-				.andExpect(jsonPath(wrong + ".reward.ticketCount").isEmpty())
+				.andExpect(jsonPath(wrong + ".reward").value(contains(nullValue())))
 				.andExpect(jsonPath("$.data.items[?(@.submissionId=='" + otherKey + "')]").isEmpty())
 				.andExpect(jsonPath("$.data.items[0].answers").doesNotExist())
 				.andExpect(jsonPath("$.data.items[0].isCorrect").doesNotExist())
