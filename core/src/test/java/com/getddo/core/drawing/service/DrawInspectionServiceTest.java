@@ -29,6 +29,7 @@ class DrawInspectionServiceTest {
 	private final UUID runId = UUID.randomUUID(), eventId = UUID.randomUUID();
 	private final User admin = user(UserRole.ADMIN, UserStatus.ACTIVE);
 
+	/** 다음 동작을 검증한다: 모든 관리자 업무는 일반·비활성 사용자 요청을 저장소 조회 전에 거절한다. */
 	@Test
 	@DisplayName("모든 관리자 업무는 일반·비활성 사용자 요청을 저장소 조회 전에 거절한다")
 	void rejectsNonAdminsBeforeReading() {
@@ -88,6 +89,7 @@ class DrawInspectionServiceTest {
 		verify(repository).findCandidates(runId, query);
 	}
 
+	/** 다음 동작을 검증한다: 재추첨 검증은 같은 서비스 흐름에서 저장된 최초 입력·과거 배정을 읽고 이력을 저장한다. */
 	@Test
 	@DisplayName("재추첨 검증은 같은 서비스 흐름에서 저장된 최초 입력·과거 배정을 읽고 이력을 저장한다")
 	void replacementReadsReferencesAndPersistsCheck() {

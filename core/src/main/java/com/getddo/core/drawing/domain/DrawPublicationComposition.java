@@ -24,6 +24,7 @@ public final class DrawPublicationComposition {
 		this(complete, sourceRunId, reason, confirmation, entries, List.of());
 	}
 
+	/** 전체 명단의 준비 여부와 원본 실행·관리자 확인 근거를 함께 보존한다. 미공개 명단도 구성할 수 있다. */
 	public DrawPublicationComposition(boolean complete, UUID sourceRunId, String reason,
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> entries, List<DrawPublicationExecution> executions) {
 		this.complete = complete;

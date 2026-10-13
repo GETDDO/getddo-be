@@ -533,6 +533,7 @@ class DrawSnapshotIntegrationTest {
 	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
 	static class TestApplication {
 
+		/** 공개 저장소·공통 관리자 검사·시각 제공자를 실제 관리자 확인 Bean에 연결한다. */
 		@Bean com.getddo.core.drawing.service.DrawResultConfirmationService resultConfirmations(
 				com.getddo.core.drawing.repository.DrawPublicationRepository repository,
 				com.getddo.core.drawing.service.DrawPublicationService publications,

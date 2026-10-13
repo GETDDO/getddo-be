@@ -73,6 +73,7 @@ class DrawReplacementVerificationTest {
 				fixture.results()), "REPLACEMENT_SOURCE");
 	}
 
+	/** 다음 동작을 검증한다: 최초 규칙·이벤트·원본 실행 연결이 다르면 검증을 통과하지 않는다. */
 	@Test
 	@DisplayName("최초 규칙·이벤트·원본 실행 연결이 다르면 검증을 통과하지 않는다")
 	void rejectsDifferentOriginalRulesAndLinks() {
@@ -124,6 +125,7 @@ class DrawReplacementVerificationTest {
 				List.of(new DrawReplacementRulesView.RetainedAward(UUID.randomUUID(), UUID.randomUUID(), prizeId, 1)))), fixture.candidates(), fixture.results()), "REPLACEMENT_SLOTS");
 	}
 
+	/** 다음 동작을 검증한다: 최초 가중치를 보존하고 과거 재추첨에서 당첨된 후보도 재포함하지 않는다. */
 	@Test
 	@DisplayName("최초 가중치를 보존하고 과거 재추첨에서 당첨된 후보도 재포함하지 않는다")
 	void excludesHistoricalReplacementWinner() {
@@ -141,6 +143,7 @@ class DrawReplacementVerificationTest {
 				.allMatch(DrawCheckItem::isPassed);
 	}
 
+	/** 다음 동작을 검증한다: 새 수량과 가중치가 자체 일치해도 최초 골드 가중치를 바꾸면 검증 실패다. */
 	@Test
 	@DisplayName("새 수량과 가중치가 자체 일치해도 최초 골드 가중치를 바꾸면 검증 실패다")
 	void rejectsSelfConsistentWeightRewrite() {
@@ -197,6 +200,7 @@ class DrawReplacementVerificationTest {
 		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results()), "REPLACEMENT_SOURCE");
 	}
 
+	/** 다음 동작을 검증한다: 취소되지 않은 자리 선택·유지 당첨 누락·취소된 당첨 유지를 거절한다. */
 	@Test @DisplayName("취소되지 않은 자리 선택·유지 당첨 누락·취소된 당첨 유지를 거절한다")
 	void rejectsIncompleteOrUncancelledAssignments() {
 		// given
@@ -216,6 +220,7 @@ class DrawReplacementVerificationTest {
 				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), canceledRetained)), "REPLACEMENT_SLOTS");
 	}
 
+	/** 다음 동작을 검증한다: 고정 이후의 취소는 유지 배정을 소급 변경하지 않는다. */
 	@Test @DisplayName("고정 이후의 취소는 유지 배정을 소급 변경하지 않는다")
 	void usesCancellationTimeInsteadOfCurrentStatus() {
 		// given
@@ -228,6 +233,7 @@ class DrawReplacementVerificationTest {
 				.allMatch(DrawCheckItem::isPassed);
 	}
 
+	/** 다음 동작을 검증한다: 최신 회차가 선택된 자리에서 과거 취소 결과를 유지하면 불일치다. */
 	@Test @DisplayName("최신 회차가 선택된 자리에서 과거 취소 결과를 유지하면 불일치다")
 	void rejectsRetainingOlderRound() {
 		// given
@@ -241,6 +247,7 @@ class DrawReplacementVerificationTest {
 		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
 	}
 
+	/** 다음 동작을 검증한다: 최신 기록 사이에 놓인 같은 자리·회차 중복도 불일치다. */
 	@Test @DisplayName("최신 기록 사이에 놓인 같은 자리·회차 중복도 불일치다")
 	void rejectsDuplicatedRoundRegardlessOfOrdering() {
 		// given
@@ -255,6 +262,7 @@ class DrawReplacementVerificationTest {
 		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
 	}
 
+	/** 다음 동작을 검증한다: 최신 회차가 미충원인 자리를 새 취소 대상으로 사용하지 않는다. */
 	@Test @DisplayName("최신 회차가 미충원인 자리를 새 취소 대상으로 사용하지 않는다")
 	void rejectsTargetingLatestUnfilledSlot() {
 		// given
@@ -266,6 +274,7 @@ class DrawReplacementVerificationTest {
 		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
 	}
 
+	/** 다음 동작을 검증한다: 고정 시각 뒤 확정된 기록은 자리 최신 회차와 중복 판정에 사용하지 않는다. */
 	@Test @DisplayName("고정 시각 뒤 확정된 기록은 자리 최신 회차와 중복 판정에 사용하지 않는다")
 	void ignoresFutureAwardsInSlotVerification() {
 		// given
@@ -280,6 +289,7 @@ class DrawReplacementVerificationTest {
 		assertFailed(checks, "REPLACEMENT_SOURCE");
 	}
 
+	/** 다음 동작을 검증한다: 과거 결과의 종류가 없으면 복원 시점에 거절한다. */
 	@Test @DisplayName("과거 결과의 종류가 없으면 복원 시점에 거절한다")
 	void rejectsNullHistoricalResultType() {
 		// given / when / then
@@ -287,11 +297,13 @@ class DrawReplacementVerificationTest {
 				eventId, prizeId, eventId, 1, null, null, fixedAt, 0, null, null)).withMessage("resultType");
 	}
 
+	/** 동일한 저장 입력에 다른 과거 이력을 연결해 시점·회차별 배정 검증을 비교한다. */
 	private List<DrawCheckItem> verifyHistory(Fixture fixture, List<DrawHistoricalAward> awards) {
 		return DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
 				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), awards));
 	}
 
+	/** 다른 과거 결과 필드는 유지하고 취소 시각만 바꿔 고정 시각 경계를 시험한다. */
 	private DrawHistoricalAward history(DrawHistoricalAward a, Instant canceledAt) {
 		return new DrawHistoricalAward(a.getId(), a.getRunId(), a.getEventId(), a.getPrizeId(), a.getPrizeEventId(),
 				a.getSlotNumber(), a.getCandidateId(), a.getUserId(), a.getConfirmedAt(), a.getRunNumber(), canceledAt, a.getResultType());
@@ -303,6 +315,7 @@ class DrawReplacementVerificationTest {
 	private static void assertFailed(List<DrawCheckItem> items, String code) {
 		assertThat(items).anyMatch(item -> item.getCode().equals(code) && !item.isPassed());
 	}
+	/** 공유된 고정 시각을 기준으로 최초 후보·기존 배정·취소 자리와 남은 후보를 구성한다. */
 	private Fixture fixture(int remainingCount, List<Integer> targets) {
 		DrawSnapshot.Rules firstRules = new DrawSnapshot.Rules(1, false, "NO_TICKET", "ALL", 1, 3, 5,
 				List.of(new DrawSnapshotSource.Prize(prizeId, 1, 3)));

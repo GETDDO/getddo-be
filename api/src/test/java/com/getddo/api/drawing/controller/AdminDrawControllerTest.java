@@ -48,6 +48,7 @@ class AdminDrawControllerTest {
 		when(repository.findRun(runId)).thenReturn(Optional.of(run()));
 	}
 
+	/** 다음 동작을 검증한다: 실행 상세와 실패·감사 페이징은 같은 실행의 안전한 요약과 처리자를 반환한다. */
 	@Test @DisplayName("실행 상세와 실패·감사 페이징은 같은 실행의 안전한 요약과 처리자를 반환한다")
 	void returnsExecutionSummaryAndHistories() throws Exception {
 		// given
@@ -69,6 +70,7 @@ class AdminDrawControllerTest {
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].actorId").value(actorId.toString()));
 	}
 
+	/** 다음 동작을 검증한다: 실패·감사 이력도 일반 사용자를 거절하고 존재하지 않는 실행은 404를 반환한다. */
 	@Test @DisplayName("실패·감사 이력도 일반 사용자를 거절하고 존재하지 않는 실행은 404를 반환한다")
 	void protectsExecutionHistories() throws Exception {
 		// given / when / then
@@ -138,6 +140,7 @@ class AdminDrawControllerTest {
 		verify(repository).findCandidates(runId, new PageQuery(1, 20));
 	}
 
+	/** 다음 동작을 검증한다: 재추첨 상세는 버전 2의 최초 실행·실제 빈 자리·유지 배정을 반환한다. */
 	@Test
 	@DisplayName("재추첨 상세는 버전 2의 최초 실행·실제 빈 자리·유지 배정을 반환한다")
 	void replacementDetailIncludesStoredTargetsAndRetainedAwards() throws Exception {
@@ -162,6 +165,7 @@ class AdminDrawControllerTest {
 				.andExpect(jsonPath("$.data.rulesSnapshot.retainedAwards[0].userId").value(winnerId.toString()));
 	}
 
+	/** 다음 동작을 검증한다: 허용 범위 밖 페이지는 공통 400 응답으로 거절한다. */
 	@ParameterizedTest
 	@CsvSource({"0,20", "1,0", "1,101", "-1,20"})
 	@DisplayName("허용 범위 밖 페이지는 공통 400 응답으로 거절한다")
@@ -174,6 +178,7 @@ class AdminDrawControllerTest {
 		verifyNoInteractions(repository, checks);
 	}
 
+	/** 다음 동작을 검증한다: 일반 사용자와 비활성 관리자는 모든 조회·검증 경로에서 403이다. */
 	@Test
 	@DisplayName("일반 사용자와 비활성 관리자는 모든 조회·검증 경로에서 403이다")
 	void rejectsUnauthorizedUsers() throws Exception {

@@ -18,7 +18,9 @@ import com.getddo.core.drawing.domain.DrawVerificationReferences;
 public interface DrawInspectionRepository {
 	/** findRun으로 존재를 확인한 실행만 조회한다. 호출자는 같은 조회 트랜잭션을 유지한다. */
 	DrawExecutionSummary findExecutionSummary(UUID runId);
+	/** 존재 확인된 실행의 전체 실패 기록을 실패 시각·ID 최신순으로 페이징한다. */
 	PageResult<DrawFailure> findFailures(UUID runId, PageQuery page);
+	/** 실행에 연결된 기존 감사 행을 생성 시각·ID 최신순으로 페이징한다. */
 	PageResult<DrawExecutionAuditView> findExecutionAudits(UUID runId, PageQuery page);
 	boolean eventExists(UUID eventId);
 	Optional<DrawRunView> findRun(UUID runId);

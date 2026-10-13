@@ -22,6 +22,7 @@ public final class DrawPublicationChange {
 		this(publication, changes, List.of());
 	}
 
+	/** 실제 공개 버전과 자리 변경·실행별 근거 목록을 외부에서 바꿀 수 없는 값으로 보존한다. */
 	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes, List<DrawPublicationExecution> executions) {
 		this.publication = Objects.requireNonNull(publication, "publication");
 		this.changes = List.copyOf(Objects.requireNonNull(changes, "changes"));

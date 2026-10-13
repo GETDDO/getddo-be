@@ -12,6 +12,7 @@ public record DrawRunDetailResponse(UUID id, UUID eventId, int runNumber, DrawTy
 		DrawRunStatus status, UUID originalDrawId, Instant startedAt, Instant confirmedAt, Instant createdAt,
 		String algorithmVersion, DrawRulesResponse rulesSnapshot, Instant snapshotFixedAt, List<DrawResultResponse> results, DrawExecutionSummaryResponse execution) {
 	public DrawRunDetailResponse { results = List.copyOf(results); }
+	/** 실행 메타데이터·저장 조건·결과와 운영 요약을 HTTP 전용 응답으로 변환한다. */
 	public static DrawRunDetailResponse from(DrawRunDetailView detail) {
 		DrawRunView run = detail.getRun();
 		Map<UUID, Integer> ranks = new HashMap<>();

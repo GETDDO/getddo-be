@@ -87,6 +87,7 @@ public class AwardCancellationRegistrationService {
 			throw new BusinessException(INVALID_REQUEST);
 	}
 
+	/** 현재 DB 역할·활성 상태를 공통 검사로 대조하고 취소 업무의 권한 오류를 유지한다. */
 	private void requireAdmin(UUID actorId) {
 		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
 	}

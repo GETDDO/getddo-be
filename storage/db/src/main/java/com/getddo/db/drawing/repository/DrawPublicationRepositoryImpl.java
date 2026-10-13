@@ -100,6 +100,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return immutableCopy(loaded);
 	}
 
+	/** 반환 맵과 각 값 목록을 복사해 원본 조회 자료구조의 변경이 결과에 전파되지 않게 한다. */
 	private static <T> Map<UUID, List<T>> immutableCopy(Map<UUID, List<T>> loaded) {
 		Map<UUID, List<T>> immutable = new HashMap<>();
 		loaded.forEach((id, values) -> immutable.put(id, List.copyOf(values)));

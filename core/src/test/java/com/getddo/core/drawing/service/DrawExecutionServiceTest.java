@@ -80,6 +80,7 @@ class DrawExecutionServiceTest {
 		assertThat(DrawExecutionService.classify(new BusinessException(NOT_EXECUTABLE))).isEqualTo(DrawFailureCode.NOT_EXECUTABLE);
 		assertThat(DrawFailureCode.NOT_EXECUTABLE.isRetryable()).isFalse();
 	}
+	/** 다음 동작을 검증한다: 시도 만료는 복구 경로와 같은 중단 실패로 분류한다. */
 	@Test @DisplayName("시도 만료는 복구 경로와 같은 중단 실패로 분류한다")
 	void retriesExpiredAttemptAsInterrupted() {
 		// given / when / then

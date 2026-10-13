@@ -382,6 +382,7 @@ class AwardCancellationFlowIntegrationTest {
 		verifyNoInteractions(selection);
 	}
 
+	/** 다음 동작을 검증한다: 실제 조회·취소·재추첨·검증·확인·공개·알림 연결은 재요청에 중복되지 않는다. */
 	@Test @DisplayName("실제 조회·취소·재추첨·검증·확인·공개·알림 연결은 재요청에 중복되지 않는다")
 	void integratesAdministrationPublicationAndNotification() {
 		// given
@@ -421,6 +422,7 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(historyCount(fixture.eventId())).isEqualTo(histories);
 	}
 
+	/** 다음 동작을 검증한다: 여러 실행의 미충원 결과와 서로 다른 확인자를 공개 근거에 보존한다. */
 	@Test @DisplayName("여러 실행의 미충원 결과와 서로 다른 확인자를 공개 근거에 보존한다")
 	void preservesMultipleRunEvidenceIncludingUnfilled() {
 		// given
@@ -464,6 +466,7 @@ class AwardCancellationFlowIntegrationTest {
 				.containsExactly("첫 번째 사유", "두 번째 사유");
 	}
 
+	/** 다음 동작을 검증한다: 실패 이력의 페이징과 예약·운영자 대기 요약을 실제 실패 후 조회한다. */
 	@Test @DisplayName("실패 이력의 페이징과 예약·운영자 대기 요약을 실제 실패 후 조회한다")
 	void queriesFailureHistoryAfterRealExecutionFailure() {
 		// given
@@ -487,6 +490,7 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(page.getItems().getFirst().getFailureCode()).doesNotContain("diagnostic");
 	}
 
+	/** 다음 동작을 검증한다: 알림 작업 등록 실패는 공개 버전과 새 확인을 모두 롤백하고 재시도는 한 번만 저장한다. */
 	@Test @DisplayName("알림 작업 등록 실패는 공개 버전과 새 확인을 모두 롤백하고 재시도는 한 번만 저장한다")
 	void rollsBackPublicationAndConfirmationWhenDurableRegistrationFails() {
 		// given
@@ -507,6 +511,7 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(jobCount(fixture.eventId())).isEqualTo(2);
 	}
 
+	/** 다음 동작을 검증한다: 커밋 뒤 모의 발송 실패는 공개 버전을 되돌리지 않고 기존 작업으로 재시도한다. */
 	@Test @DisplayName("커밋 뒤 모의 발송 실패는 공개 버전을 되돌리지 않고 기존 작업으로 재시도한다")
 	void deliveryFailureDoesNotRevertPublishedVersion() {
 		// given
@@ -525,6 +530,7 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(jdbc.queryForObject("select count(*) from notifications where job_id = ? and mock_delivery_status = 'SENT'", Long.class, toBytes(jobId(published)))).isEqualTo(5);
 	}
 
+	/** 다음 동작을 검증한다: 같은 실행의 동시 관리자 확인은 확인·공개·알림 작업을 각각 한 번만 저장한다. */
 	@Test @DisplayName("같은 실행의 동시 관리자 확인은 확인·공개·알림 작업을 각각 한 번만 저장한다")
 	void simultaneousConfirmationsReuseDurableRecords() throws Exception {
 		// given
@@ -557,6 +563,7 @@ class AwardCancellationFlowIntegrationTest {
 		}
 	}
 
+	/** 다음 동작을 검증한다: 영구 실패는 자동 예약 없이 운영자 대기 상태로 조회되며 오류 원문을 저장하지 않는다. */
 	@Test @DisplayName("영구 실패는 자동 예약 없이 운영자 대기 상태로 조회되며 오류 원문을 저장하지 않는다")
 	void summarizesOperatorWaitingForPermanentFailure() {
 		// given
@@ -571,6 +578,7 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(summary.waitingForOperator()).isTrue();
 	}
 
+	/** 다음 동작을 검증한다: 재추첨 당첨을 다시 취소해도 과거 검증과 공개 확인 근거는 불변이며 최신 자리만 바꾼다. */
 	@Test @DisplayName("재추첨 당첨을 다시 취소해도 과거 검증과 공개 확인 근거는 불변이며 최신 자리만 바꾼다")
 	void preservesHistoricalVerificationAndPublishedEvidenceAcrossGenerations() {
 		// given
@@ -608,10 +616,13 @@ class AwardCancellationFlowIntegrationTest {
 				.extracting(DrawCancellationView::id).containsExactly(second.cancellation().id());
 	}
 
+	/** 이벤트의 실제 알림 작업 행 수로 공개 버전별 중복 등록 여부를 확인한다. */
 	private long jobCount(UUID eventId) { return jdbc.queryForObject("select count(*) from notification_jobs where event_id = ?", Long.class, toBytes(eventId)); }
+	/** 공개 ID 기반 발생 키로 실제 등록된 알림 작업의 식별자를 읽는다. */
 	private UUID jobId(DrawPublication version) {
 		return fromBytes(jdbc.queryForObject("select id from notification_jobs where occurrence_key = ?", byte[].class, "draw-publication:" + version.id()));
 	}
+	/** 기존 생성 처리기를 작업이 없거나 시험 반복 상한에 이를 때까지 호출한다. */
 	private void processJobs() { for (int index = 0; index < 500 && jobs.processNextJob(); index++) { } }
 
 	private Object cancelOrConflict(UUID win, UUID key) {
@@ -677,6 +688,7 @@ class AwardCancellationFlowIntegrationTest {
 	private long cancellationCount(UUID event) { return jdbc.queryForObject("select count(*) from award_cancellations where draw_run_id in (select id from draw_runs where event_id = ?)", Long.class, toBytes(event)); }
 	private long resultCount(UUID run) { return jdbc.queryForObject("select count(*) from draw_results where draw_run_id = ?", Long.class, toBytes(run)); }
 	private long auditCount(String action, UUID target) { return jdbc.queryForObject("select count(*) from audit_logs where action = ? and target_id = ?", Long.class, action, toBytes(target)); }
+	/** 요청 행위와 대상에 저장된 감사 처리자를 읽어 취소자·실행자를 대조한다. */
 	private UUID auditActor(String action, UUID target) { return fromBytes(jdbc.queryForObject("select actor_id from audit_logs where action = ? and target_id = ?", byte[].class, action, toBytes(target))); }
 	private long historyCount(UUID event) { return jdbc.queryForObject("select count(*) from ticket_histories h join event_entries e on e.id = h.event_entry_id join event_participants p on p.id = e.participant_id where p.event_id = ?", Long.class, toBytes(event)); }
 	private List<Map<String, Object>> ticketRows(UUID event) {

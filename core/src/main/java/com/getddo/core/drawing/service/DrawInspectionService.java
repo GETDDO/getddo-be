@@ -44,6 +44,7 @@ public class DrawInspectionService {
 		return requireRun(runId);
 	}
 
+	/** 하나의 읽기 트랜잭션에서 실행·결과와 실패·취소 요약을 함께 조회한다. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public DrawRunDetailView detail(User user, UUID runId) {
 		admin(user);
@@ -65,6 +66,7 @@ public class DrawInspectionService {
 		return orderedResults(run);
 	}
 
+	/** 관리자 권한과 실행 존재를 확인한 뒤 전체 실패 이력의 한 페이지를 반환한다. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public PageResult<DrawFailure> failures(User user, UUID runId, PageQuery page) {
 		admin(user);
@@ -72,6 +74,7 @@ public class DrawInspectionService {
 		return repository.findFailures(runId, page);
 	}
 
+	/** 관리자 권한과 실행 존재를 확인한 뒤 원본 감사 행을 변경하지 않고 조회한다. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public PageResult<DrawExecutionAuditView> executionAudits(User user, UUID runId, PageQuery page) {
 		admin(user);

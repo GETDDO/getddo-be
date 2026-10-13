@@ -213,6 +213,7 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** 다음 동작을 검증한다: 공개 실행 연결은 다른 이벤트의 실행과 확인을 복합 FK로 거절한다. */
 	@Test @DisplayName("공개 실행 연결은 다른 이벤트의 실행과 확인을 복합 FK로 거절한다")
 	void rejectsPublicationEvidenceFromAnotherEvent() throws SQLException {
 		// given

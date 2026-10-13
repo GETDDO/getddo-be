@@ -15,6 +15,7 @@ import com.getddo.core.drawing.domain.DrawSnapshotSource;
 public class DrawInspectionRulesMapper {
 	private final JsonMapper json = JsonMapper.builder().build();
 
+	/** 저장 JSON의 버전별 전체 조건과 재추첨 연결을 복원하고 손상된 입력은 누락 근거로 반환한다. */
 	public Decoded decode(String value) {
 		if (value == null) return new Decoded(null, null);
 		try {

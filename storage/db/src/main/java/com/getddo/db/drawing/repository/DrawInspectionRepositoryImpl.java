@@ -41,6 +41,7 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		where link.draw_run_id = ?
 		""";
 
+	/** 최근 실패·예약과 실행 원인 취소·결과 취소를 동일 조회 단위의 운영 요약으로 묶는다. */
 	@Override
 	public DrawExecutionSummary findExecutionSummary(UUID runId) {
 		DrawFailure latest = jdbc.query("select * from draw_failures where draw_run_id = ? order by failed_at desc, id desc limit 1",
@@ -61,6 +62,7 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		}, toBytes(runId));
 	}
 
+	/** 실행별 실패 총수와 최신 이력 페이지를 조회하며 원문 예외를 새로 구성하지 않는다. */
 	@Override
 	public PageResult<DrawFailure> findFailures(UUID runId, PageQuery page) {
 		long count = jdbc.queryForObject("select count(*) from draw_failures where draw_run_id = ?", Long.class, toBytes(runId));
@@ -69,6 +71,7 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		return new PageResult<>(rows, page.getPage(), page.getSize(), count);
 	}
 
+	/** DRAW_RUN 대상의 기존 감사 총수와 최신 페이지를 조회해 처리자·요청 근거를 보존한다. */
 	@Override
 	public PageResult<DrawExecutionAuditView> findExecutionAudits(UUID runId, PageQuery page) {
 		long count = jdbc.queryForObject("select count(*) from audit_logs where target_type = 'DRAW_RUN' and target_id = ?", Long.class, toBytes(runId));
@@ -81,6 +84,7 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		return new PageResult<>(rows, page.getPage(), page.getSize(), count);
 	}
 
+	/** 저장된 분류 코드·시각과 선택적 추적 ID를 실패 조회값으로 복원한다. */
 	private static DrawFailure failure(java.sql.ResultSet row) throws java.sql.SQLException {
 		return new DrawFailure(id(row, "id"), id(row, "draw_run_id"), row.getString("failure_code"), instant(row, "failed_at"), row.getString("trace_id"));
 	}

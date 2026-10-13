@@ -64,6 +64,7 @@ class AdminDrawResumeControllerTest {
 		});
 	}
 
+	/** 다음 동작을 검증한다: 재개 중 응모자 없음으로 종료되면 200과 정상 종료 상태를 반환한다. */
 	@Test @DisplayName("재개 중 응모자 없음으로 종료되면 200과 정상 종료 상태를 반환한다")
 	void returnsCompletedNoEntries() throws Exception {
 		// given

@@ -202,6 +202,7 @@ public final class DrawStoredVerification {
 		return occupied.equals(expected);
 	}
 
+	/** 고정 시각까지 발생한 취소만 배정 검증에 반영하고 이후 취소는 소급하지 않는다. */
 	private static boolean canceledAtFixedTime(DrawHistoricalAward award, Instant fixedAt) {
 		return award.getCanceledAt() != null && !award.getCanceledAt().isAfter(fixedAt);
 	}

@@ -22,6 +22,7 @@ public class DrawPublicationExecutionId implements Serializable {
 	@Column(name = "draw_run_id", nullable = false, updatable = false, length = 16)
 	private UUID runId;
 
+	/** 공개 버전과 반영 실행의 필수 식별자로 복합키를 구성한다. */
 	public DrawPublicationExecutionId(UUID publicationId, UUID runId) {
 		this.publicationId = Objects.requireNonNull(publicationId, "publicationId");
 		this.runId = Objects.requireNonNull(runId, "runId");

@@ -12,6 +12,7 @@ import static com.getddo.db.common.util.UuidBinary.fromBytes;
 @RequiredArgsConstructor
 public class DrawPublicationNotificationRepositoryImpl implements DrawPublicationNotificationRepository {
 	private final JdbcTemplate jdbc;
+	/** 사용자별 유일한 응모자 중 접수 기록이 존재하는 대상만 사용자 ID 순으로 조회한다. */
 	@Override public List<UUID> findParticipants(UUID eventId) {
 		return jdbc.query("select p.user_id from event_participants p where p.event_id = ? and exists (select 1 from event_entries e where e.participant_id = p.id) order by p.user_id",
 				(row, index) -> fromBytes(row.getBytes("user_id")), toBytes(eventId));
