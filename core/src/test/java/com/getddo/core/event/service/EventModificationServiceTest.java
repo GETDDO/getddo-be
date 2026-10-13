@@ -122,6 +122,8 @@ class EventModificationServiceTest {
 	void rejectsEarlierStart() {
 		// given / when / then
 		assertError(EventErrorCode.START_CANNOT_ADVANCE, settings(START.minusSeconds(1), "변경", PRIZE));
+		verify(events, never()).update(any(), any());
+		verifyNoInteractions(notifications);
 	}
 
 	@Test
@@ -129,6 +131,8 @@ class EventModificationServiceTest {
 	void rejectsUnknownPrizeId() {
 		// given / when / then
 		assertError(EventErrorCode.INVALID_PRIZES, settings(START, "변경", UUID.randomUUID()));
+		verify(events, never()).update(any(), any());
+		verifyNoInteractions(notifications);
 	}
 
 	@Test
@@ -169,6 +173,8 @@ class EventModificationServiceTest {
 					new EventRegistration.Prize(PRIZE, 2, "경품", null, null, 1)));
 		// when / then
 		assertError(EventErrorCode.INVALID_PRIZES, input);
+		verify(events, never()).update(any(), any());
+		verifyNoInteractions(notifications);
 	}
 
 	@Test

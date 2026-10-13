@@ -56,7 +56,11 @@ public class EventRepositoryImpl implements EventRepository {
 				.uniqueResultOptional().map(this::toDomain);
 	}
 
-	/** JPA의 중간·최종 flush로 등수 UNIQUE와 GD-70 JDBC 조회의 가시성을 함께 보장한다. */
+	/**
+	 * 같은 트랜잭션·영속성 컨텍스트에서 동일 eventId의 findByIdForUpdate를 먼저 완료해야 한다.
+	 * findById는 선행 조회로 관리 중인 Entity를 재사용하며, 획득한 잠금은 트랜잭션 종료까지 유지된다.
+	 * JPA의 중간·최종 flush로 등수 UNIQUE와 GD-70 JDBC 조회의 가시성을 함께 보장한다.
+	 */
 	@Override
 	public RegisteredEvent update(UUID eventId, EventRegistration settings) {
 		EventEntity event = jpaRepository.findById(eventId)
