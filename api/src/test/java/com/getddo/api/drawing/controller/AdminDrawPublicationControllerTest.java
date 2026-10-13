@@ -68,7 +68,7 @@ class AdminDrawPublicationControllerTest {
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(users))).build();
 	}
 
-	/** 다음 동작을 검증한다: 공개 전 확인 재요청은 원래 확인자·시각과 미공개 상태를 보존한다. */
+	/** 공개 전 확인 재요청은 원래 확인자·시각과 미공개 상태를 보존한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 전 확인 재요청은 원래 확인자·시각과 미공개 상태를 보존한다")
 	void preInitialConfirmationDoesNotClaimPublicationAndRetryKeepsOriginalActorAndTime() throws Exception {
@@ -88,7 +88,7 @@ class AdminDrawPublicationControllerTest {
 		verify(repository, times(1)).saveConfirmation(runId, actorId, NOW);
 	}
 
-	/** 다음 동작을 검증한다: 확인 완료로 최초 명단이 공개되면 실제 공개 버전을 반환한다. */
+	/** 확인 완료로 최초 명단이 공개되면 실제 공개 버전을 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("확인 완료로 최초 명단이 공개되면 실제 공개 버전을 반환한다")
 	void preInitialConfirmationCanReturnActualFirstPublication() throws Exception {
@@ -102,7 +102,7 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.revision").value(1)).andExpect(jsonPath("$.data.publishedAt").value(NOW.toString()));
 	}
 
-	/** 다음 동작을 검증한다: 최초 공개 전 갱신과 최초 공개 후 신규 사전 확인을 거절한다. */
+	/** 최초 공개 전 갱신과 최초 공개 후 신규 사전 확인을 거절한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 공개 전 갱신과 최초 공개 후 신규 사전 확인을 거절한다")
 	void publicationRequiresInitialAndPreInitialRouteRejectsNewConfirmationAfterPublication() throws Exception {
@@ -118,7 +118,7 @@ class AdminDrawPublicationControllerTest {
 		verify(publications, never()).publishConfirmed(any(), any());
 	}
 
-	/** 다음 동작을 검증한다: 공개 후 재요청은 확인을 덮어쓰지 않고 실제 최신 버전을 반환한다. */
+	/** 공개 후 재요청은 확인을 덮어쓰지 않고 실제 최신 버전을 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("공개 후 재요청은 확인을 덮어쓰지 않고 실제 최신 버전을 반환한다")
 	void publishedConfirmationRetryReturnsActualLatestVersionWithoutOverwritingCheck() throws Exception {
@@ -141,7 +141,7 @@ class AdminDrawPublicationControllerTest {
 		verify(repository, never()).saveConfirmation(any(), any(), any());
 	}
 
-	/** 다음 동작을 검증한다: 최초 공개 후 새 확인은 연결된 최신 공개 메타데이터를 반환한다. */
+	/** 최초 공개 후 새 확인은 연결된 최신 공개 메타데이터를 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("최초 공개 후 새 확인은 연결된 최신 공개 메타데이터를 반환한다")
 	void firstPostPublicationConfirmationUsesLinkedPublicationMetadata() throws Exception {
@@ -157,7 +157,7 @@ class AdminDrawPublicationControllerTest {
 		verify(publications).publishConfirmed(eventId, runId);
 	}
 
-	/** 다음 동작을 검증한다: 실제 공개 변경 이력을 기본 페이지와 UTC 시각으로 반환한다. */
+	/** 실제 공개 변경 이력을 기본 페이지와 UTC 시각으로 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("실제 공개 변경 이력을 기본 페이지와 UTC 시각으로 반환한다")
 	void historyReturnsOnlyActualChangesWithDefaultPageMetadataAndUtcTimes() throws Exception {
@@ -201,7 +201,7 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].executions").isEmpty());
 	}
 
-	/** 다음 동작을 검증한다: 큰 페이지는 전체 건수를 보존한 빈 목록을 반환한다. */
+	/** 큰 페이지는 전체 건수를 보존한 빈 목록을 반환한다는 시나리오를 검증한다. */
 	@Test
 	@DisplayName("큰 페이지는 전체 건수를 보존한 빈 목록을 반환한다")
 	void customOutOfRangePageIsEmptyWithTotalPreserved() throws Exception {
@@ -216,7 +216,7 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.totalElements").value(3));
 	}
 
-	/** 다음 동작을 검증한다: 형식과 범위가 잘못된 페이지 조건은 400으로 거절한다. */
+	/** 형식과 범위가 잘못된 페이지 조건은 400으로 거절한다는 시나리오를 검증한다. */
 	@ParameterizedTest
 	@CsvSource({"page,0", "page,-1", "size,0", "size,101", "size,-1", "page,abc", "page,2147483648"})
 	@DisplayName("형식과 범위가 잘못된 페이지 조건은 400으로 거절한다")
@@ -228,7 +228,7 @@ class AdminDrawPublicationControllerTest {
 		verifyNoInteractions(repository, publications);
 	}
 
-	/** 다음 동작을 검증한다: 모든 공개 관리자 API는 활성 관리자만 허용한다. */
+	/** 모든 공개 관리자 API는 활성 관리자만 허용한다는 시나리오를 검증한다. */
 	@ParameterizedTest
 	@CsvSource({"USER,ACTIVE", "ADMIN,INACTIVE"})
 	@DisplayName("모든 공개 관리자 API는 활성 관리자만 허용한다")
