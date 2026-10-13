@@ -99,6 +99,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 		if (snapshot.drawType() == DrawType.REPLACEMENT) validateReplacement(snapshot);
 	}
 
+	/** 요청 시도 토큰과 저장된 소유권 토큰이 일치하는지 확인한다. 허용 실행 상태와 RUNNING의 토큰 필수 규칙은 서비스가 담당한다. */
 	@Override public void validateAttempt(UUID runId, UUID attemptId) {
 		DrawRunEntity run = runs.findById(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
 		if (!java.util.Objects.equals(run.getAttemptId(), attemptId)) invalid();
