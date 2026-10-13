@@ -25,6 +25,7 @@ class DrawExecutionServiceTest {
 	private final DrawExecutionService service = new DrawExecutionService(control, attempts, preparations,
 			new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 
+	/** 복구 결과의 거절은 복구 서비스 반환 뒤 처리하고 실패를 다시 기록하지 않는다. */
 	@Test @DisplayName("복구 결과의 거절은 복구 서비스 반환 뒤 처리하고 실패를 다시 기록하지 않는다")
 	void rejectsAfterRecoveryHasReturned() {
 		// given
@@ -37,6 +38,7 @@ class DrawExecutionServiceTest {
 		verify(control, never()).recordFailure(any(), any(), any(), any());
 	}
 
+	/** 확정 실행은 저장 결과를 반환하고 준비·선정을 다시 호출하지 않는다. */
 	@Test @DisplayName("확정 실행은 저장 결과를 반환하고 준비·선정을 다시 호출하지 않는다")
 	void replaysConfirmedResult() {
 		// given
@@ -51,6 +53,7 @@ class DrawExecutionServiceTest {
 		verify(attempts, never()).execute(any(), any());
 	}
 
+	/** 입력 준비 실패는 같은 실행·시도 ID로 기록하며 선정하지 않는다. */
 	@Test @DisplayName("입력 준비 실패는 같은 실행·시도 ID로 기록하며 선정하지 않는다")
 	void recordsPreparationFailureForSameAttempt() {
 		// given
@@ -69,6 +72,7 @@ class DrawExecutionServiceTest {
 		verify(attempts, never()).execute(any(), any());
 	}
 
+	/** 정합성·실행 불가 오류는 자동 재시도 대상으로 분류하지 않는다. */
 	@Test @DisplayName("정합성·실행 불가 오류는 자동 재시도 대상으로 분류하지 않는다")
 	void doesNotRetryIntegrityOrBlockedExecution() {
 		// given / when / then
@@ -76,6 +80,7 @@ class DrawExecutionServiceTest {
 		assertThat(DrawExecutionService.classify(new BusinessException(NOT_EXECUTABLE))).isEqualTo(DrawFailureCode.NOT_EXECUTABLE);
 		assertThat(DrawFailureCode.NOT_EXECUTABLE.isRetryable()).isFalse();
 	}
+	/** 실행 요청의 분기를 검증할 고정 시각·소유권을 가진 상태 대역을 구성한다. */
 	private DrawExecutionState state(DrawRunStatus status) {
 		return new DrawExecutionState(runId, eventId, DrawType.INITIAL, status, status == DrawRunStatus.PREPARING ? null : NOW,
 				attemptId, NOW.plusSeconds(300), null, NOW);

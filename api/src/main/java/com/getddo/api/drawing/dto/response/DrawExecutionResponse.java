@@ -8,6 +8,7 @@ import com.getddo.core.drawing.domain.DrawRunStatus;
 
 /** 실행 상태와 확정 시 저장 결과만 제공한다. 실패 원문은 노출하지 않는다. */
 public record DrawExecutionResponse(UUID runId, DrawRunStatus status, Confirmation confirmation) {
+	/** 내부 실행 결과를 HTTP 응답으로 변환한다. 확정 시에만 저장된 결과를 포함하며 실패 예외 원문을 노출하지 않는다. */
 	public static DrawExecutionResponse from(DrawExecutionResult result) {
 		Confirmation confirmation = result.getConfirmation() == null ? null : new Confirmation(
 				result.getConfirmation().getConfirmedAt(), result.getConfirmation().getResults().stream().map(stored -> new Result(

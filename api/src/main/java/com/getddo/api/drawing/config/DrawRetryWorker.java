@@ -19,6 +19,7 @@ import com.getddo.core.drawing.service.DrawExecutionService;
 public class DrawRetryWorker {
 	private final DrawExecutionControlService control;
 	private final DrawExecutionService executions;
+	/** 등록 후 시작하지 못한 실행·만기 예약·만료 소유권을 조회해 같은 실행을 처리한다. 개별 처리나 조회 실패가 다음 폴링을 중단하지 않게 한다. */
 	@Scheduled(fixedDelayString = "${getddo.drawing.retry-worker.poll-delay:1000}")
 	public void poll() {
 		try {
