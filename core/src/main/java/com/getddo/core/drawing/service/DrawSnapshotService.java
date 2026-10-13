@@ -84,6 +84,7 @@ public class DrawSnapshotService {
 		return repository.saveRegisteredInitial(buildInput(event, runId, time.now()));
 	}
 
+	/** 최초 실행 가능 조건과 응모·차감 근거를 검증해 고정할 후보·규칙을 구성한다. 응모자가 없으면 NO_ENTRIES 입력으로 정상 종료를 표현한다. */
 	private DrawSnapshot buildInput(DrawSnapshotSource.Event event, UUID runId, Instant now) {
 		if (event.deleted() || (event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
 				|| now.isBefore(event.endsAt().plusSeconds(300))) throw new BusinessException(NOT_EXECUTABLE);

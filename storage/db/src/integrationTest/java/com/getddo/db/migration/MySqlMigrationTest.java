@@ -109,6 +109,7 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** 개별 응모권·이력과 게임 통계의 PK 및 중복 방지 UNIQUE를 확인한다. */
 	@Test
 	@DisplayName("개별 응모권·이력과 게임 통계의 PK 및 중복 방지 UNIQUE를 확인한다")
 	void ticketsHistoriesAndGameStatsUseSingleIdPrimaryKey() throws SQLException {
@@ -131,6 +132,7 @@ class MySqlMigrationTest {
 		assertThat(indexColumns("user_game_stats", "uq_user_game_stats_1")).containsExactly("user_id", "game_id");
 	}
 
+	/** 출석 응모권은 브론즈 및 지급 근거 소유자를 검증하고 이력 버전 중복을 거부한다. */
 	@Test
 	@DisplayName("출석 응모권은 브론즈 및 지급 근거 소유자를 검증하고 이력 버전 중복을 거부한다")
 	void enforcesTicketSourceGradeAndHistoryVersion() throws SQLException {
@@ -182,6 +184,7 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** 같은 사용자·게임의 게임 통계 두 번째 행은 UNIQUE로 거부한다. */
 	@Test
 	@DisplayName("같은 사용자·게임의 게임 통계 두 번째 행은 UNIQUE로 거부한다")
 	void rejectsDuplicateUserGameStats() throws SQLException {
@@ -209,10 +212,12 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** Testcontainers 임시 MySQL의 접속 정보로 독립 JDBC 연결을 연다. */
 	private static Connection connect() throws SQLException {
 		return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
 	}
 
+	/** 검증용 SQL의 문자열 매개변수를 바인딩해 임시 DB의 제약 조건을 확인할 데이터를 처리한다. */
 	private static void execute(Connection connection, String sql, String... parameters) throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement(sql)) {
 			for (int i = 0; i < parameters.length; i++) {

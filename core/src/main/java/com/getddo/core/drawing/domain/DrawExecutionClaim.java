@@ -9,6 +9,7 @@ public final class DrawExecutionClaim {
 	private final DrawExecutionState state;
 	private final boolean claimed;
 	private final ErrorCode rejectionCode;
+	/** 거절 코드 없이 저장 상태와 이번 호출의 새 시도 획득 여부를 전달한다. */
 	public DrawExecutionClaim(DrawExecutionState state, boolean claimed) { this(state, claimed, null); }
 	/** 복구 기록을 먼저 커밋하고 HTTP 거절은 트랜잭션 밖으로 전달한다. */
 	public DrawExecutionClaim(DrawExecutionState state, boolean claimed, ErrorCode rejectionCode) {

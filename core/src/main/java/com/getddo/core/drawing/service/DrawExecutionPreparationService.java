@@ -23,6 +23,7 @@ public class DrawExecutionPreparationService {
 	private final List<DrawInputPreparation> preparations;
 	private final TimeProvider time;
 
+	/** 이벤트·실행 잠금과 유효 소유권을 확인한 뒤 실행 종류별 준비 기능으로 입력을 한 번 고정한다. 선정과 별도로 커밋하며 이미 고정된 입력은 재계산하지 않는다. */
 	@Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
 	public void prepare(UUID runId, UUID attemptId) {
 		UUID eventId = results.findEventId(runId).orElseThrow(() -> new BusinessException(INVALID_RUN));
