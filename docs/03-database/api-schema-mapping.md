@@ -43,6 +43,17 @@
 | E04 응모 | 같음 | `tickets`, `ticket_histories` | 응모 행 저장 뒤 차감 서비스가 응모권을 `SPENT`로 바꾸고 `USE` 이력을 남긴다. |
 | E07 자격 조회 | `GET /api/v1/events/{eventId}/eligibility` | `events`, `event_participants`, `tickets` | 잠금 없이 읽기만 한다. 사용 수량은 응모자 행, 보유 장수는 응모권 조회(T01의 등급별 보유)를 쓴다. |
 
+## 미션 모델·저장소 현행 매핑 (GD-167)
+
+미션 API(M01~M04, AM01~AM03)는 아직 없고, 그 API가 쓸 도메인 모델과 저장소만 `V003` 테이블에 매핑해 두었다. 새 마이그레이션은 없다.
+
+| 도메인 객체 | 테이블 | 저장소 | 비고 |
+| --- | --- | --- | --- |
+| `Mission` + 문항·선택지(`MissionDetail`) | `missions`, `mission_quiz_questions`, `quiz_question_options`, `survey_questions`, `survey_question_options` | `MissionRepository` | 미션과 문항을 한 번에 저장한다. 운영 중 수정 메서드는 없다. 목록은 운영 시작 시각 내림차순이다. |
+| `MissionSubmission` + 답변 | `mission_submissions`, `quiz_answers`, `survey_answers` | `MissionSubmissionRepository` | 제출 시각은 서버가 저장한 시각(`created_at`)이다. 답변의 `mission_id`는 복합 외래 키가 제출·문항의 소속 미션을 맞춘다. |
+| `QuizQuestionProgress` | `quiz_question_progress` | `QuizQuestionProgressRepository` | 사용자·문항 단위로 정답 완료를 한 번만 기록한다. |
+| `MissionRewardClaim` | `mission_reward_claims` | `MissionRewardClaimRepository` | 사용자·미션 단위로 한 번만 청구한다. 응모권은 1장으로 고정이다. |
+
 ## 확인된 차이와 구현 검토 항목
 
 | ID | 코드·SQL에서 확인한 사실 | 명세 영향과 후속 작업 |
@@ -56,7 +67,7 @@
 | D07 | `game_reward_claims`는 사용자·source_key 및 사용자·게임·보상일 UNIQUE를 모두 가짐 | 현재 원격 `dev`에 추가된 사용자·게임·보상일 UNIQUE를 기준으로 중복 지급을 검증 |
 | D08 | `reward_policies`에 게임별 보상 조건 JSON 또는 검증 버전 필드는 없음. `games.rules`는 현재 게임 규칙 | 다음 일일 기준일 적용이 필요한 게임 보상 조건의 버전·예약 저장 구조 설계 필요 |
 | D09 | 공통 응답·페이징은 존재하나 업무 Controller·DTO·헤더 사용자 문맥 필터는 없음 | 본 문서의 API는 호출 가능한 현재 기능이 아님. 각 담당자 구현 후 Swagger와 계약 대조 필요 |
-| D10 | `missions.status`는 DRAFT/ACTIVE/ENDED, 문항별 `quiz_question_progress` 존재 | 상태 전환·다문항 누적 달성 정책은 테이블에서 역으로 확정하지 않음 |
+| D10 | `missions.status`는 `ACTIVE`/`ENDED` 두 값뿐이다(API 초안의 `DRAFT`는 스키마에 없음). 문항별 `quiz_question_progress` 존재 | 시작 전 초안 상태를 쓰려면 새 마이그레이션이 필요하다. 상태 전환·다문항 누적 달성 정책은 테이블에서 역으로 확정하지 않음 |
 | D11 | `ticket_ledger`는 수량 0을 허용하지 않고 출석 단계 정책은 보상 0을 허용 | 보상 기록과 실제 지급 원장을 구분. 지급량 0 허용 범위와 응답 계약 확인 필요 |
 
 위 항목은 최신 SQL의 정적 검토 결과이며 런타임 검증 결과가 아니다. D01·D07은 기존 초안과 달리 현재 `dev`에 반영된 상태를 기록했다.

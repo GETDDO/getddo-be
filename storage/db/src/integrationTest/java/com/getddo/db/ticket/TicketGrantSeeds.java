@@ -58,6 +58,17 @@ public class TicketGrantSeeds {
 			jdbc.update("delete from event_entries where user_id = ?", id);
 			jdbc.update("delete from event_participants where user_id = ?", id);
 			jdbc.update("delete from mission_reward_claims where user_id = ?", id);
+			jdbc.update("delete from quiz_question_progress where user_id = ?", id);
+			jdbc.update("""
+					delete a from quiz_answers a
+					join mission_submissions s on s.id = a.submission_id
+					where s.user_id = ?
+					""", id);
+			jdbc.update("""
+					delete a from survey_answers a
+					join mission_submissions s on s.id = a.submission_id
+					where s.user_id = ?
+					""", id);
 			jdbc.update("delete from attendance_reward_claims where user_id = ?", id);
 			jdbc.update("delete from game_reward_claims where user_id = ?", id);
 			jdbc.update("delete from mission_submissions where user_id = ?", id);
@@ -68,6 +79,28 @@ public class TicketGrantSeeds {
 		// 2) 사용자가 등록자인 행(미션·보상 정책·연속 출석 정책)
 		for (UUID user : users) {
 			byte[] id = bytes(user);
+			jdbc.update("""
+					delete o from quiz_question_options o
+					join mission_quiz_questions q on q.id = o.quiz_question_id
+					join missions m on m.id = q.mission_id
+					where m.created_by = ?
+					""", id);
+			jdbc.update("""
+					delete q from mission_quiz_questions q
+					join missions m on m.id = q.mission_id
+					where m.created_by = ?
+					""", id);
+			jdbc.update("""
+					delete o from survey_question_options o
+					join survey_questions q on q.id = o.survey_question_id
+					join missions m on m.id = q.mission_id
+					where m.created_by = ?
+					""", id);
+			jdbc.update("""
+					delete q from survey_questions q
+					join missions m on m.id = q.mission_id
+					where m.created_by = ?
+					""", id);
 			jdbc.update("delete from missions where created_by = ?", id);
 			jdbc.update("delete from reward_policies where created_by = ?", id);
 			jdbc.update("""
@@ -259,6 +292,11 @@ public class TicketGrantSeeds {
 				values (?, ?, ?, 0, 0, ?)
 				""", bytes(entryId), bytes(participantId), bytes(userId), SEED_TIME);
 		return entryId;
+	}
+
+	/** 미션 보상 정책. 미션 등록 전에 부모로 필요하다. */
+	public UUID missionRewardPolicy(UUID createdBy) {
+		return rewardPolicy(createdBy, "MISSION", null);
 	}
 
 	private UUID rewardPolicy(UUID createdBy, String rewardType, UUID gameId) {
