@@ -39,6 +39,7 @@ import com.getddo.core.mission.domain.MissionSubmissionResult;
 import com.getddo.core.mission.exception.MissionErrorCode;
 import com.getddo.core.mission.exception.MissionException;
 import com.getddo.core.mission.service.MissionQueryService;
+import com.getddo.core.mission.service.MissionSubmissionQueryService;
 import com.getddo.core.mission.service.MissionSubmissionService;
 import com.getddo.core.ticket.domain.TicketGrade;
 import com.getddo.core.ticket.exception.TicketErrorCode;
@@ -57,6 +58,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -81,12 +83,13 @@ class MissionControllerTest {
 	private static final String SECRET_ANSWER = "비밀정답문자열";
 
 	private final MissionQueryService queryService = mock(MissionQueryService.class);
+	private final MissionSubmissionQueryService submissionQueryService = mock(MissionSubmissionQueryService.class);
 	private final MissionSubmissionService submissionService = mock(MissionSubmissionService.class);
 	private MockMvc mvc;
 
 	@BeforeEach
 	void setUp() {
-		mvc = MockMvcBuilders.standaloneSetup(new MissionController(queryService, submissionService,
+		mvc = MockMvcBuilders.standaloneSetup(new MissionController(queryService, submissionQueryService, submissionService,
 						new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))))
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(
@@ -379,5 +382,69 @@ class MissionControllerTest {
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("USER-006"));
 		verify(queryService).findMissions(USER_ID, null, new PageQuery(1, 20));
+	}
+
+	@Test
+	@DisplayName("내 제출 조회는 오답은 보상 없이, 완료한 제출은 보상과 함께 최신순으로 봉투에 담고 조건을 서비스에 전달한다")
+	void listsMySubmissionsWithRewardOnlyForCompleted() throws Exception {
+		// given
+		UUID wrongId = UUID.randomUUID();
+		when(submissionQueryService.findMySubmissions(eq(USER_ID), eq(MISSION_ID), any())).thenReturn(new PageResult<>(
+				List.of(completed(false), new MissionSubmissionResult(wrongId, MISSION_ID, RECEIVED_AT.minusSeconds(60),
+						false, null, false)), 2, 5, 7));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID))
+						.param("page", "2").param("size", "5"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.page").value(2))
+				.andExpect(jsonPath("$.data.size").value(5))
+				.andExpect(jsonPath("$.data.totalElements").value(7))
+				.andExpect(jsonPath("$.data.items[0].submissionId").value(SUBMISSION_ID.toString()))
+				.andExpect(jsonPath("$.data.items[0].missionId").value(MISSION_ID.toString()))
+				.andExpect(jsonPath("$.data.items[0].isCompleted").value(true))
+				.andExpect(jsonPath("$.data.items[0].receivedAt").value("2026-10-13T03:00:00Z"))
+				.andExpect(jsonPath("$.data.items[0].createdAt").value("2026-10-13T03:00:00Z"))
+				.andExpect(jsonPath("$.data.items[0].reward.ticketCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].reward.grade").value("SILVER"))
+				.andExpect(jsonPath("$.data.items[1].submissionId").value(wrongId.toString()))
+				.andExpect(jsonPath("$.data.items[1].isCompleted").value(false))
+				.andExpect(jsonPath("$.data.items[1].reward").value(nullValue()))
+				.andExpect(jsonPath("$.data.items[0].answers").doesNotExist())
+				.andExpect(jsonPath("$.data.items[0].isCorrect").doesNotExist())
+				.andExpect(jsonPath("$.data.items[1].selectedOptionId").doesNotExist());
+		verify(submissionQueryService).findMySubmissions(USER_ID, MISSION_ID, new PageQuery(2, 5));
+	}
+
+	@Test
+	@DisplayName("내 제출 조회의 페이지 기본값은 1페이지 20건이고 범위를 벗어나면 400이며 조회하지 않는다")
+	void mySubmissionsUsesDefaultsAndRejectsInvalidParameters() throws Exception {
+		// given
+		when(submissionQueryService.findMySubmissions(any(), any(), any()))
+				.thenReturn(new PageResult<>(List.of(), 1, 20, 0));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty());
+		verify(submissionQueryService).findMySubmissions(USER_ID, MISSION_ID, new PageQuery(1, 20));
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)).param("page", "0"))
+				.andExpect(status().isBadRequest());
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)).param("size", "101"))
+				.andExpect(status().isBadRequest());
+		verify(submissionQueryService, times(1)).findMySubmissions(any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("없는 미션의 내 제출 조회는 404 MISSION-003이다")
+	void mySubmissionsOfMissingMissionIsNotFound() throws Exception {
+		// given
+		when(submissionQueryService.findMySubmissions(any(), any(), any()))
+				.thenThrow(new MissionException(MissionErrorCode.MISSION_NOT_FOUND));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions/{missionId}/submissions/me", MISSION_ID)))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("MISSION-003"));
 	}
 }

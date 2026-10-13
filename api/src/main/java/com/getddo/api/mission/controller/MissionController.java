@@ -31,11 +31,12 @@ import com.getddo.core.mission.domain.MissionSubmissionCommand;
 import com.getddo.core.mission.domain.MissionSubmissionResult;
 import com.getddo.core.mission.domain.MissionType;
 import com.getddo.core.mission.service.MissionQueryService;
+import com.getddo.core.mission.service.MissionSubmissionQueryService;
 import com.getddo.core.mission.service.MissionSubmissionService;
 import com.getddo.core.user.domain.User;
 
 /**
- * 미션 목록(M01)·상세(M02) 조회와 제출(M03) API다.
+ * 미션 목록(M01)·상세(M02) 조회, 제출(M03), 내 제출 조회(M04) API다.
  *
  * <p>공통 MVC에서 헤더와 DB 정보를 대조한 사용자를 기준으로 처리한다. 제출 ID는 서버가 만들지 않고 클라이언트가 요청 전에 정한
  * UUID를 {@code Idempotency-Key} 헤더로 보낸다.</p>
@@ -45,12 +46,14 @@ import com.getddo.core.user.domain.User;
 public class MissionController {
 
 	private final MissionQueryService queryService;
+	private final MissionSubmissionQueryService submissionQueryService;
 	private final MissionSubmissionService submissionService;
 	private final TimeProvider timeProvider;
 
-	public MissionController(MissionQueryService queryService, MissionSubmissionService submissionService,
-			TimeProvider timeProvider) {
+	public MissionController(MissionQueryService queryService, MissionSubmissionQueryService submissionQueryService,
+			MissionSubmissionService submissionService, TimeProvider timeProvider) {
 		this.queryService = queryService;
+		this.submissionQueryService = submissionQueryService;
 		this.submissionService = submissionService;
 		this.timeProvider = timeProvider;
 	}
@@ -86,6 +89,26 @@ public class MissionController {
 			@PathVariable UUID missionId) {
 		return ResponseEnvelope.success(MissionDetailResponse.from(queryService.findMission(user.getId(), missionId),
 				timeProvider.now()));
+	}
+
+	/**
+	 * 내가 해당 미션에 낸 제출을 최신순으로 조회한다. 오답 제출도 {@code isCompleted=false}, {@code reward=null}인 정상 결과로
+	 * 보여 주고, 완료한 제출에는 확정된 응모권 보상을 담는다. 정답은 응답에 포함하지 않는다.
+	 *
+	 * @param user 공통 MVC에서 확인한 등록 사용자
+	 * @param missionId 조회할 미션. 없으면 404다
+	 * @param page 1부터 시작하는 페이지 번호
+	 * @param size 페이지 크기(1~100)
+	 */
+	@GetMapping("/{missionId}/submissions/me")
+	public ResponseEnvelope<PageResult<MissionSubmissionResponse>> mySubmissions(
+			@CurrentUser User user,
+			@PathVariable UUID missionId,
+			@RequestParam(defaultValue = "1") @Min(1) int page,
+			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+		return ResponseEnvelope.success(
+				submissionQueryService.findMySubmissions(user.getId(), missionId, new PageQuery(page, size))
+						.map(MissionSubmissionResponse::from));
 	}
 
 	/**

@@ -241,4 +241,34 @@ class MissionApiIntegrationTest {
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value("MISSION-003"));
 	}
+
+	@Test
+	@DisplayName("내 제출 조회는 오답과 완료 제출을 최신순으로 보여 주고 보상은 완료 제출에만 붙으며 없는 미션은 404다")
+	void listsMySubmissionsWithRewardOnlyOnCompleted() throws Exception {
+		// given
+		UUID wrongKey = UUID.randomUUID();
+		UUID doneKey = UUID.randomUUID();
+		mvc.perform(submit(wrongKey, answers(OPTION_NO, "겟또"))).andExpect(status().isCreated());
+		mvc.perform(submit(doneKey, answers(OPTION_OK, "겟또"))).andExpect(status().isCreated());
+		// when
+		// then
+		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", MISSION).headers(headers()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.totalElements").value(2))
+				.andExpect(jsonPath("$.data.items[0].submissionId").value(doneKey.toString()))
+				.andExpect(jsonPath("$.data.items[0].isCompleted").value(true))
+				.andExpect(jsonPath("$.data.items[0].reward.ticketCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].reward.grade").isString())
+				.andExpect(jsonPath("$.data.items[1].submissionId").value(wrongKey.toString()))
+				.andExpect(jsonPath("$.data.items[1].isCompleted").value(false))
+				.andExpect(jsonPath("$.data.items[1].reward").value(nullValue()))
+				.andExpect(jsonPath("$.data.items[0].answers").doesNotExist())
+				.andExpect(jsonPath("$.data.items[0].isCorrect").doesNotExist())
+				.andExpect(jsonPath("$.data.items[1].selectedOptionId").doesNotExist());
+		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", MISSION).param("size", "101").headers(headers()))
+				.andExpect(status().isBadRequest());
+		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", UUID.randomUUID()).headers(headers()))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("MISSION-003"));
+	}
 }
