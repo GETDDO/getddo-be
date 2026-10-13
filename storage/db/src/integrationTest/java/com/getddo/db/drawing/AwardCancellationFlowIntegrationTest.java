@@ -69,6 +69,7 @@ class AwardCancellationFlowIntegrationTest {
 	@Autowired private DrawPublicationService publications;
 	@Autowired private DrawResultConfirmationService resultConfirmations;
 	@Autowired private DrawInspectionService inspections;
+	@Autowired private DrawInspectionRepository inspectionRecords;
 	@Autowired private UserRepository users;
 	@Autowired private NotificationJobService jobs;
 	@MockitoSpyBean private NotificationJobRepositoryImpl jobRecords;
@@ -444,8 +445,20 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(unfilledDetail.getResults()).singleElement().satisfies(result -> {
 			assertThat(result.getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
 			assertThat(result.getUserId()).isNull();
+			assertThat(result.getCandidateId()).isNull();
+			assertThat(result.getSelectionOrder()).isNull();
 			assertThat(result.isWasPublished()).isFalse();
 		});
+		DrawRunView nextRun = inspections.run(users.findById(actor).orElseThrow(), second.cancellation().replacementRunId());
+		List<DrawHistoricalAward> historical = inspectionRecords.findReplacementReferences(nextRun).getHistoricalAwards();
+		assertThat(historical).extracting(DrawHistoricalAward::getId).doesNotHaveDuplicates();
+		assertThat(historical).filteredOn(award -> award.getRunId().equals(first.cancellation().replacementRunId()))
+				.singleElement().satisfies(award -> {
+					assertThat(award.getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+					assertThat(award.getCandidateId()).isNull();
+					assertThat(award.getUserId()).isNull();
+					assertThat(award.getCanceledAt()).isNull();
+				});
 		assertThat(evidence.stream().map(DrawPublicationExecution::confirmedBy)).containsExactly(actor, otherAdmin);
 		assertThat(evidence.stream().flatMap(value -> value.cancellations().stream()).map(DrawPublicationCancellation::reason))
 				.containsExactly("첫 번째 사유", "두 번째 사유");

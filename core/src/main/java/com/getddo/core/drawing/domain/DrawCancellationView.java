@@ -18,7 +18,7 @@ public final class DrawCancellationView {
 	private final String reason;
 	private final Instant canceledAt;
 
-	/** 저장된 조회 필드를 보존하고 컬렉션은 외부 변경으로부터 보호한다. */
+	/** 결과의 취소와 후속 재추첨의 연결을 원본 조회값대로 보존한다. */
 	public DrawCancellationView(UUID id, UUID resultId, UUID replacementRunId, UUID canceledBy, String reason, Instant canceledAt) {
 		this.id = id;
 		this.resultId = resultId;

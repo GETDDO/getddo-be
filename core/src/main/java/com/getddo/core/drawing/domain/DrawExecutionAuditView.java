@@ -20,7 +20,7 @@ public final class DrawExecutionAuditView {
 	private final String requestId;
 	private final Instant createdAt;
 
-	/** 저장된 조회 필드를 보존하고 컬렉션은 외부 변경으로부터 보호한다. */
+	/** 실제 실행자와 원본 감사 내용을 새 업무 판단 없이 보존한다. */
 	public DrawExecutionAuditView(UUID id, UUID actorId, String action, String reason, String beforeData, String afterData, String requestId, Instant createdAt) {
 		this.id = id;
 		this.actorId = actorId;
