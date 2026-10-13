@@ -1,0 +1,31 @@
+package com.getddo.api.drawing.controller;
+
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import com.getddo.api.common.context.CurrentUser;
+import com.getddo.api.common.response.ResponseEnvelope;
+import com.getddo.api.drawing.dto.response.DrawExecutionResponse;
+import com.getddo.core.drawing.domain.DrawExecutionResult;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.service.DrawExecutionService;
+import com.getddo.core.user.domain.User;
+
+/** 최초 실행 재개만 제공하며 AD05·AD09는 GD-138 책임이다. */
+@RestController
+@RequestMapping("/api/v1/admin/draws")
+@RequiredArgsConstructor
+public class AdminDrawResumeController {
+	private final DrawExecutionService executions;
+	@PostMapping("/{runId}/resume")
+	public ResponseEntity<ResponseEnvelope<DrawExecutionResponse>> resume(@PathVariable UUID runId, @CurrentUser User actor) {
+		DrawExecutionResult result = executions.resumeInitial(runId, actor.getId());
+		HttpStatus status = result.getStatus() == DrawRunStatus.CONFIRMED ? HttpStatus.OK : HttpStatus.ACCEPTED;
+		return ResponseEntity.status(status).body(ResponseEnvelope.success(DrawExecutionResponse.from(result)));
+	}
+}

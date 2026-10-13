@@ -1,7 +1,9 @@
 package com.getddo.db.game;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import jakarta.persistence.EntityManager;
@@ -27,8 +29,8 @@ class GamePlayConcurrencyIntegrationTest extends GamePlayIntegrationTestSupport 
 		GamePlay submitted = play.complete(20L, HASH, time.now().plusSeconds(1));
 		CountDownLatch locked = new CountDownLatch(1);
 		CountDownLatch release = new CountDownLatch(1);
-		try (var executor = Executors.newFixedThreadPool(2)) {
-			var first = executor.submit(() -> transaction.execute(status -> {
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Future<GamePlay> first = executor.submit(() -> transaction.execute(status -> {
 				GamePlay current = plays.findForUpdate(play.getId(), userId, game.getId()).orElseThrow();
 				GamePlay completed = plays.complete(current.complete(10L, HASH, time.now()));
 				entityManager.flush();
@@ -46,7 +48,7 @@ class GamePlayConcurrencyIntegrationTest extends GamePlayIntegrationTestSupport 
 			try {
 				assertThat(locked.await(20, TimeUnit.SECONDS)).isTrue();
 				// when
-				var second = executor.submit(() -> transaction.execute(status -> plays.complete(submitted)));
+				Future<GamePlay> second = executor.submit(() -> transaction.execute(status -> plays.complete(submitted)));
 				lockWaits.awaitLockWaits(1);
 				release.countDown();
 				GamePlay winner = first.get(20, TimeUnit.SECONDS);

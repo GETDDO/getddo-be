@@ -24,6 +24,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -762,8 +764,12 @@ class NotificationJobIntegrationTest {
 
 	@SpringBootConfiguration
 	@EnableAutoConfiguration
-	@ComponentScan(basePackages = {"com.getddo.core.notification", "com.getddo.db.notification"})
-	@Import({JpaAuditingConfig.class, MySqlTestConfiguration.class})
+	@ComponentScan(basePackages = {"com.getddo.core.notification", "com.getddo.db.notification",
+			"com.getddo.core.audit", "com.getddo.db.audit.mapper"})
+	@EntityScan(basePackages = {"com.getddo.db.notification", "com.getddo.db.audit"})
+	@EnableJpaRepositories(basePackages = {"com.getddo.db.notification", "com.getddo.db.audit"})
+	@Import({JpaAuditingConfig.class, MySqlTestConfiguration.class,
+			com.getddo.db.audit.repository.AuditLogRepositoryImpl.class})
 	static class TestApplication {
 		/** 테스트가 선점과 재시도 경계 시각을 직접 제어할 수 있는 시계를 제공한다. */
 		@Bean

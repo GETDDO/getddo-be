@@ -55,6 +55,7 @@ class MySqlMigrationTest {
 		assertThat(appliedMigrations).isPositive().isEqualTo(flyway.info().all().length);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
+		assertThat(indexColumns("award_cancellations", "uq_award_cancellations_request", 0)).containsExactly("request_key");
 		flyway.validate();
 		assertNullableDeletedAtColumn("events");
 		assertThat(indexColumns("events", "idx_events_list", 1))
@@ -63,8 +64,14 @@ class MySqlMigrationTest {
 		assertIndexExists("notification_jobs", "ix_notification_job_lease");
 		assertIndexExists("notifications", "ix_notification_delivery_retry");
 		assertIndexExists("tickets", "ix_tickets_user_grade_expiry");
+		assertThat(indexColumns("draw_runs", "draw_retry_due_idx", 1)).containsExactly("status", "retry_at");
+		assertThat(indexColumns("draw_runs", "draw_lease_due_idx", 1)).containsExactly("status", "lease_until");
+		assertThat(indexColumns("draw_failures", "draw_failure_history_idx", 1)).containsExactly("draw_run_id", "failed_at", "id");
 		assertThat(indexColumns("tickets", "ix_tickets_user_grade_expiry", 1))
 				.containsExactly("user_id", "grade", "expires_at");
+		assertIndexExists("tickets", "ix_tickets_status_expiry");
+		assertThat(indexColumns("tickets", "ix_tickets_status_expiry", 1))
+				.containsExactly("status", "expires_at");
 		try (Connection connection = connect();
 			ResultSet rows = connection.createStatement().executeQuery("""
 				select column_type from information_schema.columns

@@ -1,6 +1,6 @@
 # 시연용 사용자 문맥과 내 정보 API
 
-- 관련 작업: [GD-52](https://ureca4.atlassian.net/browse/GD-52), [GD-81](https://ureca4.atlassian.net/browse/GD-81)
+- 관련 작업: [GD-52](https://ureca4.atlassian.net/browse/GD-52), [GD-81](https://ureca4.atlassian.net/browse/GD-81), [GD-168](https://ureca4.atlassian.net/browse/GD-168)
 - 공용 기준: [사용자 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/user.md), [공통 API 초안](https://github.com/GETDDO/getddo-spec/blob/main/05-api/common.md)
 
 이 문서는 GD-52의 백엔드 구현 사용법이다. 로그인 없이 사전 등록한 사용자를 헤더로 선택하고, DB에서 확인한 정보를 필요한 Controller에 전달한다. 사용자 정보를 변경하거나 로그인·토큰을 발급하지 않는다.
@@ -62,6 +62,7 @@ public ResponseEnvelope<UserProfileResponse> getProfile(@CurrentUser User user) 
 - `CommonErrorCode`: 사용자 헤더 누락·역할 불일치·USER의 DB 멤버십 누락·멤버십 불일치를 정의한다. 공통으로 옮긴 오류의 HTTP 상태·`USER-003`~`USER-006` 코드·메시지는 기존과 같다. 일반 사용자 조회 실패와 U01의 비활성 제한은 `UserErrorCode`에 둔다.
 - `OpenApiConfig`: `@CurrentUser User`를 받는 API에만 사용자 헤더 3개를 Swagger 입력란으로 추가한다. `@CurrentUser`가 User 파라미터를 문서에서 숨기므로 Controller에 헤더별 `@Parameter`를 반복하지 않는다.
 - `UserService.getProfile(User)`: U01의 INACTIVE 제한을 검사하며 응답용 DB 조회를 추가하지 않는다.
+- `User`: 명시적 생성자와 `getXxx()` 접근자를 가진 불변 조회 클래스다. 생성 시 `id`, `name`, `role`, `status`의 null을 거절한다. 나머지 nullable 필드를 보존하며 API에는 응답 DTO로 변환해 전달한다.
 
 조회 결과는 해당 HTTP 요청의 속성에만 저장한다. 같은 요청의 다른 `@CurrentUser User` 파라미터도 이를 재사용하되 각 파라미터의 멤버십 조건은 따로 검증한다. 다음 요청은 새로 조회한다. 전역 사용자 저장소·필터·인터셉터는 사용하지 않는다.
 
@@ -93,6 +94,14 @@ X-User-Role: USER
 알림의 소유권·읽음 처리와 이벤트의 관리자 제한은 유지한다. 알림에서 비활성 사용자를 새로 차단하지 않으며, 일반 사용자는 공통 헤더 대조를 통과해도 관리자 이벤트를 등록할 수 없다.
 
 이 헤더는 시연용 사용자 선택 수단이다. DB 대조는 입력 값의 일치를 확인하며, 호출자가 실제 그 사용자라는 신원 인증을 제공하지 않는다. 적용 환경은 공용 명세의 시연 범위를 따른다.
+
+### 리뷰 적용 기준
+
+공용 기준은 [시연용 사용자 헤더](https://github.com/GETDDO/getddo-spec/blob/main/05-api/common.md)의 범위와 제한을 따른다. 사용자는 2026-10-12 [GD-138 리뷰](https://github.com/GETDDO/getddo-be/pull/56#discussion_r4245247304)에 대해 로그인 자체가 없고 편의상 가상 사용자를 선택하는 기능임을 재확인했으며, 이 의도를 리뷰 지침에 명시하도록 요청했다.
+
+CodeRabbit은 현재 시연 범위에서 로그인·신원 인증의 부재 또는 알려진 관리자 UUID를 헤더로 선택할 수 있다는 사실만으로 동일한 관리자 사칭 지적을 반복하지 않는다. AD05·AD09를 포함한 관리자 API도 이 사용자 문맥을 사용한다. 로그인·JWT 구현을 현재 기능의 수정 요건으로 추가하지 않는다.
+
+DB에 저장된 역할·상태·멤버십과 업무별 소유권 검증의 누락·우회는 계속 검토한다. 이 기준은 신원 인증을 구현했다는 뜻이 아니며, 외부 공개 운영으로 범위를 확장하거나 인증된 주체라고 주장하는 변경에는 적용하지 않는다. 그 경우 공용 사용자 문맥·인프라 담당과 인증 경계를 확인한다.
 
 ## 검증
 

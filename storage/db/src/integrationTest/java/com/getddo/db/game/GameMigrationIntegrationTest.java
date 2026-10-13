@@ -1,6 +1,7 @@
 package com.getddo.db.game;
 
 import java.util.Map;
+import java.util.UUID;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.DisplayName;
@@ -32,13 +33,13 @@ class GameMigrationIntegrationTest {
 		JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(
 				MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()));
 		TicketGrantSeeds seeds = new TicketGrantSeeds(jdbc);
-		var user = seeds.user();
-		var parents = seeds.gameParents(user);
+		UUID user = seeds.user();
+		TicketGrantSeeds.GameParents parents = seeds.gameParents(user);
 		jdbc.update("""
 				update game_plays set score = 0, result_hash = ?, completed_at = '2026-09-01 00:00:01'
 				where id = ?
 				""", "a".repeat(64), bytes(parents.playId()));
-		var claimId = seeds.gameClaim(user, parents, 1);
+		UUID claimId = seeds.gameClaim(user, parents, 1);
 		Map<String, Object> oldPlay = jdbc.queryForMap("select * from game_plays where id = ?", bytes(parents.playId()));
 		Map<String, Object> oldClaim = jdbc.queryForMap("select * from game_reward_claims where id = ?", bytes(claimId));
 		// when

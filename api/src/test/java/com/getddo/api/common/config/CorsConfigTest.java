@@ -63,7 +63,7 @@ class CorsConfigTest {
 				}
 				return Optional.of(new User(id, "CORS 사용자", UserRole.USER, UserStatus.ACTIVE,
 						Membership.VIP, null, null, null, null, Instant.EPOCH, Instant.EPOCH))
-						.filter(user -> user.id().equals(USER_ID));
+						.filter(user -> user.getId().equals(USER_ID));
 			});
 
 	@Test
@@ -80,6 +80,24 @@ class CorsConfigTest {
 					.andExpect(header().string("Access-Control-Allow-Headers",
 							"X-User-ID, X-User-Role, X-User-Membership"))
 					.andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
+			assertThat(lookups.get()).isZero();
+		});
+	}
+
+	@Test
+	@DisplayName("이벤트 응모의 사전 요청이 Idempotency-Key 헤더를 허용한다")
+	void allowsIdempotencyKeyForEntryPreflight() {
+		// given / when / then
+		runner.run(context -> {
+			mvc(context).perform(options("/api/v1/events/00000000-0000-0000-0000-000000000001/entries")
+					.header("Origin", ORIGIN)
+					.header("Access-Control-Request-Method", "POST")
+					.header("Access-Control-Request-Headers",
+							"Content-Type,Idempotency-Key,X-User-ID,X-User-Role,X-User-Membership"))
+					.andExpect(status().isOk())
+					.andExpect(header().string("Access-Control-Allow-Origin", ORIGIN))
+					.andExpect(header().string("Access-Control-Allow-Headers",
+							"Content-Type, Idempotency-Key, X-User-ID, X-User-Role, X-User-Membership"));
 			assertThat(lookups.get()).isZero();
 		});
 	}
