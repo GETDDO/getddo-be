@@ -40,6 +40,7 @@ public class DrawResultConfirmationEntity {
 		this.confirmedAt = Objects.requireNonNull(confirmedAt, "confirmedAt");
 	}
 
+	/** 저장된 식별자와 업무 참조·시각을 공개 업무의 도메인 값으로 복원한다. */
 	public DrawResultConfirmation toDomain() {
 		return new DrawResultConfirmation(id, runId, confirmedBy, confirmedAt);
 	}

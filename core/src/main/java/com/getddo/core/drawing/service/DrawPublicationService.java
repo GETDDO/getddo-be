@@ -59,6 +59,7 @@ public class DrawPublicationService {
 		return publish(eventId, false, triggerRunId);
 	}
 
+	/** 이벤트 선잠금 아래 공개 시각과 전체 명단을 검증하고 변경된 명단에만 새 버전을 저장한다. */
 	private Optional<DrawPublication> publish(UUID eventId, boolean initialOnly, UUID triggerRunId) {
 		DrawSnapshotSource.Event event = snapshots.lockEvent(eventId)
 				.orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
@@ -114,6 +115,7 @@ public class DrawPublicationService {
 		return requested;
 	}
 
+	/** 삭제 여부와 이벤트 상태로 공개 업무를 수행할 수 있는지 판정한다. */
 	private static boolean canPublish(DrawSnapshotSource.Event event) {
 		return !event.deleted() && (event.status() == EventStatus.OPEN || event.status() == EventStatus.CLOSED
 				|| event.status() == EventStatus.DRAW_CONFIRMED || event.status() == EventStatus.REDRAWING
@@ -162,6 +164,7 @@ public class DrawPublicationService {
 		return new PageResult<>(changes, query.getPage(), query.getSize(), page.getTotalElements());
 	}
 
+	/** 두 실제 공개 명단을 경품 자리로 비교해 결과 또는 사용자가 바뀐 자리만 반환한다. */
 	private static DrawPublicationChange compare(DrawPublication publication, List<DrawPublishedSlot> previous,
 			List<DrawPublishedSlot> current) {
 		Map<Slot, DrawPublishedSlot> before = new LinkedHashMap<>(), after = new LinkedHashMap<>();
@@ -187,6 +190,7 @@ public class DrawPublicationService {
 		private final UUID prizeId;
 		private final int number;
 
+		/** 동일 경품의 동일 자리를 식별하는 비교 키를 구성한다. */
 		private Slot(UUID prizeId, int number) {
 			this.prizeId = prizeId;
 			this.number = number;
@@ -222,5 +226,6 @@ public class DrawPublicationService {
 		return selected;
 	}
 
+	/** 최초 실행과 확정 결과의 불일치를 업무 예외로 거절한다. */
 	private static void invalid() { throw new BusinessException(INVALID_RUN); }
 }
