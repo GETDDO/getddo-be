@@ -14,8 +14,6 @@ import jakarta.validation.constraints.Size;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.MembershipRule;
-import com.getddo.core.event.exception.EventErrorCode;
-import com.getddo.core.event.exception.EventException;
 
 public record EventWriteRequest(
 		@NotBlank @Size(max = 200) String title,
@@ -29,11 +27,17 @@ public record EventWriteRequest(
 		@NotNull OffsetDateTime endsAt,
 		@NotEmpty List<@NotNull @Valid PrizeWrite> prizes
 ) {
+	/** 등록 요청을 변환한다. 기존 경품 ID의 등록 허용 여부는 Service에서 검증한다. */
 	public EventRegistration toRegistration(UUID actorId) {
+		return toModification(actorId);
+	}
+
+	/** 수정에서는 기존 경품 ID를 보존하고 새 경품만 ID 없이 전달한다. */
+	public EventRegistration toModification(UUID actorId) {
 		return new EventRegistration(actorId, title, description, imageKey, eventType,
 				Boolean.TRUE.equals(weightingEnabled), maxTicketsPerUser, membershipRule,
 				startsAt == null ? null : startsAt.toInstant(), endsAt == null ? null : endsAt.toInstant(),
-				prizes == null ? null : prizes.stream().map(PrizeWrite::toPrize).toList());
+				prizes == null ? null : prizes.stream().map(prize -> prize == null ? null : prize.toPrize()).toList());
 	}
 
 	public record PrizeWrite(
@@ -45,10 +49,7 @@ public record EventWriteRequest(
 			@Positive int winnerCount
 	) {
 		EventRegistration.Prize toPrize() {
-			if (id != null) {
-				throw new EventException(EventErrorCode.INVALID_PRIZES);
-			}
-			return new EventRegistration.Prize(rank, name, description, imageKey, winnerCount);
+			return new EventRegistration.Prize(id, rank, name, description, imageKey, winnerCount);
 		}
 	}
 }

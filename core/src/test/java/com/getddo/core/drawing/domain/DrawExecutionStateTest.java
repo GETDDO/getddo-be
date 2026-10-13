@@ -17,6 +17,7 @@ class DrawExecutionStateTest {
 	private static final UUID EVENT_ID = UUID.randomUUID();
 	private static final Instant NOW = Instant.parse("2026-10-12T03:00:00Z");
 
+	/** 실행 식별자·이벤트·종류·상태가 없으면 상태 모델을 만들지 않는다. */
 	@Test
 	@DisplayName("실행 식별자·이벤트·종류·상태가 없으면 상태 모델을 만들지 않는다")
 	void rejectsMissingRequiredValues() {
@@ -31,6 +32,7 @@ class DrawExecutionStateTest {
 				DrawType.INITIAL, null, null, null, null, null, null)).withMessage("status");
 	}
 
+	/** 시도 토큰과 임대 시각 중 하나만 있는 상태를 거절한다. */
 	@ParameterizedTest
 	@CsvSource({"true, false", "false, true"})
 	@DisplayName("시도 토큰과 임대 시각 중 하나만 있는 상태를 거절한다")
@@ -43,6 +45,7 @@ class DrawExecutionStateTest {
 				DrawType.INITIAL, DrawRunStatus.RUNNING, NOW, token, lease, null, NOW));
 	}
 
+	/** 소유권 없는 과거 RUNNING 상태는 복구 대상으로 복원할 수 있다. */
 	@Test
 	@DisplayName("소유권 없는 과거 RUNNING 상태는 복구 대상으로 복원할 수 있다")
 	void preservesLegacyRunningWithoutOwnership() {

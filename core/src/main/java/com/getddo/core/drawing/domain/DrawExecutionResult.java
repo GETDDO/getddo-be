@@ -11,6 +11,7 @@ public final class DrawExecutionResult {
 	private final DrawRunStatus status;
 	private final DrawConfirmation confirmation;
 
+	/** 실행 상태와 확정 결과를 묶는다. CONFIRMED에만 같은 실행의 저장 결과가 존재하도록 생성 시 검증한다. */
 	public DrawExecutionResult(UUID runId, DrawRunStatus status, DrawConfirmation confirmation) {
 		this.runId = Objects.requireNonNull(runId);
 		this.status = Objects.requireNonNull(status);

@@ -2,7 +2,14 @@ package com.getddo.db.event.entity;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -58,7 +65,7 @@ public class EventEntity extends BaseUpdatableEntity {
 	@Column(name = "membership_rule", nullable = false)
 	private MembershipRule membershipRule;
 
-	@OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+	@OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
 	private List<EventPrizeEntity> prizes = new ArrayList<>();
 
 	protected EventEntity() {
@@ -76,6 +83,55 @@ public class EventEntity extends BaseUpdatableEntity {
 		status = initialStatus;
 		membershipRule = registration.getMembershipRule();
 		registration.getPrizes().forEach(prize -> prizes.add(new EventPrizeEntity(this, prize)));
+	}
+
+	/**
+	 * 제거된 경품을 삭제하고 유지할 경품은 비어 있는 양수 등수로 옮긴다.
+	 * 저장소가 중간 flush를 수행한 뒤 최종 등수를 적용해 UNIQUE(event_id, prize_rank) 충돌을 피한다.
+	 * 요청의 경품 소유권은 Service에서 검증한다. 여기서는 컬렉션 변경 전에 호출 계약을 확인한다.
+	 *
+	 * @throws IllegalArgumentException 기존 경품 ID가 이 Entity의 경품 목록에 없는 경우
+	 */
+	public void preparePrizeReplacement(List<EventRegistration.Prize> replacement) {
+		Set<UUID> retainedIds = replacement.stream().map(EventRegistration.Prize::getId)
+				.filter(Objects::nonNull).collect(Collectors.toSet());
+		Set<UUID> ownedIds = prizes.stream().map(EventPrizeEntity::getId).collect(Collectors.toSet());
+		if (!ownedIds.containsAll(retainedIds)) {
+			throw new IllegalArgumentException("기존 경품 ID는 해당 이벤트의 경품이어야 합니다.");
+		}
+		Set<Integer> reservedRanks = new HashSet<>();
+		prizes.forEach(prize -> reservedRanks.add(prize.getRank()));
+		replacement.forEach(prize -> reservedRanks.add(prize.getRank()));
+		prizes.removeIf(prize -> !retainedIds.contains(prize.getId()));
+		int temporaryRank = 1;
+		for (EventPrizeEntity prize : prizes) {
+			while (reservedRanks.contains(temporaryRank)) {
+				temporaryRank = Math.incrementExact(temporaryRank);
+			}
+			prize.moveToTemporaryRank(temporaryRank);
+			reservedRanks.add(temporaryRank);
+		}
+	}
+
+	/** 잠금과 중간 flush 이후 전체 설정을 적용하며 유지하는 경품의 식별자는 바꾸지 않는다. */
+	public void modify(EventRegistration settings) {
+		title = settings.getTitle();
+		description = settings.getDescription();
+		imageKey = settings.getImageKey();
+		eventType = settings.getEventType();
+		weightingEnabled = settings.isWeightingEnabled();
+		maxTicketsPerUser = settings.getMaxTicketsPerUser();
+		membershipRule = settings.getMembershipRule();
+		startsAt = settings.getStartsAt();
+		endsAt = settings.getEndsAt();
+		Map<UUID, EventPrizeEntity> existing = prizes.stream().collect(Collectors.toMap(EventPrizeEntity::getId, Function.identity()));
+		for (EventRegistration.Prize prize : settings.getPrizes()) {
+			if (prize.getId() == null) {
+				prizes.add(new EventPrizeEntity(this, prize));
+			} else {
+				existing.get(prize.getId()).modify(prize);
+			}
+		}
 	}
 
 	public String getTitle() { return title; }

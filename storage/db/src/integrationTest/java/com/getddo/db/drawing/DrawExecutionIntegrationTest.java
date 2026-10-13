@@ -55,6 +55,7 @@ class DrawExecutionIntegrationTest {
 	@MockitoSpyBean private DrawingSelectionService selection;
 	private UUID eventId, prizeId, adminId;
 
+	/** 임시 MySQL에 최초 실행용 관리자·이벤트·경품을 준비하고 고정 시각과 대역 호출 이력을 초기화한다. */
 	@BeforeEach void setUp() {
 		clock.set(NOW);
 		eventId = UUID.randomUUID(); prizeId = UUID.randomUUID(); adminId = user("ADMIN");
@@ -69,6 +70,7 @@ class DrawExecutionIntegrationTest {
 			""", toBytes(prizeId), toBytes(eventId), utc(NOW), utc(NOW));
 	}
 
+	/** 선정 롤백 뒤 실패·예약이 별도 확정되고 같은 고정 입력으로 재시도한다. */
 	@Test @DisplayName("선정 롤백 뒤 실패·예약이 별도 확정되고 같은 고정 입력으로 재시도한다")
 	void recordsFailureAndReusesCommittedSnapshot() {
 		// given
@@ -100,6 +102,7 @@ class DrawExecutionIntegrationTest {
 		assertThat(failures.count(runId)).isEqualTo(1);
 	}
 
+	/** 네 번의 실제 실패 뒤 자동 대기를 유지하고 운영자만 같은 실행을 재개한다. */
 	@Test @DisplayName("네 번의 실제 실패 뒤 자동 대기를 유지하고 운영자만 같은 실행을 재개한다")
 	void exhaustsPersistedRetriesAndResumesSameRun() {
 		// given
@@ -130,6 +133,7 @@ class DrawExecutionIntegrationTest {
 				Long.class, toBytes(runId), toBytes(adminId))).isEqualTo(1);
 	}
 
+	/** 입력 확정 전 정합성 실패는 등록 실행과 실패만 보존하고 자동으로 우회하지 않는다. */
 	@Test @DisplayName("입력 확정 전 정합성 실패는 등록 실행과 실패만 보존하고 자동으로 우회하지 않는다")
 	void preservesRegistrationWhenPreparationFails() {
 		// given
@@ -149,6 +153,7 @@ class DrawExecutionIntegrationTest {
 		assertThat(countResults(runId)).isZero();
 	}
 
+	/** 만료 시도 복구 뒤 409를 반환해도 실제 MySQL에 실패와 운영자 대기가 남는다. */
 	@Test @DisplayName("만료 시도 복구 뒤 409를 반환해도 실제 MySQL에 실패와 운영자 대기가 남는다")
 	void commitsInterruptedFailureBeforeManualRejection() {
 		// given
@@ -169,6 +174,7 @@ class DrawExecutionIntegrationTest {
 		assertThat(countResults(runId)).isZero();
 	}
 
+	/** 같은 실패 ID는 한 번만 저장하고 다른 실패는 별도 행으로 집계한다. */
 	@Test @DisplayName("같은 실패 ID는 한 번만 저장하고 다른 실패는 별도 행으로 집계한다")
 	void preservesIdempotentFailureHistory() {
 		// given
@@ -185,6 +191,7 @@ class DrawExecutionIntegrationTest {
 		assertThat(failures.findLatest(runId).orElseThrow().getId()).isEqualTo(second.getId());
 	}
 
+	/** 같은 실패 저장의 동시 요청은 한 행과 한 번의 예약만 확정한다. */
 	@Test @DisplayName("같은 실패 저장의 동시 요청은 한 행과 한 번의 예약만 확정한다")
 	void concurrentFailureStorageIsIdempotent() throws Exception {
 		// given
@@ -210,6 +217,7 @@ class DrawExecutionIntegrationTest {
 		} finally { pool.shutdownNow(); }
 	}
 
+	/** 같은 등록 실행의 동시 요청도 선정·저장 결과를 한 번만 확정한다. */
 	@Test @DisplayName("같은 등록 실행의 동시 요청도 선정·저장 결과를 한 번만 확정한다")
 	void concurrentExecutionConfirmsOnce() throws Exception {
 		// given
@@ -231,6 +239,7 @@ class DrawExecutionIntegrationTest {
 		} finally { pool.shutdownNow(); }
 	}
 
+	/** 재추첨은 실제 취소 자리만 채우고 유지 결과와 확정 재요청을 보존한다. */
 	@Test @DisplayName("재추첨은 실제 취소 자리만 채우고 유지 결과와 확정 재요청을 보존한다")
 	void confirmsReplacementWithoutChangingRetainedAwards() {
 		// given
@@ -253,6 +262,7 @@ class DrawExecutionIntegrationTest {
 		verifyNoInteractions(selection);
 	}
 
+	/** 낙첨 후보 없는 재추첨도 빈 자리만 UNFILLED로 확정한다. */
 	@Test @DisplayName("낙첨 후보 없는 재추첨도 빈 자리만 UNFILLED로 확정한다")
 	void confirmsUnfilledReplacementWithNoCandidates() {
 		// given
@@ -296,11 +306,13 @@ class DrawExecutionIntegrationTest {
 			return run.getId();
 		});
 	}
+	/** 실행·권한 검증에 사용할 역할별 활성 사용자를 임시 DB에 등록한다. */
 	private UUID user(String role) {
 		UUID id = UUID.randomUUID();
 		jdbc.update("insert into users (id, name, role, status, membership, created_at, updated_at) values (?, '실행 검증', ?, 'ACTIVE', 'VIP', ?, ?)",
 				toBytes(id), role, utc(NOW), utc(NOW)); return id;
 	}
+	/** 응모권을 사용하지 않는 유효 응모자의 참여·접수 근거를 임시 DB에 등록한다. */
 	private void participant(UUID userId) {
 		UUID participantId = UUID.randomUUID();
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
@@ -308,6 +320,8 @@ class DrawExecutionIntegrationTest {
 		jdbc.update("insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at) values (?, ?, ?, 0, 0, ?)",
 				toBytes(UUID.randomUUID()), toBytes(participantId), toBytes(userId), utc(NOW.minusSeconds(301)));
 	}
+	/** 같은 실행의 결과가 중복 확정되거나 부분 저장되지 않았는지 확인할 행 수를 조회한다. */
 	private long countResults(UUID runId) { return jdbc.queryForObject("select count(*) from draw_results where draw_run_id = ?", Long.class, toBytes(runId)); }
+	/** 고정 Instant를 JDBC 저장에 사용할 UTC 시각으로 변환한다. */
 	private static LocalDateTime utc(Instant instant) { return LocalDateTime.ofInstant(instant, ZoneOffset.UTC); }
 }

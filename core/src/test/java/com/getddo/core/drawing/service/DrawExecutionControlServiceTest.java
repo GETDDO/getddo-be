@@ -41,11 +41,13 @@ class DrawExecutionControlServiceTest {
 	private final DrawExecutionControlService control = new DrawExecutionControlService(results, snapshots,
 			executions, failures, users, audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 
+	/** 고정 시계와 실행 소속·이벤트 잠금 대역을 준비해 소유권 복구와 예약 조건을 재현한다. */
 	@BeforeEach void setUp() {
 		when(results.findEventId(runId)).thenReturn(Optional.of(eventId));
 		when(snapshots.lockEvent(eventId)).thenReturn(Optional.of(event(EventStatus.CLOSED)));
 	}
 
+	/** 취소 이벤트의 만료 복구는 실패·대기를 확정할 값으로 반환하고 이후 거절을 분리한다. */
 	@Test @DisplayName("취소 이벤트의 만료 복구는 실패·대기를 확정할 값으로 반환하고 이후 거절을 분리한다")
 	void preservesRecoveryBeforeRejectingCanceledEvent() {
 		// given
@@ -69,6 +71,7 @@ class DrawExecutionControlServiceTest {
 		verifyNoInteractions(audit);
 	}
 
+	/** 운영자 만료 복구의 실행 불가 거절은 실패 기록 뒤 반환값으로 전달한다. */
 	@Test @DisplayName("운영자 만료 복구의 실행 불가 거절은 실패 기록 뒤 반환값으로 전달한다")
 	void returnsManualRejectionAfterRecordingRecovery() {
 		// given
@@ -89,6 +92,7 @@ class DrawExecutionControlServiceTest {
 		verify(executions, never()).claim(any(), any(), any(), any(), any());
 	}
 
+	/** 만료 복구 후 같은 트랜잭션에서 새 시도를 시작하지 않는다. */
 	@Test @DisplayName("만료 복구 후 같은 트랜잭션에서 새 시도를 시작하지 않는다")
 	void recoveryDoesNotStartAnotherAttempt() {
 		// given
@@ -104,6 +108,7 @@ class DrawExecutionControlServiceTest {
 		verify(executions, never()).claim(any(), any(), any(), any(), any());
 	}
 
+	/** 취소된 이벤트의 만기 예약을 해제하되 실제 새 실패를 만들지 않는다. */
 	@Test @DisplayName("취소된 이벤트의 만기 예약을 해제하되 실제 새 실패를 만들지 않는다")
 	void removesCanceledRetryFromQueue() {
 		// given
@@ -118,6 +123,7 @@ class DrawExecutionControlServiceTest {
 		verifyNoInteractions(failures, audit);
 	}
 
+	/** 운영자 대기를 일반 실행으로 해제하지 않는다. */
 	@Test @DisplayName("운영자 대기를 일반 실행으로 해제하지 않는다")
 	void doesNotBypassOperatorWaiting() {
 		// given
@@ -130,6 +136,7 @@ class DrawExecutionControlServiceTest {
 		verifyNoInteractions(failures, audit);
 	}
 
+	/** 실패 이력의 네 번째 실패부터 자동 예약 없이 운영자 대기로 전환한다. */
 	@ParameterizedTest @CsvSource({"1,10", "2,30", "3,60", "4,-1"})
 	@DisplayName("실패 이력의 네 번째 실패부터 자동 예약 없이 운영자 대기로 전환한다")
 	void limitsAutomaticRetries(long failureCount, long delay) {
@@ -144,6 +151,7 @@ class DrawExecutionControlServiceTest {
 		verify(failures).append(argThat(failure -> failure.getId().equals(attemptId) && failure.getRunId().equals(runId)));
 	}
 
+	/** 이미 저장된 같은 실패 ID는 이력과 예약 횟수를 다시 증가시키지 않는다. */
 	@Test @DisplayName("이미 저장된 같은 실패 ID는 이력과 예약 횟수를 다시 증가시키지 않는다")
 	void replaysSameFailureWithoutCountingAgain() {
 		// given
@@ -156,9 +164,11 @@ class DrawExecutionControlServiceTest {
 		verify(executions, never()).fail(any(), any());
 	}
 
+	/** 복구·예약 경계를 검증할 상태와 시도 토큰·임대·재시도 시각을 구성한다. */
 	private DrawExecutionState state(DrawRunStatus status, UUID token, Instant lease, Instant retry) {
 		return new DrawExecutionState(runId, eventId, DrawType.INITIAL, status, NOW.minusSeconds(300), token, lease, retry, CYCLE);
 	}
+	/** 마감 경계를 지난 이벤트를 주어진 상태로 구성한다. */
 	private DrawSnapshotSource.Event event(EventStatus status) {
 		return new DrawSnapshotSource.Event(eventId, EventType.NO_TICKET, false, NOW.minusSeconds(300), status, false, "VIP", List.of());
 	}

@@ -29,6 +29,14 @@ class MySqlMigrationTest {
 	@Container
 	static final MySQLContainer MYSQL = MySqlTestContainers.create();
 
+	/**
+	 * 이미 병합된 마이그레이션 버전. 발견 결과와 무관한 독립된 기준이라 파일을 지우거나 번호를 바꾸면 이 목록과 어긋나 실패한다.
+	 * 새 마이그레이션을 추가할 때는 이 목록을 고치지 않는다(PR끼리 충돌하지 않게 하려는 것이다). 기존 버전을 정리할 때만 고친다.
+	 * 버전 20은 건너뛰었다.
+	 */
+	private static final List<Integer> MERGED_VERSIONS = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+			14, 16, 17, 18, 19, 21, 22, 23);
+
 	private static Flyway flyway;
 	private static int appliedMigrations;
 
@@ -44,14 +52,17 @@ class MySqlMigrationTest {
 
 	/** 빈 DB에 이벤트·알림 인덱스를 포함한 스키마를 적용하고 재실행의 멱등성을 검증한다. */
 	@Test
-	@DisplayName("빈 MySQL에 V001~V011·V014·V016~V019·V021~V023의 44개 테이블·인덱스·추첨 상태·복구 차수와 재실행을 확인한다")
+	@DisplayName("빈 MySQL에 전체 마이그레이션이 적용되어 44개 테이블·인덱스·추첨 상태·복구 차수를 갖추고 재실행해도 다시 적용되지 않는다")
 	void migratesSchemaAndDoesNotReapplyIt() throws SQLException {
 		// given
 		// when
 		int repeatedMigrations = flyway.migrate().migrationsExecuted;
 
 		// then
-		assertThat(appliedMigrations).isEqualTo(19);
+		// 마이그레이션이 늘 때마다 개수를 고치면 PR끼리 충돌하므로 전체 개수는 적지 않는다. Flyway가 찾은 전부가 적용됐는지 확인하고,
+		// 이미 병합된 버전이 삭제·번호 변경되지 않았는지는 아래의 독립된 기준 목록으로 확인한다.
+		assertThat(appliedMigrations).isEqualTo(flyway.info().all().length);
+		assertThat(appliedVersions()).containsAll(MERGED_VERSIONS);
 		assertThat(repeatedMigrations).isZero();
 		assertThat(flyway.info().pending()).isEmpty();
 		assertThat(indexColumns("award_cancellations", "uq_award_cancellations_request", 0)).containsExactly("request_key");
@@ -98,6 +109,7 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** 개별 응모권·이력과 게임 통계의 PK 및 중복 방지 UNIQUE를 확인한다. */
 	@Test
 	@DisplayName("개별 응모권·이력과 게임 통계의 PK 및 중복 방지 UNIQUE를 확인한다")
 	void ticketsHistoriesAndGameStatsUseSingleIdPrimaryKey() throws SQLException {
@@ -120,6 +132,7 @@ class MySqlMigrationTest {
 		assertThat(indexColumns("user_game_stats", "uq_user_game_stats_1")).containsExactly("user_id", "game_id");
 	}
 
+	/** 출석 응모권은 브론즈 및 지급 근거 소유자를 검증하고 이력 버전 중복을 거부한다. */
 	@Test
 	@DisplayName("출석 응모권은 브론즈 및 지급 근거 소유자를 검증하고 이력 버전 중복을 거부한다")
 	void enforcesTicketSourceGradeAndHistoryVersion() throws SQLException {
@@ -171,6 +184,7 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** 같은 사용자·게임의 게임 통계 두 번째 행은 UNIQUE로 거부한다. */
 	@Test
 	@DisplayName("같은 사용자·게임의 게임 통계 두 번째 행은 UNIQUE로 거부한다")
 	void rejectsDuplicateUserGameStats() throws SQLException {
@@ -198,10 +212,12 @@ class MySqlMigrationTest {
 		}
 	}
 
+	/** Testcontainers 임시 MySQL의 접속 정보로 독립 JDBC 연결을 연다. */
 	private static Connection connect() throws SQLException {
 		return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
 	}
 
+	/** 검증용 SQL의 문자열 매개변수를 바인딩해 임시 DB의 제약 조건을 확인할 데이터를 처리한다. */
 	private static void execute(Connection connection, String sql, String... parameters) throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement(sql)) {
 			for (int i = 0; i < parameters.length; i++) {
@@ -224,6 +240,13 @@ class MySqlMigrationTest {
 				return List.of(rows.getString(1), rows.getString(2));
 			}
 		}
+	}
+
+	/** 적용된 마이그레이션의 버전 번호. */
+	private static List<Integer> appliedVersions() {
+		return java.util.Arrays.stream(flyway.info().applied())
+				.map(info -> Integer.parseInt(info.getVersion().getVersion()))
+				.toList();
 	}
 
 	/** 유니크 인덱스(PK 포함)의 컬럼을 인덱스 내 순서대로 반환한다. */

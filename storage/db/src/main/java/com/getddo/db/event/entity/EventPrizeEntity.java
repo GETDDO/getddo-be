@@ -44,6 +44,28 @@ public class EventPrizeEntity extends BaseUpdatableEntity {
 		winnerCount = prize.getWinnerCount();
 	}
 
+	/**
+	 * EventEntity의 등수 교환 흐름에서만 사용하는 임시 양수 등수다.
+	 * 저장소의 중간·최종 flush를 포함한 같은 트랜잭션 안에서 사용한다.
+	 *
+	 * @throws IllegalArgumentException 임시 등수가 0 이하인 경우
+	 */
+	void moveToTemporaryRank(int temporaryRank) {
+		if (temporaryRank <= 0) {
+			throw new IllegalArgumentException("임시 경품 등수는 양수여야 합니다.");
+		}
+		rank = temporaryRank;
+	}
+
+	/** 경품 식별자와 생성 시각을 유지하면서 관리자가 전달한 설정을 반영한다. */
+	public void modify(EventRegistration.Prize prize) {
+		rank = prize.getRank();
+		name = prize.getName();
+		description = prize.getDescription();
+		imageKey = prize.getImageKey();
+		winnerCount = prize.getWinnerCount();
+	}
+
 	public int getRank() { return rank; }
 	public String getName() { return name; }
 	public String getDescription() { return description; }

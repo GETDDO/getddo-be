@@ -111,6 +111,7 @@ public class DrawExecutionControlService {
 		return lock(runId);
 	}
 
+	/** 실행 잠금 아래 같은 시도의 실패를 기록하고 복구 구간 횟수에 따라 재시도를 예약하거나 운영자 대기로 전환한다. */
 	private void recordLocked(DrawExecutionState state, UUID attemptId, DrawFailureCode code, Instant failedAt) {
 		Instant at = failedAt.truncatedTo(ChronoUnit.MICROS);
 		if (state.getRetryCycleStartedAt() != null && at.isBefore(state.getRetryCycleStartedAt())) at = state.getRetryCycleStartedAt();
@@ -123,9 +124,12 @@ public class DrawExecutionControlService {
 		executions.fail(state.getRunId(), retryAt);
 	}
 
+	/** 등록 후 시작 누락·만기 예약·만료 소유권을 가진 실행을 한 폴링에 최대 20건 조회한다. 운영자 대기는 자동 실행 대상에서 제외한다. */
 	@Transactional(readOnly = true)
 	public List<UUID> findDue() { return executions.findDue(time.now(), 20); }
+	/** 이미 이벤트를 잠근 호출에서 실행 잠금을 얻고, 실행이 없으면 일관된 도메인 오류로 거절한다. */
 	private DrawExecutionState lock(UUID id) { return executions.lockRun(id).orElseThrow(() -> new BusinessException(INVALID_RUN)); }
+	/** 저장된 사용자 역할·상태를 확인해 실제 시작·재개 처리자가 활성 관리자인지 검증한다. */
 	private void requireAdmin(UUID actorId) {
 		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
 		User user = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));

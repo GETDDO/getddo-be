@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DrawExecutionEligibilityTest {
 	private static final Instant NOW = Instant.parse("2026-10-12T03:00:00Z");
 
+	/** 최초는 OPEN·CLOSED, 재추첨은 REDRAWING에서만 새 시도를 허용한다. */
 	@ParameterizedTest
 	@CsvSource({"SCHEDULED, false, false", "OPEN, true, false", "CLOSED, true, false",
 			"DRAW_CONFIRMED, false, false", "PUBLISHED, false, false", "CANCELED, false, false",
@@ -32,6 +33,7 @@ class DrawExecutionEligibilityTest {
 		assertThat(DrawExecutionEligibility.isExecutable(event, DrawType.REPLACEMENT, NOW)).isEqualTo(replacementAllowed);
 	}
 
+	/** 두 종류 모두 마감 후 5분 경계를 지킨다. */
 	@ParameterizedTest
 	@CsvSource({"-1, false", "0, true", "1, true"})
 	@DisplayName("두 종류 모두 마감 후 5분 경계를 지킨다")
@@ -45,6 +47,7 @@ class DrawExecutionEligibilityTest {
 				.isEqualTo(expected);
 	}
 
+	/** 허용 상태여도 삭제된 이벤트는 실행하지 않는다. */
 	@Test
 	@DisplayName("허용 상태여도 삭제된 이벤트는 실행하지 않는다")
 	void rejectsDeletedEvents() {
@@ -53,6 +56,7 @@ class DrawExecutionEligibilityTest {
 		assertThat(DrawExecutionEligibility.isExecutable(event(EventStatus.REDRAWING, true), DrawType.REPLACEMENT, NOW)).isFalse();
 	}
 
+	/** 삭제 여부와 상태가 다른 이벤트를 동일한 마감 후 5분 경계에 맞춰 구성한다. */
 	private static DrawSnapshotSource.Event event(EventStatus status, boolean deleted) {
 		return new DrawSnapshotSource.Event(UUID.randomUUID(), EventType.NO_TICKET, false,
 				NOW.minusSeconds(300), status, deleted, null, List.of());
