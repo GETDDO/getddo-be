@@ -59,9 +59,9 @@ class DrawPublicationRepositoryImplTest {
 		doAnswer(invocation -> {
 			List<DrawPublicationExecutionEntity> rows = invocation.getArgument(0);
 			assertThat(rows).singleElement().satisfies(row -> {
-				assertThat(row.getId()).isEqualTo(new DrawPublicationExecutionId(version, execution.runId()));
+				assertThat(row.getId()).isEqualTo(new DrawPublicationExecutionId(version, execution.getRunId()));
 				assertThat(row.getEventId()).isEqualTo(event);
-				assertThat(row.getConfirmationId()).isEqualTo(execution.confirmationId());
+				assertThat(row.getConfirmationId()).isEqualTo(execution.getConfirmationId());
 			});
 			return rows;
 		}).when(evidence).saveAllAndFlush(anyList());
@@ -94,13 +94,13 @@ class DrawPublicationRepositoryImplTest {
 		java.util.Map<UUID, List<DrawPublicationExecution>> loaded = repository.findExecutionEvidence(Set.of(version, missing));
 		// then
 		assertThat(loaded).doesNotContainKey(missing);
-		assertThat(loaded.get(version)).extracting(DrawPublicationExecution::runId).containsExactly(runA, runB);
-		assertThat(loaded.get(version).getFirst().confirmationId()).isEqualTo(checkA);
-		assertThat(loaded.get(version).getFirst().confirmedBy()).isEqualTo(actor);
-		assertThat(loaded.get(version).getFirst().confirmedAt()).isEqualTo(NOW);
-		assertThat(loaded.get(version).getFirst().cancellations()).usingRecursiveComparison().isEqualTo(List.of(
+		assertThat(loaded.get(version)).extracting(DrawPublicationExecution::getRunId).containsExactly(runA, runB);
+		assertThat(loaded.get(version).getFirst().getConfirmationId()).isEqualTo(checkA);
+		assertThat(loaded.get(version).getFirst().getConfirmedBy()).isEqualTo(actor);
+		assertThat(loaded.get(version).getFirst().getConfirmedAt()).isEqualTo(NOW);
+		assertThat(loaded.get(version).getFirst().getCancellations()).usingRecursiveComparison().isEqualTo(List.of(
 				new DrawPublicationCancellation(cancelA, resultA, runA, "첫 사유"), new DrawPublicationCancellation(cancelB, resultB, runA, "다음 사유")));
-		assertThat(loaded.get(version).getLast().cancellations()).isEmpty();
+		assertThat(loaded.get(version).getLast().getCancellations()).isEmpty();
 		assertThatThrownBy(() -> loaded.put(missing, List.of())).isInstanceOf(UnsupportedOperationException.class);
 		assertThatThrownBy(() -> loaded.get(version).clear()).isInstanceOf(UnsupportedOperationException.class);
 		verify(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
@@ -138,7 +138,7 @@ class DrawPublicationRepositoryImplTest {
 		DrawPublication.Entry replacement = new DrawPublication.Entry(UUID.randomUUID(), newRun, newCheck);
 		DrawResultConfirmation checked = new DrawResultConfirmation(newCheck, newRun, UUID.randomUUID(), NOW.minusSeconds(1));
 		DrawPublicationEntity stored = new DrawPublicationEntity(new DrawPublication(publicationId, event, newRun, 2,
-				DrawPublicationType.UPDATE, "연결 취소 사유", checked.confirmedBy(), checked.confirmedAt(), NOW,
+				DrawPublicationType.UPDATE, "연결 취소 사유", checked.getConfirmedBy(), checked.getConfirmedAt(), NOW,
 				List.of(retained, replacement)));
 		ReflectionTestUtils.setField(stored, "id", publicationId);
 		when(versions.saveAndFlush(any())).thenReturn(stored);
@@ -156,9 +156,9 @@ class DrawPublicationRepositoryImplTest {
 		DrawPublication published = repository.savePublication(event, newRun, 2, "연결 취소 사유", checked,
 				List.of(retained, replacement), NOW);
 		// then
-		assertThat(published.entries()).containsExactly(retained, replacement);
-		assertThat(published.sourceDrawId()).isEqualTo(newRun);
-		assertThat(published.confirmedAt()).isEqualTo(checked.confirmedAt());
+		assertThat(published.getEntries()).containsExactly(retained, replacement);
+		assertThat(published.getSourceDrawId()).isEqualTo(newRun);
+		assertThat(published.getConfirmedAt()).isEqualTo(checked.getConfirmedAt());
 		verify(entityManager).detach(stored);
 		verify(entityManager, never()).refresh(any());
 	}
@@ -199,7 +199,7 @@ class DrawPublicationRepositoryImplTest {
 		// then
 		assertThat(page.getTotalElements()).isEqualTo(4);
 		assertThat(page.getPage()).isEqualTo(2);
-		assertThat(page.getItems().getFirst().entries()).containsExactly(entry);
+		assertThat(page.getItems().getFirst().getEntries()).containsExactly(entry);
 		verify(entries, never()).findByIdPublicationIdOrderByIdResultId(any());
 	}
 
@@ -301,12 +301,12 @@ class DrawPublicationRepositoryImplTest {
 		// when
 		List<DrawPublicationRun> runs = repository.findReplacementRuns(event);
 		// then
-		assertThat(runs).extracting(DrawPublicationRun::runId).containsExactly(first, second);
-		assertThat(runs.getFirst().confirmation()).isEqualTo(check.toDomain());
-		assertThat(runs.getFirst().results()).extracting(DrawResult::getId).containsExactly(selectedId);
-		assertThat(runs.getLast().confirmation()).isNull();
-		assertThat(runs.getLast().results().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
-		assertThat(runs.getLast().results().getFirst().getSelection().getUserId()).isNull();
+		assertThat(runs).extracting(DrawPublicationRun::getRunId).containsExactly(first, second);
+		assertThat(runs.getFirst().getConfirmation()).isEqualTo(check.toDomain());
+		assertThat(runs.getFirst().getResults()).extracting(DrawResult::getId).containsExactly(selectedId);
+		assertThat(runs.getLast().getConfirmation()).isNull();
+		assertThat(runs.getLast().getResults().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
+		assertThat(runs.getLast().getResults().getFirst().getSelection().getUserId()).isNull();
 		verify(confirmations).findByRunIdIn(Set.of(first, second));
 		verify(confirmations, never()).findByRunId(any());
 		verify(jdbc, times(1)).query(anyString(), any(RowMapper.class), any(byte[].class));

@@ -69,8 +69,8 @@ class DrawPublicationServiceTest {
 		// when
 		DrawPublication published = service.publishInitial(eventId).orElseThrow();
 		// then
-		assertThat(published.entries()).containsExactly(new DrawPublication.Entry(resultId, runId, null));
-		assertThat(published.confirmedBy()).isNull();
+		assertThat(published.getEntries()).containsExactly(new DrawPublication.Entry(resultId, runId, null));
+		assertThat(published.getConfirmedBy()).isNull();
 		verify(notifications).register(published);
 		InOrder order = inOrder(snapshots, results, publications);
 		order.verify(snapshots).lockEvent(eventId);
@@ -132,7 +132,7 @@ class DrawPublicationServiceTest {
 		when(snapshots.findInitial(eventId)).thenReturn(Optional.empty(), Optional.of(snapshot));
 		// when / then
 		assertThat(service.publishInitial(eventId)).isEmpty();
-		assertThat(service.publishInitial(eventId).orElseThrow().publishedAt()).isEqualTo(NOW);
+		assertThat(service.publishInitial(eventId).orElseThrow().getPublishedAt()).isEqualTo(NOW);
 		verify(publications, times(1)).saveInitial(eventId, runId, List.of(resultId), NOW);
 	}
 
@@ -198,21 +198,21 @@ class DrawPublicationServiceTest {
 		DrawPublishedSlot before = new DrawPublishedSlot(prizeId, 1, resultId, userId);
 		DrawPublishedSlot after = new DrawPublishedSlot(prizeId, 1, replacementResult, replacementUser);
 		when(publications.findHistory(eventId)).thenReturn(List.of(initial, update));
-		Set<UUID> ids = Set.of(initial.id(), update.id());
-		when(publications.findPublishedSlots(ids)).thenReturn(Map.of(initial.id(), List.of(before), update.id(), List.of(after)));
+		Set<UUID> ids = Set.of(initial.getId(), update.getId());
+		when(publications.findPublishedSlots(ids)).thenReturn(Map.of(initial.getId(), List.of(before), update.getId(), List.of(after)));
 		// when
 		List<DrawPublicationChange> changes = service.changes(eventId);
 		// then
-		assertThat(changes.getLast().publication()).isEqualTo(update);
-		assertThat(changes.getLast().changes()).containsExactly(new DrawPublicationChange.SlotChange(
+		assertThat(changes.getLast().getPublication()).isEqualTo(update);
+		assertThat(changes.getLast().getChanges()).containsExactly(new DrawPublicationChange.SlotChange(
 				prizeId, 1, resultId, userId, replacementResult, replacementUser));
 		verify(publications).findPublishedSlots(ids);
 		verify(publications).findExecutionEvidence(ids);
 		verify(publications, never()).findPublishedSlots(any(UUID.class));
-		when(publications.findPublishedSlots(ids)).thenReturn(Map.of(initial.id(), List.of(before), update.id(), List.of(before)));
-		assertThat(service.changes(eventId).getLast().changes()).isEmpty();
-		when(publications.findPublishedSlots(ids)).thenReturn(Map.of(initial.id(), List.of(before), update.id(), List.of()));
-		assertThat(service.changes(eventId).getLast().changes()).containsExactly(new DrawPublicationChange.SlotChange(
+		when(publications.findPublishedSlots(ids)).thenReturn(Map.of(initial.getId(), List.of(before), update.getId(), List.of(before)));
+		assertThat(service.changes(eventId).getLast().getChanges()).isEmpty();
+		when(publications.findPublishedSlots(ids)).thenReturn(Map.of(initial.getId(), List.of(before), update.getId(), List.of()));
+		assertThat(service.changes(eventId).getLast().getChanges()).containsExactly(new DrawPublicationChange.SlotChange(
 				prizeId, 1, resultId, userId, null, null));
 	}
 

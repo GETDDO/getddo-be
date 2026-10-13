@@ -5,12 +5,10 @@ import java.util.List;
 import java.util.Objects;
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /** 관리자 상세에 사용하는 최근 실패·재시도·취소 요약. 전체 이력은 별도 조회한다. */
 @Getter
 @EqualsAndHashCode
-@Accessors(fluent = true)
 public final class DrawExecutionSummary {
 	private final long failureCount;
 	private final DrawFailure latestFailure;

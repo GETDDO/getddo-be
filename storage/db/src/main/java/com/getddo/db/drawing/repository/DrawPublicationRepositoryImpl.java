@@ -136,7 +136,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 				included.computeIfAbsent(entry.getId().getPublicationId(), ignored -> new ArrayList<>()).add(entry.toDomain());
 			}
 		}
-		included.values().forEach(rows -> rows.sort(Comparator.comparing(DrawPublication.Entry::resultId)));
+		included.values().forEach(rows -> rows.sort(Comparator.comparing(DrawPublication.Entry::getResultId)));
 		List<DrawPublication> page = stored.stream().map(publication -> publication.toDomain(
 				included.getOrDefault(publication.getId(), List.of()))).toList();
 		return new PageResult<>(page, query.getPage(), query.getSize(), total);
@@ -230,7 +230,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		Map<UUID, DrawResultConfirmation> checked = new HashMap<>();
 		for (DrawResultConfirmationEntity confirmation : confirmations.findByRunIdIn(runIds)) {
 			DrawResultConfirmation value = confirmation.toDomain();
-			checked.put(value.runId(), value);
+			checked.put(value.getRunId(), value);
 		}
 		return runs.stream().map(run -> new DrawPublicationRun(run.id(), run.eventId(), run.number(), run.status(),
 				run.confirmedAt(), results.getOrDefault(run.id(), List.of()), checked.get(run.id()))).toList();
@@ -268,8 +268,8 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> included, Instant publishedAt) {
 		included = DrawPublication.validatedEntries(included);
 		DrawPublicationEntity publication = new DrawPublicationEntity(eventId, sourceRunId, revision, reason,
-				confirmation == null ? null : confirmation.confirmedBy(),
-				confirmation == null ? null : confirmation.confirmedAt(), publishedAt);
+				confirmation == null ? null : confirmation.getConfirmedBy(),
+				confirmation == null ? null : confirmation.getConfirmedAt(), publishedAt);
 		DrawPublicationEntity saved = publications.saveAndFlush(publication);
 		entries.saveAllAndFlush(included.stream()
 				.map(entry -> new DrawPublicationResultEntity(saved.getId(), eventId, entry)).toList());

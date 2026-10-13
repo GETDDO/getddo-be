@@ -6,12 +6,10 @@ import java.util.List;
 import java.util.Objects;
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /** 공개 버전에 실제 반영한 실행별 확인 근거. 미충원 실행도 포함한다. */
 @Getter
 @EqualsAndHashCode
-@Accessors(fluent = true)
 public final class DrawPublicationExecution {
 	private final UUID runId;
 	private final UUID confirmationId;

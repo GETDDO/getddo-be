@@ -9,7 +9,7 @@ public record DrawCancellationResponse(UUID id, UUID resultId, UUID replacementR
 		String reason, Instant canceledAt) {
 	/** 내부 취소 조회값을 HTTP 응답으로 변환한다. */
 	public static DrawCancellationResponse from(DrawCancellationView cancellation) {
-		return new DrawCancellationResponse(cancellation.id(), cancellation.resultId(), cancellation.replacementRunId(),
-				cancellation.canceledBy(), cancellation.reason(), cancellation.canceledAt());
+		return new DrawCancellationResponse(cancellation.getId(), cancellation.getResultId(), cancellation.getReplacementRunId(),
+				cancellation.getCanceledBy(), cancellation.getReason(), cancellation.getCanceledAt());
 	}
 }

@@ -16,7 +16,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,15 +86,15 @@ public class DrawPublicationService {
 		}
 		DrawPublicationComposition composed = DrawPublicationAssembler.compose(snapshot, confirmation,
 				publications.findReplacementRuns(eventId), publications.findCancellations(eventId), triggerRunId, now);
-		if (existing.isEmpty() && !composed.complete()) return Optional.empty();
+		if (existing.isEmpty() && !composed.isComplete()) return Optional.empty();
 		if (existing.isPresent()) {
-			Set<DrawPublication.Entry> previous = new HashSet<>(existing.get().entries());
-			if (previous.equals(new HashSet<>(composed.entries()))) return existing;
+			Set<DrawPublication.Entry> previous = new HashSet<>(existing.get().getEntries());
+			if (previous.equals(new HashSet<>(composed.getEntries()))) return existing;
 		}
-		int revision = existing.map(value -> Math.addExact(value.revision(), 1)).orElse(1);
-		DrawPublication saved = publications.savePublication(eventId, composed.sourceRunId(), revision,
-				composed.reason(), composed.confirmation(), composed.entries(), now);
-		publications.saveExecutionEvidence(saved.id(), eventId, composed.executions());
+		int revision = existing.map(value -> Math.addExact(value.getRevision(), 1)).orElse(1);
+		DrawPublication saved = publications.savePublication(eventId, composed.getSourceRunId(), revision,
+				composed.getReason(), composed.getConfirmation(), composed.getEntries(), now);
+		publications.saveExecutionEvidence(saved.getId(), eventId, composed.getExecutions());
 		notifications.register(saved);
 		return Optional.of(saved);
 	}
@@ -114,9 +113,9 @@ public class DrawPublicationService {
 		if (!eventId.equals(confirmed.getEventId()) || !locked.runId().equals(confirmed.getRunId())) invalid();
 		validateInitial(locked, confirmed);
 		List<DrawPublicationRun> runs = publications.findReplacementRuns(eventId);
-		DrawPublicationRun requested = runs.stream().filter(run -> run.runId().equals(runId)).findFirst()
+		DrawPublicationRun requested = runs.stream().filter(run -> run.getRunId().equals(runId)).findFirst()
 				.orElseThrow(() -> new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE));
-		if (requested.status() != DrawRunStatus.CONFIRMED)
+		if (requested.getStatus() != DrawRunStatus.CONFIRMED)
 			throw new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE);
 		DrawPublicationAssembler.compose(locked, confirmed, runs, publications.findCancellations(eventId), runId, time.now());
 		return requested;
@@ -144,15 +143,15 @@ public class DrawPublicationService {
 		List<DrawPublication> versions = publications.findHistory(eventId);
 		if (versions.isEmpty()) return List.of();
 		Set<UUID> ids = new HashSet<>();
-		for (DrawPublication version : versions) ids.add(version.id());
+		for (DrawPublication version : versions) ids.add(version.getId());
 		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
 		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
 		List<DrawPublishedSlot> before = List.of();
 		for (DrawPublication publication : versions) {
-			List<DrawPublishedSlot> after = slots.getOrDefault(publication.id(), List.of());
+			List<DrawPublishedSlot> after = slots.getOrDefault(publication.getId(), List.of());
 			DrawPublicationChange change = compare(publication, before, after);
-			history.add(new DrawPublicationChange(publication, change.changes(),
-					evidence.getOrDefault(publication.id(), List.of())));
+			history.add(new DrawPublicationChange(publication, change.getChanges(),
+					evidence.getOrDefault(publication.getId(), List.of())));
 			before = after;
 		}
 		return List.copyOf(history);
@@ -164,19 +163,19 @@ public class DrawPublicationService {
 		PageResult<DrawPublication> page = publications.findHistory(eventId, query);
 		if (page.getItems().isEmpty()) return new PageResult<>(List.of(), query.getPage(), query.getSize(), page.getTotalElements());
 		List<DrawPublication> versions = page.getItems();
-		Optional<DrawPublication> boundary = publications.findPrevious(eventId, versions.getLast().revision());
+		Optional<DrawPublication> boundary = publications.findPrevious(eventId, versions.getLast().getRevision());
 		Set<UUID> ids = new HashSet<>();
-		for (DrawPublication version : versions) ids.add(version.id());
-		boundary.ifPresent(version -> ids.add(version.id()));
+		for (DrawPublication version : versions) ids.add(version.getId());
+		boundary.ifPresent(version -> ids.add(version.getId()));
 		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
 		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
 		List<DrawPublicationChange> changes = new ArrayList<>();
 		for (int index = 0; index < versions.size(); index++) {
 			DrawPublication current = versions.get(index);
 			DrawPublication previous = index + 1 < versions.size() ? versions.get(index + 1) : boundary.orElse(null);
-			DrawPublicationChange change = compare(current, previous == null ? List.of() : slots.getOrDefault(previous.id(), List.of()),
-					slots.getOrDefault(current.id(), List.of()));
-			changes.add(new DrawPublicationChange(current, change.changes(), evidence.getOrDefault(current.id(), List.of())));
+			DrawPublicationChange change = compare(current, previous == null ? List.of() : slots.getOrDefault(previous.getId(), List.of()),
+					slots.getOrDefault(current.getId(), List.of()));
+			changes.add(new DrawPublicationChange(current, change.getChanges(), evidence.getOrDefault(current.getId(), List.of())));
 		}
 		return new PageResult<>(changes, query.getPage(), query.getSize(), page.getTotalElements());
 	}
@@ -185,24 +184,23 @@ public class DrawPublicationService {
 	private static DrawPublicationChange compare(DrawPublication publication, List<DrawPublishedSlot> previous,
 			List<DrawPublishedSlot> current) {
 		Map<Slot, DrawPublishedSlot> before = new LinkedHashMap<>(), after = new LinkedHashMap<>();
-		for (DrawPublishedSlot row : previous) before.put(new Slot(row.prizeId(), row.slotNumber()), row);
-		for (DrawPublishedSlot row : current) after.put(new Slot(row.prizeId(), row.slotNumber()), row);
+		for (DrawPublishedSlot row : previous) before.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
+		for (DrawPublishedSlot row : current) after.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
 		Set<Slot> all = new LinkedHashSet<>(before.keySet());
 		all.addAll(after.keySet());
 		List<DrawPublicationChange.SlotChange> changes = new ArrayList<>();
 		for (Slot slot : all) {
 			DrawPublishedSlot old = before.get(slot), updated = after.get(slot);
 			if (Objects.equals(old, updated)) continue;
-			changes.add(new DrawPublicationChange.SlotChange(slot.prizeId(), slot.number(),
-					old == null ? null : old.resultId(), old == null ? null : old.userId(),
-					updated == null ? null : updated.resultId(), updated == null ? null : updated.userId()));
+			changes.add(new DrawPublicationChange.SlotChange(slot.getPrizeId(), slot.getNumber(),
+					old == null ? null : old.getResultId(), old == null ? null : old.getUserId(),
+					updated == null ? null : updated.getResultId(), updated == null ? null : updated.getUserId()));
 		}
 		return new DrawPublicationChange(publication, changes);
 	}
 
 	@Getter
 	@EqualsAndHashCode
-	@Accessors(fluent = true)
 	private static final class Slot {
 		private final UUID prizeId;
 		private final int number;

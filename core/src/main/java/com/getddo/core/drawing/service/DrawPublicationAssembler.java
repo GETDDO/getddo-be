@@ -53,61 +53,61 @@ public final class DrawPublicationAssembler {
 		if (internal.size() != totalSlots) invalid();
 		Map<Slot, Included> visible = new LinkedHashMap<>(internal);
 		List<DrawPublicationRun> ordered = replacements.stream()
-				.sorted(Comparator.comparingInt(DrawPublicationRun::runNumber)).toList();
+				.sorted(Comparator.comparingInt(DrawPublicationRun::getRunNumber)).toList();
 		Map<UUID, List<DrawPublicationCancellation>> linked = new HashMap<>();
 		Set<UUID> runIds = new HashSet<>(), cancellationIds = new HashSet<>(), canceledResults = new HashSet<>();
 		Set<Integer> runNumbers = new HashSet<>();
 		for (DrawPublicationRun run : ordered) {
-			if (!initial.eventId().equals(run.eventId()) || run.runNumber() < 1
-					|| !runIds.add(run.runId()) || !runNumbers.add(run.runNumber())) invalid();
+			if (!initial.eventId().equals(run.getEventId()) || run.getRunNumber() < 1
+					|| !runIds.add(run.getRunId()) || !runNumbers.add(run.getRunNumber())) invalid();
 		}
 		boolean complete = true;
 		for (DrawPublicationCancellation cancellation : cancellations) {
-			if (!cancellationIds.add(cancellation.id()) || !canceledResults.add(cancellation.resultId())
-					|| cancellation.reason() == null || cancellation.reason().isBlank()) invalid();
-			if (cancellation.replacementRunId() == null) { complete = false; continue; }
-			if (!runIds.contains(cancellation.replacementRunId())) invalid();
-			linked.computeIfAbsent(cancellation.replacementRunId(), ignored -> new ArrayList<>()).add(cancellation);
+			if (!cancellationIds.add(cancellation.getId()) || !canceledResults.add(cancellation.getResultId())
+					|| cancellation.getReason() == null || cancellation.getReason().isBlank()) invalid();
+			if (cancellation.getReplacementRunId() == null) { complete = false; continue; }
+			if (!runIds.contains(cancellation.getReplacementRunId())) invalid();
+			linked.computeIfAbsent(cancellation.getReplacementRunId(), ignored -> new ArrayList<>()).add(cancellation);
 		}
 		DrawPublicationRun source = null;
 		for (DrawPublicationRun run : ordered) {
-			List<DrawPublicationCancellation> causes = linked.getOrDefault(run.runId(), List.of());
+			List<DrawPublicationCancellation> causes = linked.getOrDefault(run.getRunId(), List.of());
 			if (causes.isEmpty()) invalid();
 			Map<Slot, UUID> targets = new LinkedHashMap<>();
 			for (DrawPublicationCancellation cancellation : causes) {
 				Included canceled = internal.values().stream()
-						.filter(value -> value.result.getId().equals(cancellation.resultId())).findFirst().orElse(null);
+						.filter(value -> value.result.getId().equals(cancellation.getResultId())).findFirst().orElse(null);
 				if (canceled == null || canceled.result.getSelection().getResultType() != DrawSelectionResultType.SELECTED
-						|| targets.put(slot(canceled.result), cancellation.resultId()) != null) invalid();
+						|| targets.put(slot(canceled.result), cancellation.getResultId()) != null) invalid();
 			}
-			if (run.status() != DrawRunStatus.CONFIRMED) {
-				if (run.confirmation() != null || !run.results().isEmpty()
-						|| run.status() == DrawRunStatus.NO_ENTRIES || run.status() == DrawRunStatus.NO_CANDIDATES) invalid();
+			if (run.getStatus() != DrawRunStatus.CONFIRMED) {
+				if (run.getConfirmation() != null || !run.getResults().isEmpty()
+						|| run.getStatus() == DrawRunStatus.NO_ENTRIES || run.getStatus() == DrawRunStatus.NO_CANDIDATES) invalid();
 				complete = false;
 				continue;
 			}
-			if (run.confirmedAt() == null || run.confirmedAt().isAfter(now) || run.results().size() != targets.size()) invalid();
+			if (run.getConfirmedAt() == null || run.getConfirmedAt().isAfter(now) || run.getResults().size() != targets.size()) invalid();
 			Map<Slot, Included> additions = new LinkedHashMap<>();
-			for (DrawResult result : run.results()) {
+			for (DrawResult result : run.getResults()) {
 				validateResult(result, prizes, candidates, resultIds);
 				knownResults.put(result.getId(), result);
 				if (result.getSelection().getResultType() == DrawSelectionResultType.SELECTED
 						&& !historicalUsers.add(result.getSelection().getUserId())) invalid();
 				if (!targets.containsKey(slot(result)) || additions.put(slot(result),
-						new Included(result, run.runId(), run.confirmation())) != null) invalid();
+						new Included(result, run.getRunId(), run.getConfirmation())) != null) invalid();
 			}
 			internal.putAll(additions);
 			validateUsers(internal);
-			DrawResultConfirmation checked = run.confirmation();
+			DrawResultConfirmation checked = run.getConfirmation();
 			if (checked == null) { complete = false; continue; }
-			if (!run.runId().equals(checked.runId()) || checked.confirmedAt().isBefore(run.confirmedAt())
-					|| checked.confirmedAt().isAfter(now)) invalid();
+			if (!run.getRunId().equals(checked.getRunId()) || checked.getConfirmedAt().isBefore(run.getConfirmedAt())
+					|| checked.getConfirmedAt().isAfter(now)) invalid();
 			boolean dependenciesVisible = targets.entrySet().stream().allMatch(target ->
 					visible.containsKey(target.getKey()) && visible.get(target.getKey()).result.getId().equals(target.getValue()));
 			if (!dependenciesVisible) { complete = false; continue; }
 			visible.putAll(additions);
 			validateUsers(visible);
-			if (source == null || !Objects.equals(source.runId(), triggerRunId)) source = run;
+			if (source == null || !Objects.equals(source.getRunId(), triggerRunId)) source = run;
 		}
 		for (UUID canceledId : canceledResults) {
 			DrawResult canceled = knownResults.get(canceledId);
@@ -116,17 +116,17 @@ public final class DrawPublicationAssembler {
 		List<DrawPublication.Entry> entries = visible.values().stream()
 				.filter(value -> value.result.getSelection().getResultType() == DrawSelectionResultType.SELECTED)
 				.map(value -> new DrawPublication.Entry(value.result.getId(), value.runId,
-						value.confirmation == null ? null : value.confirmation.id())).toList();
+						value.confirmation == null ? null : value.confirmation.getId())).toList();
 		// visible에는 미충원 자리도 남는다. 확인이 있는 항목의 실행만 근거에 포함한다.
 		Set<UUID> visibleRuns = new HashSet<>();
 		for (Included included : visible.values()) if (included.confirmation != null) visibleRuns.add(included.runId);
-		List<DrawPublicationExecution> evidence = ordered.stream().filter(run -> visibleRuns.contains(run.runId()))
-				.map(run -> new DrawPublicationExecution(run.runId(), run.confirmation().id(), run.confirmation().confirmedBy(),
-						run.confirmation().confirmedAt(), linked.getOrDefault(run.runId(), List.of()))).toList();
-		String reason = source == null ? null : linked.get(source.runId()).stream()
-				.map(DrawPublicationCancellation::reason).distinct().collect(java.util.stream.Collectors.joining("\n"));
-		return new DrawPublicationComposition(complete, source == null ? initial.runId() : source.runId(),
-				reason, source == null ? null : source.confirmation(), entries, evidence);
+		List<DrawPublicationExecution> evidence = ordered.stream().filter(run -> visibleRuns.contains(run.getRunId()))
+				.map(run -> new DrawPublicationExecution(run.getRunId(), run.getConfirmation().getId(), run.getConfirmation().getConfirmedBy(),
+						run.getConfirmation().getConfirmedAt(), linked.getOrDefault(run.getRunId(), List.of()))).toList();
+		String reason = source == null ? null : linked.get(source.getRunId()).stream()
+				.map(DrawPublicationCancellation::getReason).distinct().collect(java.util.stream.Collectors.joining("\n"));
+		return new DrawPublicationComposition(complete, source == null ? initial.runId() : source.getRunId(),
+				reason, source == null ? null : source.getConfirmation(), entries, evidence);
 	}
 
 	/** 경품 자리·등수·결과 ID 중복 및 선정 후보와 사용자의 연결을 검증한다. */

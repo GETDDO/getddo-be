@@ -24,9 +24,9 @@ public class DrawPublicationExecutionEntity implements Persistable<DrawPublicati
 	/** 이미 발급된 공개·실행·확인 식별자를 연결하며 필수값 누락은 저장 전에 거절한다. */
 	public DrawPublicationExecutionEntity(UUID publicationId, UUID eventId, DrawPublicationExecution execution) {
 		Objects.requireNonNull(execution, "execution");
-		this.id = new DrawPublicationExecutionId(publicationId, execution.runId());
+		this.id = new DrawPublicationExecutionId(publicationId, execution.getRunId());
 		this.eventId = Objects.requireNonNull(eventId, "eventId");
-		this.confirmationId = execution.confirmationId();
+		this.confirmationId = execution.getConfirmationId();
 	}
 	/** 할당된 복합키의 신규 연결도 persist로 저장하도록 신규 행 여부를 제공한다. */
 	@Override public boolean isNew() { return newEntity; }

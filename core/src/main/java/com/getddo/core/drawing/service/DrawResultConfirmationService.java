@@ -32,14 +32,14 @@ public class DrawResultConfirmationService {
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public DrawResultConfirmation confirmReplacement(UUID runId, UUID actorId) {
 		DrawPublicationRun run = authorizeAndLock(runId, actorId);
-		return finish(run, actorId).confirmation();
+		return finish(run, actorId).getConfirmation();
 	}
 
 	/** 최초 공개 전에 확인한다. 공개 후 재요청은 이미 저장된 확인의 재시도만 허용한다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public DrawPublicationConfirmation confirmBeforeInitial(UUID runId, UUID actorId) {
 		DrawPublicationRun run = authorizeAndLock(runId, actorId);
-		if (repository.findLatest(run.eventId()).isPresent() && run.confirmation() == null)
+		if (repository.findLatest(run.getEventId()).isPresent() && run.getConfirmation() == null)
 			throw new BusinessException(INVALID_PHASE);
 		return finish(run, actorId);
 	}
@@ -48,8 +48,8 @@ public class DrawResultConfirmationService {
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public DrawPublication confirmForPublication(UUID runId, UUID actorId) {
 		DrawPublicationRun run = authorizeAndLock(runId, actorId);
-		if (repository.findLatest(run.eventId()).isEmpty()) throw new BusinessException(INVALID_PHASE);
-		return finish(run, actorId).publication();
+		if (repository.findLatest(run.getEventId()).isEmpty()) throw new BusinessException(INVALID_PHASE);
+		return finish(run, actorId).getPublication();
 	}
 
 	/** 활성 관리자와 실행 존재를 확인한 뒤 이벤트 선잠금 아래 재추첨 결과를 검증한다. */
@@ -62,9 +62,9 @@ public class DrawResultConfirmationService {
 
 	/** 기존 확인을 재사용하거나 새 확인을 저장하고 공개 가능한 전체 명단을 반영한다. */
 	private DrawPublicationConfirmation finish(DrawPublicationRun run, UUID actorId) {
-		DrawResultConfirmation confirmation = run.confirmation();
-		if (confirmation == null) confirmation = repository.saveConfirmation(run.runId(), actorId, time.now());
-		DrawPublication publication = publications.publishConfirmed(run.eventId(), run.runId()).orElse(null);
-		return new DrawPublicationConfirmation(run.eventId(), confirmation, publication);
+		DrawResultConfirmation confirmation = run.getConfirmation();
+		if (confirmation == null) confirmation = repository.saveConfirmation(run.getRunId(), actorId, time.now());
+		DrawPublication publication = publications.publishConfirmed(run.getEventId(), run.getRunId()).orElse(null);
+		return new DrawPublicationConfirmation(run.getEventId(), confirmation, publication);
 	}
 }

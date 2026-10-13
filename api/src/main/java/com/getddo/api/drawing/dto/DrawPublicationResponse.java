@@ -10,7 +10,7 @@ public record DrawPublicationResponse(UUID eventId, UUID publicationId, UUID dra
 		Instant publishedAt, Instant updatedAt, UUID updatedBy) {
 	/** 실제 공개 버전의 식별자·확인자·시각을 응답 값으로 변환한다. */
 	public static DrawPublicationResponse from(DrawPublication publication) {
-		return new DrawPublicationResponse(publication.eventId(), publication.id(), publication.sourceDrawId(),
-				publication.revision(), publication.publishedAt(), publication.publishedAt(), publication.confirmedBy());
+		return new DrawPublicationResponse(publication.getEventId(), publication.getId(), publication.getSourceDrawId(),
+				publication.getRevision(), publication.getPublishedAt(), publication.getPublishedAt(), publication.getConfirmedBy());
 	}
 }

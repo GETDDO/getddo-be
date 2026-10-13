@@ -7,8 +7,8 @@ public record DrawExecutionSummaryResponse(long failureCount, DrawFailureRespons
 		boolean waitingForOperator, List<DrawCancellationResponse> cancellations) {
 	/** 요약과 연결 취소 목록을 HTTP 전용 응답으로 변환한다. */
 	public static DrawExecutionSummaryResponse from(DrawExecutionSummary summary) {
-		return summary == null ? null : new DrawExecutionSummaryResponse(summary.failureCount(),
-				summary.latestFailure() == null ? null : DrawFailureResponse.from(summary.latestFailure()),
-				summary.retryAt(), summary.waitingForOperator(), summary.cancellations().stream().map(DrawCancellationResponse::from).toList());
+		return summary == null ? null : new DrawExecutionSummaryResponse(summary.getFailureCount(),
+				summary.getLatestFailure() == null ? null : DrawFailureResponse.from(summary.getLatestFailure()),
+				summary.getRetryAt(), summary.isWaitingForOperator(), summary.getCancellations().stream().map(DrawCancellationResponse::from).toList());
 	}
 }

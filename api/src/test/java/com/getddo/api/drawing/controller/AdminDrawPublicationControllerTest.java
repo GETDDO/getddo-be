@@ -76,14 +76,14 @@ class AdminDrawPublicationControllerTest {
 		when(publications.publishConfirmed(eventId, runId)).thenReturn(Optional.empty());
 		// when / then
 		mvc.perform(selected(post("/api/v1/admin/draws/{id}/result-confirmation", runId)))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmationId").value(confirmation.id().toString()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmationId").value(confirmation.getId().toString()))
 				.andExpect(jsonPath("$.data.isPublished").value(false)).andExpect(jsonPath("$.data.publicationId").value(nullValue()))
 				.andExpect(jsonPath("$.data.revision").value(nullValue())).andExpect(jsonPath("$.data.publishedAt").value(nullValue()));
-		DrawResultConfirmation original = new DrawResultConfirmation(confirmation.id(), runId, UUID.randomUUID(), NOW.minusSeconds(20));
+		DrawResultConfirmation original = new DrawResultConfirmation(confirmation.getId(), runId, UUID.randomUUID(), NOW.minusSeconds(20));
 		when(publications.validateReplacement(eventId, runId)).thenReturn(run(original));
 		// when / then
 		mvc.perform(selected(post("/api/v1/admin/draws/{id}/result-confirmation", runId)))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmedBy").value(original.confirmedBy().toString()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmedBy").value(original.getConfirmedBy().toString()))
 				.andExpect(jsonPath("$.data.confirmedAt").value("2026-10-12T02:59:40Z"));
 		verify(repository, times(1)).saveConfirmation(runId, actorId, NOW);
 	}
@@ -98,7 +98,7 @@ class AdminDrawPublicationControllerTest {
 		// when / then
 		mvc.perform(selected(post("/api/v1/admin/draws/{id}/result-confirmation", runId)))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.isPublished").value(true))
-				.andExpect(jsonPath("$.data.publicationId").value(first.id().toString()))
+				.andExpect(jsonPath("$.data.publicationId").value(first.getId().toString()))
 				.andExpect(jsonPath("$.data.revision").value(1)).andExpect(jsonPath("$.data.publishedAt").value(NOW.toString()));
 	}
 
@@ -131,8 +131,8 @@ class AdminDrawPublicationControllerTest {
 			// when / then
 			mvc.perform(selected(post("/api/v1/admin/draws/{id}/publication", runId)))
 					.andExpect(status().isOk()).andExpect(jsonPath("$.data").value(aMapWithSize(7)))
-					.andExpect(jsonPath("$.data.publicationId").value(latest.id().toString()))
-					.andExpect(jsonPath("$.data.drawRunId").value(latest.sourceDrawId().toString()))
+					.andExpect(jsonPath("$.data.publicationId").value(latest.getId().toString()))
+					.andExpect(jsonPath("$.data.drawRunId").value(latest.getSourceDrawId().toString()))
 					.andExpect(jsonPath("$.data.revision").value(3));
 		}
 		// when / then

@@ -4,12 +4,10 @@ import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /** 기존 실행 감사 이력의 불변 조회 모델. 원본 감사 행을 변경하지 않는다. */
 @Getter
 @EqualsAndHashCode
-@Accessors(fluent = true)
 public final class DrawExecutionAuditView {
 	private final UUID id;
 	private final UUID actorId;

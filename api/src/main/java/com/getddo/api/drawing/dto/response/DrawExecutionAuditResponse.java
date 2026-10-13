@@ -9,7 +9,7 @@ public record DrawExecutionAuditResponse(UUID id, UUID actorId, String action, S
 		String beforeData, String afterData, String requestId, Instant createdAt) {
 	/** 저장된 감사 조회값을 기존 응답 필드로 변환한다. */
 	public static DrawExecutionAuditResponse from(DrawExecutionAuditView audit) {
-		return new DrawExecutionAuditResponse(audit.id(), audit.actorId(), audit.action(), audit.reason(),
-				audit.beforeData(), audit.afterData(), audit.requestId(), audit.createdAt());
+		return new DrawExecutionAuditResponse(audit.getId(), audit.getActorId(), audit.getAction(), audit.getReason(),
+				audit.getBeforeData(), audit.getAfterData(), audit.getRequestId(), audit.getCreatedAt());
 	}
 }

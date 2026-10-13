@@ -48,8 +48,8 @@ class DrawPublicationNotificationServiceTest {
 		NotificationJobRequest job = captured();
 		assertThat(job.getType()).isEqualTo(NotificationType.RESULT_PUBLISHED);
 		assertThat(job.getRecipientIds()).containsExactlyInAnyOrderElementsOf(users);
-		assertThat(job.getOccurrenceKey()).isEqualTo("draw-publication:" + publication.id());
-		assertThat(job.getPublicationId()).isEqualTo(publication.id());
+		assertThat(job.getOccurrenceKey()).isEqualTo("draw-publication:" + publication.getId());
+		assertThat(job.getPublicationId()).isEqualTo(publication.getId());
 		assertThat(job.getEventId()).isEqualTo(event);
 		assertThat(job.getScheduledAt()).isEqualTo(NOW);
 		assertThat(job.getLinkUrl()).isEqualTo("/events/" + event + "/results");
@@ -64,10 +64,10 @@ class DrawPublicationNotificationServiceTest {
 		UUID canceled = UUID.randomUUID(), winner = UUID.randomUUID(), retained = UUID.randomUUID();
 		DrawPublishedSlot keep = new DrawPublishedSlot(prize, 2, UUID.randomUUID(), retained);
 		when(publications.findPrevious(event, 2)).thenReturn(Optional.of(previous));
-		when(publications.findPublishedSlots(previous.id())).thenReturn(List.of(
+		when(publications.findPublishedSlots(previous.getId())).thenReturn(List.of(
 				new DrawPublishedSlot(prize, 1, UUID.randomUUID(), canceled), keep,
 				new DrawPublishedSlot(prize, 3, UUID.randomUUID(), canceled)));
-		when(publications.findPublishedSlots(current.id())).thenReturn(List.of(
+		when(publications.findPublishedSlots(current.getId())).thenReturn(List.of(
 				new DrawPublishedSlot(prize, 1, UUID.randomUUID(), winner), keep));
 		// when
 		service.register(current);
@@ -75,7 +75,7 @@ class DrawPublicationNotificationServiceTest {
 		NotificationJobRequest job = captured();
 		assertThat(job.getType()).isEqualTo(NotificationType.RESULT_CHANGED);
 		assertThat(job.getRecipientIds()).containsExactlyInAnyOrder(canceled, winner);
-		assertThat(job.getOccurrenceKey()).isEqualTo("draw-publication:" + current.id());
+		assertThat(job.getOccurrenceKey()).isEqualTo("draw-publication:" + current.getId());
 		verifyNoInteractions(recipients);
 	}
 

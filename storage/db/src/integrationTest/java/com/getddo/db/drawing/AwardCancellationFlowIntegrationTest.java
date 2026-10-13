@@ -397,16 +397,16 @@ class AwardCancellationFlowIntegrationTest {
 		DrawPublication updated = resultConfirmations.confirmForPublication(runId, actor);
 		DrawPublication replay = resultConfirmations.confirmForPublication(runId, actor);
 		// then
-		assertThat(updated.revision()).isEqualTo(2);
+		assertThat(updated.getRevision()).isEqualTo(2);
 		assertThat(replay).isEqualTo(updated);
-		assertThat(updated.entries()).hasSize(3);
+		assertThat(updated.getEntries()).hasSize(3);
 		assertThat(publications.history(fixture.eventId())).containsExactly(initial, updated);
 		DrawPublicationChange change = publications.changes(fixture.eventId()).getLast();
-		assertThat(change.executions()).hasSize(1);
-		assertThat(change.executions().getFirst().runId()).isEqualTo(runId);
-		assertThat(change.executions().getFirst().confirmedBy()).isEqualTo(actor);
-		assertThat(change.executions().getFirst().cancellations().getFirst().reason()).isEqualTo("운영자 확인");
-		assertThat(inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution().cancellations()).hasSize(1);
+		assertThat(change.getExecutions()).hasSize(1);
+		assertThat(change.getExecutions().getFirst().getRunId()).isEqualTo(runId);
+		assertThat(change.getExecutions().getFirst().getConfirmedBy()).isEqualTo(actor);
+		assertThat(change.getExecutions().getFirst().getCancellations().getFirst().getReason()).isEqualTo("운영자 확인");
+		assertThat(inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution().getCancellations()).hasSize(1);
 		assertThat(inspections.executionAudits(users.findById(actor).orElseThrow(), runId,
 				new PageQuery(1, 1)).getTotalElements()).isGreaterThanOrEqualTo(1);
 		assertThat(jobCount(fixture.eventId())).isEqualTo(2);
@@ -436,12 +436,12 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(inspections.verify(users.findById(actor).orElseThrow(), first.cancellation().replacementRunId()).isPassed()).isTrue();
 		assertThat(inspections.verify(users.findById(actor).orElseThrow(), second.cancellation().replacementRunId()).isPassed()).isTrue();
 		resultConfirmations.confirmBeforeInitial(first.cancellation().replacementRunId(), actor);
-		DrawPublication version = resultConfirmations.confirmBeforeInitial(second.cancellation().replacementRunId(), otherAdmin).publication();
+		DrawPublication version = resultConfirmations.confirmBeforeInitial(second.cancellation().replacementRunId(), otherAdmin).getPublication();
 		// then
 		assertThat(first.execution().getConfirmation().getResults().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
 		assertThat(second.execution().getConfirmation().getResults().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
-		assertThat(version.entries()).hasSize(1);
-		List<DrawPublicationExecution> evidence = publications.changes(small.eventId()).getFirst().executions();
+		assertThat(version.getEntries()).hasSize(1);
+		List<DrawPublicationExecution> evidence = publications.changes(small.eventId()).getFirst().getExecutions();
 		assertThat(evidence).hasSize(2);
 		DrawRunDetailView unfilledDetail = inspections.detail(users.findById(actor).orElseThrow(), first.cancellation().replacementRunId());
 		assertThat(unfilledDetail.getResults()).singleElement().satisfies(result -> {
@@ -461,8 +461,8 @@ class AwardCancellationFlowIntegrationTest {
 					assertThat(award.getUserId()).isNull();
 					assertThat(award.getCanceledAt()).isNull();
 				});
-		assertThat(evidence.stream().map(DrawPublicationExecution::confirmedBy)).containsExactly(actor, otherAdmin);
-		assertThat(evidence.stream().flatMap(value -> value.cancellations().stream()).map(DrawPublicationCancellation::reason))
+		assertThat(evidence.stream().map(DrawPublicationExecution::getConfirmedBy)).containsExactly(actor, otherAdmin);
+		assertThat(evidence.stream().flatMap(value -> value.getCancellations().stream()).map(DrawPublicationCancellation::getReason))
 				.containsExactly("첫 번째 사유", "두 번째 사유");
 	}
 
@@ -476,10 +476,10 @@ class AwardCancellationFlowIntegrationTest {
 		UUID runId = failed.cancellation().replacementRunId();
 		// then
 		DrawExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
-		assertThat(summary.failureCount()).isEqualTo(1);
-		assertThat(summary.latestFailure().getFailureCode()).isEqualTo("TRANSIENT_STORAGE");
-		assertThat(summary.retryAt()).isNotNull();
-		assertThat(summary.waitingForOperator()).isFalse();
+		assertThat(summary.getFailureCount()).isEqualTo(1);
+		assertThat(summary.getLatestFailure().getFailureCode()).isEqualTo("TRANSIENT_STORAGE");
+		assertThat(summary.getRetryAt()).isNotNull();
+		assertThat(summary.isWaitingForOperator()).isFalse();
 		PageResult<DrawFailure> page = inspections.failures(users.findById(actor).orElseThrow(), runId,
 				new PageQuery(1, 1));
 		assertThat(page.getItems()).hasSize(1);
@@ -558,7 +558,7 @@ class AwardCancellationFlowIntegrationTest {
 				assertThat(publications.history(fixture.eventId())).hasSize(2);
 				assertThat(jobCount(fixture.eventId())).isEqualTo(2);
 				assertThat(jdbc.queryForObject("select count(*) from draw_result_confirmations where draw_run_id = ?", Long.class, toBytes(runId))).isEqualTo(1);
-				assertThat(jdbc.queryForObject("select count(*) from draw_publication_executions where publication_id = ?", Long.class, toBytes(version.id()))).isEqualTo(1);
+				assertThat(jdbc.queryForObject("select count(*) from draw_publication_executions where publication_id = ?", Long.class, toBytes(version.getId()))).isEqualTo(1);
 			} finally { release.countDown(); }
 		}
 	}
@@ -572,10 +572,10 @@ class AwardCancellationFlowIntegrationTest {
 		UUID runId = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "운영자 대기").cancellation().replacementRunId();
 		// then
 		DrawExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
-		assertThat(summary.failureCount()).isEqualTo(1);
-		assertThat(summary.latestFailure().getFailureCode()).isEqualTo("INTERNAL_ERROR");
-		assertThat(summary.retryAt()).isNull();
-		assertThat(summary.waitingForOperator()).isTrue();
+		assertThat(summary.getFailureCount()).isEqualTo(1);
+		assertThat(summary.getLatestFailure().getFailureCode()).isEqualTo("INTERNAL_ERROR");
+		assertThat(summary.getRetryAt()).isNull();
+		assertThat(summary.isWaitingForOperator()).isTrue();
 	}
 
 	/** 다음 동작을 검증한다: 재추첨 당첨을 다시 취소해도 과거 검증과 공개 확인 근거는 불변이며 최신 자리만 바꾼다. */
@@ -596,12 +596,12 @@ class AwardCancellationFlowIntegrationTest {
 		// then
 		assertThat(inspections.verify(users.findById(actor).orElseThrow(), firstRun).isPassed()).isTrue();
 		assertThat(inspections.verify(users.findById(actor).orElseThrow(), secondRun).isPassed()).isTrue();
-		assertThat(latest.revision()).isEqualTo(3);
-		assertThat(latest.entries()).hasSize(3);
-		assertThat(latest.entries().stream().map(DrawPublication.Entry::resultId)).doesNotContain(newWinner.getId());
+		assertThat(latest.getRevision()).isEqualTo(3);
+		assertThat(latest.getEntries()).hasSize(3);
+		assertThat(latest.getEntries().stream().map(DrawPublication.Entry::getResultId)).doesNotContain(newWinner.getId());
 		assertThat(publications.changes(fixture.eventId()).get(1)).usingRecursiveComparison().isEqualTo(firstEvidence);
 		assertThat(publications.history(fixture.eventId()).get(1)).isEqualTo(firstVersion);
-		assertThat(publications.changes(fixture.eventId()).getLast().executions().stream().map(DrawPublicationExecution::runId))
+		assertThat(publications.changes(fixture.eventId()).getLast().getExecutions().stream().map(DrawPublicationExecution::getRunId))
 				.containsExactly(secondRun);
 		assertThat(jobCount(fixture.eventId())).isEqualTo(3);
 		DrawRunDetailView previousDetail = inspections.detail(users.findById(actor).orElseThrow(), firstRun);
@@ -610,17 +610,17 @@ class AwardCancellationFlowIntegrationTest {
 					assertThat(result.isCanceled()).isTrue();
 					assertThat(result.isWasPublished()).isTrue();
 				});
-		assertThat(previousDetail.getExecution().cancellations()).extracting(DrawCancellationView::id)
+		assertThat(previousDetail.getExecution().getCancellations()).extracting(DrawCancellationView::getId)
 				.containsExactly(first.cancellation().id(), second.cancellation().id());
-		assertThat(inspections.detail(users.findById(actor).orElseThrow(), secondRun).getExecution().cancellations())
-				.extracting(DrawCancellationView::id).containsExactly(second.cancellation().id());
+		assertThat(inspections.detail(users.findById(actor).orElseThrow(), secondRun).getExecution().getCancellations())
+				.extracting(DrawCancellationView::getId).containsExactly(second.cancellation().id());
 	}
 
 	/** 이벤트의 실제 알림 작업 행 수로 공개 버전별 중복 등록 여부를 확인한다. */
 	private long jobCount(UUID eventId) { return jdbc.queryForObject("select count(*) from notification_jobs where event_id = ?", Long.class, toBytes(eventId)); }
 	/** 공개 ID 기반 발생 키로 실제 등록된 알림 작업의 식별자를 읽는다. */
 	private UUID jobId(DrawPublication version) {
-		return fromBytes(jdbc.queryForObject("select id from notification_jobs where occurrence_key = ?", byte[].class, "draw-publication:" + version.id()));
+		return fromBytes(jdbc.queryForObject("select id from notification_jobs where occurrence_key = ?", byte[].class, "draw-publication:" + version.getId()));
 	}
 	/** 기존 생성 처리기를 작업이 없거나 시험 반복 상한에 이를 때까지 호출한다. */
 	private void processJobs() { for (int index = 0; index < 500 && jobs.processNextJob(); index++) { } }

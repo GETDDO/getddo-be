@@ -5,11 +5,9 @@ import java.util.UUID;
 import java.util.Objects;
 
 import lombok.Getter;
-import lombok.experimental.Accessors;
 
 /** 공개할 전체 명단과 그 계기. 최초 공개 가능 여부와 실행의 내부 확정을 구분한다. */
 @Getter
-@Accessors(fluent = true)
 public final class DrawPublicationComposition {
 	private final boolean complete;
 	private final UUID sourceRunId;

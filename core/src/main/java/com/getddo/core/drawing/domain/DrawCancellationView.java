@@ -4,12 +4,10 @@ import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /** 실행 결과 취소와 이 실행을 발생시킨 취소를 함께 조회하는 관리자용 값. */
 @Getter
 @EqualsAndHashCode
-@Accessors(fluent = true)
 public final class DrawCancellationView {
 	private final UUID id;
 	private final UUID resultId;

@@ -13,11 +13,11 @@ public record DrawResultConfirmationResponse(UUID eventId, UUID confirmationId, 
 		Instant publishedAt) {
 	/** 관리자 확인과 실제 공개 여부를 구분하고 미공개 필드는 null로 응답한다. */
 	public static DrawResultConfirmationResponse from(DrawPublicationConfirmation result) {
-		DrawResultConfirmation confirmation = result.confirmation();
-		DrawPublication publication = result.publication();
-		return new DrawResultConfirmationResponse(result.eventId(), confirmation.id(), confirmation.runId(),
-				confirmation.confirmedBy(), confirmation.confirmedAt(), publication != null,
-				publication == null ? null : publication.id(), publication == null ? null : publication.revision(),
-				publication == null ? null : publication.publishedAt());
+		DrawResultConfirmation confirmation = result.getConfirmation();
+		DrawPublication publication = result.getPublication();
+		return new DrawResultConfirmationResponse(result.getEventId(), confirmation.getId(), confirmation.getRunId(),
+				confirmation.getConfirmedBy(), confirmation.getConfirmedAt(), publication != null,
+				publication == null ? null : publication.getId(), publication == null ? null : publication.getRevision(),
+				publication == null ? null : publication.getPublishedAt());
 	}
 }
