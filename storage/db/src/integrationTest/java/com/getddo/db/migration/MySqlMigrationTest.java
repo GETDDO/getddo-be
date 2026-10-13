@@ -237,7 +237,6 @@ class MySqlMigrationTest {
 		}
 	}
 
-	/** 유니크 인덱스(PK 포함)의 컬럼을 인덱스 내 순서대로 반환한다. */
 	/** 적용된 마이그레이션의 버전 번호. */
 	private static List<Integer> appliedVersions() {
 		return java.util.Arrays.stream(flyway.info().applied())
@@ -245,6 +244,7 @@ class MySqlMigrationTest {
 				.toList();
 	}
 
+	/** 유니크 인덱스(PK 포함)의 컬럼을 인덱스 내 순서대로 반환한다. */
 	private static List<String> indexColumns(String tableName, String indexName) throws SQLException {
 		return indexColumns(tableName, indexName, 0);
 	}
