@@ -1,7 +1,7 @@
 # 개별 당첨 취소·재추첨 저장
 
 - 관련 작업: [GD-138](https://ureca4.atlassian.net/browse/GD-138)
-- 업무 정책 원본: [추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md)
+- 업무 정책 원본: [추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md)
 - 공통 실행 계약: [GD-87](https://ureca4.atlassian.net/browse/GD-87)의 `공통 실행 계약 — 구현 기준`
 - 공통 실행 저장: [추첨 저장 설계](drawing-selection-storage.md)
 
@@ -15,7 +15,7 @@
 
 ## 멱등 키와 이력
 
-멱등 키의 전역/당첨 결과별 적용 범위는 사용자 판단 대기다. 아래 전역 UNIQUE와 충돌 처리는 현재 구현 제안의 설명이며, 승인된 공용 정책을 뜻하지 않는다. V022 번호 변경 승인은 키 범위 승인이 아니다. 범위 결정은 [공용 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md)의 GD-138 일부 계약 확정 절과 [기존 판단 대기 스레드](https://github.com/GETDDO/getddo-be/pull/56#discussion_r4244428333)를 따른다.
+멱등 키의 전역/당첨 결과별 적용 범위는 사용자 판단 대기다. 아래 전역 UNIQUE와 충돌 처리는 현재 구현 제안의 설명이며, 승인된 공용 정책을 뜻하지 않는다. V022 번호 변경 승인은 키 범위 승인이 아니다. 범위 결정은 [공용 API](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/05-api/drawing.md)의 GD-138 일부 계약 확정 절과 [기존 판단 대기 스레드](https://github.com/Uplus-GETDDO/getddo-be/pull/56#discussion_r4244428333)를 따른다.
 
 [V022](../../storage/db/src/main/resources/db/migration/drawing/V022__add_award_cancellation_request_key.sql)은 기존 award_cancellations에 nullable `request_key BINARY(16)`과 UNIQUE를 추가한다. 기존 행은 NULL로 보존하고 새 AD05 등록은 UUID 키를 필수 검증한다. 기존 Flyway와 과거 데이터는 변경하지 않는다.
 

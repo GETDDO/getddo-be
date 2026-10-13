@@ -1,6 +1,6 @@
 # 결과 공개·관리자 확인 저장
 
-- 담당: GD-139, GD-169 연동. 공용 정책 원본은 [추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md)이다.
+- 담당: GD-139, GD-169 연동. 공용 정책 원본은 [추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md)이다.
 - 이 문서는 백엔드 저장·서비스 연결을 설명한다. 공용 HTTP 명세의 미확정 항목을 일괄 확정하지 않는다.
 
 ## 저장과 잠금
@@ -25,7 +25,7 @@ HTTP 연결은 2026-10-12 사용자 승인 범위(AD06 본문 없음, 최초 공
 
 승인 근거는 이 작업 대화에서 AD06의 `ReasonRequest`를 받지 않고 기존 연결 취소 사유를 사용하는 안, 본문 없는 `/result-confirmation` 경로, 관리자 권한·HTTP 상태·페이징을 함께 제안한 질문에 대한 사용자의 **“제안 계약으로 확정”** 답변이다. 인접 getddo-spec의 2026-10-13 계약 보완 문서에 승인 내용이 반영되어 있다. 2026-10-13 확인 시 해당 계약 보완은 인접 getddo-spec의 미커밋 문서에 있으며, 원격 main(`00f0d743`)에는 아직 반영되지 않았다. 초안의 `ReasonRequest`를 확정 정책으로 해석하지 않는다.
 
-승인일은 2026-10-12이며 적용 범위와 공용 spec 동기화 후속은 [PR #59](https://github.com/GETDDO/getddo-be/pull/59)에서 추적한다. 승인 근거에 대한 설명과 초안 기반 지적 철회는 [해당 리뷰 스레드](https://github.com/GETDDO/getddo-be/pull/59#discussion_r4244759752)에 보존한다.
+승인일은 2026-10-12이며 적용 범위와 공용 spec 동기화 후속은 [PR #59](https://github.com/Uplus-GETDDO/getddo-be/pull/59)에서 추적한다. 승인 근거에 대한 설명과 초안 기반 지적 철회는 [해당 리뷰 스레드](https://github.com/Uplus-GETDDO/getddo-be/pull/59#discussion_r4244759752)에 보존한다.
 
 ## 담당 경계와 검증 한계
 
@@ -40,7 +40,7 @@ GD-86 자동 등록·예정 시각 및 지연 재호출과 GD-140 공개 버전 
 상태: 백엔드 구현 검토 대기(PR #69). 아래는 현재 구현 설명이며 공용 DTO 계약을 새로 확정하지 않는다. 통합 테스트 통과는 구현 검증 결과이며 담당자 승인·운영 적용 완료를 뜻하지 않는다.
 
 - 공개 버전과 결과 포함 행, 실행별 확인 연결, 기존 알림 작업은 같은 서비스 트랜잭션에서 저장한다. 작업 등록 실패는 새 공개·새 확인을 롤백한다. 커밋 뒤 생성·발송 실패는 공개를 되돌리지 않는다.
-- AD07의 `executions`는 실행 번호 순으로 `runId`, `confirmationId`, `confirmedBy`, `confirmedAt`, `cancellations[{id,resultId,reason}]`를 제공한다. 취소 목록은 `canceled_at` 순, 같은 시각이면 ID 순이다. 실제 반영된 미충원 실행도 포함한다. 단일 사유·확인자 필드는 계기 실행의 정보다. `executions` 필드명과 구체 DTO는 원격 공용 `PublicListChange`에 반영되기 전 백엔드 제안이며 [PR #69](https://github.com/GETDDO/getddo-be/pull/69)에서 검토한다. V024 도입 전 근거 연결이 없는 버전은 목록이 비어 있으며 현재 상태로 소급 추정하지 않는다.
+- AD07의 `executions`는 실행 번호 순으로 `runId`, `confirmationId`, `confirmedBy`, `confirmedAt`, `cancellations[{id,resultId,reason}]`를 제공한다. 취소 목록은 `canceled_at` 순, 같은 시각이면 ID 순이다. 실제 반영된 미충원 실행도 포함한다. 단일 사유·확인자 필드는 계기 실행의 정보다. `executions` 필드명과 구체 DTO는 원격 공용 `PublicListChange`에 반영되기 전 백엔드 제안이며 [PR #69](https://github.com/Uplus-GETDDO/getddo-be/pull/69)에서 검토한다. V024 도입 전 근거 연결이 없는 버전은 목록이 비어 있으며 현재 상태로 소급 추정하지 않는다.
 - 공개 근거와 경계 이전 버전·포함 결과는 페이지 단위로 일괄 조회한다. 이후 취소나 확인은 저장된 과거 버전의 확인 연결을 덮어쓰지 않는다.
 - 활성 관리자 검증은 실행·취소·확인에서 `DrawAdminAuthorization`을 공유한다. 관리자 조회는 공통 사용자 문맥에서 조회한 사용자를 같은 조건으로 검증한다. 각 업무 오류 코드와 처리자 없는 자동 실행은 유지한다.
 - 최초 알림 대상은 접수 기록이 있는 이벤트 응모자 전원이다. 변경 알림 대상은 직전 공개 버전과 비교한 취소자·새 당첨자이며 유지 당첨자와 다른 응모자는 제외한다. 발생 키는 `draw-publication:<publicationId>`, payload의 공개 식별자·문구·링크·수신 목록·예약 시각은 등록 후 고정이다.

@@ -3,14 +3,14 @@
 - 상태: 제안
 - 작성자 / 날짜: Codex — 석종수 담당자 확인 전 / 2026-10-05
 - 검토자: 담당자 확인 전
-- 관련 작업 기록 / PR: [2026-10-05 작업 기록](../05-worklogs/석종수/2026-10-05.md), [GD-93](https://ureca4.atlassian.net/browse/GD-93), [PR #26](https://github.com/GETDDO/getddo-be/pull/26)
+- 관련 작업 기록 / PR: [2026-10-05 작업 기록](../05-worklogs/석종수/2026-10-05.md), [GD-93](https://ureca4.atlassian.net/browse/GD-93), [PR #26](https://github.com/Uplus-GETDDO/getddo-be/pull/26)
 - 대체한 ADR / 대체된 ADR: 해당 없음
 
 ## 배경
 
 추첨 ERD 검토에서 최초 후보의 가중치·응모 근거를 유지하면서 재추첨 실행마다 실제 사용한 명단을 보존해야 한다는 점을 확인했다. 이전 초안은 재추첨마다 후보 상세 정보와 두 JSON 스냅샷을 반복 저장했다. 응모자 10,000명 중 5명이 당첨되고 추가 제외자가 없다면 재추첨 후보는 9,995명이며, 재추첨마다 상세 정보가 반복될 수 있다. 수만 행 자체를 문제로 판단한 것이 아니라 원본 정보와 실행별 소속의 중복을 줄이는 것이 이번 변경의 목적이다. 저장 용량·성능은 실제 측정하지 않았다.
 
-선정 결과와 공개 명단도 구분해야 한다. 내부에서 새 당첨자를 확정했더라도 관리자 확인 전에는 사용자 조회에 반영할 수 없다. 공용 정책과 API 초안은 [SPEC 추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md)과 [SPEC 추첨 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md)를 원본으로 사용한다. 이 ADR은 백엔드 저장·조회 제안을 기록하며 운영 코드나 Flyway 적용 완료를 뜻하지 않는다.
+선정 결과와 공개 명단도 구분해야 한다. 내부에서 새 당첨자를 확정했더라도 관리자 확인 전에는 사용자 조회에 반영할 수 없다. 공용 정책과 API 초안은 [SPEC 추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md)과 [SPEC 추첨 API](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/05-api/drawing.md)를 원본으로 사용한다. 이 ADR은 백엔드 저장·조회 제안을 기록하며 운영 코드나 Flyway 적용 완료를 뜻하지 않는다.
 
 ## 결정과 이유
 
