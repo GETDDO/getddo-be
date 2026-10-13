@@ -133,7 +133,7 @@ class MissionSubmissionRecorderTest {
 			MissionSubmission given = invocation.getArgument(0);
 			return new MissionSubmission(given.getId(), given.getMissionId(), given.getRewardPolicyId(), given.getUserId(),
 					given.isCompleted(), given.getCreatedAt(),
-					HASH, given.getQuizAnswers().stream()
+					given.getRequestHash(), given.getQuizAnswers().stream()
 							.map(a -> new QuizAnswer(UUID.randomUUID(), a.getQuestionId(), a.getSelectedOptionId(),
 									a.getAnswerText(), a.isCorrect()))
 							.toList(),
@@ -173,6 +173,10 @@ class MissionSubmissionRecorderTest {
 		assertThat(result.getReward().getTicketCount()).isEqualTo(1);
 		assertThat(result.getReward().getGrade()).isEqualTo(TicketGrade.SILVER);
 		assertThat(result.getReward().getExpiresAt()).isEqualTo(EXPIRES_AT);
+		ArgumentCaptor<MissionSubmission> inserted = ArgumentCaptor.forClass(MissionSubmission.class);
+		verify(submissionRepository).insert(inserted.capture());
+		assertThat(inserted.getValue().getRequestHash())
+				.isEqualTo(command(option(q1, q1Ok), text(q2, " 겟또 ")).getRequestHash());
 		ArgumentCaptor<QuizQuestionProgress> progress = ArgumentCaptor.forClass(QuizQuestionProgress.class);
 		verify(progressRepository, org.mockito.Mockito.times(2)).insert(progress.capture());
 		assertThat(progress.getAllValues()).extracting(QuizQuestionProgress::getQuestionId)

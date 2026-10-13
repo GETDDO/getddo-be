@@ -38,8 +38,10 @@ public final class MissionSubmissionCommand {
 	}
 
 	/**
-	 * 요청을 정규화한 문자열의 SHA-256을 구한다. 답변은 문항 ID 순으로 정렬하고, 선택지가 없거나 입력 문자열이 비었으면 {@code -}로
-	 * 적는다. 입력 문자열은 길이를 앞에 붙여 다른 답변 구성과 경계가 섞이지 않게 한다.
+	 * 요청 구성 문자열의 SHA-256을 구한다. 단답형 채점의 정규화(공백·대소문자·유니코드 조합 차이를 무시)와는 별개의 규칙이다.
+	 * 답변은 문항 ID 순으로 정렬하고, 선택지가 없거나 입력 문자열이 {@code null}이거나 비었거나 공백뿐이면 {@code -}로 적는다.
+	 * 그 밖의 입력 문자열은 원문 그대로 길이와 함께 포함하므로 {@code "겟또"}와 {@code "겟또 "}는 다른 요청이다(채점에서는 둘 다
+	 * 같은 답이다). 길이를 앞에 붙여 다른 답변 구성과 경계가 섞이지 않게 한다.
 	 */
 	private static String hash(UUID userId, UUID missionId, List<MissionAnswerInput> answers) {
 		StringBuilder canonical = new StringBuilder("mission=").append(missionId).append("|user=").append(userId);
