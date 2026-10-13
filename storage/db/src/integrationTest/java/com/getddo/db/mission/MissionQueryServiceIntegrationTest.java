@@ -1,6 +1,8 @@
 package com.getddo.db.mission;
 
+import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -137,5 +139,29 @@ class MissionQueryServiceIntegrationTest extends MissionIntegrationTestSupport {
 		// then
 		assertThatThrownBy(() -> queryService.findMission(userId, missing)).isInstanceOfSatisfying(MissionException.class,
 				e -> assertThat(e.getErrorCode()).isEqualTo(MissionErrorCode.MISSION_NOT_FOUND));
+	}
+
+	@Test
+	@DisplayName("시작 시각이 같은 미션은 DB의 BINARY(16) 정렬과 같이 ID 바이트를 부호 없이 비교한 내림차순으로 보여 준다")
+	void ordersMissionsWithSameStartTimeByIdDescendingInDbByteOrder() {
+		// given
+		MissionDetail first = saveSurveyMission("같은 시각 설문 1");
+		MissionDetail second = saveSurveyMission("같은 시각 설문 2");
+		UUID higher = unsignedBytesCompare(first.getMission().getId(), second.getMission().getId()) > 0
+				? first.getMission().getId() : second.getMission().getId();
+		UUID lower = higher.equals(first.getMission().getId()) ? second.getMission().getId() : first.getMission().getId();
+		// when
+		PageResult<MissionSummary> result = queryService.findMissions(userId, MissionType.SURVEY, ALL);
+		// then
+		assertThat(idsOf(result)).containsSubsequence(higher, lower);
+	}
+
+	/** MySQL BINARY(16) 정렬과 같이 16바이트를 부호 없이 앞에서부터 비교한다. Java UUID.compareTo와 다를 수 있다. */
+	private static int unsignedBytesCompare(UUID left, UUID right) {
+		return Arrays.compareUnsigned(bytes(left), bytes(right));
+	}
+
+	private static byte[] bytes(UUID id) {
+		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
 }
