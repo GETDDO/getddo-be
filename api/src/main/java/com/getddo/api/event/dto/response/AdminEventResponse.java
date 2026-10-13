@@ -10,7 +10,7 @@ import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.domain.MembershipRule;
 import com.getddo.core.event.domain.RegisteredEvent;
 
-/** 관리자 등록·조회 응답. 실제 DB 상태와 이미지 키·운영 시각을 제공한다. */
+/** 관리자 등록·조회·수정 응답. 실제 DB 상태와 이미지 키·운영 시각을 제공한다. */
 public record AdminEventResponse(
 		UUID id,
 		String title,
