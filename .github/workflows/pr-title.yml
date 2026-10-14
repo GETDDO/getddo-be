@@ -1,0 +1,56 @@
+name: PR Title
+
+# 병합 차단: main/dev Ruleset에서 "PR 제목 검사"를 필수 상태 검사로 등록한다.
+# 제목 규칙: https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    name: PR 제목 검사
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: PR 제목 형식 확인
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+          from datetime import date
+
+          pattern = r"\[(feat|fix|docs|style|refactor|test|chore|design|comment|rename|remove|!HOTFIX)\] GD-[1-9][0-9]* \S[^\r\n]*"
+          worklog_branch = re.fullmatch(
+              r"docs/([0-9]{4}-[0-9]{2}-[0-9]{2})(?:-[^/\s-][^/\s]*)?",
+              os.environ["PR_HEAD_REF"],
+          )
+          is_worklog_branch = False
+          if worklog_branch:
+              try:
+                  date.fromisoformat(worklog_branch.group(1))
+                  is_worklog_branch = True
+              except ValueError:
+                  pass
+
+          title = os.environ["PR_TITLE"]
+          valid_title = re.fullmatch(pattern, title) is not None
+          if is_worklog_branch:
+              valid_title = valid_title or re.fullmatch(r"\[docs\] (?!GD-)\S[^\r\n]*", title) is not None
+
+          if not valid_title:
+              print("::error::PR 제목은 [타입] GD-번호 작업 설명 형식이어야 합니다. "
+                    "docs/YYYY-MM-DD 또는 docs/YYYY-MM-DD-설명 브랜치에서는 [docs] 작업 설명도 허용합니다.")
+              sys.exit(1)
+          print("PR 제목 형식 검사를 통과했습니다.")
+          PY

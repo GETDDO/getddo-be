@@ -1,0 +1,8 @@
+allprojects {
+    tasks.withType(Test).configureEach {
+        maxParallelForks = 1
+        systemProperty 'spring.test.context.cache.maxSize',
+            System.getProperty('spring.test.context.cache.maxSize', '2')
+        systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
+    }
+}

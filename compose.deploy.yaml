@@ -1,0 +1,30 @@
+# EC2 배포용: 앱만 실행한다. DB는 컨테이너가 아닌 비공개 RDS를 사용한다.
+# 로컬 개발은 기존 compose.yaml을 계속 사용한다.
+services:
+  app:
+    # 실행할 이미지 참조를 서버에서 주입한다.
+    image: ${APP_IMAGE:?실행할 이미지 참조가 필요합니다}
+    # CI에서 받은 이미지를 서버에 불러온 뒤 그 이미지 ID로 실행한다.
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      # DB 비밀번호는 EC2에만 보관한다. Git이나 Actions에는 넣지 않는다.
+      # raw는 비밀번호의 $·따옴표를 그대로 전달한다. Compose 2.30 이상 필요.
+      - path: /etc/getddo/app.env
+        format: raw
+    volumes:
+      # RDS 인증서를 검증할 공개 CA 저장소. 사전에 EC2에 준비해야 한다.
+      - type: bind
+        source: /etc/getddo/rds-truststore.p12
+        target: /etc/getddo/rds-truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

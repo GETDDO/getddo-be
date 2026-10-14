@@ -1,0 +1,116 @@
+# 시연용 사용자 문맥과 내 정보 API
+
+- 관련 작업: [GD-52](https://ureca4.atlassian.net/browse/GD-52), [GD-81](https://ureca4.atlassian.net/browse/GD-81), [GD-168](https://ureca4.atlassian.net/browse/GD-168)
+- 공용 기준: [사용자 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/user.md), [공통 API 초안](https://github.com/GETDDO/getddo-spec/blob/main/05-api/common.md)
+
+이 문서는 GD-52의 백엔드 구현 사용법이다. 로그인 없이 사전 등록한 사용자를 헤더로 선택하고, DB에서 확인한 정보를 필요한 Controller에 전달한다. 사용자 정보를 변경하거나 로그인·토큰을 발급하지 않는다.
+
+공용 `common.md`의 기존 초안은 role 헤더를 받지 않고 멤버십을 선택으로 두고 있다. GD-52는 2026-09-30 사용자 확인에 따라 아래 입력을 구현했다. 후속 사용자 요청에 따라 알림 N01~N03과 관리자 이벤트 등록도 같은 MVC 처리에 연결했다. GD-81에서 알림의 멤버십을 선택 입력으로 수정했다. 알림 명세와 역할 헤더·사용자 오류 코드의 차이는 남아 있으므로 프론트엔드 호출과 공용 명세를 함께 맞춰야 한다. 이 문서는 백엔드 구현 변경을 기록하며 공용 명세의 확정 상태를 대신 변경하지 않는다.
+
+## U01 호출
+
+`GET /api/v1/users/me`
+
+| 헤더 | USER | ADMIN | 입력 |
+| --- | --- | --- | --- |
+| `X-User-ID` | 필수 | 필수 | 등록된 사용자 UUID, 하이픈을 포함한 36자 표기 |
+| `X-User-Role` | 필수 | 필수 | `USER` 또는 `ADMIN`, DB 역할과 대조 |
+| `X-User-Membership` | 필수 | 선택 | `excellent`, `vip`, `vvip` |
+
+각 헤더는 하나의 값만 허용한다. 빈 문자열·공백·중복·잘못된 값은 형식 오류로 처리한다. UUID의 영문 대소문자는 허용하며 역할은 대문자, 멤버십은 소문자다. USER는 DB 멤버십과 일치해야 한다. ADMIN이 멤버십을 보내면 형식만 검사하며 응답에는 DB 값을 사용한다.
+
+```http
+GET /api/v1/users/me
+X-User-ID: 00000000-0000-0000-0000-000000000521
+X-User-Role: USER
+X-User-Membership: vip
+```
+
+예제 UUID는 형식 예시다. 자동 생성되는 시연 계정이 아니므로 실제 DB에 준비한 ID를 사용한다. ADMIN 요청은 등록된 관리자 ID와 `X-User-Role: ADMIN`을 전달하면 된다.
+
+성공 시 기존 `ResponseEnvelope`의 `data`에 [공용 UserProfile](https://github.com/GETDDO/getddo-spec/blob/main/05-api/user.md#본인-정보)의 7개 필드만 반환한다. 응답은 헤더 문자열을 복사하지 않고 DB 조회 결과로 만든다. 멤버십은 소문자로 변환하며, nullable 값은 필드를 생략하지 않고 `null`로 반환한다. 전화번호의 앞자리 0과 ADMIN의 DB 멤버십도 보존한다.
+
+## 오류 응답
+
+오류는 기존 `GlobalExceptionHandler`와 실패 `ResponseEnvelope`를 사용한다. 아래 표는 U01과 기본 `@CurrentUser`의 조건이다. 알림의 멤버십 처리는 아래 별도 안내를 따른다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | `COMMON-005` | UUID·role·membership 형식 오류, 빈 값, 중복 헤더 |
+| 401 | `USER-003` | 필요한 사용자 헤더 누락 |
+| 401 | `USER-002` | DB에 등록되지 않은 사용자 |
+| 403 | `USER-004` | 헤더와 DB의 역할 불일치 |
+| 403 | `USER-005` | USER의 DB 멤버십이 null |
+| 409 | `USER-006` | USER의 헤더와 DB 멤버십 불일치 |
+| 403 | `USER-007` | INACTIVE 사용자의 내 정보 조회 |
+| 500 | `COMMON-001` | DB 조회 장애 등 예상하지 못한 오류 |
+
+헤더 형식을 먼저 확인하고 DB 조회 후 역할, USER의 멤버십, U01 상태 순서로 검사한다. 여러 조건이 동시에 잘못된 요청은 먼저 발견된 오류를 반환한다. DB에 저장된 null 멤버십을 헤더로 보충하지 않는다.
+
+## Controller에서 사용하기
+
+```java
+@GetMapping("/me")
+public ResponseEnvelope<UserProfileResponse> getProfile(@CurrentUser User user) {
+    return ResponseEnvelope.success(UserProfileResponse.from(userService.getProfile(user)));
+}
+```
+
+- `@CurrentUser`: `api.common.context`의 파라미터 어노테이션. 기본 `membershipRequired = true`는 기존 USER 멤버십 필수 조건을 유지한다. 알림은 `@CurrentUser(membershipRequired = false)`로 선언한다. false일 때는 두 역할 모두 멤버십을 생략할 수 있고, 전달한 값은 DB와 대조한다.
+- `CurrentUserArgumentResolver`: 어노테이션과 `User` 타입을 함께 확인하고 헤더 해석 → 기존 `UserService.findById(UUID)` → DB 대조를 수행한다.
+- `UserContextWebConfig`: `api.common.config`에서 resolver를 MVC에 등록한다.
+- `CommonErrorCode`: 사용자 헤더 누락·역할 불일치·USER의 DB 멤버십 누락·멤버십 불일치를 정의한다. 공통으로 옮긴 오류의 HTTP 상태·`USER-003`~`USER-006` 코드·메시지는 기존과 같다. 일반 사용자 조회 실패와 U01의 비활성 제한은 `UserErrorCode`에 둔다.
+- `OpenApiConfig`: `@CurrentUser User`를 받는 API에만 사용자 헤더 3개를 Swagger 입력란으로 추가한다. `@CurrentUser`가 User 파라미터를 문서에서 숨기므로 Controller에 헤더별 `@Parameter`를 반복하지 않는다.
+- `UserService.getProfile(User)`: U01의 INACTIVE 제한을 검사하며 응답용 DB 조회를 추가하지 않는다.
+- `User`: 명시적 생성자와 `getXxx()` 접근자를 가진 불변 조회 클래스다. 생성 시 `id`, `name`, `role`, `status`의 null을 거절한다. 나머지 nullable 필드를 보존하며 API에는 응답 DTO로 변환해 전달한다.
+
+조회 결과는 해당 HTTP 요청의 속성에만 저장한다. 같은 요청의 다른 `@CurrentUser User` 파라미터도 이를 재사용하되 각 파라미터의 멤버십 조건은 따로 검증한다. 다음 요청은 새로 조회한다. 전역 사용자 저장소·필터·인터셉터는 사용하지 않는다.
+
+`@CurrentUser User`가 없는 API에서는 헤더 해석·사용자 조회가 실행되지 않는다. resolver는 INACTIVE 상태도 보존한다. 특정 업무의 역할·상태·자격 제한은 소비 기능의 Service가 담당하며, U01의 제한을 모든 API에 강제하지 않는다. 알림 Service는 검증된 User를 받아 사용자·멤버십을 재조회하지 않고 본인 알림 소유권을 검사한다. 이벤트 등록 Service는 등록 트랜잭션 안에서 기존 관리자·활성 상태 검사를 유지한다.
+
+
+### 적용된 API와 기존 호출 변경
+
+- `GET /api/v1/users/me`
+- `POST /api/v1/admin/events`
+- `GET /api/v1/notifications/me`
+- `PUT /api/v1/notifications/{notificationId}/read`
+- `PUT /api/v1/notifications/me/read-all`
+
+위 API는 모두 `X-User-ID`·`X-User-Role`과 공통 `USER-*` 오류 코드를 사용한다. U01과 관리자 이벤트 등록에서 USER 요청은 DB와 일치하는 `X-User-Membership`도 필요하다. 알림의 기존 `USER_CONTEXT_REQUIRED`·`USER_CONTEXT_INVALID`·`USER_MEMBERSHIP_MISMATCH` 응답은 각각 `USER-003`·`USER-002`·`USER-006`으로 통일했다.
+
+### 알림 N01~N03의 멤버십 입력
+
+알림 목록·개별 읽음·전체 읽음은 USER·ADMIN 모두 `X-User-Membership`을 생략할 수 있다. DB 멤버십이 null이어도 생략한 요청을 허용하며, 조회·읽음 처리는 사용자 ID와 본인 알림 소유권으로 판단한다.
+
+```http
+GET /api/v1/notifications/me
+X-User-ID: 00000000-0000-0000-0000-000000000521
+X-User-Role: USER
+```
+
+멤버십을 전달하면 두 역할 모두 형식과 DB 값을 대조한다. 빈 값·공백·중복·잘못된 값은 `400 / COMMON-005`, DB 값과 불일치하면 `409 / USER-006`이다. DB 멤버십이 null인데 값을 전달한 경우도 불일치로 처리한다. 헤더로 DB 정보를 채우거나 변경하지 않는다. Swagger도 알림에서는 선택 입력으로 안내한다.
+
+알림의 소유권·읽음 처리와 이벤트의 관리자 제한은 유지한다. 알림에서 비활성 사용자를 새로 차단하지 않으며, 일반 사용자는 공통 헤더 대조를 통과해도 관리자 이벤트를 등록할 수 없다.
+
+이 헤더는 시연용 사용자 선택 수단이다. DB 대조는 입력 값의 일치를 확인하며, 호출자가 실제 그 사용자라는 신원 인증을 제공하지 않는다. 적용 환경은 공용 명세의 시연 범위를 따른다.
+
+### 리뷰 적용 기준
+
+공용 기준은 [시연용 사용자 헤더](https://github.com/GETDDO/getddo-spec/blob/main/05-api/common.md)의 범위와 제한을 따른다. 사용자는 2026-10-12 [GD-138 리뷰](https://github.com/GETDDO/getddo-be/pull/56#discussion_r4245247304)에 대해 로그인 자체가 없고 편의상 가상 사용자를 선택하는 기능임을 재확인했으며, 이 의도를 리뷰 지침에 명시하도록 요청했다.
+
+CodeRabbit은 현재 시연 범위에서 로그인·신원 인증의 부재 또는 알려진 관리자 UUID를 헤더로 선택할 수 있다는 사실만으로 동일한 관리자 사칭 지적을 반복하지 않는다. AD05·AD09를 포함한 관리자 API도 이 사용자 문맥을 사용한다. 로그인·JWT 구현을 현재 기능의 수정 요건으로 추가하지 않는다.
+
+DB에 저장된 역할·상태·멤버십과 업무별 소유권 검증의 누락·우회는 계속 검토한다. 이 기준은 신원 인증을 구현했다는 뜻이 아니며, 외부 공개 운영으로 범위를 확장하거나 인증된 주체라고 주장하는 변경에는 적용하지 않는다. 그 경우 공용 사용자 문맥·인프라 담당과 인증 경계를 확인한다.
+
+## 검증
+
+```bash
+./gradlew :core:test --tests '*UserServiceTest'
+./gradlew :api:test --tests '*UserControllerTest'
+./gradlew :api:integrationTest --tests com.getddo.api.user.UserContextIntegrationTest
+./gradlew test
+./gradlew build
+```
+
+Windows에서는 `gradlew.bat`를 사용한다. 통합 테스트와 전체 빌드에는 Docker가 필요하다. 단위 테스트는 헤더 오류·응답 필드·요청당 조회 1회·미적용 API·연속/동시 요청 격리를 확인하고, 통합 테스트는 실제 MVC 등록과 MySQL 조회·응답 연결을 확인한다.
