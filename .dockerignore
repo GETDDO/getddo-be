@@ -3,3 +3,22 @@
 **/build
 .env
 .env.*
+# COPY . . 단계에서 로컬 인프라 자료와 인증 정보가 빌드에 들어가지 않게 한다.
+infra
+docs
+.worktrees
+.aws
+.ssh
+**/.env
+**/.env.*
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/*.tfvars.json
+**/*.tfplan
+**/*.pem
+**/*.key
+**/*.p12
+**/id_rsa
+**/id_ed25519

@@ -1,0 +1,49 @@
+name: Container Image
+
+# build.yml이 테스트 성공 후 호출한다. 별도의 push 실행을 중복 생성하지 않는다.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Docker 이미지
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 소스 코드 가져오기
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # 호출한 CI의 커밋을 사용한다. Java와 JAR 생성은 Dockerfile이 담당한다.
+      - name: Docker 이미지 빌드 검증
+        run: |
+          docker build --tag "getddo-be:$GITHUB_SHA" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" .
+
+      # main의 성공 결과만 CD에 전달한다. PR/dev 이미지는 빌드 검증만 한다.
+      - name: main 이미지 파일 준비
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/container-image"
+          cd "$RUNNER_TEMP/container-image"
+          docker image inspect --format '{{.Id}}' "getddo-be:$GITHUB_SHA" > image-id.txt
+          docker image save "getddo-be:$GITHUB_SHA" | gzip > image.tar.gz
+          # 전달 중 파일 손상 여부와 CD가 받은 이미지의 동일성을 확인할 자료.
+          sha256sum image.tar.gz > image.tar.gz.sha256
+
+      - name: main 이미지를 CD용 아티팩트로 보관
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          # 재사용 워크플로에서도 호출한 CI의 실행·재시도 번호로 보관한다.
+          name: container-image-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/container-image/
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error

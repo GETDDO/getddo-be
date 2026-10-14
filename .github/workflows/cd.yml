@@ -1,0 +1,100 @@
+name: Container CD
+
+# main에 반영된 코드의 Build CI가 끝나면 결과를 확인한다.
+# 성공한 CI 이미지를 SSM으로 서버에 배포하고 정상 응답을 확인한다.
+on:
+  workflow_run:
+    # build.yml의 최상위 name과 같아야 한다.
+    workflows: [Build]
+    types: [completed]
+    branches: [main]
+
+# CI 이미지 조회, 검사한 소스 조회, AWS 임시 인증에 필요한 권한.
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+# main의 CD를 한 번에 하나씩 실행한다. 진행 중인 작업은 중간에 취소하지 않는다.
+concurrency:
+  group: container-cd-main
+  cancel-in-progress: false
+
+jobs:
+  container:
+    name: main 자동 배포
+    # CI 종료에는 실패·취소도 포함되므로 성공을 별도로 확인한다.
+    # main push(병합 포함)로 실행된 같은 저장소의 CI만 후속 작업을 허용한다.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      # workflow_run의 기본 GITHUB_SHA는 기본 브랜치의 커밋일 수 있다.
+      # 반드시 선행 CI가 검사한 커밋으로 이미지와 내용을 확인한다.
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      # production 환경의 Variables에 등록한다. 설정이 없으면 배포 전에 실패한다.
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      AWS_PAGER: ''
+
+    steps:
+      - name: CI가 검사한 배포 코드 가져오기
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: 배포 설정과 현재 main 확인
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 infra/scripts/deploy-ssm.py --check
+
+      # 현재 CD 실행이 아니라, 실행을 시작하게 한 CI의 파일을 정확히 지정한다.
+      - name: 성공한 CI의 이미지 받기
+        uses: actions/download-artifact@v5
+        with:
+          name: container-image-${{ github.event.workflow_run.head_sha }}-${{ github.event.workflow_run.run_attempt }}
+          path: ${{ runner.temp }}/container-image
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # CD에서 다시 빌드하지 않고 CI가 만든 이미지를 그대로 사용한다.
+      - name: 이미지 불러오기 및 동일성 확인
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/container-image"
+          sha256sum --check image.tar.gz.sha256
+          docker image load --input image.tar.gz
+          image="getddo-be:$SOURCE_SHA"
+          expected_id=$(cat image-id.txt)
+          [[ "$expected_id" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$(docker image inspect --format '{{.Id}}' "$image")" == "$expected_id" ]]
+          revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
+          [[ "$revision" == "$SOURCE_SHA" ]]
+
+      # 장기 Access Key 대신 production 환경에 허용된 OIDC 역할을 사용한다.
+      - name: AWS 임시 권한 받기
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: getddo-cd-${{ github.run_id }}
+
+      - name: 서버 앱 교체 및 상태 확인
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # 파일 전달 → SSM 교체 → HTTP 확인 → 실패 시 이전 이미지 복구.
+        # SSM의 최종 상태와 종료 코드까지 확인해야 성공으로 처리한다.
+        run: python3 infra/scripts/deploy-ssm.py
+
+      - name: 검증 결과 표시
+        run: |
+          echo "main CI 통과 커밋: $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo '서버 앱 교체와 정상 응답 확인 완료.' >> "$GITHUB_STEP_SUMMARY"

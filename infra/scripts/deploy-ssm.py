@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""CI 이미지를 배포용 S3에 보관하고 SSM의 최종 배포 결과를 확인한다."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tarfile
+import time
+
+
+def settings(environment):
+    required = ("AWS_REGION", "AWS_ROLE_ARN", "DEPLOY_BUCKET", "EC2_INSTANCE_ID", "SOURCE_SHA",
+                "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "RUNNER_TEMP")
+    values = {key: environment.get(key, "") for key in required}
+    missing = [key for key, value in values.items() if not value]
+    if missing:
+        raise ValueError("배포 설정이 필요합니다: " + ", ".join(missing))
+    role = re.fullmatch(r"arn:aws:iam::([0-9]{12}):role/[A-Za-z0-9+=,.@_/-]+", values["AWS_ROLE_ARN"])
+    bucket = values["DEPLOY_BUCKET"]
+    if not (role and re.fullmatch(r"[a-z]{2}-[a-z]+-[0-9]+", values["AWS_REGION"])
+            and re.fullmatch(r"i-[a-f0-9]{17}", values["EC2_INSTANCE_ID"])
+            and re.fullmatch(r"[a-f0-9]{40}", values["SOURCE_SHA"])
+            and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", values["GITHUB_REPOSITORY"])
+            and values["GITHUB_RUN_ID"].isdigit() and values["GITHUB_RUN_ATTEMPT"].isdigit()
+            and re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", bucket)):
+        raise ValueError("배포 설정 형식이 올바르지 않습니다.")
+    # 기존 State 버킷 이름을 포함하는 패턴을 차단한다. 전용 배포 버킷만 사용한다.
+    if "tfstate" in bucket or "terraform" in bucket:
+        raise ValueError("Terraform State 버킷을 배포에 사용할 수 없습니다.")
+    values["ACCOUNT_ID"] = role.group(1)
+    return values
+
+
+def command(arguments, timeout=70):
+    return subprocess.run(arguments, check=True, capture_output=True, text=True, timeout=timeout).stdout
+
+
+def aws(*arguments, timeout=70):
+    return json.loads(command(["aws", *arguments, "--output", "json", "--no-cli-pager"], timeout))
+
+
+def verify_main(values):
+    current = command(["gh", "api", "repos/" + values["GITHUB_REPOSITORY"] + "/git/ref/heads/main",
+                       "--jq", ".object.sha"]).strip()
+    if current != values["SOURCE_SHA"]:
+        raise RuntimeError("main이 갱신되어 이전 커밋의 자동 배포를 중단합니다.")
+
+
+def bundle(source, artifact, destination):
+    # .env·State·소스 전체 대신 배포에 필요한 공개 파일만 포함한다.
+    files = {"compose.deploy.yaml": source / "compose.deploy.yaml",
+             "deploy-container.sh": source / "infra/scripts/deploy-container.sh"}
+    files.update({name: artifact / name for name in ("image.tar.gz", "image.tar.gz.sha256", "image-id.txt")})
+    with tarfile.open(destination, "w") as archive:
+        for name, path in files.items():
+            if not path.is_file() or path.is_symlink():
+                raise ValueError("배포 파일을 확인하세요: " + name)
+            archive.add(path, arcname=name, recursive=False)
+    digest = hashlib.sha256()
+    with destination.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def parameters(values, key, checksum):
+    release = "/opt/getddo/releases/" + values["GITHUB_RUN_ID"] + "-" + values["GITHUB_RUN_ATTEMPT"]
+    quote = shlex.quote
+    # SSM은 root로 실행한다. 비밀값은 이 명령에 넣지 않고 EC2의 env 파일을 사용한다.
+    commands = ["set -eu", "umask 077", "install -d -m 700 /opt/getddo/releases",
+                "mkdir -m 700 -- " + quote(release), "cd -- " + quote(release)]
+    download = ["timeout", "600", "aws", "s3api", "get-object", "--bucket", values["DEPLOY_BUCKET"],
+                "--key", key, "--expected-bucket-owner", values["ACCOUNT_ID"],
+                "--region", values["AWS_REGION"], "release.tar", "--no-cli-pager"]
+    commands.extend([" ".join(map(quote, download)) + " >/dev/null",
+                     "printf '%s\\n' " + quote(checksum + "  release.tar") + " | sha256sum --check -",
+                     "tar --extract --file release.tar --no-same-owner --no-same-permissions",
+                     "exec bash deploy-container.sh " + quote(values["SOURCE_SHA"])])
+    return {"commands": ["\n".join(commands)], "executionTimeout": ["1800"]}
+
+
+def wait_for_command(command_id, instance_id, deadline_seconds=2040):
+    deadline = time.monotonic() + deadline_seconds
+    while time.monotonic() < deadline:
+        try:
+            result = aws("ssm", "get-command-invocation", "--command-id", command_id,
+                         "--instance-id", instance_id)
+        except subprocess.CalledProcessError as error:
+            if "InvocationDoesNotExist" not in (error.stderr or ""):
+                raise
+        else:
+            status = result["Status"]
+            if status == "Success" and result.get("ResponseCode") == 0:
+                print("서버 교체와 상태 확인이 정상 종료됐습니다.")
+                return
+            if status not in ("Pending", "InProgress", "Delayed", "Cancelling"):
+                # 앱 로그에 비밀값이 섞일 수 있어 원격 출력은 Actions로 복사하지 않는다.
+                raise RuntimeError(f"SSM 배포 실패: {status}. Command ID: {command_id}")
+        time.sleep(10)
+    raise RuntimeError(f"SSM 대기 시간 초과: {command_id}. 원격 명령 종료 여부를 확인한 뒤 재시도하세요.")
+
+
+def main(check_only=False):
+    values = settings(os.environ)
+    verify_main(values)
+    if check_only:
+        print("배포 설정과 main 커밋 확인 완료")
+        return
+    source = Path(__file__).resolve().parents[2]
+    temporary = Path(values["RUNNER_TEMP"])
+    archive = temporary / "release.tar"
+    checksum = bundle(source, temporary / "container-image", archive)
+    key = ("releases/" + values["SOURCE_SHA"] + "/" + values["GITHUB_RUN_ID"]
+           + "-" + values["GITHUB_RUN_ATTEMPT"] + "/release.tar")
+    # 고유 실행 경로만 쓰며 이미 존재하는 파일은 덮어쓰지 않는다.
+    aws("s3api", "put-object", "--bucket", values["DEPLOY_BUCKET"], "--key", key,
+        "--body", str(archive), "--server-side-encryption", "AES256",
+        "--expected-bucket-owner", values["ACCOUNT_ID"], "--if-none-match", "*", timeout=600)
+    result = aws("ssm", "send-command", "--instance-ids", values["EC2_INSTANCE_ID"],
+                 "--document-name", "AWS-RunShellScript", "--timeout-seconds", "120",
+                 "--parameters", json.dumps(parameters(values, key, checksum)),
+                 "--comment", "getddo " + values["SOURCE_SHA"])
+    command_id = result["Command"]["CommandId"]
+    print("SSM Command ID: " + command_id, flush=True)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as output:
+            output.write(f"\n- 배포 커밋: `{values['SOURCE_SHA']}`\n- SSM Command ID: `{command_id}`\n")
+    wait_for_command(command_id, values["EC2_INSTANCE_ID"])
+
+
+if __name__ == "__main__":
+    try:
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument("--check", action="store_true", help="설정과 main만 확인하고 배포하지 않음")
+        main(parser.parse_args().check)
+    except (KeyError, ValueError, RuntimeError, OSError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
