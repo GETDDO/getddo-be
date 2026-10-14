@@ -24,6 +24,8 @@ import com.getddo.core.user.domain.Membership;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,6 +49,8 @@ class EntryServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new EntryService(recorder, rejectionRecorder);
+		// 기본은 이력을 남겼거나 남길 필요가 없는 경우다. 이미 결과가 있어 다시 처리해야 하는 경우는 테스트가 따로 지정한다.
+		lenient().when(rejectionRecorder.record(any(), any())).thenReturn(true);
 	}
 
 	private static EntryCommand command() {
@@ -145,6 +149,37 @@ class EntryServiceTest {
 		assertThatThrownBy(() -> service.enter(command)).isSameAs(rejection);
 		verify(rejectionRecorder).record(command, rejection);
 		verify(recorder, times(1)).record(command);
+	}
+
+	@Test
+	@DisplayName("거절을 기록하려는데 같은 응모 ID의 결과가 이미 있으면 확정된 결과를 다시 처리해 돌려준다")
+	void reprocessesWhenResultAlreadyExistsAtRecording() {
+		// given
+		EntryCommand command = command();
+		EntryReceipt receipt = receipt();
+		EntryException rejection = new EntryException(EntryErrorCode.EVENT_NOT_OPEN);
+		when(recorder.record(command)).thenThrow(rejection).thenReturn(receipt);
+		when(rejectionRecorder.record(command, rejection)).thenReturn(false);
+		// when
+		EntryReceipt result = service.enter(command);
+		// then
+		assertThat(result).isSameAs(receipt);
+		verify(recorder, times(2)).record(command);
+	}
+
+	@Test
+	@DisplayName("이미 있던 거절 결과를 다시 처리하면 같은 거절을 던지고 한 번 더 기록하려 하지 않는다")
+	void reprocessedStoredRejectionIsThrownWithoutRecordingAgain() {
+		// given
+		EntryCommand command = command();
+		EntryException stored = new EntryException(EntryErrorCode.ALREADY_ENTERED);
+		when(recorder.record(command)).thenThrow(stored).thenThrow(new EntryException(EntryErrorCode.ALREADY_ENTERED));
+		when(rejectionRecorder.record(any(), any())).thenReturn(false);
+		// when
+		// then
+		assertThatThrownBy(() -> service.enter(command)).isInstanceOf(EntryException.class);
+		verify(recorder, times(2)).record(command);
+		verify(rejectionRecorder, times(1)).record(any(), any());
 	}
 
 	@Test

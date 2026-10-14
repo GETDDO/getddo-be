@@ -67,12 +67,11 @@ public class EntryService {
 	 * 업무 거절을 별도 트랜잭션에서 이력으로 남긴다. 이력 저장이 실패해도 사용자에게는 원래 거절을 돌려주므로 실패는 원래
 	 * 예외에 덧붙여 남기고 삼키지 않는다.
 	 *
-	 * @return 같은 응모 ID의 결과가 동시에 먼저 저장되어 다시 처리해야 하면 false
+	 * @return 같은 응모 ID의 결과가 이미 있어(동시에 먼저 확정됐거나 이전 거절 기록) 다시 처리해야 하면 false
 	 */
 	private boolean rememberRejection(EntryCommand command, BusinessException failure) {
 		try {
-			rejectionRecorder.record(command, failure);
-			return true;
+			return rejectionRecorder.record(command, failure);
 		} catch (DataIntegrityViolationException violation) {
 			if (isDuplicateKey(violation)) {
 				return false;

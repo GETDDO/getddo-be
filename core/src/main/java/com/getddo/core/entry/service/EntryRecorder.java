@@ -208,13 +208,14 @@ public class EntryRecorder {
 	}
 
 	/**
-	 * 요청 장수 합계가 응모 결과에 저장할 수 있는 범위(int)인지 확인한다. 범위를 넘는 요청은 형식 오류이므로 이력으로 남기지
-	 * 않는다. 기간·관리자 거절은 요청 검증보다 먼저 일어나므로 거절 이력 기록기도 이 검사를 한다.
+	 * 이벤트가 허용하는 요청 형식인지 확인한다. 기간·관리자·멤버십 거절은 {@link #requireValidRequest}보다 먼저 일어나므로,
+	 * 형식이 틀린 요청은 거절 이력으로 남기지 않도록 거절 이력 기록기도 이 검사를 한다.
 	 */
-	static boolean hasStorableTotal(Map<TicketGrade, Long> tickets) {
+	static boolean isValidRequest(EntryEvent event, Map<TicketGrade, Long> tickets) {
 		try {
-			return checkedTotal(tickets) <= Integer.MAX_VALUE;
-		} catch (EntryException overflow) {
+			requireValidRequest(event, tickets);
+			return true;
+		} catch (EntryException invalid) {
 			return false;
 		}
 	}

@@ -61,6 +61,7 @@ class EntryRejectionRecorderTest {
 	private EntryEvent event(boolean deleted) {
 		EntryEvent event = mock(EntryEvent.class);
 		when(event.isDeleted()).thenReturn(deleted);
+		org.mockito.Mockito.lenient().when(event.usesTickets()).thenReturn(true);
 		return event;
 	}
 
@@ -135,13 +136,36 @@ class EntryRejectionRecorderTest {
 	}
 
 	@Test
-	@DisplayName("같은 응모 ID의 결과가 이미 있으면 다시 남기지 않는다")
-	void skipsWhenResultAlreadyStored() {
+	@DisplayName("이벤트가 허용하지 않는 요청 형식은 기간·관리자 거절이어도 이력으로 남기지 않는다")
+	void skipsRequestsInvalidForTheEvent() {
+		// given
+		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.empty());
+		EntryEvent noTicketEvent = mock(EntryEvent.class);
+		when(noTicketEvent.isDeleted()).thenReturn(false);
+		when(noTicketEvent.usesTickets()).thenReturn(false);
+		EntryEvent live = event(false);
+		when(eventReader.find(EVENT_ID)).thenReturn(Optional.of(noTicketEvent)).thenReturn(Optional.of(live));
+		EntryRejectionRecorder recorder = recorder();
+		EntryCommand emptyForTicketEvent = new EntryCommand(USER_ID, true, null, EVENT_ID, ENTRY_ID, Map.of());
+		// when
+		boolean ticketsOnNoTicketEvent = recorder.record(command(), new EntryException(EntryErrorCode.EVENT_NOT_OPEN));
+		boolean emptyOnTicketEvent = recorder.record(emptyForTicketEvent,
+				new EntryException(EntryErrorCode.ADMIN_ENTRY_FORBIDDEN));
+		// then
+		assertThat(ticketsOnNoTicketEvent).isTrue();
+		assertThat(emptyOnTicketEvent).isTrue();
+		verify(entryRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("같은 응모 ID의 결과가 이미 있으면 다시 남기지 않고 호출자가 다시 처리하도록 false를 돌려준다")
+	void asksCallerToReprocessWhenResultAlreadyStored() {
 		// given
 		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.of(mock(Entry.class)));
 		// when
-		recorder().record(command(), new EntryException(EntryErrorCode.EVENT_NOT_OPEN));
+		boolean settled = recorder().record(command(), new EntryException(EntryErrorCode.EVENT_NOT_OPEN));
 		// then
+		assertThat(settled).isFalse();
 		verify(entryRepository, never()).save(any());
 	}
 
