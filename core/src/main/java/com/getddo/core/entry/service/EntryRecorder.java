@@ -207,6 +207,18 @@ public class EntryRecorder {
 		}
 	}
 
+	/**
+	 * 요청 장수 합계가 응모 결과에 저장할 수 있는 범위(int)인지 확인한다. 범위를 넘는 요청은 형식 오류이므로 이력으로 남기지
+	 * 않는다. 기간·관리자 거절은 요청 검증보다 먼저 일어나므로 거절 이력 기록기도 이 검사를 한다.
+	 */
+	static boolean hasStorableTotal(Map<TicketGrade, Long> tickets) {
+		try {
+			return checkedTotal(tickets) <= Integer.MAX_VALUE;
+		} catch (EntryException overflow) {
+			return false;
+		}
+	}
+
 	/** 이벤트 유형이 허용하는 요청인지 확인하고 요청 장수 합계를 돌려준다. */
 	private static long requireValidRequest(EntryEvent event, Map<TicketGrade, Long> tickets) {
 		long total = checkedTotal(tickets);

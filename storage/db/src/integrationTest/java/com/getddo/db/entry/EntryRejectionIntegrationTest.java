@@ -228,7 +228,12 @@ class EntryRejectionIntegrationTest extends EntryIntegrationTestSupport {
 				.satisfies(e -> assertEntryError(e, EntryErrorCode.EVENT_NOT_FOUND));
 		assertThatThrownBy(() -> entryService.enter(command(userId, event, conflicting, tickets(TicketGrade.GOLD, 2))))
 				.satisfies(e -> assertEntryError(e, EntryErrorCode.IDEMPOTENCY_CONFLICT));
-		assertThat(rows(invalid) + rows(missing) + rows(deletedEntry)).isZero();
+		// 장수 합계가 int를 넘는 요청은 관리자 거절이 먼저 일어나도 형식 오류라서 남기지 않는다.
+		UUID huge = UUID.randomUUID();
+		assertThatThrownBy(() -> entryService.enter(new EntryCommand(userId, true, null, event, huge,
+				tickets(TicketGrade.BRONZE, Integer.MAX_VALUE, TicketGrade.SILVER, 1))))
+				.satisfies(e -> assertEntryError(e, EntryErrorCode.ADMIN_ENTRY_FORBIDDEN));
+		assertThat(rows(invalid) + rows(missing) + rows(deletedEntry) + rows(huge)).isZero();
 		assertThat(count("select count(*) from event_entries where user_id = ?", bytes(userId))).isEqualTo(1);
 		assertThat(row(accepted).get("status")).isEqualTo("ACCEPTED");
 	}

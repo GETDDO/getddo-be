@@ -45,6 +45,10 @@ public class EntryRejectionRecorder {
 			return;
 		}
 		Map<TicketGrade, Long> tickets = EntryRecorder.normalize(command.getTickets());
+		// 합계가 int 범위를 넘는 요청은 형식 오류라 이력으로 남기지 않는다(기간·관리자 거절은 이 검증보다 먼저 일어난다).
+		if (!EntryRecorder.hasStorableTotal(tickets)) {
+			return;
+		}
 		entryRepository.save(Entry.rejected(command.getEntryId(), command.getEventId(), command.getUserId(), tickets,
 				failure.getErrorCode(), timeProvider.now().truncatedTo(ChronoUnit.MICROS)));
 	}

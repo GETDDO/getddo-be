@@ -116,6 +116,25 @@ class EntryRejectionRecorderTest {
 	}
 
 	@Test
+	@DisplayName("장수 합계가 int 범위를 넘는 요청은 기간·관리자 거절이어도 이력으로 남기지 않는다")
+	void skipsRequestsWhoseTotalDoesNotFitInt() {
+		// given
+		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.empty());
+		EntryEvent live = event(false);
+		when(eventReader.find(EVENT_ID)).thenReturn(Optional.of(live));
+		EntryCommand huge = new EntryCommand(USER_ID, true, null, EVENT_ID, ENTRY_ID,
+				Map.of(TicketGrade.BRONZE, (long) Integer.MAX_VALUE, TicketGrade.SILVER, 1L));
+		EntryCommand overflowing = new EntryCommand(USER_ID, true, null, EVENT_ID, ENTRY_ID,
+				Map.of(TicketGrade.BRONZE, Long.MAX_VALUE, TicketGrade.SILVER, Long.MAX_VALUE, TicketGrade.GOLD, 3L));
+		EntryRejectionRecorder recorder = recorder();
+		// when
+		recorder.record(huge, new EntryException(EntryErrorCode.ADMIN_ENTRY_FORBIDDEN));
+		recorder.record(overflowing, new EntryException(EntryErrorCode.ADMIN_ENTRY_FORBIDDEN));
+		// then
+		verify(entryRepository, never()).save(any());
+	}
+
+	@Test
 	@DisplayName("같은 응모 ID의 결과가 이미 있으면 다시 남기지 않는다")
 	void skipsWhenResultAlreadyStored() {
 		// given
