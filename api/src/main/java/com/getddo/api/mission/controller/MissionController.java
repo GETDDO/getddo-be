@@ -102,7 +102,7 @@ public class MissionController {
 	 */
 	@GetMapping("/{missionId}/submissions/me")
 	public ResponseEnvelope<PageResult<MissionSubmissionResponse>> mySubmissions(
-			@CurrentUser User user,
+			@CurrentUser(membershipRequired = false) User user,
 			@PathVariable UUID missionId,
 			@RequestParam(defaultValue = "1") @Min(1) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
