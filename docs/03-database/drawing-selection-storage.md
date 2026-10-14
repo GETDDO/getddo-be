@@ -5,7 +5,7 @@
 - 기준: [통합 ERD](schema.dbml), [공용 추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [ADR-014](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/03-decisions/014-random-ticket-grades.md), [ADR-018](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/03-decisions/018-pre-issuance-abuse-blocking-and-no-draw-exclusion.md)
 - GD-84에서 추가한 두 정상 종료 상태는 이력 호환성을 위해 유지한다. GD-130 이후 새 실행은 응모자 없음 종료만 생성한다.
 
-이 문서는 백엔드 저장·트랜잭션 구현을 설명한다. 공용 정책은 링크한 스펙을 원본으로 사용한다. 과거 설명의 `ACCEPTED`, `weight = ticket_count`, `current_awards` 및 실행 행의 실패 횟수 집계는 현재 기준으로 사용하지 않는다.
+이 문서는 백엔드 저장·트랜잭션 구현을 설명한다. 공용 정책은 링크한 스펙을 원본으로 사용한다. 과거 설명의 `weight = ticket_count`, `current_awards` 및 실행 행의 실패 횟수 집계는 현재 기준으로 사용하지 않는다.
 
 ## 입력과 수량 검증
 
@@ -137,7 +137,7 @@ GD-138 취소·등록·입력 준비·AD05/AD09는 실제 서비스로 연결·�
 
 ## GD-145 PR #83 문서와의 연결
 
-현재 dev 문서의 성공 응모 전용 저장 설명은 GD-145 병합 전 기준이다. GD-145의 접수 ACCEPTED·거절 REJECTED 저장이 반영되면 스냅샷은 ACCEPTED만 읽고 거절 이력을 후보·차감 집계에서 제외한다. 이는 정상 응모자를 관리자가 추첨 후보에서 제외하는 기능과 다르다. GD-145의 스냅샷 조회 필터·마이그레이션·문서는 해당 PR에서 함께 반영된다.
+GD-145 PR #83은 병합됐으며, 현재 구현에는 접수 ACCEPTED·거절 REJECTED 저장과 스냅샷의 ACCEPTED 필터가 반영되어 있다. 스냅샷은 ACCEPTED만 읽고 거절 이력을 후보·차감 집계에서 제외한다. 이는 정상 응모자를 관리자가 추첨 후보에서 제외하는 기능과 다르다.
 
 GD-131은 정상 접수·차감·원장의 원자적 롤백과, 업무 거절 뒤 별도 트랜잭션으로 남는 REJECTED 이력을 구분해 검증한다. 실패한 정상 응모·차감이 남지 않아야 한다는 조건이 거절 감사 이력까지 없어야 한다는 뜻은 아니다. 거절 기록에는 응모자·차감 연결이 없어야 하며 후보 수량·가중치에 포함되지 않아야 한다.
 
