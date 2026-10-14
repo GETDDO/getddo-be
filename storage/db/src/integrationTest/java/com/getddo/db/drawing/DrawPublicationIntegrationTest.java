@@ -107,10 +107,10 @@ class DrawPublicationIntegrationTest {
 		clock.set(NOW.plusSeconds(90));
 		DrawPublication replay = service.publishInitial(eventId).orElseThrow();
 		// then
-		assertThat(first.id().version()).isEqualTo(7);
-		assertThat(first.publishedAt().getNano() % 1000).isZero();
-		assertThat(first.confirmedBy()).isNull();
-		assertThat(first.entries()).containsExactly(new DrawPublication.Entry(selectedId, snapshot.runId(), null));
+		assertThat(first.getId().version()).isEqualTo(7);
+		assertThat(first.getPublishedAt().getNano() % 1000).isZero();
+		assertThat(first.getConfirmedBy()).isNull();
+		assertThat(first.getEntries()).containsExactly(new DrawPublication.Entry(selectedId, snapshot.runId(), null));
 		assertThat(replay).isEqualTo(first);
 		assertThat(service.history(eventId)).containsExactly(first);
 		assertThat(service.wasPublished(selectedId)).isTrue();
@@ -132,7 +132,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(service.wasPublished(selectedId())).isFalse();
 		// Spring Data 인터페이스 spy의 실제 위임을 복원한다. 추상 메서드에 callRealMethod를 지정하지 않는다.
 		reset(entries);
-		assertThat(service.publishInitial(eventId).orElseThrow().revision()).isEqualTo(1);
+		assertThat(service.publishInitial(eventId).orElseThrow().getRevision()).isEqualTo(1);
 		assertThat(count()).isEqualTo(1);
 	}
 
@@ -188,9 +188,9 @@ class DrawPublicationIntegrationTest {
 		// 저장 fixture를 배치 조회해 JDBC IN 구문과 JPA 확인 일괄 조회의 실제 매핑도 검증한다.
 		List<DrawPublicationRun> replacement = repository.findReplacementRuns(eventId);
 		assertThat(replacement).hasSize(1);
-		assertThat(replacement.getFirst().runId()).isEqualTo(replacementRun);
-		assertThat(replacement.getFirst().confirmation()).isEqualTo(checked);
-		assertThat(replacement.getFirst().results()).isEmpty();
+		assertThat(replacement.getFirst().getRunId()).isEqualTo(replacementRun);
+		assertThat(replacement.getFirst().getConfirmation()).isEqualTo(checked);
+		assertThat(replacement.getFirst().getResults()).isEmpty();
 		// when: 보충 후보 없음으로 공개 목록이 비는 버전의 저장 매핑을 확인한다.
 		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
 			versions.saveAndFlush(new DrawPublicationEntity(new DrawPublication(UUID.randomUUID(), eventId,
@@ -198,16 +198,16 @@ class DrawPublicationIntegrationTest {
 					checkedAt, publishedAt, List.of())));
 		});
 		// then
-		assertThat(checked.id().version()).isEqualTo(7);
+		assertThat(checked.getId().version()).isEqualTo(7);
 		assertThat(confirmations.findByRunId(replacementRun).orElseThrow().toDomain()).isEqualTo(checked);
 		List<DrawPublication> history = service.history(eventId);
 		assertThat(history).hasSize(2);
 		assertThat(history.getFirst()).isEqualTo(first);
-		assertThat(history.getLast().confirmedAt()).isEqualTo(checkedAt);
-		assertThat(history.getLast().publishedAt()).isEqualTo(publishedAt);
-		assertThat(history.getLast().reason()).isEqualTo("미충원 저장 fixture");
+		assertThat(history.getLast().getConfirmedAt()).isEqualTo(checkedAt);
+		assertThat(history.getLast().getPublishedAt()).isEqualTo(publishedAt);
+		assertThat(history.getLast().getReason()).isEqualTo("미충원 저장 fixture");
 		assertThat(service.wasPublished(selectedId())).isTrue();
-		assertThat(service.changes(eventId).getLast().changes()).containsExactly(
+		assertThat(service.changes(eventId).getLast().getChanges()).containsExactly(
 				new DrawPublicationChange.SlotChange(prizeId, 1, selectedId(), userId, null, null));
 		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
 				confirmations.saveAndFlush(new DrawResultConfirmationEntity(replacementRun, userId, checkedAt))))

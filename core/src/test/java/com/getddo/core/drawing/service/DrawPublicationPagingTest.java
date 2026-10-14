@@ -31,7 +31,7 @@ class DrawPublicationPagingTest {
 	private final DrawPublicationRepository repository = mock(DrawPublicationRepository.class);
 	private final UserRepository users = mock(UserRepository.class);
 	private final DrawPublicationService publications = new DrawPublicationService(repository,
-			mock(DrawSnapshotRepository.class), mock(DrawResultRepository.class), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+			mock(DrawSnapshotRepository.class), mock(DrawResultRepository.class), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), mock(DrawPublicationNotificationService.class));
 
 	/** 페이지 밖의 직전 버전을 포함해 현재 페이지의 실제 변경 전후를 비교한다는 시나리오를 검증한다. */
 	@Test
@@ -43,22 +43,28 @@ class DrawPublicationPagingTest {
 		PageQuery query = new PageQuery(1, 1);
 		when(repository.findHistory(event, query)).thenReturn(new PageResult<>(List.of(third), 1, 1, 3));
 		when(repository.findPrevious(event, 3)).thenReturn(Optional.of(second));
-		when(repository.findPublishedSlots(Set.of(third.id(), second.id()))).thenReturn(Map.of(third.id(), List.of(latest), second.id(), List.of(middle)));
+		when(repository.findPublishedSlots(Set.of(third.getId(), second.getId()))).thenReturn(Map.of(third.getId(), List.of(latest), second.getId(), List.of(middle)));
+		DrawPublicationExecution currentEvidence = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW, List.of());
+		DrawPublicationExecution boundaryEvidence = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW.minusSeconds(1), List.of());
+		when(repository.findExecutionEvidence(Set.of(third.getId(), second.getId()))).thenReturn(
+				Map.of(third.getId(), List.of(currentEvidence), second.getId(), List.of(boundaryEvidence)));
 		// when
 		PageResult<DrawPublicationChange> changes = publications.changes(event, query);
 		// then
 		assertThat(changes.getTotalElements()).isEqualTo(3);
-		assertThat(changes.getItems().getFirst().changes()).containsExactly(new DrawPublicationChange.SlotChange(prize,
-				1, middle.resultId(), middle.userId(), latest.resultId(), latest.userId()));
+		assertThat(changes.getItems().getFirst().getExecutions()).containsExactly(currentEvidence);
+		verify(repository).findExecutionEvidence(Set.of(third.getId(), second.getId()));
+		assertThat(changes.getItems().getFirst().getChanges()).containsExactly(new DrawPublicationChange.SlotChange(prize,
+				1, middle.getResultId(), middle.getUserId(), latest.getResultId(), latest.getUserId()));
 		verify(repository, never()).findHistory(event);
 		verify(repository, never()).findPublishedSlots(any(UUID.class));
 		// 최초 버전은 페이지 위치와 관계없이 이전 사용자 null을 반환한다.
 		PageQuery lastPage = new PageQuery(3, 1);
 		when(repository.findHistory(event, lastPage)).thenReturn(new PageResult<>(List.of(first), 3, 1, 3));
 		when(repository.findPrevious(event, 1)).thenReturn(Optional.empty());
-		when(repository.findPublishedSlots(Set.of(first.id()))).thenReturn(Map.of(first.id(), List.of(original)));
-		assertThat(publications.changes(event, lastPage).getItems().getFirst().changes()).containsExactly(
-				new DrawPublicationChange.SlotChange(prize, 1, null, null, original.resultId(), original.userId()));
+		when(repository.findPublishedSlots(Set.of(first.getId()))).thenReturn(Map.of(first.getId(), List.of(original)));
+		assertThat(publications.changes(event, lastPage).getItems().getFirst().getChanges()).containsExactly(
+				new DrawPublicationChange.SlotChange(prize, 1, null, null, original.getResultId(), original.getUserId()));
 	}
 
 	/** 조회 범위 밖의 페이지는 전체 건수를 유지하고 불필요한 이전 버전 조회를 하지 않는다는 시나리오를 검증한다. */
@@ -81,7 +87,7 @@ class DrawPublicationPagingTest {
 	@DisplayName("관리자 이력 조회는 권한 확인 뒤 이벤트 존재를 확인하고 없는 이벤트는 404로 거절한다")
 	void validatesAdminBeforeEventAndPages() {
 		// given
-		DrawPublicationQueryService queryService = new DrawPublicationQueryService(publications, repository, new DrawPublicationAdminAuthorization(users));
+		DrawPublicationQueryService queryService = new DrawPublicationQueryService(publications, repository, new DrawAdminAuthorization(users));
 		PageQuery query = new PageQuery(1, 20);
 		when(users.findById(actor)).thenReturn(Optional.of(user(UserRole.USER, UserStatus.ACTIVE)));
 		// when / then

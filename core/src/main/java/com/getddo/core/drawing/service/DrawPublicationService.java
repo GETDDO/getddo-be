@@ -16,7 +16,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,9 +40,10 @@ public class DrawPublicationService {
 	private final DrawSnapshotRepository snapshots;
 	private final DrawResultRepository results;
 	private final TimeProvider time;
+	private final DrawPublicationNotificationService notifications;
 
 	/**
-	 * 마감 +5분 이후 저장된 최초 확정 결과만 공개한다. 승인·선정·알림을 수행하지 않는다.
+	 * 마감 +5분 이후 저장된 최초 확정 결과만 공개한다. 승인·선정을 수행하지 않고 알림 작업 등록만 연결한다.
 	 * 이벤트 → 실행 순서로 잠그며 목록 저장 실패 시 버전도 롤백한다.
 	 * 공개 시각 전·미준비·정상 종료·취소·재추첨 대기는 빈 Optional을 반환한다.
 	 * GD-86 스케줄러 연결은 별도 계약이며 이 메서드는 스케줄러를 등록하지 않는다.
@@ -79,18 +79,24 @@ public class DrawPublicationService {
 				|| confirmation.getConfirmedAt().isAfter(now)) invalid();
 		List<UUID> selected = validateInitial(snapshot, confirmation);
 		if (!replacement) {
-			return existing.isPresent() ? existing : Optional.of(publications.saveInitial(eventId, snapshot.runId(), selected, now));
+			if (existing.isPresent()) return existing;
+			DrawPublication saved = publications.saveInitial(eventId, snapshot.runId(), selected, now);
+			notifications.register(saved);
+			return Optional.of(saved);
 		}
 		DrawPublicationComposition composed = DrawPublicationAssembler.compose(snapshot, confirmation,
 				publications.findReplacementRuns(eventId), publications.findCancellations(eventId), triggerRunId, now);
-		if (existing.isEmpty() && !composed.complete()) return Optional.empty();
+		if (existing.isEmpty() && !composed.isComplete()) return Optional.empty();
 		if (existing.isPresent()) {
-			Set<DrawPublication.Entry> previous = new HashSet<>(existing.get().entries());
-			if (previous.equals(new HashSet<>(composed.entries()))) return existing;
+			Set<DrawPublication.Entry> previous = new HashSet<>(existing.get().getEntries());
+			if (previous.equals(new HashSet<>(composed.getEntries()))) return existing;
 		}
-		int revision = existing.map(value -> Math.addExact(value.revision(), 1)).orElse(1);
-		return Optional.of(publications.savePublication(eventId, composed.sourceRunId(), revision,
-				composed.reason(), composed.confirmation(), composed.entries(), now));
+		int revision = existing.map(value -> Math.addExact(value.getRevision(), 1)).orElse(1);
+		DrawPublication saved = publications.savePublication(eventId, composed.getSourceRunId(), revision,
+				composed.getReason(), composed.getConfirmation(), composed.getEntries(), now);
+		publications.saveExecutionEvidence(saved.getId(), eventId, composed.getExecutions());
+		notifications.register(saved);
+		return Optional.of(saved);
 	}
 
 	/** 확인 전 관계 검증만 수행한다. 기존 실행·결과를 수정하거나 공개 버전을 만들지 않는다. */
@@ -107,9 +113,9 @@ public class DrawPublicationService {
 		if (!eventId.equals(confirmed.getEventId()) || !locked.runId().equals(confirmed.getRunId())) invalid();
 		validateInitial(locked, confirmed);
 		List<DrawPublicationRun> runs = publications.findReplacementRuns(eventId);
-		DrawPublicationRun requested = runs.stream().filter(run -> run.runId().equals(runId)).findFirst()
+		DrawPublicationRun requested = runs.stream().filter(run -> run.getRunId().equals(runId)).findFirst()
 				.orElseThrow(() -> new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE));
-		if (requested.status() != DrawRunStatus.CONFIRMED)
+		if (requested.getStatus() != DrawRunStatus.CONFIRMED)
 			throw new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE);
 		DrawPublicationAssembler.compose(locked, confirmed, runs, publications.findCancellations(eventId), runId, time.now());
 		return requested;
@@ -134,10 +140,18 @@ public class DrawPublicationService {
 	@Transactional(readOnly = true)
 	public List<DrawPublicationChange> changes(UUID eventId) {
 		List<DrawPublicationChange> history = new ArrayList<>();
+		List<DrawPublication> versions = publications.findHistory(eventId);
+		if (versions.isEmpty()) return List.of();
+		Set<UUID> ids = new HashSet<>();
+		for (DrawPublication version : versions) ids.add(version.getId());
+		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
+		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
 		List<DrawPublishedSlot> before = List.of();
-		for (DrawPublication publication : publications.findHistory(eventId)) {
-			List<DrawPublishedSlot> after = publications.findPublishedSlots(publication.id());
-			history.add(compare(publication, before, after));
+		for (DrawPublication publication : versions) {
+			List<DrawPublishedSlot> after = slots.getOrDefault(publication.getId(), List.of());
+			DrawPublicationChange change = compare(publication, before, after);
+			history.add(new DrawPublicationChange(publication, change.getChanges(),
+					evidence.getOrDefault(publication.getId(), List.of())));
 			before = after;
 		}
 		return List.copyOf(history);
@@ -149,17 +163,19 @@ public class DrawPublicationService {
 		PageResult<DrawPublication> page = publications.findHistory(eventId, query);
 		if (page.getItems().isEmpty()) return new PageResult<>(List.of(), query.getPage(), query.getSize(), page.getTotalElements());
 		List<DrawPublication> versions = page.getItems();
-		Optional<DrawPublication> boundary = publications.findPrevious(eventId, versions.getLast().revision());
+		Optional<DrawPublication> boundary = publications.findPrevious(eventId, versions.getLast().getRevision());
 		Set<UUID> ids = new HashSet<>();
-		for (DrawPublication version : versions) ids.add(version.id());
-		boundary.ifPresent(version -> ids.add(version.id()));
+		for (DrawPublication version : versions) ids.add(version.getId());
+		boundary.ifPresent(version -> ids.add(version.getId()));
 		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
+		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
 		List<DrawPublicationChange> changes = new ArrayList<>();
 		for (int index = 0; index < versions.size(); index++) {
 			DrawPublication current = versions.get(index);
 			DrawPublication previous = index + 1 < versions.size() ? versions.get(index + 1) : boundary.orElse(null);
-			changes.add(compare(current, previous == null ? List.of() : slots.getOrDefault(previous.id(), List.of()),
-					slots.getOrDefault(current.id(), List.of())));
+			DrawPublicationChange change = compare(current, previous == null ? List.of() : slots.getOrDefault(previous.getId(), List.of()),
+					slots.getOrDefault(current.getId(), List.of()));
+			changes.add(new DrawPublicationChange(current, change.getChanges(), evidence.getOrDefault(current.getId(), List.of())));
 		}
 		return new PageResult<>(changes, query.getPage(), query.getSize(), page.getTotalElements());
 	}
@@ -168,24 +184,23 @@ public class DrawPublicationService {
 	private static DrawPublicationChange compare(DrawPublication publication, List<DrawPublishedSlot> previous,
 			List<DrawPublishedSlot> current) {
 		Map<Slot, DrawPublishedSlot> before = new LinkedHashMap<>(), after = new LinkedHashMap<>();
-		for (DrawPublishedSlot row : previous) before.put(new Slot(row.prizeId(), row.slotNumber()), row);
-		for (DrawPublishedSlot row : current) after.put(new Slot(row.prizeId(), row.slotNumber()), row);
+		for (DrawPublishedSlot row : previous) before.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
+		for (DrawPublishedSlot row : current) after.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
 		Set<Slot> all = new LinkedHashSet<>(before.keySet());
 		all.addAll(after.keySet());
 		List<DrawPublicationChange.SlotChange> changes = new ArrayList<>();
 		for (Slot slot : all) {
 			DrawPublishedSlot old = before.get(slot), updated = after.get(slot);
 			if (Objects.equals(old, updated)) continue;
-			changes.add(new DrawPublicationChange.SlotChange(slot.prizeId(), slot.number(),
-					old == null ? null : old.resultId(), old == null ? null : old.userId(),
-					updated == null ? null : updated.resultId(), updated == null ? null : updated.userId()));
+			changes.add(new DrawPublicationChange.SlotChange(slot.getPrizeId(), slot.getNumber(),
+					old == null ? null : old.getResultId(), old == null ? null : old.getUserId(),
+					updated == null ? null : updated.getResultId(), updated == null ? null : updated.getUserId()));
 		}
 		return new DrawPublicationChange(publication, changes);
 	}
 
 	@Getter
 	@EqualsAndHashCode
-	@Accessors(fluent = true)
 	private static final class Slot {
 		private final UUID prizeId;
 		private final int number;

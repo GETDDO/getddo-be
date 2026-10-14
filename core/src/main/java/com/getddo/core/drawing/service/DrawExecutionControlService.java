@@ -17,10 +17,6 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
-import com.getddo.core.user.domain.User;
-import com.getddo.core.user.domain.UserRole;
-import com.getddo.core.user.domain.UserStatus;
-import com.getddo.core.user.repository.UserRepository;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
 /** 시도 소유권·실패 이력·예약을 실행/선정 롤백과 별도로 확정한다. */
@@ -32,7 +28,7 @@ public class DrawExecutionControlService {
 	private final DrawSnapshotRepository snapshots;
 	private final DrawExecutionRepository executions;
 	private final DrawFailureRepository failures;
-	private final UserRepository users;
+	private final DrawAdminAuthorization admins;
 	private final AuditLogService audit;
 	private final TimeProvider time;
 
@@ -131,10 +127,9 @@ public class DrawExecutionControlService {
 	private DrawExecutionState lock(UUID id) { return executions.lockRun(id).orElseThrow(() -> new BusinessException(INVALID_RUN)); }
 	/** 저장된 사용자 역할·상태를 확인해 실제 시작·재개 처리자가 활성 관리자인지 검증한다. */
 	private void requireAdmin(UUID actorId) {
-		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
-		User user = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
 	}
+
 	/** UTC 밀리초와 난수를 조합한 UUID v7을 같은 시도의 실패 식별자로 사용한다. */
 	private static UUID attemptId(Instant now) {
 		UUID random = UUID.randomUUID();

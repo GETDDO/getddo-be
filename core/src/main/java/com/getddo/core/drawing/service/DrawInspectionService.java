@@ -19,8 +19,6 @@ import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.DrawCheckRepository;
 import com.getddo.core.drawing.repository.DrawInspectionRepository;
 import com.getddo.core.user.domain.User;
-import com.getddo.core.user.domain.UserRole;
-import com.getddo.core.user.domain.UserStatus;
 
 import static com.getddo.core.drawing.exception.DrawInspectionErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
@@ -46,11 +44,12 @@ public class DrawInspectionService {
 		return requireRun(runId);
 	}
 
+	/** 하나의 읽기 트랜잭션에서 실행·결과와 실패·취소 요약을 함께 조회한다. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public DrawRunDetailView detail(User user, UUID runId) {
 		admin(user);
 		DrawRunView run = requireRun(runId);
-		return new DrawRunDetailView(run, orderedResults(run));
+		return new DrawRunDetailView(run, orderedResults(run), repository.findExecutionSummary(runId));
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -65,6 +64,22 @@ public class DrawInspectionService {
 		admin(user);
 		DrawRunView run = requireRun(runId);
 		return orderedResults(run);
+	}
+
+	/** 관리자 권한과 실행 존재를 확인한 뒤 전체 실패 이력의 한 페이지를 반환한다. */
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+	public PageResult<DrawFailure> failures(User user, UUID runId, PageQuery page) {
+		admin(user);
+		requireRun(runId);
+		return repository.findFailures(runId, page);
+	}
+
+	/** 관리자 권한과 실행 존재를 확인한 뒤 원본 감사 행을 변경하지 않고 조회한다. */
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+	public PageResult<DrawExecutionAuditView> executionAudits(User user, UUID runId, PageQuery page) {
+		admin(user);
+		requireRun(runId);
+		return repository.findExecutionAudits(runId, page);
 	}
 
 	/** 불일치도 검증 결과로 저장한다. 실행·후보·조건·결과에는 쓰기를 수행하지 않는다. */
@@ -105,8 +120,6 @@ public class DrawInspectionService {
 
 	/** API가 공통 사용자 문맥에서 확인한 DB 사용자를 재사용한다. */
 	private void admin(User user) {
-		if (user == null || user.getId() == null || user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) {
-			throw new BusinessException(ADMIN_REQUIRED);
-		}
+		DrawAdminAuthorization.validate(user, ADMIN_REQUIRED);
 	}
 }

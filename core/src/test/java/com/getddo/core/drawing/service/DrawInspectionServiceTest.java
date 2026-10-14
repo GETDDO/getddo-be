@@ -29,12 +29,15 @@ class DrawInspectionServiceTest {
 	private final UUID runId = UUID.randomUUID(), eventId = UUID.randomUUID();
 	private final User admin = user(UserRole.ADMIN, UserStatus.ACTIVE);
 
+	/** 다음 동작을 검증한다: 모든 관리자 업무는 일반·비활성 사용자 요청을 저장소 조회 전에 거절한다. */
 	@Test
 	@DisplayName("모든 관리자 업무는 일반·비활성 사용자 요청을 저장소 조회 전에 거절한다")
 	void rejectsNonAdminsBeforeReading() {
 		// given / when / then
 		for (User user : List.of(user(UserRole.USER, UserStatus.ACTIVE), user(UserRole.ADMIN, UserStatus.INACTIVE))) {
 			assertThatThrownBy(() -> service.runs(user, eventId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
+			assertThatThrownBy(() -> service.failures(user, runId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
+			assertThatThrownBy(() -> service.executionAudits(user, runId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
 			assertThatThrownBy(() -> service.detail(user, runId)).isInstanceOf(BusinessException.class);
 			assertThatThrownBy(() -> service.candidates(user, runId, new PageQuery(1, 20))).isInstanceOf(BusinessException.class);
 			assertThatThrownBy(() -> service.verify(user, runId)).isInstanceOf(BusinessException.class);
@@ -86,6 +89,7 @@ class DrawInspectionServiceTest {
 		verify(repository).findCandidates(runId, query);
 	}
 
+	/** 다음 동작을 검증한다: 재추첨 검증은 같은 서비스 흐름에서 저장된 최초 입력·과거 배정을 읽고 이력을 저장한다. */
 	@Test
 	@DisplayName("재추첨 검증은 같은 서비스 흐름에서 저장된 최초 입력·과거 배정을 읽고 이력을 저장한다")
 	void replacementReadsReferencesAndPersistsCheck() {
@@ -99,11 +103,11 @@ class DrawInspectionServiceTest {
 				new DrawSnapshot.EntryEvidence(1, 0, 0, 0, List.of(new DrawSnapshotSource.Entry(UUID.randomUUID(), 0, now.minusSeconds(20), List.of()))),
 				new DrawSnapshot.EligibilityEvidence(1, userId, "VIP", "USER", false, now.minusSeconds(10)));
 		DrawRunView replacement = new DrawRunView(runId, eventId, 1, DrawType.REPLACEMENT, DrawRunStatus.CONFIRMED, firstId,
-				DrawSnapshotService.ALGORITHM_VERSION, new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes()),
+				DrawSnapshotService.ALGORITHM_VERSION, new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes(), firstId, List.of(new DrawSnapshot.Slot(prizeId, 1, 1)), List.of()),
 				now, now, now, now, new DrawReplacementRulesView(firstId, List.of(new DrawReplacementRulesView.Slot(prizeId, 1, 1)), List.of()));
 		DrawVerificationReferences references = new DrawVerificationReferences(first,
 				List.of(new DrawCandidateView(winner, firstId, eventId, eventId, userId)),
-				List.of(new DrawHistoricalAward(UUID.randomUUID(), firstId, eventId, prizeId, eventId, 1, candidateId, userId, first.getConfirmedAt())));
+				List.of(new DrawHistoricalAward(UUID.randomUUID(), firstId, eventId, prizeId, eventId, 1, candidateId, userId, first.getConfirmedAt(), 0, now.minusSeconds(1), DrawSelectionResultType.SELECTED)));
 		when(repository.findRun(runId)).thenReturn(Optional.of(replacement));
 		when(repository.findReplacementReferences(replacement)).thenReturn(references);
 		when(repository.findAllCandidates(runId)).thenReturn(List.of());

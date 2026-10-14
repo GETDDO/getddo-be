@@ -2,7 +2,7 @@
 
 - 작업 브랜치: `feat/GD-137`, 최초 기반 0faf75e4. 사용자 승인 후 원격 `dev` b2be294를 merge하여 GD-87 공통 구현과 GD-168 User 변경을 반영했다. 원래 커밋 이력과 기존 응모 Entity 예외를 보존하고 GD-137 사용자 호출을 새 getter에 맞췄다. 공용 spec 확인 기준은 `main` 7076e1b다.
 - 사용자 확인: AD01·AD02·AD03·AD04·AD08 경로·DTO 초안, 불일치 검증의 201/`passed=false` 이력 저장, `executionType` 대신 실제 저장 의미인 `drawType=INITIAL/REPLACEMENT` 사용을 승인했다.
-- 공용 정책 원본: [추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [API 초안](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md). 이 문서는 백엔드 구현·미연결 범위를 설명한다.
+- 공용 정책 원본: [추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [API 초안](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/05-api/drawing.md). 이 문서는 백엔드 구현·미연결 범위를 설명한다.
 
 ## 구현된 경로
 
@@ -53,7 +53,7 @@ Java 21로 core·storage:db·api 컴파일과 관련 단위·API 테스트 44건
 
 상세 조회는 결과에 연결된 사용자 ID만 조인하여 읽고 전체 후보 JSON을 조회하지 않는다. 응답 정렬은 저장된 조건의 등수·자리 순이며 현재 경품 등수 변경에 영향을 받지 않는다. 검증 전체 통과 판정은 Service에서 수행하고 영속성 구현에 전달한다. DrawCheckEntity의 필수값은 생성 시 null을 거절한다.
 
-[재추첨 자리 검증 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803111)는 유효한 위험으로 확인했다. 고정 시각까지의 실제 취소와 자리·유지 명단 완전성 검증을 사용자 확인에 따라 GD-169 담당 확인으로 남겼으며 현재 검증은 이를 보장하지 않는다. [공통 Entity 예외 리뷰](https://github.com/GETDDO/getddo-be/pull/61#discussion_r4244803115)는 사용자 승인에 따라 ADR-0001에 DrawCheckEntity 예외를 명시했다. 기존 스키마와 서비스 검증 시각을 보존하며 created_at을 추가하지 않는다. 재추첨 자리 검증 스레드는 미해결로 유지한다.
+[재추첨 자리 검증 리뷰](https://github.com/Uplus-GETDDO/getddo-be/pull/61#discussion_r4244803111)는 유효한 위험으로 확인했다. 고정 시각까지의 실제 취소와 자리·유지 명단 완전성 검증을 사용자 확인에 따라 GD-169 담당 확인으로 남겼으며 현재 검증은 이를 보장하지 않는다. [공통 Entity 예외 리뷰](https://github.com/Uplus-GETDDO/getddo-be/pull/61#discussion_r4244803115)는 사용자 승인에 따라 ADR-0001에 DrawCheckEntity 예외를 명시했다. 기존 스키마와 서비스 검증 시각을 보존하며 created_at을 추가하지 않는다. 재추첨 자리 검증 스레드는 미해결로 유지한다.
 
 최신 dev 병합 후 검증은 별도 결과로 기록한다. 병합 전 CodeRabbit 수정의 전체 단위 471건 성공과 병합 뒤 결과를 혼동하지 않는다. Docker 기반 통합과 전체 build는 사용자 지시에 따라 로컬에서 수행하지 않는다.
 

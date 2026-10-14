@@ -48,7 +48,7 @@ class AdminDrawResumeControllerTest {
 		UserRepository userRepository = id -> Optional.ofNullable(users.get(id));
 		TimeProvider time = new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC));
 		DrawExecutionControlService control = new DrawExecutionControlService(results, snapshots, executions,
-				mock(DrawFailureRepository.class), userRepository, mock(AuditLogService.class), time);
+				mock(DrawFailureRepository.class), new DrawAdminAuthorization(userRepository), mock(AuditLogService.class), time);
 		DrawExecutionService service = new DrawExecutionService(control, attempts, preparations, time);
 		mvc = MockMvcBuilders.standaloneSetup(new AdminDrawResumeController(service))
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(userRepository)))
@@ -62,6 +62,18 @@ class AdminDrawResumeControllerTest {
 					? new DrawConfirmation(runId, eventId, NOW, List.of()) : null;
 			return new DrawExecutionResult(runId, state.getStatus(), confirmation);
 		});
+	}
+
+	/** 다음 동작을 검증한다: 재개 중 응모자 없음으로 종료되면 200과 정상 종료 상태를 반환한다. */
+	@Test @DisplayName("재개 중 응모자 없음으로 종료되면 200과 정상 종료 상태를 반환한다")
+	void returnsCompletedNoEntries() throws Exception {
+		// given
+		when(executions.lockRun(runId)).thenReturn(Optional.of(state(DrawType.INITIAL, DrawRunStatus.FAILED)));
+		when(attempts.execute(eq(runId), any())).thenReturn(new DrawExecutionResult(runId, DrawRunStatus.NO_ENTRIES, null));
+		// when / then
+		mvc.perform(post(path()).header("X-User-ID", adminId).header("X-User-Role", "ADMIN"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("NO_ENTRIES"))
+				.andExpect(jsonPath("$.data.confirmation").value(nullValue()));
 	}
 
 	/** 확정된 최초 실행은 200과 저장 결과를 반환한다. */

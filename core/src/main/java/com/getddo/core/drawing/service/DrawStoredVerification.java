@@ -134,8 +134,12 @@ public final class DrawStoredVerification {
 			if (award.getId() == null || !awardIds.add(award.getId()) || award.getRunId() == null || run.getId().equals(award.getRunId())
 					|| !run.getEventId().equals(award.getEventId()) || !run.getEventId().equals(award.getPrizeEventId())
 					|| award.getConfirmedAt() == null || award.getConfirmedAt().isAfter(run.getSnapshotFixedAt())
-					|| candidate == null || !Objects.equals(candidate.userId(), award.getUserId())) return false;
-			winners.add(award.getCandidateId());
+					|| award.getRunNumber() < 0 || award.getRunNumber() >= run.getRunNumber()
+					|| award.getResultType() == null || (award.getCanceledAt() != null && award.getCanceledAt().isBefore(award.getConfirmedAt()))) return false;
+			if (award.getResultType() == DrawSelectionResultType.SELECTED) {
+				if (candidate == null || !Objects.equals(candidate.userId(), award.getUserId())) return false;
+				winners.add(award.getCandidateId());
+			} else if (award.getCandidateId() != null || award.getUserId() != null || award.getCanceledAt() != null) return false;
 		}
 		Set<UUID> expected = new HashSet<>(firstCandidates.keySet());
 		expected.removeAll(winners);
@@ -155,36 +159,52 @@ public final class DrawStoredVerification {
 				&& new HashSet<>(current.prizes()).equals(new HashSet<>(original.prizes()));
 	}
 
-	/** 고정 자리의 범위·중복·겹침과 유지 결과 ID의 실제 불변 배정을 검증한다. */
+	/** 고정 시각 이전 최신 자리 배정의 취소·유지 여부와 완전성을 검증한다. 이후 취소는 소급 반영하지 않는다. */
 	private static boolean replacementSlots(DrawRunView run, DrawVerificationReferences references) {
 		DrawReplacementRulesView replacement = run.getReplacementRules();
-		if (replacement == null || replacement.getTargetSlots().isEmpty()) return false;
+		if (replacement == null || replacement.getTargetSlots().isEmpty() || run.getSnapshotFixedAt() == null) return false;
 		Map<UUID, DrawSnapshotSource.Prize> prizes = new HashMap<>();
 		for (DrawSnapshotSource.Prize prize : run.getRules().prizes()) prizes.put(prize.id(), prize);
-		Map<UUID, DrawHistoricalAward> awards = new HashMap<>();
-		Set<String> previouslySelectedSlots = new HashSet<>();
+		Map<String, DrawHistoricalAward> latest = new HashMap<>();
+		Set<String> rounds = new HashSet<>();
 		for (DrawHistoricalAward award : references.getHistoricalAwards()) {
-			awards.put(award.getId(), award);
-			previouslySelectedSlots.add(slotKey(award.getPrizeId(), award.getSlotNumber()));
+			if (award.getConfirmedAt() == null || award.getConfirmedAt().isAfter(run.getSnapshotFixedAt())) continue;
+			String key = slotKey(award.getPrizeId(), award.getSlotNumber());
+			DrawHistoricalAward previous = latest.get(key);
+			if (!rounds.add(key + ":" + award.getRunNumber())) return false;
+			if (previous == null || previous.getRunNumber() < award.getRunNumber()) latest.put(key, award);
 		}
 		Set<String> occupied = new HashSet<>();
 		for (DrawReplacementRulesView.Slot slot : replacement.getTargetSlots()) {
 			DrawSnapshotSource.Prize prize = prizes.get(slot.getPrizeId());
+			String key = slotKey(slot.getPrizeId(), slot.getSlotNumber());
+			DrawHistoricalAward award = latest.get(key);
 			if (prize == null || slot.getRank() != prize.rank() || slot.getSlotNumber() < 1 || slot.getSlotNumber() > prize.winnerCount()
-					|| !occupied.add(slotKey(slot.getPrizeId(), slot.getSlotNumber()))
-					|| !previouslySelectedSlots.contains(slotKey(slot.getPrizeId(), slot.getSlotNumber()))) return false;
+					|| !occupied.add(key) || award == null || award.getResultType() != DrawSelectionResultType.SELECTED
+					|| !canceledAtFixedTime(award, run.getSnapshotFixedAt())) return false;
 		}
 		Set<UUID> retainedIds = new HashSet<>(), retainedUsers = new HashSet<>();
 		for (DrawReplacementRulesView.RetainedAward retained : replacement.getRetainedAwards()) {
-			DrawHistoricalAward award = awards.get(retained.getResultId());
+			String key = slotKey(retained.getPrizeId(), retained.getSlotNumber());
+			DrawHistoricalAward award = latest.get(key);
 			DrawSnapshotSource.Prize prize = prizes.get(retained.getPrizeId());
-			if (award == null || prize == null || !retainedIds.add(retained.getResultId()) || retained.getUserId() == null
+			if (award == null || prize == null || award.getResultType() != DrawSelectionResultType.SELECTED
+					|| canceledAtFixedTime(award, run.getSnapshotFixedAt()) || !Objects.equals(retained.getResultId(), award.getId())
+					|| !retainedIds.add(retained.getResultId()) || retained.getUserId() == null
 					|| !retainedUsers.add(retained.getUserId()) || !Objects.equals(retained.getUserId(), award.getUserId())
-					|| !Objects.equals(retained.getPrizeId(), award.getPrizeId()) || retained.getSlotNumber() != award.getSlotNumber()
-					|| retained.getSlotNumber() < 1 || retained.getSlotNumber() > prize.winnerCount()
-					|| !occupied.add(slotKey(retained.getPrizeId(), retained.getSlotNumber()))) return false;
+					|| retained.getSlotNumber() < 1 || retained.getSlotNumber() > prize.winnerCount() || !occupied.add(key)) return false;
 		}
-		return true;
+		Set<String> expected = new HashSet<>();
+		for (Map.Entry<String, DrawHistoricalAward> entry : latest.entrySet()) {
+			if (entry.getValue().getResultType() == DrawSelectionResultType.SELECTED) expected.add(entry.getKey());
+		}
+		// 이미 UNFILLED로 끝난 다른 재추첨 자리를 이번 실행의 대상에 다시 넣지 않는다.
+		return occupied.equals(expected);
+	}
+
+	/** 고정 시각까지 발생한 취소만 배정 검증에 반영하고 이후 취소는 소급하지 않는다. */
+	private static boolean canceledAtFixedTime(DrawHistoricalAward award, Instant fixedAt) {
+		return award.getCanceledAt() != null && !award.getCanceledAt().isAfter(fixedAt);
 	}
 
 	private static String slotKey(UUID prizeId, int slot) { return prizeId + ":" + slot; }

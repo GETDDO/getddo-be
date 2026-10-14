@@ -39,7 +39,7 @@ class DrawExecutionControlServiceTest {
 	private final AuditLogService audit = mock(AuditLogService.class);
 	private final UserRepository users = mock(UserRepository.class);
 	private final DrawExecutionControlService control = new DrawExecutionControlService(results, snapshots,
-			executions, failures, users, audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+			executions, failures, new DrawAdminAuthorization(users), audit, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
 
 	/** 고정 시계와 실행 소속·이벤트 잠금 대역을 준비해 소유권 복구와 예약 조건을 재현한다. */
 	@BeforeEach void setUp() {
