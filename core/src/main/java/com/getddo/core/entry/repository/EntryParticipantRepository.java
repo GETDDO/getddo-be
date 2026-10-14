@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.getddo.core.entry.domain.EntryParticipant;
+import com.getddo.core.entry.domain.EntryParticipationTotals;
 
 /** 응모자 저장소. 모든 메서드는 호출자 트랜잭션 안에서 호출한다. */
 public interface EntryParticipantRepository {
@@ -25,6 +26,9 @@ public interface EntryParticipantRepository {
 	 * @return ID가 발급된 응모자
 	 */
 	EntryParticipant create(EntryParticipant participant);
+
+	/** 이벤트의 접수 완료된 응모자 수와 누적 차감 수량 합계를 잠그지 않고 읽는다. 응모자가 없으면 0이다. */
+	EntryParticipationTotals summarize(UUID eventId);
 
 	/** 잠가 읽은 응모자의 누적 차감 수량을 늘린다. */
 	void addUsedTicketCount(UUID participantId, long amount);

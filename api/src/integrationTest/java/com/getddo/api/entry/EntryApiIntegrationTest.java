@@ -338,4 +338,36 @@ class EntryApiIntegrationTest {
 				.andExpect(jsonPath("$.data.items").isEmpty())
 				.andExpect(jsonPath("$.data.totalElements").value(2));
 	}
+
+	@Test
+	@DisplayName("E03은 접수된 응모자 수와 차감 합계, 본인 차감 수량을 반환하고 거절은 집계에 넣지 않으며 없는 이벤트는 404다")
+	void statisticsCountsAcceptedEntriesOnly() throws Exception {
+		// given
+		mvc.perform(get("/api/v1/events/{eventId}/statistics", WEIGHTED_EVENT).headers(headers(USER, "USER")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.participantCount").value(0))
+				.andExpect(jsonPath("$.data.totalSpentTicketCount").value(0))
+				.andExpect(jsonPath("$.data.mySpentTicketCount").value(0));
+		mvc.perform(enter(WEIGHTED_EVENT, UUID.randomUUID(), "{\"tickets\":{\"BRONZE\":2}}"))
+				.andExpect(status().isCreated());
+		mvc.perform(enter(WEIGHTED_EVENT, UUID.randomUUID(), "{\"tickets\":{\"BRONZE\":9}}"))
+				.andExpect(status().isConflict());
+		// when
+		// then
+		mvc.perform(get("/api/v1/events/{eventId}/statistics", WEIGHTED_EVENT).headers(headers(USER, "USER")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.eventId").value(WEIGHTED_EVENT.toString()))
+				.andExpect(jsonPath("$.data.participantCount").value(1))
+				.andExpect(jsonPath("$.data.totalSpentTicketCount").value(2))
+				.andExpect(jsonPath("$.data.mySpentTicketCount").value(2))
+				.andExpect(jsonPath("$.data.serverTime").isNotEmpty());
+		mvc.perform(get("/api/v1/events/{eventId}/statistics", WEIGHTED_EVENT).headers(headers(ADMIN, "ADMIN")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.participantCount").value(1))
+				.andExpect(jsonPath("$.data.mySpentTicketCount").value(0));
+		mvc.perform(get("/api/v1/events/{eventId}/statistics", UUID.randomUUID()).headers(headers(USER, "USER")))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("ENTRY-004"));
+	}
 }
