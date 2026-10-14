@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.hibernate.LockMode;
 import org.hibernate.Locking;
 import org.hibernate.Session;
@@ -62,6 +63,34 @@ public class EventRepositoryImpl implements EventRepository {
 				.setHibernateLockMode(LockMode.PESSIMISTIC_WRITE)
 				.setLockScope(Locking.Scope.INCLUDE_FETCHES)
 				.uniqueResultOptional().map(this::toDomain);
+	}
+
+	@Override
+	public Optional<EventStatus> findStatusByIdForUpdate(UUID eventId) {
+		// 호출자의 미반영 변경을 먼저 보존한다. 전체 영속성 컨텍스트는 비우지 않는다.
+		entityManager.flush();
+		// Hibernate 7.4는 이미 보유한 잠금으로 refresh하면 일반 SELECT를 사용한다.
+		// MySQL REPEATABLE READ의 이전 스냅샷을 읽지 않도록 해당 이벤트만 분리하고 잠금 읽기로 다시 적재한다.
+		// 첫 조회는 존재·미삭제 여부와 잠금 확보, 두 번째 조회는 이전 캐시 제거 후 최신 상태 적재가 목적이다.
+		return jpaRepository.findByIdForUpdate(eventId).flatMap(event -> {
+			entityManager.detach(event);
+			return jpaRepository.findByIdForUpdate(eventId);
+		}).map(EventEntity::getStatus);
+	}
+
+	/** 선행 상태 잠금 조회가 관리 중인 Entity를 재사용하며 상태와 공통 수정 시각만 저장한다. */
+	@Override
+	public void updateStatus(UUID eventId, EventStatus newStatus) {
+		EventEntity event = jpaRepository.findById(eventId)
+				.filter(saved -> saved.getDeletedAt() == null)
+				.orElseThrow(() -> new EventException(EventErrorCode.EVENT_NOT_FOUND));
+		LockModeType lockMode = entityManager.getLockMode(event);
+		if (lockMode != LockModeType.PESSIMISTIC_WRITE && lockMode != LockModeType.PESSIMISTIC_FORCE_INCREMENT) {
+			// 업무 오류가 아닌 저장소 호출 계약 위반이다. 추가 잠금 조회로 잘못된 호출 순서를 숨기지 않는다.
+			throw new IllegalStateException("상태 변경 전에 같은 트랜잭션에서 이벤트 쓰기 잠금을 확보해야 합니다.");
+		}
+		event.changeStatus(newStatus);
+		jpaRepository.flush();
 	}
 
 	/**

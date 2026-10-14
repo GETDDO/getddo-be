@@ -15,6 +15,20 @@ public interface EventRepository {
 	Optional<RegisteredEvent> findByIdForUpdate(UUID eventId);
 
 	/**
+	 * 미삭제 이벤트 행을 잠그고 최신 상태를 읽는다. 호출자 트랜잭션에서 사용한다.
+	 * 호출자의 미반영 변경을 flush한 뒤 해당 이벤트의 기존 Entity 참조를 분리하고 다시 적재한다.
+	 * 영속성 구현의 호출자는 상태 변경 후 이전 Entity 참조로 수정하지 않고 저장소에서 재조회한다.
+	 */
+	Optional<EventStatus> findStatusByIdForUpdate(UUID eventId);
+
+	/**
+	 * 같은 트랜잭션에서 findStatusByIdForUpdate로 동일 이벤트를 잠그고 예상 상태·취소 상태 검증을
+	 * 완료한 뒤 호출한다. 설정·경품은 변경하지 않고 상태를 반영해 flush한다.
+	 * 쓰기 잠금 없는 호출은 영속성 구현의 계약 위반으로 거절한다.
+	 */
+	void updateStatus(UUID eventId, EventStatus newStatus);
+
+	/**
 	 * 호출자는 같은 트랜잭션에서 동일 eventId의 findByIdForUpdate를 먼저 호출해
 	 * 이벤트·경품의 잠금 조회를 완료해야 한다. 확보한 잠금 안에서 설정·경품을 함께 갱신하고 flush한다.
 	 * 호출자는 설정의 업무 검증과 기존 경품 ID의 이벤트 소유권 검증을 완료해야 한다.

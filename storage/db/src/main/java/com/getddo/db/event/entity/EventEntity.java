@@ -134,6 +134,15 @@ public class EventEntity extends BaseUpdatableEntity {
 		}
 	}
 
+	/** 서비스의 잠금·상태 검증 후 상태를 반영한다. 취소 상태 복귀는 호출 계약 위반이다. */
+	public void changeStatus(EventStatus newStatus) {
+		Objects.requireNonNull(newStatus, "newStatus");
+		if (status == EventStatus.CANCELED && newStatus != status) {
+			throw new IllegalStateException("취소 상태의 이벤트는 다른 상태로 변경할 수 없습니다.");
+		}
+		status = newStatus;
+	}
+
 	public String getTitle() { return title; }
 	public String getDescription() { return description; }
 	public String getImageKey() { return imageKey; }
