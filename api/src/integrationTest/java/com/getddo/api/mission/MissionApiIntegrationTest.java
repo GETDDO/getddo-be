@@ -134,6 +134,7 @@ class MissionApiIntegrationTest {
 				.andExpect(jsonPath("$.data.submissionId").value(key.toString()))
 				.andExpect(jsonPath("$.data.missionId").value(MISSION.toString()))
 				.andExpect(jsonPath("$.data.isCompleted").value(true))
+				.andExpect(jsonPath("$.data.reward.claimId").isString())
 				.andExpect(jsonPath("$.data.reward.ticketCount").value(1))
 				.andExpect(jsonPath("$.data.reward.grade").isString())
 				.andExpect(jsonPath("$.data.reward.expiresAt").isString());
@@ -282,6 +283,7 @@ class MissionApiIntegrationTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(2))
 				.andExpect(jsonPath(done + ".isCompleted").value(true))
+				.andExpect(jsonPath(done + ".reward.claimId").isNotEmpty())
 				.andExpect(jsonPath(done + ".reward.ticketCount").value(1))
 				.andExpect(jsonPath(done + ".reward.grade").isNotEmpty())
 				.andExpect(jsonPath(wrong + ".isCompleted").value(false))

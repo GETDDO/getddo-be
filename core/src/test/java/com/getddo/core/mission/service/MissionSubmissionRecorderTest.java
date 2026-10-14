@@ -69,6 +69,7 @@ class MissionSubmissionRecorderTest {
 	private final UUID userId = UUID.randomUUID();
 	private final UUID missionId = UUID.randomUUID();
 	private final UUID submissionId = UUID.randomUUID();
+	private final UUID claimId = UUID.randomUUID();
 	private final UUID q1 = UUID.randomUUID();
 	private final UUID q2 = UUID.randomUUID();
 	private final UUID q1Ok = UUID.randomUUID();
@@ -147,7 +148,7 @@ class MissionSubmissionRecorderTest {
 	private void stubClaimAndGrant() {
 		when(claimRepository.insert(any())).thenAnswer(invocation -> {
 			MissionRewardClaim given = invocation.getArgument(0);
-			return new MissionRewardClaim(UUID.randomUUID(), given.getRewardPolicyId(), given.getMissionId(),
+			return new MissionRewardClaim(claimId, given.getRewardPolicyId(), given.getMissionId(),
 					given.getMissionSubmissionId(), given.getUserId(), given.getSourceKey(), given.getTicketCount(), NOW);
 		});
 		when(grantService.grant(any())).thenReturn(new GrantResult(1, TicketGrade.SILVER, GRANTED_AT, EXPIRES_AT, false));
@@ -170,6 +171,7 @@ class MissionSubmissionRecorderTest {
 		assertThat(result.isCreated()).isTrue();
 		assertThat(result.getSubmissionId()).isEqualTo(submissionId);
 		assertThat(result.getReceivedAt()).isEqualTo(NOW);
+		assertThat(result.getReward().getClaimId()).isEqualTo(claimId);
 		assertThat(result.getReward().getTicketCount()).isEqualTo(1);
 		assertThat(result.getReward().getGrade()).isEqualTo(TicketGrade.SILVER);
 		assertThat(result.getReward().getExpiresAt()).isEqualTo(EXPIRES_AT);
