@@ -666,8 +666,8 @@ class AwardCancellationFlowIntegrationTest {
 			int count = weighted ? 1 : 0;
 			jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, ?, ?)",
 					toBytes(participant), toBytes(event), toBytes(user), count, utc(NOW.minusSeconds(301)));
-			jdbc.update("insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at) values (?, ?, ?, ?, ?, ?)",
-					toBytes(entry), toBytes(participant), toBytes(user), count, count, utc(NOW.minusSeconds(301)));
+			jdbc.update("insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at) values (?, (select event_id from event_participants where id = ?), ?, ?, ?, ?, ?)",
+					toBytes(entry), toBytes(participant), toBytes(participant), toBytes(user), count, count, utc(NOW.minusSeconds(301)));
 			if (weighted) ticket(user, entry, List.of("GOLD", "SILVER", "BRONZE").get(index % 3));
 		}
 		DrawSnapshot original = snapshotService.prepareInitial(event);

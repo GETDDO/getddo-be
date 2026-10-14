@@ -68,7 +68,7 @@ public class DrawSnapshotSourceReader {
 			from ticket_histories h join tickets t on t.id = h.ticket_id
 			join event_entries e on e.id = h.event_entry_id
 			join event_participants p on p.id = e.participant_id
-			where p.event_id = ? and h.operation_type = 'USE' order by h.id
+			where p.event_id = ? and h.operation_type = 'USE' and e.status = 'ACCEPTED' order by h.id
 			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
 				uses.computeIfAbsent(fromBytes(row.getBytes("event_entry_id")), key -> new ArrayList<>())
 						.add(new DrawSnapshotSource.Use(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("ticket_id")),
@@ -78,7 +78,7 @@ public class DrawSnapshotSourceReader {
 		jdbc.query("""
 			select e.id, e.participant_id, e.deducted_ticket_count, e.created_at
 			from event_entries e join event_participants p on p.id = e.participant_id
-			where p.event_id = ? order by e.id
+			where p.event_id = ? and e.status = 'ACCEPTED' order by e.id
 			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
 				UUID id = fromBytes(row.getBytes("id"));
 				entries.computeIfAbsent(fromBytes(row.getBytes("participant_id")), key -> new ArrayList<>())

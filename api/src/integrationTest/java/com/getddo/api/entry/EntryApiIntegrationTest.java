@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.getddo.api.support.ApiIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -65,7 +66,8 @@ class EntryApiIntegrationTest {
 		jdbc.update("delete h from ticket_histories h join tickets t on t.id = h.ticket_id where t.user_id = ?",
 				bytes(USER));
 		jdbc.update("delete from tickets where user_id = ?", bytes(USER));
-		jdbc.update("delete from event_entries where user_id = ?", bytes(USER));
+		// 관리자의 응모 거절도 이력으로 남으므로 관리자 행까지 지운다.
+		jdbc.update("delete from event_entries where user_id in (?, ?)", bytes(USER), bytes(ADMIN));
 		jdbc.update("delete from event_participants where user_id = ?", bytes(USER));
 		jdbc.update("delete from attendance_reward_claims where user_id = ?", bytes(USER));
 		jdbc.update("delete from attendances where user_id = ?", bytes(USER));
@@ -285,5 +287,55 @@ class EntryApiIntegrationTest {
 	private static byte[] bytes(UUID id) {
 		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits())
 				.putLong(id.getLeastSignificantBits()).array();
+	}
+
+	@Test
+	@DisplayName("업무 거절은 이력으로 남아 같은 키의 재요청이 처음 4xx를 돌려주고 E05·E06이 접수와 거절을 함께 조회한다")
+	void rejectionIsStoredReplayedAndListed() throws Exception {
+		// given
+		UUID rejected = UUID.randomUUID();
+		UUID accepted = UUID.randomUUID();
+		// when
+		// then
+		mvc.perform(enter(WEIGHTED_EVENT, rejected, "{\"tickets\":{\"BRONZE\":6}}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("ENTRY-007"));
+		mvc.perform(enter(WEIGHTED_EVENT, rejected, "{\"tickets\":{\"BRONZE\":6}}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("ENTRY-007"));
+		mvc.perform(enter(WEIGHTED_EVENT, rejected, "{\"tickets\":{\"BRONZE\":2}}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("ENTRY-009"));
+		mvc.perform(enter(WEIGHTED_EVENT, accepted, "{\"tickets\":{\"BRONZE\":1}}")).andExpect(status().isCreated());
+		assertThat(count("select count(*) from event_entries where id = ? and status = 'REJECTED'", bytes(rejected)))
+				.isEqualTo(1);
+		String reject = "$.data.items[?(@.id=='" + rejected + "')]";
+		String accept = "$.data.items[?(@.id=='" + accepted + "')]";
+		mvc.perform(get("/api/v1/events/{eventId}/entries/me", WEIGHTED_EVENT).headers(headers(USER, "USER")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.totalElements").value(2))
+				.andExpect(jsonPath(reject + ".status").value(contains("REJECTED")))
+				.andExpect(jsonPath(reject + ".rejectionCode").value(contains("ENTRY-007")))
+				.andExpect(jsonPath(reject + ".requestedTicketsByGrade.BRONZE").value(contains(6)))
+				.andExpect(jsonPath(reject + ".deductedTicketCount").value(contains(0)))
+				.andExpect(jsonPath(reject + ".acceptedAt").value(contains(nullValue())))
+				.andExpect(jsonPath(accept + ".status").value(contains("ACCEPTED")))
+				.andExpect(jsonPath(accept + ".deductedTicketsByGrade.BRONZE").value(contains(1)));
+		mvc.perform(get("/api/v1/users/me/entries").param("status", "REJECTED").headers(headers(USER, "USER")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.totalElements").value(1))
+				.andExpect(jsonPath("$.data.items[0].id").value(rejected.toString()));
+		mvc.perform(get("/api/v1/users/me/entries").param("eventId", UNWEIGHTED_EVENT.toString())
+						.headers(headers(USER, "USER")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items").isEmpty());
+		mvc.perform(get("/api/v1/events/{eventId}/entries/me", UUID.randomUUID()).headers(headers(USER, "USER")))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("ENTRY-004"));
+		mvc.perform(get("/api/v1/users/me/entries").param("page", String.valueOf(Integer.MAX_VALUE))
+						.param("size", "100").headers(headers(USER, "USER")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items").isEmpty())
+				.andExpect(jsonPath("$.data.totalElements").value(2));
 	}
 }

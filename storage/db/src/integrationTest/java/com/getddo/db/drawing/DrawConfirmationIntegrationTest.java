@@ -361,9 +361,9 @@ class DrawConfirmationIntegrationTest {
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
 				toBytes(id), toBytes(event), toBytes(user), utc(NOW.minusSeconds(301)));
 		jdbc.update("""
-			insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
-			values (?, ?, ?, 0, 0, ?)
-			""", toBytes(UUID.randomUUID()), toBytes(id), toBytes(user), utc(NOW.minusSeconds(301)));
+			insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
+			values (?, (select event_id from event_participants where id = ?), ?, ?, 0, 0, ?)
+			""", toBytes(UUID.randomUUID()), toBytes(id), toBytes(id), toBytes(user), utc(NOW.minusSeconds(301)));
 		return id;
 	}
 	/** 현재 테스트 이벤트의 결과 또는 공개 버전 행만 집계하여 다른 테스트 데이터와 분리한다. */

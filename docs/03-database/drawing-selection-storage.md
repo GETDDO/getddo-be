@@ -11,7 +11,7 @@
 
 `DrawSnapshotService.prepareInitial(eventId)`는 HTTP API가 아닌 내부 서비스다. `core`의 저장소 인터페이스를 통해 원본을 읽고 `storage:db`의 JPA 구현이 추첨 스냅샷 영속성을 담당한다. 원본 조회·이벤트 잠금 SQL은 JDBC로 재사용하며, 추첨 엔티티는 공통 UUID v7·UTC 시각 관례를 따른다. JSON 스냅샷은 BOM으로 관리되는 Jackson 3으로 직렬화한다.
 
-- `event_entries`는 성공한 응모만 저장하며 상태 컬럼이 없다. 응모자별 전체 응모를 읽는다.
+- `event_entries`에는 접수(`ACCEPTED`)와 거절(`REJECTED`) 이력이 함께 있다. 스냅샷은 `status = 'ACCEPTED'`인 응모만 응모자별로 읽는다. 거절 건은 응모자와 차감이 없어 명단과 응모권 집계에 들어가지 않는다.
 - 응모 ID에 연결된 `ticket_histories.operation_type = USE`를 `tickets`와 연결한다. 현재 티켓 상태로 필터링하지 않고 불변 `grade`와 사용 당시 이력을 읽는다.
 - 응모별 사용 이력 수와 `deducted_ticket_count`를 대조한다. 티켓 소유자, 중복 이력·응모, 응모 내 중복 티켓 및 마감 이후 기록을 검증한다.
 - 응모별 실제 차감 합계를 `event_participants.used_ticket_count`와 대조한다. 모든 응모자를 검증하며 불일치나 연산 오버플로가 있으면 전체 준비를 롤백한다. 원본을 보정하거나 해당 사용자만 빼고 진행하지 않는다.

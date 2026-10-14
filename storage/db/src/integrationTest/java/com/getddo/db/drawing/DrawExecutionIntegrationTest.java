@@ -331,8 +331,8 @@ class DrawExecutionIntegrationTest {
 		UUID participantId = UUID.randomUUID();
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
 				toBytes(participantId), toBytes(eventId), toBytes(userId), utc(NOW.minusSeconds(301)));
-		jdbc.update("insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at) values (?, ?, ?, 0, 0, ?)",
-				toBytes(UUID.randomUUID()), toBytes(participantId), toBytes(userId), utc(NOW.minusSeconds(301)));
+		jdbc.update("insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at) values (?, (select event_id from event_participants where id = ?), ?, ?, 0, 0, ?)",
+				toBytes(UUID.randomUUID()), toBytes(participantId), toBytes(participantId), toBytes(userId), utc(NOW.minusSeconds(301)));
 	}
 	/** 같은 실행의 결과가 중복 확정되거나 부분 저장되지 않았는지 확인할 행 수를 조회한다. */
 	private long countResults(UUID runId) { return jdbc.queryForObject("select count(*) from draw_results where draw_run_id = ?", Long.class, toBytes(runId)); }

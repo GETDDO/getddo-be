@@ -44,6 +44,8 @@
 - 응모 ID는 `Idempotency-Key` UUID이며 `event_entries`의 PK다. 별도 멱등 테이블 없이 PK가 같은 키의 동시 요청을 직렬화한다.
 - 잠금 순서는 `events`(`FOR SHARE`) → `event_participants`(PK `FOR UPDATE`) → `tickets`로 고정한다. 응모끼리는 이벤트 행을 공유 잠금으로 읽어 서로 막지 않고, 추첨 준비의 `FOR UPDATE`는 진행 중인 응모의 커밋을 기다린다. 참여자 행이 없으면 빈 키에 `FOR UPDATE`를 걸지 않고 삽입한다(gap lock 회피).
 - `EntryRecorder`는 `READ_COMMITTED`이고, 바깥 `EntryService`는 트랜잭션 없이(`NOT_SUPPORTED`) 잠금 실패와 중복 키 위반(MySQL 1062)에 한해 새 트랜잭션에서 한 번 다시 처리한다. FK·NOT NULL·CHECK 위반은 다시 처리하지 않는다.
+- 업무 거절(GD-145)은 `event_entries`에 `REJECTED` 행으로 남긴다. 거절은 응모 트랜잭션을 롤백시키므로 `EntryService`가 예외를 받은 뒤 별도 트랜잭션(`EntryRejectionRecorder`, `REQUIRES_NEW`)에서 같은 응모 ID로 기록하고 원래 예외를 다시 던진다. 저장 대상은 `ENTRY-002·003·005·006·007·008`과 `TICKET-006`이며, 요청 형식 오류·없는 이벤트·같은 키의 다른 요청·속도 제한은 남기지 않는다. 같은 키의 동시 요청은 PK가 직렬화한다. 거절 기록이 중복 키로 실패하면 먼저 확정된 결과를 다시 읽어 돌려주고, 저장 자체가 실패해도 사용자에게는 원래 거절을 돌려준다.
+- 거절된 응모 ID의 재요청은 저장된 거절 코드로 처음과 같은 오류를 돌려준다. 거절 건은 차감 이력이 없어 등급별 요청 장수를 행에 저장하고, 같은 키의 다른 요청인지는 그 값으로 비교한다.
 
 ### 미션 제출 (`MissionSubmissionService`, `MissionSubmissionRecorder`)
 
