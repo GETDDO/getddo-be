@@ -125,7 +125,7 @@ public class EntryRecorder {
 	 * 돌려준다. 다른 사용자·이벤트·응모권 구성이면 거절한다.
 	 */
 	private EntryReceipt replay(EntryCommand command, Map<TicketGrade, Long> tickets, Entry entry) {
-		long total = tickets.values().stream().mapToLong(Long::longValue).sum();
+		long total = checkedTotal(tickets);
 		if (!entry.getUserId().equals(command.getUserId()) || !entry.getEventId().equals(command.getEventId())
 				|| entry.getRequestedTicketCount() != total) {
 			throw new EntryException(EntryErrorCode.IDEMPOTENCY_CONFLICT);
@@ -194,9 +194,22 @@ public class EntryRecorder {
 		return tickets;
 	}
 
+	/** 등급별 요청 장수의 합계를 구한다. {@code long} 범위를 넘는 합계는 요청 형식 오류다. */
+	private static long checkedTotal(Map<TicketGrade, Long> tickets) {
+		try {
+			long total = 0;
+			for (long count : tickets.values()) {
+				total = Math.addExact(total, count);
+			}
+			return total;
+		} catch (ArithmeticException overflow) {
+			throw new EntryException(EntryErrorCode.INVALID_ENTRY_REQUEST);
+		}
+	}
+
 	/** 이벤트 유형이 허용하는 요청인지 확인하고 요청 장수 합계를 돌려준다. */
 	private static long requireValidRequest(EntryEvent event, Map<TicketGrade, Long> tickets) {
-		long total = tickets.values().stream().mapToLong(Long::longValue).sum();
+		long total = checkedTotal(tickets);
 		boolean valid;
 		if (!event.usesTickets()) {
 			valid = total == 0;

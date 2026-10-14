@@ -111,6 +111,10 @@ class EntryDomainTest {
 				.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.ACCEPTED, 1, nullValue, 1, null, null, AT))
 				.isInstanceOf(IllegalArgumentException.class);
+		// long 합계가 한 바퀴 돌아 1이 되는 구성도 거절한다.
+		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.ACCEPTED, 1,
+				Map.of(TicketGrade.BRONZE, Long.MAX_VALUE, TicketGrade.SILVER, Long.MAX_VALUE, TicketGrade.GOLD, 3L),
+				1, null, null, AT)).isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test

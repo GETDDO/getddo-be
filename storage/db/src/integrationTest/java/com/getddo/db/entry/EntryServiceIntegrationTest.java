@@ -366,6 +366,22 @@ class EntryServiceIntegrationTest extends EntryIntegrationTestSupport {
 	}
 
 	@Test
+	@DisplayName("장수 합계가 long 범위를 넘는 요청도 요청 형식 오류이고 아무것도 남기지 않는다")
+	void overflowingTotalIsInvalidRequest() {
+		// given
+		giveTickets(userId, TicketGrade.GOLD, 1);
+		UUID event = weightedEvent(5);
+		UUID entry = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> entryService.enter(command(userId, event, entry, tickets(TicketGrade.BRONZE,
+				Long.MAX_VALUE, TicketGrade.SILVER, Long.MAX_VALUE, TicketGrade.GOLD, 3))))
+				.satisfies(e -> assertEntryError(e, EntryErrorCode.INVALID_ENTRY_REQUEST));
+		assertThat(count("select count(*) from event_entries where user_id = ?", bytes(userId))).isZero();
+		assertThat(spentTickets(userId)).isZero();
+	}
+
+	@Test
 	@DisplayName("음수 장수나 허용되지 않는 요청은 요청 형식 오류이고 응모권을 쓰지 않는 이벤트에 응모권을 담으면 거절한다")
 	void invalidRequestShapesAreRejected() {
 		// given

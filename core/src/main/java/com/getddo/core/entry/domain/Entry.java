@@ -74,7 +74,11 @@ public final class Entry {
 			if (count == null || count < 0) {
 				throw new IllegalArgumentException("등급별 요청 장수는 0 이상이어야 한다.");
 			}
-			gradeSum += count;
+			try {
+				gradeSum = Math.addExact(gradeSum, count);
+			} catch (ArithmeticException overflow) {
+				throw new IllegalArgumentException("등급별 요청 장수의 합이 너무 크다.", overflow);
+			}
 		}
 		if (gradeSum != requestedTicketCount) {
 			throw new IllegalArgumentException("등급별 요청 장수의 합이 요청 수량과 같아야 한다.");
@@ -113,7 +117,11 @@ public final class Entry {
 	}
 
 	private static long sum(Map<TicketGrade, Long> ticketsByGrade) {
-		return ticketsByGrade.values().stream().mapToLong(Long::longValue).sum();
+		long total = 0;
+		for (Long count : ticketsByGrade.values()) {
+			total = Math.addExact(total, count);
+		}
+		return total;
 	}
 
 	private static Map<TicketGrade, Long> complete(Map<TicketGrade, Long> ticketsByGrade) {
