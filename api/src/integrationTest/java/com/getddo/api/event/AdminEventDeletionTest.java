@@ -5,12 +5,18 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
@@ -35,6 +41,7 @@ import com.getddo.core.event.service.EventDeletionService;
 import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.exception.EventErrorCode;
 import com.getddo.core.notification.domain.NotificationJobRequest;
+import com.getddo.core.notification.domain.NotificationJob;
 import com.getddo.core.notification.domain.NotificationType;
 import com.getddo.core.notification.repository.NotificationJobRepository;
 import com.getddo.core.notification.service.EventChangeNotificationService;
@@ -177,14 +184,14 @@ class AdminEventDeletionTest {
 		// given
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
-		try (var executor = Executors.newFixedThreadPool(2)) {
-			var call = (java.util.concurrent.Callable<Integer>) () -> {
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Callable<Integer> call = () -> {
 				ready.countDown();
 				if (!start.await(10, TimeUnit.SECONDS)) { throw new IllegalStateException("동시 요청 준비 실패"); }
 				return remove(admin, "ADMIN").andReturn().getResponse().getStatus();
 			};
-			var first = executor.submit(call);
-			var second = executor.submit(call);
+			Future<Integer> first = executor.submit(call);
+			Future<Integer> second = executor.submit(call);
 			assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
 			// when
 			start.countDown();
@@ -202,7 +209,7 @@ class AdminEventDeletionTest {
 		new TransactionTemplate(transactions).executeWithoutResult(transaction -> {
 			assertThat(jdbc.queryForObject("select count(*) from event_participants where event_id=?",
 					Long.class, bytes(event))).isZero();
-			try (var executor = Executors.newSingleThreadExecutor()) {
+			try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
 				executor.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(ignored -> participation()))
 						.get(10, TimeUnit.SECONDS);
 			} catch (Exception exception) {
@@ -223,8 +230,8 @@ class AdminEventDeletionTest {
 	void stopsPendingAndClaimedStartJobs(boolean claimed) throws Exception {
 		// given
 		UUID id = startJob();
-		var request = jobRepository.findRequest(id);
-		var job = claimed ? jobRepository.claimNextJob(NOW).orElseThrow() : null;
+		NotificationJobRequest request = jobRepository.findRequest(id);
+		NotificationJob job = claimed ? jobRepository.claimNextJob(NOW).orElseThrow() : null;
 		String previousStatus = claimed ? "PROCESSING" : "PENDING";
 		// when
 		remove(admin, "ADMIN").andExpect(status().isOk());
@@ -255,7 +262,7 @@ class AdminEventDeletionTest {
 		assertThat(jobs.processNextJob()).isTrue();
 		assertThat(jobs.processNextDelivery()).isTrue();
 		jdbc.update("update notifications set is_read=true where job_id=?", bytes(id));
-		var previous = jdbc.queryForMap("select hex(id) as id,title,body,link_url,created_at,is_read,mock_delivery_status,mock_sent_at from notifications where job_id=?", bytes(id));
+		Map<String, Object> previous = jdbc.queryForMap("select hex(id) as id,title,body,link_url,created_at,is_read,mock_delivery_status,mock_sent_at from notifications where job_id=?", bytes(id));
 		// when
 		remove(admin, "ADMIN").andExpect(status().isOk());
 		// then
@@ -289,12 +296,12 @@ class AdminEventDeletionTest {
 		// given
 		additionalRecipient = user("USER");
 		UUID id = startJob(List.of(user, additionalRecipient));
-		var request = jobRepository.findRequest(id);
-		var job = jobRepository.claimNextJob(NOW).orElseThrow();
+		NotificationJobRequest request = jobRepository.findRequest(id);
+		NotificationJob job = jobRepository.claimNextJob(NOW).orElseThrow();
 		assertThat(jobRepository.createNotification(job, request, user, NOW)).isTrue();
 		assertThat(jobs.processNextDelivery()).isTrue();
 		jdbc.update("update notifications set is_read=true where job_id=?", bytes(id));
-		var previous = jdbc.queryForMap("select hex(id) as id,title,body,link_url,created_at,is_read,mock_delivery_status,mock_sent_at from notifications where job_id=?", bytes(id));
+		Map<String, Object> previous = jdbc.queryForMap("select hex(id) as id,title,body,link_url,created_at,is_read,mock_delivery_status,mock_sent_at from notifications where job_id=?", bytes(id));
 		CountDownLatch held = new CountDownLatch(1);
 		CountDownLatch release = new CountDownLatch(1);
 		if (deletionFirst) {
@@ -315,9 +322,9 @@ class AdminEventDeletionTest {
 		Callable<Boolean> deletion = () -> { deletions.delete(event, admin); return false; };
 		Callable<Boolean> generation = () -> jobRepository.createNotification(job, request, additionalRecipient, NOW);
 		// when
-		try (var executor = Executors.newFixedThreadPool(2)) {
-			var first = executor.submit(deletionFirst ? deletion : generation);
-			java.util.concurrent.Future<Boolean> second;
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Future<Boolean> first = executor.submit(deletionFirst ? deletion : generation);
+			Future<Boolean> second;
 			try {
 				assertThat(held.await(10, TimeUnit.SECONDS)).isTrue();
 				second = executor.submit(deletionFirst ? generation : deletion);
@@ -342,15 +349,15 @@ class AdminEventDeletionTest {
 
 	/** 두 스레드가 실제 InnoDB 행 잠금에 경합한 것을 확인한 뒤 보유 잠금을 해제한다. */
 	private void awaitDatabaseLockWait() throws Exception {
-		try (var root = DriverManager.getConnection(mysql.getJdbcUrl(), "root", mysql.getPassword());
-				var statement = root.prepareStatement("""
+		try (Connection root = DriverManager.getConnection(mysql.getJdbcUrl(), "root", mysql.getPassword());
+				PreparedStatement statement = root.prepareStatement("""
 					select count(*) from performance_schema.data_lock_waits w
 					join performance_schema.data_locks l on l.engine_lock_id = w.blocking_engine_lock_id
 					and l.engine = w.engine where l.object_schema = ?
 					""")) {
 			statement.setString(1, mysql.getDatabaseName());
 			await().atMost(Duration.ofSeconds(10)).until(() -> {
-				try (var rows = statement.executeQuery()) {
+				try (ResultSet rows = statement.executeQuery()) {
 					return rows.next() && rows.getInt(1) > 0;
 				}
 			});

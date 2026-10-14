@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -46,7 +47,7 @@ class EventChangeNotificationServiceTest {
 		// when
 		service.stopForDeletedEvent(event);
 		// then
-		var order = inOrder(repository);
+		InOrder order = inOrder(repository);
 		order.verify(repository).lockEvent(event);
 		order.verify(repository).isDeletedEvent(event);
 		order.verify(repository).stopStartJobs(event, "event-deleted:" + event);
@@ -81,7 +82,7 @@ class EventChangeNotificationServiceTest {
 		assertThat(service.register(change)).isEqualTo(job);
 		// then
 		ArgumentCaptor<NotificationJobRequest> capture = ArgumentCaptor.forClass(NotificationJobRequest.class);
-		var order = inOrder(repository, jobs);
+		InOrder order = inOrder(repository, jobs);
 		order.verify(repository).lockEvent(change.getEventId());
 		order.verify(repository).findChangeJobId(change.getOccurrenceKey());
 		order.verify(repository).matchesSavedChange(change);

@@ -19,7 +19,7 @@ class EventModelTest {
 	@DisplayName("등록 입력은 원본 경품 목록의 변경에 영향받지 않고 같은 값이면 동일하다")
 	void registrationKeepsAnImmutableValueSnapshot() {
 		// given
-		var prizes = new ArrayList<>(List.of(new EventRegistration.Prize(1, "경품", null, null, 2)));
+		List<EventRegistration.Prize> prizes = new ArrayList<>(List.of(new EventRegistration.Prize(1, "경품", null, null, 2)));
 		EventRegistration registration = registration(prizes);
 		EventRegistration sameValue = registration(List.of(new EventRegistration.Prize(1, "경품", null, null, 2)));
 
@@ -45,7 +45,7 @@ class EventModelTest {
 	@DisplayName("저장 결과와 조회 모델은 경품 목록의 변경을 막고 값 동등성을 유지한다")
 	void registeredEventAndViewKeepAnImmutableValueSnapshot() {
 		// given
-		var prizes = new ArrayList<>(List.of(new RegisteredEvent.Prize(ID, 1, "경품", null, null, 2)));
+		List<RegisteredEvent.Prize> prizes = new ArrayList<>(List.of(new RegisteredEvent.Prize(ID, 1, "경품", null, null, 2)));
 		RegisteredEvent event = registered(prizes);
 		RegisteredEvent sameValue = registered(List.of(new RegisteredEvent.Prize(ID, 1, "경품", null, null, 2)));
 		EventView view = new EventView(event, EventStatus.SCHEDULED, null);

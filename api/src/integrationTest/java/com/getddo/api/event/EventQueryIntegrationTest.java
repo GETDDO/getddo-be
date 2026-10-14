@@ -24,8 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.api.support.ApiIntegrationTest;
 import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.event.domain.EventQueryFilter;
 import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.repository.EventQueryRepository;
 import com.getddo.db.common.util.UuidBinary;
 import com.jayway.jsonpath.JsonPath;
@@ -457,7 +459,7 @@ class EventQueryIntegrationTest {
 			jdbc.update("update events set deleted_at = ? where id = ?", at(CREATED_AT), bytes(deleted));
 		}
 		// when: 고유 제목 조건으로 현재 테스트의 행만 검증한다.
-		var result = events.findAll(new EventQueryFilter(filterStatus, null, null, prefix, null, null),
+		PageResult<EventView> result = events.findAll(new EventQueryFilter(filterStatus, null, null, prefix, null, null),
 				new PageQuery(1, 20), true);
 		// then
 		assertThat(result.getTotalElements()).isEqualTo(addedCount);
@@ -548,7 +550,7 @@ class EventQueryIntegrationTest {
 	}
 
 	private ResultActions request(UUID actor, MockHttpServletRequestBuilder builder) throws Exception {
-		var contexts = jdbc.queryForList("select role,membership from users where id=?", bytes(actor));
+		List<Map<String, Object>> contexts = jdbc.queryForList("select role,membership from users where id=?", bytes(actor));
 		String role = contexts.isEmpty() ? "ADMIN" : (String) contexts.getFirst().get("role");
 		String membership = contexts.isEmpty() ? null : (String) contexts.getFirst().get("membership");
 		return mvc.perform(builder.header("X-User-ID", actor.toString()).header("X-User-Role", role)

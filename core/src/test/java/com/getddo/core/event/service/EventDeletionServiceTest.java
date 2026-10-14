@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.InOrder;
 
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.EventStatus;
@@ -60,7 +61,7 @@ class EventDeletionServiceTest {
 		// given / when
 		service.delete(EVENT, ADMIN);
 		// then
-		var order = inOrder(events, notifications);
+		InOrder order = inOrder(events, notifications);
 		order.verify(events).findByIdForUpdate(EVENT);
 		order.verify(events).hasParticipationHistory(EVENT);
 		order.verify(events).softDelete(EVENT, Instant.parse("2026-10-13T00:00:00.123456Z"));

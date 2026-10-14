@@ -6,8 +6,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.getddo.api.support.ApiIntegrationTest;
@@ -228,20 +232,20 @@ class AdminEventModificationTest {
 		String request = body(START.plusSeconds(600), "동시 수정", prizeJson(firstPrize, 1, "유지"), prizeJson(null, 2, "새 경품"));
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
-		try (var executor = Executors.newFixedThreadPool(2)) {
-			var call = (java.util.concurrent.Callable<org.springframework.test.web.servlet.MvcResult>) () -> {
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Callable<MvcResult> call = () -> {
 				ready.countDown();
 				if (!start.await(10, TimeUnit.SECONDS)) { throw new IllegalStateException("동시 요청 준비 실패"); }
 				return modify(request).andReturn();
 			};
-			var first = executor.submit(call);
-			var second = executor.submit(call);
+			Future<MvcResult> first = executor.submit(call);
+			Future<MvcResult> second = executor.submit(call);
 			assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
 			// when
 			start.countDown();
 			// then
-			var firstResult = first.get(30, TimeUnit.SECONDS);
-			var secondResult = second.get(30, TimeUnit.SECONDS);
+			MvcResult firstResult = first.get(30, TimeUnit.SECONDS);
+			MvcResult secondResult = second.get(30, TimeUnit.SECONDS);
 			assertThat(firstResult.getResponse().getStatus()).as("첫 요청: %s", firstResult.getResolvedException()).isEqualTo(200);
 			assertThat(secondResult.getResponse().getStatus()).as("두 번째 요청: %s", secondResult.getResolvedException()).isEqualTo(200);
 			String firstNewId = com.jayway.jsonpath.JsonPath.read(firstResult.getResponse().getContentAsString(), "$.data.prizes[1].id");
