@@ -1,6 +1,7 @@
 # 이벤트 삭제 — GD-61
 
-- 상태: 검토 대기 — 구현 및 알림 연동, 담당자 확인 전
+- 상태: 문서 전체 검토 대기 — 구현·알림 연동 계약 검토
+- 감사 연동 범위: 포함 확정 — 2026-10-14 사용자 확인. 이벤트 삭제·알림 중지·감사 기록을 같은 트랜잭션으로 처리하고 감사 저장 실패 시 전체 롤백한다.
 - 공용 기준: [이벤트 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/event.md), [AE05](https://github.com/GETDDO/getddo-spec/blob/main/05-api/event.md)
 
 `DELETE /api/v1/admin/events/{eventId}`는 요청 본문 없이 호출하며, 성공 시 HTTP 200과 `ResponseEnvelope.success(null)`을 반환한다. UUID 변환·사용자 문맥은 기존 Spring 바인딩과 `@CurrentUser`를 사용하고, 삭제 조건은 `EventDeletionService`에서 검사한다.
