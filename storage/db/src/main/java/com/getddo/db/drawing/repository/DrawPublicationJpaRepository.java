@@ -4,8 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+
 import com.getddo.db.drawing.entity.DrawPublicationEntity;
 
 public interface DrawPublicationJpaRepository extends JpaRepository<DrawPublicationEntity, UUID> {
@@ -18,5 +19,6 @@ public interface DrawPublicationJpaRepository extends JpaRepository<DrawPublicat
 	/** 이벤트의 공개 버전을 최신순으로 페이지 조회한다. */
 	List<DrawPublicationEntity> findByEventIdOrderByRevisionDesc(UUID eventId, Pageable pageable);
 	/** 지정 버전 바로 이전의 실제 공개 버전을 조회한다. */
-	Optional<DrawPublicationEntity> findFirstByEventIdAndRevisionLessThanOrderByRevisionDesc(UUID eventId, int revision);
+	Optional<DrawPublicationEntity> findFirstByEventIdAndRevisionLessThanOrderByRevisionDesc(UUID eventId,
+			int revision);
 }

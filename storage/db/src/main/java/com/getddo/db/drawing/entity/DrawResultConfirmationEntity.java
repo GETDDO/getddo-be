@@ -5,9 +5,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 import jakarta.persistence.*;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -18,9 +20,11 @@ import com.getddo.core.drawing.domain.DrawResultConfirmation;
 @Entity
 @Immutable
 @Table(name = "draw_result_confirmations", uniqueConstraints = {
-		@UniqueConstraint(name = "uq_draw_result_confirmations_run", columnNames = "draw_run_id"),
-		@UniqueConstraint(name = "uq_draw_result_confirmations_id_run", columnNames = {"id", "draw_run_id"})
-})
+			@UniqueConstraint(name = "uq_draw_result_confirmations_run", columnNames = "draw_run_id"),
+			@UniqueConstraint(name = "uq_draw_result_confirmations_id_run", columnNames = {
+				"id", "draw_run_id"
+			})
+		})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DrawResultConfirmationEntity {
 	@Id @UuidGenerator(style = UuidGenerator.Style.VERSION_7)

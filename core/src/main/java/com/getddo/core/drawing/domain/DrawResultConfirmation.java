@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-import lombok.Getter;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 /** 실행 결과 확정과 구분되는 관리자 확인의 불변 저장값이다. */
 @Getter

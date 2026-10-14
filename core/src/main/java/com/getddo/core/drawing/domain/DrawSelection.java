@@ -44,7 +44,8 @@ public final class DrawSelection {
 
 	public static DrawSelection unfilled(DrawPrize prize, int slotNumber) {
 		Objects.requireNonNull(prize, "prize");
-		return new DrawSelection(prize.getPrizeId(), prize.getRank(), slotNumber, null, null, null, DrawSelectionResultType.UNFILLED);
+		return new DrawSelection(prize.getPrizeId(), prize.getRank(), slotNumber, null,
+				null, null, DrawSelectionResultType.UNFILLED);
 	}
 
 	public UUID getPrizeId() {

@@ -1,8 +1,11 @@
 package com.getddo.core.drawing.service;
 
 import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
+
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.exception.ErrorCode;
 import com.getddo.core.user.domain.User;
@@ -25,6 +28,6 @@ public class DrawAdminAuthorization {
 	/** 공통 사용자 문맥이 이미 조회한 사용자를 같은 조건으로 검증한다. */
 	public static void validate(User user, ErrorCode denied) {
 		if (user == null || user.getId() == null || user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE)
-			throw new BusinessException(denied);
+		throw new BusinessException(denied);
 	}
 }

@@ -4,7 +4,9 @@ import java.util.UUID;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,14 +37,16 @@ public class AdminDrawPublicationController {
 	@PostMapping("/draws/{runId}/publication")
 	public ResponseEnvelope<DrawPublicationResponse> publish(@PathVariable UUID runId,
 			@CurrentUser(membershipRequired = false) User actor) {
-		return ResponseEnvelope.success(DrawPublicationResponse.from(confirmations.confirmForPublication(runId, actor.getId())));
+		return ResponseEnvelope.success(DrawPublicationResponse.from(confirmations.confirmForPublication(runId,
+				actor.getId())));
 	}
 
 	/** 최초 공개 전 재추첨의 관리자 확인과 실제 공개 여부를 응답한다. */
 	@PostMapping("/draws/{runId}/result-confirmation")
 	public ResponseEnvelope<DrawResultConfirmationResponse> confirm(@PathVariable UUID runId,
 			@CurrentUser(membershipRequired = false) User actor) {
-		return ResponseEnvelope.success(DrawResultConfirmationResponse.from(confirmations.confirmBeforeInitial(runId, actor.getId())));
+		return ResponseEnvelope.success(DrawResultConfirmationResponse.from(confirmations.confirmBeforeInitial(runId,
+				actor.getId())));
 	}
 
 	/** 실제 공개 버전 간 변경 이력을 페이지 응답으로 변환한다. */

@@ -1,6 +1,7 @@
 package com.getddo.core.drawing.service;
 
 import java.util.UUID;
+
 import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawType;
 

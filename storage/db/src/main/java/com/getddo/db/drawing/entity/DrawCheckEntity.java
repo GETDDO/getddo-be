@@ -1,13 +1,15 @@
 package com.getddo.db.drawing.entity;
 
 import java.time.Instant;
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
 
 import jakarta.persistence.*;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
@@ -37,7 +39,8 @@ public class DrawCheckEntity {
 	@Column(name = "checked_at", nullable = false, updatable = false)
 	private Instant checkedAt;
 
-	public DrawCheckEntity(DrawRunEntity drawRun, UUID checkedBy, boolean passed, String checksSnapshot, Instant checkedAt) {
+	public DrawCheckEntity(DrawRunEntity drawRun, UUID checkedBy, boolean passed,
+			String checksSnapshot, Instant checkedAt) {
 		this.drawRun = Objects.requireNonNull(drawRun, "drawRun");
 		this.checkedBy = Objects.requireNonNull(checkedBy, "checkedBy");
 		this.passed = passed;

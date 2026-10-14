@@ -2,6 +2,7 @@ package com.getddo.core.drawing.domain;
 
 import java.util.Objects;
 import java.util.UUID;
+
 import lombok.Getter;
 
 /** 공통 실행의 내부 응답. 미확정 상태에는 결과를 포함하지 않는다. */
