@@ -1,6 +1,8 @@
 package com.getddo.core.mission.domain;
 
+import java.text.Normalizer;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -38,6 +40,30 @@ public final class QuizQuestion {
 			MissionRules.definition(MissionRules.hasText(correctAnswer) && this.options.isEmpty());
 		}
 		MissionRules.definition(MissionRules.distinctOrders(this.options, QuizOption::getDisplayOrder));
+	}
+
+	/** 이 문항의 선택지인지 확인한다. 다른 문항의 선택지는 거짓이다. */
+	public boolean hasOption(UUID optionId) {
+		return optionId != null && options.stream().anyMatch(option -> optionId.equals(option.getId()));
+	}
+
+	/**
+	 * 답변이 정답인지 서버가 채점한다. 선택형은 고른 선택지가 정답 선택지일 때, 단답형은 입력 문자열이 정답과 같을 때 정답이다.
+	 *
+	 * <p>단답형은 유니코드 조합 형태(NFC)를 맞추고 앞뒤 공백을 지우며 연속 공백을 한 칸으로 줄이고 대소문자를 구분하지 않고
+	 * 비교한다. 그 밖의 띄어쓰기·철자 차이는 오답이다. 이 정규화 규칙은 미션 채점 세부 계약의 구현 제안이다.</p>
+	 */
+	public boolean isCorrect(UUID selectedOptionId, String answerText) {
+		if (questionType.isChoice()) {
+			return selectedOptionId != null && options.stream()
+					.anyMatch(option -> option.isCorrect() && selectedOptionId.equals(option.getId()));
+		}
+		return answerText != null && normalize(answerText).equals(normalize(correctAnswer));
+	}
+
+	private static String normalize(String text) {
+		return Normalizer.normalize(text, Normalizer.Form.NFC).strip().replaceAll("\\s+", " ")
+				.toLowerCase(Locale.ROOT);
 	}
 
 	/**

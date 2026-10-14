@@ -34,6 +34,7 @@
 | [V021](../../storage/db/src/main/resources/db/migration/notification/V021__add_notification_retry_baselines.sql) | `notification_jobs`·`notifications`의 수동 복구 기준 차수 | GD-72 관리자 알림 복구. 누적 선점 차수는 유지하고 복구 이후의 자동 재시도 횟수만 새로 센다([ADR-0005](../04-decisions/0005-notification-manual-retry-fencing.md)) |
 | [V022](../../storage/db/src/main/resources/db/migration/drawing/V022__add_award_cancellation_request_key.sql) | `award_cancellations.request_key`와 UNIQUE | GD-138 개별 당첨 취소 요청의 멱등 키. 과거 이력은 NULL |
 | [V023](../../storage/db/src/main/resources/db/migration/ticket/V023__add_ticket_expiry_scan_index.sql) | `tickets`의 `(status, expires_at)` 인덱스 | GD-135 응모권 만료 워커가 만료 시각이 지난 사용 가능·반환됨 응모권을 찾는 조회(`FOR UPDATE SKIP LOCKED`). 공개 API는 추가하지 않음 |
+| [V025](../../storage/db/src/main/resources/db/migration/mission/V025__add_mission_submission_request_hash.sql) | `mission_submissions.request_hash` | GD-175 미션 제출(M03)의 같은 제출 ID 재전송 본문 비교. 처음 요청의 SHA-256을 보존한다. 이 컬럼을 기록하기 전의 제출은 빈 문자열이다. 공개 API는 추가하지 않음 |
 
 ## 응모 API 현행 매핑 (GD-134)
 
@@ -49,7 +50,7 @@
 
 ## 미션 모델·저장소 현행 매핑 (GD-167)
 
-미션 API(M01~M04, AM01~AM03)는 아직 없고, 그 API가 쓸 도메인 모델과 저장소만 `V003` 테이블에 매핑해 두었다. 새 마이그레이션은 없다.
+미션 제출 API(M03)는 구현되어 있고, 조회(M01·M02·M04)와 관리자(AM01~AM03) API는 아직 없다. 모두 `V003` 테이블을 쓰고, 미션 제출은 V025가 추가한 `mission_submissions.request_hash` 컬럼도 쓴다.
 
 | 도메인 객체 | 테이블 | 저장소 | 비고 |
 | --- | --- | --- | --- |
@@ -57,6 +58,19 @@
 | `MissionSubmission` + 답변 | `mission_submissions`, `quiz_answers`, `survey_answers` | `MissionSubmissionRepository` | 제출 시각은 서버가 저장한 시각(`created_at`)이다. 답변의 `mission_id`는 복합 외래 키가 제출·문항의 소속 미션을 맞춘다. |
 | `QuizQuestionProgress` | `quiz_question_progress` | `QuizQuestionProgressRepository` | 사용자·문항 단위로 정답 완료를 한 번만 기록한다. |
 | `MissionRewardClaim` | `mission_reward_claims` | `MissionRewardClaimRepository` | 사용자·미션 단위로 한 번만 청구한다. 응모권은 1장으로 고정이다. |
+
+### 미션 제출 API 현행 매핑 (GD-175)
+
+| API | 경로 | 테이블 | 접근 |
+| --- | --- | --- | --- |
+| M03 제출 | `POST /api/v1/missions/{missionId}/submissions` | `mission_submissions` | ID는 `Idempotency-Key` UUID이다. 같은 키로 같은 요청이 다시 오면 기존 결과를 200으로, 처음 요청과 다른 본문(사용자·미션·답변 구성)이면 409 `MISSION-005`로 거절한다. 같은 본문인지는 처음 요청의 해시(`request_hash`)로 판정한다. 서버가 받은 시각을 `created_at`에 저장한다. |
+| M03 제출 | 같음 | `missions`, 문항·선택지 테이블 | 읽기만 한다. 운영 기간은 서버가 제출을 받은 시각이 `[starts_at, ends_at)`이고 `ACTIVE`일 때만 인정한다. |
+| M03 제출 | 같음 | `quiz_answers`, `survey_answers` | 서버가 채점한 답변을 저장한다. 이미 정답으로 완료한 퀴즈 문항에 다시 보낸 답변은 채점·저장하지 않는다. |
+| M03 제출 | 같음 | `quiz_question_progress` | 이번 제출로 처음 맞힌 문항을 문항 ID 순서로 기록한다(퀴즈는 문항별 정답을 누적하며 모든 문항을 맞히면 완료). |
+| M03 제출 | 같음 | `mission_reward_claims` | 완료하면 사용자·미션당 한 번 청구한다. 이미 완료한 미션의 재제출은 기존 완료 결과를 돌려준다. |
+| M03 제출 | 같음 | `tickets`, `ticket_histories` | 보상 청구 저장 뒤 지급 서비스가 같은 트랜잭션에서 응모권을 지급한다(`GRANT` 이력, 사유는 미션 제목). |
+
+제출·답변·정답 진행·보상 청구·응모권 지급은 한 트랜잭션(`READ COMMITTED`)이다. 같은 사용자의 동시 완료는 제출 PK, `(user_id, quiz_question_id)`, `(user_id, mission_id)` 유일 제약이 직렬화하고, 늦은 요청은 새 트랜잭션에서 한 번 다시 처리해 먼저 확정된 결과를 본다.
 
 ## 확인된 차이와 구현 검토 항목
 
@@ -70,7 +84,7 @@
 | D06 | `current_awards`는 현재 당첨 배정이고 공개 revision별 스냅샷 테이블은 없음 | 재추첨 실행 중의 새 배정과 기존 공개 명단을 구분해야 함. `current_awards`를 그대로 공개 조회하지 않고 publication 상태·변경 이력과 일치시키는 설계 필요 |
 | D07 | `game_reward_claims`는 사용자·source_key 및 사용자·게임·보상일 UNIQUE를 모두 가짐 | 현재 원격 `dev`에 추가된 사용자·게임·보상일 UNIQUE를 기준으로 중복 지급을 검증 |
 | D08 | `reward_policies`에 게임별 보상 조건 JSON 또는 검증 버전 필드는 없음. `games.rules`는 현재 게임 규칙 | 다음 일일 기준일 적용이 필요한 게임 보상 조건의 버전·예약 저장 구조 설계 필요 |
-| D09 | 업무 Controller·DTO와 사용자 문맥 필터가 기능별로 구현되어 있다(출석, 응모, 응모권 조회, 이벤트 조회·등록, 알림, 추첨 등). 미션은 모델·저장소만 있고 API가 없다 | 본 문서의 API 중 구현되지 않은 것은 호출할 수 없다. 구현된 API는 Swagger와 공용 계약을 대조한다 |
+| D09 | 업무 Controller·DTO와 사용자 문맥 필터가 기능별로 구현되어 있다(출석, 응모, 응모권 조회, 이벤트 조회·등록, 알림, 추첨 등). 미션은 제출(M03)만 구현되어 있고 조회(M01·M02·M04)와 관리자(AM01~AM03) API는 없다 | 본 문서의 API 중 구현되지 않은 것은 호출할 수 없다. 구현된 API는 Swagger와 공용 계약을 대조한다 |
 | D10 | `missions.status`는 `ACTIVE`/`ENDED` 두 값뿐이다(API 초안의 `DRAFT`는 스키마에 없음). 문항별 `quiz_question_progress` 존재 | 시작 전 초안 상태를 쓰려면 새 마이그레이션이 필요하다. 상태 전환·다문항 누적 달성 정책은 테이블에서 역으로 확정하지 않음 |
 | D11 | 응모권 지급 원장은 `tickets`·`ticket_histories`이며 지급 수량은 1 이상이다. 출석 단계 정책은 보상 0을 허용 | 보상 정책의 수량과 실제 지급을 구분. 지급량 0 허용 범위와 응답 계약 확인 필요 |
 

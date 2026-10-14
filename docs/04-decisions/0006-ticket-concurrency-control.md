@@ -45,6 +45,13 @@
 - 잠금 순서는 `events`(`FOR SHARE`) → `event_participants`(PK `FOR UPDATE`) → `tickets`로 고정한다. 응모끼리는 이벤트 행을 공유 잠금으로 읽어 서로 막지 않고, 추첨 준비의 `FOR UPDATE`는 진행 중인 응모의 커밋을 기다린다. 참여자 행이 없으면 빈 키에 `FOR UPDATE`를 걸지 않고 삽입한다(gap lock 회피).
 - `EntryRecorder`는 `READ_COMMITTED`이고, 바깥 `EntryService`는 트랜잭션 없이(`NOT_SUPPORTED`) 잠금 실패와 중복 키 위반(MySQL 1062)에 한해 새 트랜잭션에서 한 번 다시 처리한다. FK·NOT NULL·CHECK 위반은 다시 처리하지 않는다.
 
+### 미션 제출 (`MissionSubmissionService`, `MissionSubmissionRecorder`)
+
+- 제출 ID는 `Idempotency-Key` UUID이며 `mission_submissions`의 PK다. 응모와 같은 방식으로 별도 멱등 테이블 없이 PK가 같은 키의 동시 요청을 직렬화한다. 재전송이 처음 요청과 같은 본문인지는 처음 요청(사용자·미션·답변)의 SHA-256(`request_hash`)로 판정한다. 퀴즈에서 이미 정답으로 완료한 문항의 답변은 저장하지 않으므로 저장된 답변만으로는 처음 요청을 복원할 수 없기 때문이다.
+- `MissionSubmissionRecorder`는 `READ_COMMITTED` 한 트랜잭션에서 같은 제출 ID 확인 → 미션 조회와 기존 완료 확인 → 서버가 받은 시각의 운영 기간 판정 → 채점 → 제출·답변 저장 → 새로 맞힌 문항 기록 → 완료 시 보상 청구 → 응모권 지급(`MANDATORY`) 순서로 처리한다. 지급이 실패하면 제출·답변·정답 진행·청구가 모두 취소된다.
+- 같은 사용자의 동시 완료는 유일 제약 세 개가 직렬화한다: 제출 PK, `(user_id, quiz_question_id)`(문항별 정답 진행), `(user_id, mission_id)`(보상 청구). 바깥 `MissionSubmissionService`는 트랜잭션 없이(`NOT_SUPPORTED`) 중복 키 위반(MySQL 1062)과 잠금 실패를 새 트랜잭션에서 한 번 다시 처리한다. 다시 처리하면 먼저 확정된 결과(완료한 제출이나 기존 제출)를 읽어 돌려준다.
+- 새로 맞힌 문항은 문항 ID 순서로 기록해, 같은 사용자의 동시 요청이 서로의 행을 반대 순서로 기다리는 교착을 피한다.
+
 ### 만료 (`TicketExpiryService`, `TicketExpiryWorker`)
 
 - 호출마다 독립 트랜잭션(`REQUIRES_NEW`, `READ_COMMITTED`)이다. 만료 시각이 지난 사용 가능(`AVAILABLE`·`RETURNED`) 응모권을 `FOR UPDATE SKIP LOCKED`로 잠가 읽는다. 다른 처리가 잠근 응모권은 기다리지 않고 건너뛰며 다음 폴링에서 처리한다. 서버 두 대의 워커가 겹쳐도 같은 응모권을 두 번 만료하지 않는다. 사용 완료(`SPENT`) 응모권은 만료하지 않는다.
@@ -56,7 +63,8 @@
 - **반환 때 반환 이력을 항상 잠금 읽기**: 서로 다른 사용자의 동시 반환에서 교착이 났다. 반환 이력이 없는 구간에 공유 gap lock을 서로 잡은 뒤 이력 INSERT가 서로 막히기 때문이다(`TicketCrossUserConcurrencyTest`). `CHANGED` 상태에만 확인하도록 좁혔다.
 - **후보 범위에 `FOR UPDATE`**: `REPEATABLE READ`에서 `(user_id, grade, expires_at)`나 `(status, expires_at)` 범위의 gap lock이 지급 INSERT 등을 막을 수 있어 쓰지 않았다.
 - **만료된 응모권을 다른 것으로 바꿔 다시 잠금**: 잠금 순서가 뒤집혀 교착할 수 있어 하지 않았다. 같은 달 지급분은 모두 같은 시각에 만료하므로 대체할 수 있는 경우도 드물다.
-- **별도 멱등 테이블**: 응모 PK가 같은 역할을 하므로 두지 않았다(사용자 결정).
+- **별도 멱등 테이블**: 응모·미션 제출은 PK가 같은 역할을 하므로 두지 않았다(사용자 결정).
+- **미션 재전송을 저장된 답변과 비교**: 이미 정답으로 완료한 문항의 답변은 저장하지 않아 처음 요청을 복원하지 못하고, 처음 요청 이후 정답 처리된 문항을 더한 다른 본문을 같은 요청으로 판정한다. 그래서 처음 요청의 해시 컬럼을 새 마이그레이션으로 추가했다(사용자 결정).
 - **만료 워커의 스레드 분리 방식**: `spring.task.scheduling.pool.size`를 늘리는 방법은 공용 설정을 바꾸고 만료 워커 전용이 아니라서, `TaskScheduler` 빈 등록은 기본 스케줄러를 대체해서 쓰지 않았다.
 
 ## 영향과 재검토 조건

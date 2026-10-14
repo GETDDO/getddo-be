@@ -35,6 +35,11 @@ public final class SurveyQuestion {
 		MissionRules.definition(MissionRules.distinctOrders(this.options, SurveyOption::getDisplayOrder));
 	}
 
+	/** 이 문항의 선택지인지 확인한다. 다른 문항의 선택지는 거짓이다. */
+	public boolean hasOption(UUID optionId) {
+		return optionId != null && options.stream().anyMatch(option -> optionId.equals(option.getId()));
+	}
+
 	/**
 	 * 저장 전 문항을 만든다.
 	 *
