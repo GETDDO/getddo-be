@@ -18,6 +18,25 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EventEntityTest {
 	@Test
+	@DisplayName("이미 삭제된 이벤트는 같은 시각·다른 시각의 재삭제를 모두 거절하고 최초 삭제 시각을 보존한다")
+	void preservesOriginalDeletionTimeWhenCalledAgain() {
+		// given
+		Instant deletedAt = Instant.parse("2026-10-14T00:00:00Z");
+		Instant start = deletedAt.plusSeconds(3600);
+		EventEntity event = new EventEntity(new EventRegistration(UUID.randomUUID(), "이벤트", "설명", null,
+				EventType.NO_TICKET, false, null, MembershipRule.vip, start, start.plusSeconds(3600),
+				List.of(new EventRegistration.Prize(1, "경품", null, null, 1))), EventStatus.SCHEDULED);
+		event.markDeleted(deletedAt);
+		// when / then
+		for (Instant repeatedAt : List.of(deletedAt, deletedAt.plusSeconds(60))) {
+			assertThatThrownBy(() -> event.markDeleted(repeatedAt))
+					.isInstanceOf(IllegalStateException.class)
+					.hasMessage("이미 삭제된 이벤트의 삭제 시각은 변경할 수 없습니다.");
+			assertThat(event.getDeletedAt()).isEqualTo(deletedAt);
+		}
+	}
+
+	@Test
 	@DisplayName("임시 등수가 0·음수이면 기존 경품 등수를 변경하지 않고 거절한다")
 	void rejectsNonPositiveTemporaryRanksWithoutChangingPrize() {
 		// given

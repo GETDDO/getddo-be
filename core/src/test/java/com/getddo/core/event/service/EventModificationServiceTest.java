@@ -14,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.event.domain.EventRegistration;
@@ -68,7 +69,7 @@ class EventModificationServiceTest {
 		// when
 		RegisteredEvent result = service.modify(EVENT, input);
 		// then
-		var order = inOrder(events, notifications);
+		InOrder order = inOrder(events, notifications);
 		order.verify(events).findByIdForUpdate(EVENT);
 		order.verify(events).update(EVENT, input);
 		ArgumentCaptor<EventNotificationChange> change = ArgumentCaptor.forClass(EventNotificationChange.class);

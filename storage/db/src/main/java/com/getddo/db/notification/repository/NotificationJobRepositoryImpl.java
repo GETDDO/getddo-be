@@ -146,10 +146,18 @@ public class NotificationJobRepositoryImpl implements NotificationJobRepository 
 			}, bytes(jobId));
 	}
 
-	/** 알림 INSERT와 사용자 진행 위치 저장은 함께 확정한다. 재처리는 기존 알림을 그대로 둔다. */
+	/**
+	 * 연결 이벤트 → 작업 순서로 잠그고 알림 INSERT와 사용자 진행 위치 저장을 함께 확정한다.
+	 * 이벤트 공유 잠금을 먼저 확보해 삭제·일정 변경의 이벤트 쓰기 잠금과 FK 검사 사이의 교착을 방지한다.
+	 * 재처리는 기존 알림을 그대로 둔다.
+	 */
 	@Override
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public boolean createNotification(NotificationJob job, NotificationJobRequest request, UUID userId, Instant now) {
+		if (request.getEventId() != null) {
+			jdbc.query("select id from events where id = ? for share",
+					(row, index) -> row.getBytes("id"), bytes(request.getEventId()));
+		}
 		List<Boolean> owned = jdbc.query("""
 			select attempt_count, attempt_base, status, lease_until,
 			json_extract(payload, '$.generationStoppedBy') as stopped_by
