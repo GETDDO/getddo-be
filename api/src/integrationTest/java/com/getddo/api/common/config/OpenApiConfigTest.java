@@ -87,6 +87,7 @@ class OpenApiConfigTest {
 	void documentsCurrentUserHeadersWithoutSwaggerAnnotations() throws Exception {
 		// given: Swagger 어노테이션 없이 CurrentUser 파라미터 두 개를 선언한 테스트 API
 		String parameters = "$.paths['/test/openapi/context'].get.parameters";
+		String profileParameters = "$.paths['/api/v1/users/me'].get.parameters";
 		// when / then
 		mockMvc.perform(get("/v3/api-docs"))
 				.andExpect(status().isOk())
@@ -101,7 +102,11 @@ class OpenApiConfigTest {
 						contains("USER", "ADMIN")))
 				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-Membership')].required", contains(false)))
 				.andExpect(jsonPath(parameters + "[?(@.name == 'X-User-Membership')].schema.enum[*]",
-						contains("excellent", "vip", "vvip")));
+						contains("excellent", "vip", "vvip")))
+				.andExpect(jsonPath(profileParameters, hasSize(3)))
+				.andExpect(jsonPath(profileParameters + "[*].name",
+						containsInAnyOrder("X-User-ID", "X-User-Role", "X-User-Membership")))
+				.andExpect(jsonPath(profileParameters + "[*].in", everyItem(is("header"))));
 	}
 
 	private JsonNode resolveSchema(JsonNode document, JsonNode schema) {
