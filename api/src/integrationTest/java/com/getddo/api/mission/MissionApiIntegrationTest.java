@@ -287,9 +287,9 @@ class MissionApiIntegrationTest {
 				.andExpect(jsonPath(wrong + ".isCompleted").value(false))
 				.andExpect(jsonPath(wrong + ".reward").value(contains(nullValue())))
 				.andExpect(jsonPath("$.data.items[?(@.submissionId=='" + otherKey + "')]").isEmpty())
-				.andExpect(jsonPath("$.data.items[0].answers").doesNotExist())
-				.andExpect(jsonPath("$.data.items[0].isCorrect").doesNotExist())
-				.andExpect(jsonPath("$.data.items[1].selectedOptionId").doesNotExist());
+				.andExpect(jsonPath("$.data.items[*].answers").isEmpty())
+				.andExpect(jsonPath("$.data.items[*].isCorrect").isEmpty())
+				.andExpect(jsonPath("$.data.items[*].selectedOptionId").isEmpty());
 		mvc.perform(get("/api/v1/missions/{missionId}/submissions/me", MISSION).headers(headers(OTHER)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(1))
