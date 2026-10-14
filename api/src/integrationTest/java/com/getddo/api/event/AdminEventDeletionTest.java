@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -37,6 +38,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import com.getddo.api.support.ApiIntegrationTest;
 import com.getddo.db.common.util.UuidBinary;
+import com.getddo.core.audit.repository.AuditLogRepository;
 import com.getddo.core.event.service.EventDeletionService;
 import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.exception.EventErrorCode;
@@ -72,6 +74,7 @@ class AdminEventDeletionTest {
 	@Autowired private NotificationJobRepository jobRepository;
 	@MockitoBean private Clock clock;
 	@MockitoSpyBean private EventChangeNotificationService notifications;
+	@MockitoSpyBean private AuditLogRepository auditLogRepository;
 	private UUID admin;
 	private UUID user;
 	private UUID event;
@@ -102,6 +105,7 @@ class AdminEventDeletionTest {
 
 	@AfterEach
 	void cleanUp() {
+		jdbc.update("delete from audit_logs where target_type='EVENT' and target_id=?", bytes(event));
 		jdbc.update("delete from notifications where event_id=?", bytes(event));
 		jdbc.update("update notification_jobs set source_job_id=null where event_id=?", bytes(event));
 		jdbc.update("delete from notification_jobs where event_id=?", bytes(event));
@@ -116,13 +120,30 @@ class AdminEventDeletionTest {
 	}
 
 	@Test
-	@DisplayName("이벤트는 삭제 시각만 기록하고 경품을 보존하며 사용자·관리자 목록과 상세에서 제외한다")
+	@DisplayName("이벤트 삭제는 삭제 시각과 감사 이력을 기록하고 경품을 보존하며 목록·상세에서 제외한다")
 	void softDeletionHidesEventAndPreservesPrizes() throws Exception {
 		// given / when
 		remove(admin, "ADMIN").andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data").doesNotExist());
 		// then
 		assertThat(deletedAt()).isEqualTo(utc(NOW));
+		Map<String, Object> audit = jdbc.queryForMap("""
+			select hex(actor_id) as actor_id,action,target_type,
+			       json_contains_path(before_data,'one','$.deletedAt') as has_before_deleted_at,
+			       json_type(json_extract(before_data,'$.deletedAt')) as before_deleted_at_type,
+			       json_unquote(json_extract(after_data,'$.deletedAt')) as after_deleted_at,
+			       created_at,reason,request_id
+			from audit_logs where target_id=?
+			""", bytes(event));
+		assertThat(audit.get("actor_id")).isEqualTo(admin.toString().replace("-", "").toUpperCase());
+		assertThat(audit.get("action")).isEqualTo("EVENT_DELETE");
+		assertThat(audit.get("target_type")).isEqualTo("EVENT");
+		assertThat(((Number) audit.get("has_before_deleted_at")).intValue()).isEqualTo(1);
+		assertThat(audit.get("before_deleted_at_type")).isEqualTo("NULL");
+		assertThat(audit.get("after_deleted_at")).isEqualTo(NOW.toString());
+		assertThat(audit.get("created_at")).isEqualTo(utc(NOW));
+		assertThat(audit.get("reason")).isNull();
+		assertThat(audit.get("request_id")).isNull();
 		assertThat(jdbc.queryForObject("select name from event_prizes where id=?", String.class, bytes(prize)))
 				.isEqualTo("보존 경품");
 		for (String prefix : new String[]{"/api/v1/events", "/api/v1/admin/events"}) {
@@ -143,6 +164,7 @@ class AdminEventDeletionTest {
 		remove(admin, "ADMIN").andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value("EVENT-007"));
 		assertThat(deletedAt()).isEqualTo(utc(NOW));
+		assertThat(auditCount()).isEqualTo(1);
 	}
 
 	@Test
@@ -154,6 +176,7 @@ class AdminEventDeletionTest {
 		remove(admin, "ADMIN").andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("EVENT-013"));
 		assertThat(deletedAt()).isNull();
+		assertThat(auditCount()).isZero();
 	}
 
 	@Test
@@ -165,6 +188,7 @@ class AdminEventDeletionTest {
 		remove(admin, "ADMIN").andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("EVENT-013"));
 		assertThat(deletedAt()).isNull();
+		assertThat(auditCount()).isZero();
 		assertThat(jdbc.queryForObject("select count(*) from event_entries where participant_id=?", Long.class,
 				bytes(participant))).isEqualTo(1);
 	}
@@ -176,6 +200,7 @@ class AdminEventDeletionTest {
 		remove(user, "USER").andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value("EVENT-006"));
 		assertThat(deletedAt()).isNull();
+		assertThat(auditCount()).isZero();
 	}
 
 	@Test
@@ -200,6 +225,7 @@ class AdminEventDeletionTest {
 					.containsExactlyInAnyOrder(200, 404);
 		}
 		assertThat(deletedAt()).isEqualTo(utc(NOW));
+		assertThat(auditCount()).isEqualTo(1);
 	}
 
 	@Test
@@ -284,6 +310,27 @@ class AdminEventDeletionTest {
 		// when / then
 		assertThatThrownBy(() -> deletions.delete(event, admin)).isInstanceOf(IllegalStateException.class);
 		assertThat(deletedAt()).isNull();
+		assertThat(auditCount()).isZero();
+		assertThat(jdbc.queryForObject("select json_unquote(json_extract(payload,'$.generationStoppedBy')) from notification_jobs where id=?",
+				String.class, bytes(id))).isNull();
+		assertThat(jobRepository.claimNextJob(NOW)).isPresent();
+	}
+
+	@Test
+	@DisplayName("감사 기록 중 실패하면 이벤트 삭제·알림 중지·감사 이력을 함께 롤백한다")
+	void auditFailureRollsBackDeletionAndNotificationStop() {
+		// given
+		UUID id = startJob();
+		doAnswer(invocation -> {
+			invocation.callRealMethod();
+			throw new IllegalStateException("감사 기록 이후 테스트 오류");
+		}).when(auditLogRepository).append(any());
+		// when / then
+		assertThatThrownBy(() -> deletions.delete(event, admin))
+				.isInstanceOf(DataAccessException.class)
+				.hasRootCauseInstanceOf(IllegalStateException.class).hasRootCauseMessage("감사 기록 이후 테스트 오류");
+		assertThat(deletedAt()).isNull();
+		assertThat(auditCount()).isZero();
 		assertThat(jdbc.queryForObject("select json_unquote(json_extract(payload,'$.generationStoppedBy')) from notification_jobs where id=?",
 				String.class, bytes(id))).isNull();
 		assertThat(jobRepository.claimNextJob(NOW)).isPresent();
@@ -396,6 +443,11 @@ class AdminEventDeletionTest {
 
 	private LocalDateTime deletedAt() {
 		return jdbc.queryForObject("select deleted_at from events where id=?", LocalDateTime.class, bytes(event));
+	}
+
+	private long auditCount() {
+		return jdbc.queryForObject("select count(*) from audit_logs where target_type='EVENT' and target_id=?",
+				Long.class, bytes(event));
 	}
 
 	private byte[] bytes(UUID id) { return UuidBinary.toBytes(id); }

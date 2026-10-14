@@ -12,9 +12,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.audit.domain.AuditLogCommand;
+import com.getddo.core.audit.service.AuditLogService;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.MembershipRule;
@@ -43,6 +46,7 @@ class EventDeletionServiceTest {
 	private EventRepository events;
 	private EventActorRepository actors;
 	private EventChangeNotificationService notifications;
+	private AuditLogService auditLogs;
 	private EventDeletionService service;
 
 	@BeforeEach
@@ -50,22 +54,33 @@ class EventDeletionServiceTest {
 		events = mock(EventRepository.class);
 		actors = mock(EventActorRepository.class);
 		notifications = mock(EventChangeNotificationService.class);
+		auditLogs = mock(AuditLogService.class);
 		when(actors.findById(ADMIN)).thenReturn(Optional.of(new EventActorRepository.Actor(true, true)));
 		when(events.findByIdForUpdate(EVENT)).thenReturn(Optional.of(saved(EventStatus.SCHEDULED, START)));
-		service = new EventDeletionService(events, actors, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), notifications);
+		service = new EventDeletionService(events, actors, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), notifications, auditLogs);
 	}
 
 	@Test
-	@DisplayName("이벤트 잠금과 응모 이력 확인 후 마이크로초 정밀도로 논리 삭제한다")
+	@DisplayName("이벤트 잠금과 응모 이력 확인 후 논리 삭제·알림 중지·변경 전후 감사 기록을 처리한다")
 	void deletesAfterLockAndHistoryCheck() {
 		// given / when
 		service.delete(EVENT, ADMIN);
 		// then
-		InOrder order = inOrder(events, notifications);
+		InOrder order = inOrder(events, notifications, auditLogs);
 		order.verify(events).findByIdForUpdate(EVENT);
 		order.verify(events).hasParticipationHistory(EVENT);
 		order.verify(events).softDelete(EVENT, Instant.parse("2026-10-13T00:00:00.123456Z"));
 		order.verify(notifications).stopForDeletedEvent(EVENT);
+		ArgumentCaptor<AuditLogCommand> command = ArgumentCaptor.forClass(AuditLogCommand.class);
+		order.verify(auditLogs).record(command.capture());
+		assertThat(command.getValue().getActorId()).isEqualTo(ADMIN);
+		assertThat(command.getValue().getAction()).isEqualTo("EVENT_DELETE");
+		assertThat(command.getValue().getTargetType()).isEqualTo("EVENT");
+		assertThat(command.getValue().getTargetId()).isEqualTo(EVENT);
+		assertThat(command.getValue().getBeforeData()).hasSize(1).containsEntry("deletedAt", null);
+		assertThat(command.getValue().getAfterData()).hasSize(1).containsEntry("deletedAt", "2026-10-13T00:00:00.123456Z");
+		assertThat(command.getValue().getReason()).isNull();
+		assertThat(command.getValue().getRequestId()).isNull();
 	}
 
 	@Test
@@ -100,7 +115,7 @@ class EventDeletionServiceTest {
 			when(clock.instant()).thenReturn(START);
 			return Optional.of(saved(EventStatus.SCHEDULED, START));
 		});
-		service = new EventDeletionService(events, actors, new TimeProvider(clock), notifications);
+		service = new EventDeletionService(events, actors, new TimeProvider(clock), notifications, auditLogs);
 		// when / then
 		assertError(EventErrorCode.DELETION_NOT_ALLOWED, EVENT, ADMIN);
 		verify(events, never()).softDelete(any(), any());
@@ -145,7 +160,7 @@ class EventDeletionServiceTest {
 	private void assertError(EventErrorCode error, UUID eventId, UUID actorId) {
 		assertThatThrownBy(() -> service.delete(eventId, actorId)).isInstanceOf(EventException.class)
 				.satisfies(exception -> assertThat(((EventException) exception).getErrorCode()).isEqualTo(error));
-		verifyNoInteractions(notifications);
+		verifyNoInteractions(notifications, auditLogs);
 	}
 
 	private RegisteredEvent saved(EventStatus status, Instant start) {
