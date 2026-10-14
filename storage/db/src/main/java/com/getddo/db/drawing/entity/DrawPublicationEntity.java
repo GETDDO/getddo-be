@@ -67,8 +67,8 @@ public class DrawPublicationEntity {
 
 	/** 검증된 공개 모델에서 새 버전을 구성한다. ID는 저장 시 발급한다. */
 	public DrawPublicationEntity(DrawPublication publication) {
-		this(publication.eventId(), publication.sourceDrawId(), publication.revision(), publication.reason(),
-				publication.confirmedBy(), publication.confirmedAt(), publication.publishedAt());
+		this(publication.getEventId(), publication.getSourceDrawId(), publication.getRevision(), publication.getReason(),
+				publication.getConfirmedBy(), publication.getConfirmedAt(), publication.getPublishedAt());
 	}
 
 	/** 실제 저장 시각과 실제 포함 결과를 복원한다. */

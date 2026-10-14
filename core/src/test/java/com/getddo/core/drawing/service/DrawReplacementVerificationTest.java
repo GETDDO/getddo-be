@@ -73,6 +73,7 @@ class DrawReplacementVerificationTest {
 				fixture.results()), "REPLACEMENT_SOURCE");
 	}
 
+	/** 다음 동작을 검증한다: 최초 규칙·이벤트·원본 실행 연결이 다르면 검증을 통과하지 않는다. */
 	@Test
 	@DisplayName("최초 규칙·이벤트·원본 실행 연결이 다르면 검증을 통과하지 않는다")
 	void rejectsDifferentOriginalRulesAndLinks() {
@@ -80,7 +81,7 @@ class DrawReplacementVerificationTest {
 		Fixture fixture = fixture(1, List.of(3));
 		DrawRunView wrongId = replacement(fixture.run().getRules(), new DrawReplacementRulesView(UUID.randomUUID(),
 				fixture.run().getReplacementRules().getTargetSlots(), fixture.run().getReplacementRules().getRetainedAwards()));
-		DrawSnapshot.Rules changed = new DrawSnapshot.Rules(2, false, "NO_TICKET", "different", 1, 3, 5, fixture.run().getRules().prizes());
+		DrawSnapshot.Rules changed = new DrawSnapshot.Rules(2, false, "NO_TICKET", "different", 1, 3, 5, fixture.run().getRules().prizes(), originalId, fixture.run().getRules().targetSlots(), fixture.run().getRules().retainedAwards());
 		// when / then
 		assertFailed(check(fixture, wrongId, fixture.candidates(), fixture.results()), "REPLACEMENT_SOURCE");
 		assertFailed(check(fixture, replacement(changed, fixture.run().getReplacementRules()), fixture.candidates(), fixture.results()), "REPLACEMENT_SOURCE");
@@ -124,6 +125,7 @@ class DrawReplacementVerificationTest {
 				List.of(new DrawReplacementRulesView.RetainedAward(UUID.randomUUID(), UUID.randomUUID(), prizeId, 1)))), fixture.candidates(), fixture.results()), "REPLACEMENT_SLOTS");
 	}
 
+	/** 다음 동작을 검증한다: 최초 가중치를 보존하고 과거 재추첨에서 당첨된 후보도 재포함하지 않는다. */
 	@Test
 	@DisplayName("최초 가중치를 보존하고 과거 재추첨에서 당첨된 후보도 재포함하지 않는다")
 	void excludesHistoricalReplacementWinner() {
@@ -132,7 +134,7 @@ class DrawReplacementVerificationTest {
 		DrawSnapshot.Candidate previouslyWon = fixture.candidates().getFirst().getSnapshot();
 		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
 		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 3,
-				previouslyWon.id(), previouslyWon.userId(), fixedAt.minusSeconds(30)));
+				previouslyWon.id(), previouslyWon.userId(), fixedAt.minusSeconds(30), 1, fixedAt.minusSeconds(1), DrawSelectionResultType.SELECTED));
 		DrawVerificationReferences references = new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), awards);
 		// when / then
 		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(), references), "REPLACEMENT_SOURCE");
@@ -141,6 +143,7 @@ class DrawReplacementVerificationTest {
 				.allMatch(DrawCheckItem::isPassed);
 	}
 
+	/** 다음 동작을 검증한다: 새 수량과 가중치가 자체 일치해도 최초 골드 가중치를 바꾸면 검증 실패다. */
 	@Test
 	@DisplayName("새 수량과 가중치가 자체 일치해도 최초 골드 가중치를 바꾸면 검증 실패다")
 	void rejectsSelfConsistentWeightRewrite() {
@@ -157,7 +160,7 @@ class DrawReplacementVerificationTest {
 		DrawRunView original = new DrawRunView(originalId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED, null,
 				first.getAlgorithmVersion(), new DrawSnapshot.Rules(1, true, "TICKET", "ALL", 1, 3, 5, first.getRules().prizes()),
 				first.getSnapshotFixedAt(), first.getStartedAt(), first.getConfirmedAt(), first.getCreatedAt());
-		DrawRunView run = replacement(new DrawSnapshot.Rules(2, true, "TICKET", "ALL", 1, 3, 5, first.getRules().prizes()), fixture.run().getReplacementRules());
+		DrawRunView run = replacement(new DrawSnapshot.Rules(2, true, "TICKET", "ALL", 1, 3, 5, first.getRules().prizes(), originalId, fixture.run().getRules().targetSlots(), fixture.run().getRules().retainedAwards()), fixture.run().getReplacementRules());
 		DrawVerificationReferences references = new DrawVerificationReferences(original, weighted, fixture.references().getHistoricalAwards());
 		DrawCandidateView candidate = weighted.getLast();
 		assertThat(DrawStoredVerification.verify(run, List.of(candidate), fixture.results(), references)).allMatch(DrawCheckItem::isPassed);
@@ -197,12 +200,122 @@ class DrawReplacementVerificationTest {
 		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results()), "REPLACEMENT_SOURCE");
 	}
 
+	/** 다음 동작을 검증한다: 취소되지 않은 자리 선택·유지 당첨 누락·취소된 당첨 유지를 거절한다. */
+	@Test @DisplayName("취소되지 않은 자리 선택·유지 당첨 누락·취소된 당첨 유지를 거절한다")
+	void rejectsIncompleteOrUncancelledAssignments() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		DrawReplacementRulesView rules = fixture.run().getReplacementRules();
+		List<DrawHistoricalAward> uncanceled = fixture.references().getHistoricalAwards().stream()
+				.map(a -> history(a, null)).toList();
+		// when / then
+		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), uncanceled)), "REPLACEMENT_SLOTS");
+		DrawRunView missing = replacement(fixture.run().getRules(), new DrawReplacementRulesView(originalId,
+				rules.getTargetSlots(), rules.getRetainedAwards().subList(0, 1)));
+		assertFailed(check(fixture, missing, fixture.candidates(), fixture.results()), "REPLACEMENT_SLOTS");
+		List<DrawHistoricalAward> canceledRetained = fixture.references().getHistoricalAwards().stream()
+				.map(a -> history(a, fixedAt.minusSeconds(1))).toList();
+		assertFailed(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), canceledRetained)), "REPLACEMENT_SLOTS");
+	}
+
+	/** 다음 동작을 검증한다: 고정 이후의 취소는 유지 배정을 소급 변경하지 않는다. */
+	@Test @DisplayName("고정 이후의 취소는 유지 배정을 소급 변경하지 않는다")
+	void usesCancellationTimeInsteadOfCurrentStatus() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		List<DrawHistoricalAward> history = fixture.references().getHistoricalAwards().stream()
+				.map(a -> a.getSlotNumber() == 3 ? a : history(a, fixedAt.plusSeconds(1))).toList();
+		// when / then
+		assertThat(DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), history)))
+				.allMatch(DrawCheckItem::isPassed);
+	}
+
+	/** 다음 동작을 검증한다: 최신 회차가 선택된 자리에서 과거 취소 결과를 유지하면 불일치다. */
+	@Test @DisplayName("최신 회차가 선택된 자리에서 과거 취소 결과를 유지하면 불일치다")
+	void rejectsRetainingOlderRound() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		DrawHistoricalAward old = fixture.references().getHistoricalAwards().getFirst();
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		awards.set(0, history(old, fixedAt.minusSeconds(10)));
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 1,
+				old.getCandidateId(), old.getUserId(), fixedAt.minusSeconds(5), 1, null, DrawSelectionResultType.SELECTED));
+		// when / then
+		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
+	}
+
+	/** 다음 동작을 검증한다: 최신 기록 사이에 놓인 같은 자리·회차 중복도 불일치다. */
+	@Test @DisplayName("최신 기록 사이에 놓인 같은 자리·회차 중복도 불일치다")
+	void rejectsDuplicatedRoundRegardlessOfOrdering() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		DrawHistoricalAward old = fixture.references().getHistoricalAwards().getFirst();
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 1,
+				old.getCandidateId(), old.getUserId(), fixedAt.minusSeconds(5), 1, null, DrawSelectionResultType.SELECTED));
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), old.getRunId(), eventId, prizeId, eventId, 1,
+				old.getCandidateId(), old.getUserId(), old.getConfirmedAt(), 0, null, DrawSelectionResultType.SELECTED));
+		// when / then
+		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
+	}
+
+	/** 다음 동작을 검증한다: 최신 회차가 미충원인 자리를 새 취소 대상으로 사용하지 않는다. */
+	@Test @DisplayName("최신 회차가 미충원인 자리를 새 취소 대상으로 사용하지 않는다")
+	void rejectsTargetingLatestUnfilledSlot() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 3,
+				null, null, fixedAt.minusSeconds(5), 1, null, DrawSelectionResultType.UNFILLED));
+		// when / then
+		assertFailed(verifyHistory(fixture, awards), "REPLACEMENT_SLOTS");
+	}
+
+	/** 다음 동작을 검증한다: 고정 시각 뒤 확정된 기록은 자리 최신 회차와 중복 판정에 사용하지 않는다. */
+	@Test @DisplayName("고정 시각 뒤 확정된 기록은 자리 최신 회차와 중복 판정에 사용하지 않는다")
+	void ignoresFutureAwardsInSlotVerification() {
+		// given
+		Fixture fixture = fixture(1, List.of(3));
+		List<DrawHistoricalAward> awards = new ArrayList<>(fixture.references().getHistoricalAwards());
+		for (int round : List.of(0, 1)) awards.add(new DrawHistoricalAward(UUID.randomUUID(), UUID.randomUUID(), eventId, prizeId, eventId, 3,
+				null, null, fixedAt.plusSeconds(1), round, null, DrawSelectionResultType.UNFILLED));
+		// when
+		List<DrawCheckItem> checks = verifyHistory(fixture, awards);
+		// then
+		assertThat(checks).filteredOn(item -> item.getCode().equals("REPLACEMENT_SLOTS")).allMatch(DrawCheckItem::isPassed);
+		assertFailed(checks, "REPLACEMENT_SOURCE");
+	}
+
+	/** 다음 동작을 검증한다: 과거 결과의 종류가 없으면 복원 시점에 거절한다. */
+	@Test @DisplayName("과거 결과의 종류가 없으면 복원 시점에 거절한다")
+	void rejectsNullHistoricalResultType() {
+		// given / when / then
+		assertThatNullPointerException().isThrownBy(() -> new DrawHistoricalAward(UUID.randomUUID(), originalId,
+				eventId, prizeId, eventId, 1, null, null, fixedAt, 0, null, null)).withMessage("resultType");
+	}
+
+	/** 동일한 저장 입력에 다른 과거 이력을 연결해 시점·회차별 배정 검증을 비교한다. */
+	private List<DrawCheckItem> verifyHistory(Fixture fixture, List<DrawHistoricalAward> awards) {
+		return DrawStoredVerification.verify(fixture.run(), fixture.candidates(), fixture.results(),
+				new DrawVerificationReferences(fixture.references().getOriginalRun(), fixture.references().getOriginalCandidates(), awards));
+	}
+
+	/** 다른 과거 결과 필드는 유지하고 취소 시각만 바꿔 고정 시각 경계를 시험한다. */
+	private DrawHistoricalAward history(DrawHistoricalAward a, Instant canceledAt) {
+		return new DrawHistoricalAward(a.getId(), a.getRunId(), a.getEventId(), a.getPrizeId(), a.getPrizeEventId(),
+				a.getSlotNumber(), a.getCandidateId(), a.getUserId(), a.getConfirmedAt(), a.getRunNumber(), canceledAt, a.getResultType());
+	}
+
 	private List<DrawCheckItem> check(Fixture fixture, DrawRunView run, List<DrawCandidateView> candidates, List<DrawResultView> results) {
 		return DrawStoredVerification.verify(run, candidates, results, fixture.references());
 	}
 	private static void assertFailed(List<DrawCheckItem> items, String code) {
 		assertThat(items).anyMatch(item -> item.getCode().equals(code) && !item.isPassed());
 	}
+	/** 공유된 고정 시각을 기준으로 최초 후보·기존 배정·취소 자리와 남은 후보를 구성한다. */
 	private Fixture fixture(int remainingCount, List<Integer> targets) {
 		DrawSnapshot.Rules firstRules = new DrawSnapshot.Rules(1, false, "NO_TICKET", "ALL", 1, 3, 5,
 				List.of(new DrawSnapshotSource.Prize(prizeId, 1, 3)));
@@ -214,13 +327,16 @@ class DrawReplacementVerificationTest {
 		for (int slot = 1; slot <= 3; slot++) {
 			DrawSnapshot.Candidate candidate = originals.get(slot - 1).getSnapshot();
 			history.add(new DrawHistoricalAward(UUID.randomUUID(), originalId, eventId, prizeId, eventId, slot,
-					candidate.id(), candidate.userId(), first.getConfirmedAt()));
+					candidate.id(), candidate.userId(), first.getConfirmedAt(), 0,
+					targets.contains(slot) ? fixedAt.minusSeconds(1) : null, DrawSelectionResultType.SELECTED));
 		}
 		DrawReplacementRulesView metadata = new DrawReplacementRulesView(originalId,
 				targets.stream().map(slot -> new DrawReplacementRulesView.Slot(prizeId, 1, slot)).toList(),
 				history.stream().filter(award -> !targets.contains(award.getSlotNumber()))
 						.map(award -> new DrawReplacementRulesView.RetainedAward(award.getId(), award.getUserId(), award.getPrizeId(), award.getSlotNumber())).toList());
-		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes());
+		DrawSnapshot.Rules rules = new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5, firstRules.prizes(), originalId,
+				metadata.getTargetSlots().stream().map(slot -> new DrawSnapshot.Slot(slot.getPrizeId(), slot.getRank(), slot.getSlotNumber())).toList(),
+				metadata.getRetainedAwards().stream().map(award -> new DrawSnapshot.RetainedAward(award.getResultId(), award.getUserId(), award.getPrizeId(), award.getSlotNumber())).toList());
 		List<DrawCandidateView> remaining = originals.subList(3, originals.size());
 		List<DrawResultView> results = new ArrayList<>();
 		for (int index = 0; index < targets.size(); index++) {

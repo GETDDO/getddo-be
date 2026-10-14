@@ -2,7 +2,7 @@
 
 - 상태: 응모 수량·이벤트 잠금·후보 확정 경계 합의 확인 — GD-85 결과 확정 구현은 검토 대기, GD-87 공통 실행 구현은 검토 대기, GD-138 연결 기준 전체 test/build 통과
 - 구현 범위: GD-84 최초 실행과 후보·조건 스냅샷 확정, GD-130 추첨 제외 의존성 제거, GD-85 최초 결과 확정, GD-87 공통 실행·실패·동일 실행 재개(검토 대기, GD-138 연결 기준 전체 test/build 통과)
-- 기준: [통합 ERD](schema.dbml), [공용 추첨 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [ADR-014](https://github.com/GETDDO/getddo-spec/blob/main/03-decisions/014-random-ticket-grades.md), [ADR-018](https://github.com/GETDDO/getddo-spec/blob/main/03-decisions/018-pre-issuance-abuse-blocking-and-no-draw-exclusion.md)
+- 기준: [통합 ERD](schema.dbml), [공용 추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [ADR-014](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/03-decisions/014-random-ticket-grades.md), [ADR-018](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/03-decisions/018-pre-issuance-abuse-blocking-and-no-draw-exclusion.md)
 - GD-84에서 추가한 두 정상 종료 상태는 이력 호환성을 위해 유지한다. GD-130 이후 새 실행은 응모자 없음 종료만 생성한다.
 
 이 문서는 백엔드 저장·트랜잭션 구현을 설명한다. 공용 정책은 링크한 스펙을 원본으로 사용한다. 과거 설명의 `ACCEPTED`, `weight = ticket_count`, `current_awards` 및 실행 행의 실패 횟수 집계는 현재 기준으로 사용하지 않는다.
@@ -67,7 +67,7 @@
 - 결과 발표·공개·사용자 조회·당첨 취소·재추첨은 GD-84 범위에서 제외한다.
 - 단위 테스트는 유효 응모 전체 후보화, 등급별·추가 응모 집계, 개별·누적 불일치, 티켓 소유자, 마감 경계·취소·삭제, 미사용·미적용, 응모자 없음·과거 정상 종료·고정 실행 재사용을 검증한다.
 - MySQL 통합 테스트는 Flyway 적용, 실제 테이블의 사용 이력 집계, JSON 왕복·불변 재요청, 중간 저장 롤백, 동시 준비, 이벤트 잠금을 가진 진행 중 응모 트랜잭션과의 경합을 검증한다. 경합 테스트의 응모는 테스트 SQL이며 아직 없는 D 서비스의 검증 결과가 아니다.
-- GD-84 검증 이력은 [9일자 워크로그 PR #39](https://github.com/GETDDO/getddo-be/pull/39)를 참고한다.
+- GD-84 검증 이력은 [9일자 워크로그 PR #39](https://github.com/Uplus-GETDDO/getddo-be/pull/39)를 참고한다.
 
 ## 결과 원자적 확정 — GD-85
 
@@ -88,7 +88,7 @@ GD-85 테스트는 단위 검증과 실제 MySQL의 JPA 왕복·FK/UNIQUE·롤�
 
 ## GD-87 공통 실행·실패·재개 — 구현과 검증
 
-상태: 검토 대기. 이 절은 GD-87 공통 실행 구현과 GD-138 실제 연결 설명이다. GD-138 PR #56의 `e0e28bf` 기준 `./gradlew test build --offline`는 단위 600건·API 통합 106건·DB 통합 338건(총 1,044건, 실패·오류·건너뜀 0건)으로 통과했다. 아래 GD-87 단독 검증 기록은 당시 기준의 결과다. dev `a98240f` 기준 전체 검증은 통과했다(단위 496건, 통합 375건). 최신 dev `0a32422` 병합 후 단위 546건과 API 통합 103건이 통과했다. 전체 build는 사용자 요청으로 DB 통합 테스트 진행 중 중단했으며 최신 기준 전체 성공으로 표시하지 않는다. 실제 결과는 [작업 기록](https://github.com/GETDDO/getddo-be/blob/docs/2026-10-12/docs/05-worklogs/%EC%84%9D%EC%A2%85%EC%88%98/2026-10-12.md)에 기록했다. 운영 DB에는 적용하지 않았다.
+상태: 검토 대기. 이 절은 GD-87 공통 실행 구현과 GD-138 실제 연결 설명이다. GD-138 PR #56의 `e0e28bf` 기준 `./gradlew test build --offline`는 단위 600건·API 통합 106건·DB 통합 338건(총 1,044건, 실패·오류·건너뜀 0건)으로 통과했다. 아래 GD-87 단독 검증 기록은 당시 기준의 결과다. dev `a98240f` 기준 전체 검증은 통과했다(단위 496건, 통합 375건). 최신 dev `0a32422` 병합 후 단위 546건과 API 통합 103건이 통과했다. 전체 build는 사용자 요청으로 DB 통합 테스트 진행 중 중단했으며 최신 기준 전체 성공으로 표시하지 않는다. 실제 결과는 [작업 기록](https://github.com/Uplus-GETDDO/getddo-be/blob/238a3c63b00e2af273570b6e63b49ec96b03b863/docs/05-worklogs/%EC%84%9D%EC%A2%85%EC%88%98/2026-10-12.md)에 기록했다. 운영 DB에는 적용하지 않았다.
 
 문서 재확인 기준: getddo-spec 원격 main `7978d25`, 백엔드 원격 dev `0a32422`(2026-10-12). 기능별 커밋으로 변경을 보존한 뒤 최신 dev를 병합했다. 이번 원격 spec 갱신은 GD-72 관리자 알림 계약 확정이며 추첨 규칙·scope·추첨 미결정 사항과 추첨 API는 변경되지 않았다.
 
@@ -118,4 +118,15 @@ GD-85 테스트는 단위 검증과 실제 MySQL의 JPA 왕복·FK/UNIQUE·롤�
 - 재추첨 저장은 최초 후보 행을 새로 만들지 않고 기존 후보 ID만 실행별로 연결한다. 후보가 0명이어도 READY 입력이며 대상 자리를 UNFILLED로 확정한다.
 - 공통 확정은 최초 조건 일치·역대 당첨 후보 제외·연결된 취소 자리·유지 결과 ID·사용자·자리와 현재 유효 배정을 검증한다. 선정기의 가상 자리 번호를 실제 대상 번호로 바꾸며 유지 당첨자·경품을 수정하지 않는다.
 
-GD-138 취소·등록·입력 준비·AD05/AD09는 실제 서비스로 연결·검증했다. GD-86 등록·자동 시작과 GD-137 조회 연결은 별도 후속 작업이다. GD-87 MySQL 통합 테스트 9건은 실패 별도 커밋·예약/횟수 제한·운영자 재개·중복 실패/동시 실행·입력 보존·재추첨 자리 확정을 검증한다. GD-87 단독 테스트의 재추첨 등록·취소는 SQL 대역이었다. GD-138 통합 테스트는 실제 서비스·준비 Bean을 연결하며, 초기 응모·보상 데이터만 SQL fixture다. V019는 Testcontainers 임시 MySQL에 적용했으며 운영 DB에는 적용하지 않았다.
+GD-138 취소·등록·입력 준비·AD05/AD09는 실제 서비스로 연결·검증했다. GD-86 등록·자동 시작은 별도 후속 작업이며 GD-137 조회 연결은 GD-169에서 통합했다. GD-87 MySQL 통합 테스트 9건은 실패 별도 커밋·예약/횟수 제한·운영자 재개·중복 실패/동시 실행·입력 보존·재추첨 자리 확정을 검증한다. GD-87 단독 테스트의 재추첨 등록·취소는 SQL 대역이었다. GD-138 통합 테스트는 실제 서비스·준비 Bean을 연결하며, 초기 응모·보상 데이터만 SQL fixture다. V019는 Testcontainers 임시 MySQL에 적용했으며 운영 DB에는 적용하지 않았다.
+
+## GD-169 관리자 연동 — 검토 대기
+
+아래 `execution` 중첩 DTO, 실패·감사 조회 경로 및 NO_ENTRIES 종료 응답 설명은 원격 공용 spec 반영 전의 백엔드 제안/구현 설명이다. 인접 spec의 사용자 승인 기록은 미커밋 상태이며 원격 main(`00f0d743`)의 계약 동기화는 아직 완료되지 않았다. 확정된 공용 정책을 이 절에서 변경하지 않는다.
+
+- 재추첨 검증은 입력 고정 시각 이전의 실행별 최신 자리 결과와 취소 시각을 대조한다. 고정 후 발생한 취소를 과거 유지 배정에 소급 반영하지 않는다. 대상·유지 자리의 중복·누락과 최신 결과 소유권을 확인하며 이전 미충원 자리는 새 취소 대상에 강제로 넣지 않는다.
+- 저장된 버전 2 조건을 읽을 때 대상 자리·유지 배정을 포함한 전체 규칙을 복원한다. 최초 후보와 재추첨 후보의 반환 순서는 재조회와 동일하게 맞춘다.
+- 실행 상세의 `execution`은 `failureCount`, `latestFailure{id,runId,failureCode,message,failedAt,traceId}`, `retryAt`, `waitingForOperator`, `cancellations`를 제공한다. 실패 원문은 저장·응답하지 않으며 미분류 과거 코드는 안전한 일반 안내 문구로 표시한다.
+- `GET /api/v1/admin/draws/{drawId}/failures`와 `/execution-audits`는 활성 관리자 전용 전체 이력 조회다. page 기본 1, size 기본 20·허용 1~100이며 시각·ID 최신순으로 페이징한다. 감사는 기존 `audit_logs`의 `DRAW_RUN` 근거를 읽고 원본 감사 데이터를 변경하지 않는다. 상세 요약과 전체 실패 이력을 중복 API로 제공하지 않는다.
+- 최초 재개 중 NO_ENTRIES가 되면 HTTP 200이다. 이미 정상 종료한 실행은 재개하지 않는다. ATTEMPT_LOST는 INTERRUPTED로 분류하며 기존 최대 3회 자동 재시도와 운영자 대기 규칙을 유지한다.
+- 공개 연결과 신규 V024 저장 근거는 [결과 공개 저장](draw-publication-storage.md), 등록·발송 장애 대조는 [공개 알림 복구](../06-runbook/draw-publication-delivery-plan.md)를 참고한다.

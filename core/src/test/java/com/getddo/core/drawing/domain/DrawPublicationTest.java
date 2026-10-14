@@ -28,8 +28,8 @@ class DrawPublicationTest {
 				DrawPublicationType.INITIAL, "취소 후 최초 공개", UUID.randomUUID(), NOW, NOW, mutable);
 		mutable.clear();
 		// then
-		assertThat(publication.entries()).containsExactly(retained, replaced);
-		assertThatThrownBy(() -> publication.entries().clear()).isInstanceOf(UnsupportedOperationException.class);
+		assertThat(publication.getEntries()).containsExactly(retained, replaced);
+		assertThatThrownBy(() -> publication.getEntries().clear()).isInstanceOf(UnsupportedOperationException.class);
 	}
 
 	/** 최초 공개와 갱신의 버전 경계 및 확인자·확인 시각의 쌍을 검증한다. */
@@ -108,7 +108,7 @@ class DrawPublicationTest {
 				.isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationCancellation(UUID.randomUUID(), null, null, "사유"))
 				.isInstanceOf(NullPointerException.class);
-		assertThat(new DrawPublicationCancellation(UUID.randomUUID(), UUID.randomUUID(), null, "사유").replacementRunId()).isNull();
+		assertThat(new DrawPublicationCancellation(UUID.randomUUID(), UUID.randomUUID(), null, "사유").getReplacementRunId()).isNull();
 		assertThatThrownBy(() -> new DrawPublicationChange(null, List.of())).isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationChange.SlotChange(UUID.randomUUID(), 0, null, null, null, null))
 				.isInstanceOf(IllegalArgumentException.class);

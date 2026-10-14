@@ -527,11 +527,20 @@ class DrawSnapshotIntegrationTest {
 	@EnableAutoConfiguration
 	@ComponentScan(basePackages = {"com.getddo.core.drawing", "com.getddo.db.drawing", "com.getddo.core.audit",
 			"com.getddo.db.audit.mapper", "com.getddo.db.audit.repository",
-			"com.getddo.db.user.mapper", "com.getddo.db.user.repository"})
-	@EntityScan(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user"})
-	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user"})
+			"com.getddo.db.user.mapper", "com.getddo.db.user.repository", "com.getddo.core.notification.service", "com.getddo.db.notification.mapper", "com.getddo.db.notification.repository"})
+	@EntityScan(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification"})
+	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification"})
 	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
 	static class TestApplication {
+
+		/** 공개 저장소·공통 관리자 검사·시각 제공자를 실제 관리자 확인 Bean에 연결한다. */
+		@Bean com.getddo.core.drawing.service.DrawResultConfirmationService resultConfirmations(
+				com.getddo.core.drawing.repository.DrawPublicationRepository repository,
+				com.getddo.core.drawing.service.DrawPublicationService publications,
+				com.getddo.core.drawing.service.DrawAdminAuthorization admins, TimeProvider time) {
+			return new com.getddo.core.drawing.service.DrawResultConfirmationService(repository, publications, admins, time);
+		}
+
 		/** 테스트에서 직접 제어할 수 있는 서버 기준 시계를 제공한다. */
 		@Bean MutableClock clock() { return new MutableClock(NOW); }
 		/** 서비스에 테스트 시계 기반의 서버 시각 제공자를 주입한다. */

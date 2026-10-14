@@ -94,7 +94,7 @@ public class DrawSnapshotRepositoryImpl implements DrawSnapshotRepository {
 		mapper.fixInput(run, snapshot);
 		runs.flush();
 		entityManager.refresh(run);
-		return mapper.toDomain(run, existing);
+		return mapper.toDomain(run, links.findCandidates(run.getId()));
 	}
 
 	/** 기존 최초 준비 흐름에서 새 실행을 등록하고 후보·입력을 같은 트랜잭션에 저장한다. */

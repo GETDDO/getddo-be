@@ -80,9 +80,19 @@ class DrawExecutionServiceTest {
 		assertThat(DrawExecutionService.classify(new BusinessException(NOT_EXECUTABLE))).isEqualTo(DrawFailureCode.NOT_EXECUTABLE);
 		assertThat(DrawFailureCode.NOT_EXECUTABLE.isRetryable()).isFalse();
 	}
+	/** 다음 동작을 검증한다: 시도 만료는 복구 경로와 같은 중단 실패로 분류한다. */
+	@Test @DisplayName("시도 만료는 복구 경로와 같은 중단 실패로 분류한다")
+	void retriesExpiredAttemptAsInterrupted() {
+		// given / when / then
+		assertThat(DrawExecutionService.classify(new BusinessException(ATTEMPT_LOST)))
+				.isEqualTo(DrawFailureCode.INTERRUPTED);
+		assertThat(DrawFailureCode.INTERRUPTED.isRetryable()).isTrue();
+	}
+
 	/** 실행 요청의 분기를 검증할 고정 시각·소유권을 가진 상태 대역을 구성한다. */
 	private DrawExecutionState state(DrawRunStatus status) {
 		return new DrawExecutionState(runId, eventId, DrawType.INITIAL, status, status == DrawRunStatus.PREPARING ? null : NOW,
-				attemptId, NOW.plusSeconds(300), null, NOW);
+				status == DrawRunStatus.FAILED || status == DrawRunStatus.CONFIRMED ? null : attemptId,
+				status == DrawRunStatus.FAILED || status == DrawRunStatus.CONFIRMED ? null : NOW.plusSeconds(300), null, NOW);
 	}
 }

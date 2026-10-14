@@ -1,6 +1,6 @@
 // GETDDO 최신 ERD 설계 초안 — 2026-10-07 사용자 최종 SQL과 기존 DBML 제약 대조.
-// 44개 테이블. GD-93에서 초기 Flyway V001~V011에 반영. 실제 DB 적용·서비스 호환성은 별도 검증 필요.
-// 이 DBML은 초기 스키마(V001~V011) 기준이다. 이후 마이그레이션이 추가한 인덱스·컬럼(예: 이벤트 목록·응모권 차감·만료 인덱스)은 마이그레이션이 기준이며 여기에 모두 반영하지 않았다.
+// 45개 테이블. 초기 44개는 GD-93의 V001~V011, 공개 실행 연결은 GD-169의 V024에 반영. 실제 DB 적용·서비스 호환성은 별도 검증 필요.
+// 이 DBML은 초기 스키마(V001~V011)에 공개 실행 연결(V024)을 추가한 기준이다. 이후 마이그레이션이 추가한 인덱스·컬럼(예: 이벤트 목록·응모권 차감·만료 인덱스)은 마이그레이션이 기준이며 여기에 모두 반영하지 않았다.
 // UNIQUE는 indexes, FK는 Ref, CHECK는 checks 블록에 명시. MySQL 생성식은 주석에 기록.
 // 티켓·추첨 근거 제약 및 서비스 검증 계약을 반영한 최신 설계.
 // 시각 UTC, 업무 날짜·월 KST. 회수 기능은 2026-10-07 사용자 확정에 따라 이번 버전에서 제외. 공용 spec의 scope.md·ticket.md와 일치.
@@ -1052,6 +1052,17 @@ Table draw_result_confirmations {
   Note: '확정된 재추첨 결과를 확인한 성공 이력만 저장. 같은 실행의 확인 재요청은 기존 이력 재사용. REPLACEMENT·CONFIRMED 상태, 관리자 권한, 결과 불변을 서비스에서 검증. 정상 최초 추첨에는 확인 행을 요구하지 않음. 취소 사유는 해당 실행에 연결된 award_cancellations에서 조회.'
 }
 
+Table draw_publication_executions {
+  publication_id binary(16) [not null, note: '실제 공개 버전 ID']
+  draw_run_id binary(16) [not null, note: '미충원을 포함해 명단에 반영된 REPLACEMENT 실행 ID']
+  event_id binary(16) [not null, note: '공개 버전과 실행의 이벤트 일치']
+  confirmation_id binary(16) [not null, note: '실행별 불변 관리자 확인 근거']
+  indexes {
+    (publication_id, draw_run_id) [pk]
+  }
+  Note: 'V024 신규 테이블. 미충원으로 SELECTED 포함 행이 없는 실행의 확인 근거도 보존. 과거 버전의 누락 근거를 현재 상태로 추정해 채우지 않는다.'
+}
+
 Table draw_publication_results {
   publication_id binary(16) [not null, note: '실제 공개 명단 버전 ID']
   draw_result_id binary(16) [not null, note: '이 버전에 실제 포함한 SELECTED 결과 ID. 이전 실행 유지 결과와 새 재추첨 결과 모두 포함']
@@ -1157,3 +1168,7 @@ Ref: draw_publication_results.(publication_id, event_id) > draw_publications.(id
 Ref: draw_publication_results.(draw_result_id, draw_run_id) > draw_results.(id, draw_run_id)
 Ref: draw_publication_results.(draw_run_id, event_id) > draw_runs.(id, event_id)
 Ref: draw_publication_results.(confirmation_id, draw_run_id) > draw_result_confirmations.(id, draw_run_id)
+
+Ref: draw_publication_executions.(publication_id, event_id) > draw_publications.(id, event_id)
+Ref: draw_publication_executions.(draw_run_id, event_id) > draw_runs.(id, event_id)
+Ref: draw_publication_executions.(confirmation_id, draw_run_id) > draw_result_confirmations.(id, draw_run_id)

@@ -20,7 +20,6 @@ import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.user.domain.*;
-import com.getddo.core.user.repository.UserRepository;
 
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.ADMIN_REQUIRED;
@@ -33,7 +32,7 @@ public class AwardCancellationRegistrationService {
 	private final ReplacementDrawRepository replacements;
 	private final DrawSnapshotRepository snapshots;
 	private final DrawResultRepository results;
-	private final UserRepository users;
+	private final DrawAdminAuthorization admins;
 	private final AuditLogService audit;
 	private final TimeProvider time;
 
@@ -88,9 +87,8 @@ public class AwardCancellationRegistrationService {
 			throw new BusinessException(INVALID_REQUEST);
 	}
 
+	/** 현재 DB 역할·활성 상태를 공통 검사로 대조하고 취소 업무의 권한 오류를 유지한다. */
 	private void requireAdmin(UUID actorId) {
-		if (actorId == null) throw new BusinessException(ADMIN_REQUIRED);
-		User user = users.findById(actorId).orElseThrow(() -> new BusinessException(ADMIN_REQUIRED));
-		if (user.getRole() != UserRole.ADMIN || user.getStatus() != UserStatus.ACTIVE) throw new BusinessException(ADMIN_REQUIRED);
+		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
 	}
 }

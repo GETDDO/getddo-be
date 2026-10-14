@@ -62,8 +62,8 @@ class AdminDrawPublicationControllerTest {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
 		mvc = MockMvcBuilders.standaloneSetup(new AdminDrawPublicationController(
-				new DrawResultConfirmationService(repository, publications, new DrawPublicationAdminAuthorization(users), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))),
-				new DrawPublicationQueryService(publications, repository, new DrawPublicationAdminAuthorization(users))))
+				new DrawResultConfirmationService(repository, publications, new DrawAdminAuthorization(users), new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC))),
+				new DrawPublicationQueryService(publications, repository, new DrawAdminAuthorization(users))))
 				.setControllerAdvice(new GlobalExceptionHandler()).setValidator(validator)
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(new UserService(users))).build();
 	}
@@ -76,14 +76,14 @@ class AdminDrawPublicationControllerTest {
 		when(publications.publishConfirmed(eventId, runId)).thenReturn(Optional.empty());
 		// when / then
 		mvc.perform(selected(post("/api/v1/admin/draws/{id}/result-confirmation", runId)))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmationId").value(confirmation.id().toString()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmationId").value(confirmation.getId().toString()))
 				.andExpect(jsonPath("$.data.isPublished").value(false)).andExpect(jsonPath("$.data.publicationId").value(nullValue()))
 				.andExpect(jsonPath("$.data.revision").value(nullValue())).andExpect(jsonPath("$.data.publishedAt").value(nullValue()));
-		DrawResultConfirmation original = new DrawResultConfirmation(confirmation.id(), runId, UUID.randomUUID(), NOW.minusSeconds(20));
+		DrawResultConfirmation original = new DrawResultConfirmation(confirmation.getId(), runId, UUID.randomUUID(), NOW.minusSeconds(20));
 		when(publications.validateReplacement(eventId, runId)).thenReturn(run(original));
 		// when / then
 		mvc.perform(selected(post("/api/v1/admin/draws/{id}/result-confirmation", runId)))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmedBy").value(original.confirmedBy().toString()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.confirmedBy").value(original.getConfirmedBy().toString()))
 				.andExpect(jsonPath("$.data.confirmedAt").value("2026-10-12T02:59:40Z"));
 		verify(repository, times(1)).saveConfirmation(runId, actorId, NOW);
 	}
@@ -98,7 +98,7 @@ class AdminDrawPublicationControllerTest {
 		// when / then
 		mvc.perform(selected(post("/api/v1/admin/draws/{id}/result-confirmation", runId)))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.isPublished").value(true))
-				.andExpect(jsonPath("$.data.publicationId").value(first.id().toString()))
+				.andExpect(jsonPath("$.data.publicationId").value(first.getId().toString()))
 				.andExpect(jsonPath("$.data.revision").value(1)).andExpect(jsonPath("$.data.publishedAt").value(NOW.toString()));
 	}
 
@@ -131,8 +131,8 @@ class AdminDrawPublicationControllerTest {
 			// when / then
 			mvc.perform(selected(post("/api/v1/admin/draws/{id}/publication", runId)))
 					.andExpect(status().isOk()).andExpect(jsonPath("$.data").value(aMapWithSize(7)))
-					.andExpect(jsonPath("$.data.publicationId").value(latest.id().toString()))
-					.andExpect(jsonPath("$.data.drawRunId").value(latest.sourceDrawId().toString()))
+					.andExpect(jsonPath("$.data.publicationId").value(latest.getId().toString()))
+					.andExpect(jsonPath("$.data.drawRunId").value(latest.getSourceDrawId().toString()))
 					.andExpect(jsonPath("$.data.revision").value(3));
 		}
 		// when / then
@@ -164,8 +164,11 @@ class AdminDrawPublicationControllerTest {
 		// given
 		DrawPublication latest = publication(2);
 		UUID prize = UUID.randomUUID(), before = UUID.randomUUID(), after = UUID.randomUUID();
+		UUID confirmationId = UUID.randomUUID(), cancellationId = UUID.randomUUID(), resultId = UUID.randomUUID();
 		DrawPublicationChange change = new DrawPublicationChange(latest, List.of(new DrawPublicationChange.SlotChange(
-				prize, 1, UUID.randomUUID(), before, UUID.randomUUID(), after)));
+				prize, 1, UUID.randomUUID(), before, UUID.randomUUID(), after)), List.of(
+				new DrawPublicationExecution(runId, confirmationId, actorId, NOW, List.of(
+						new DrawPublicationCancellation(cancellationId, resultId, runId, "실행별 사유")))));
 		when(repository.eventExists(eventId)).thenReturn(true);
 		when(publications.changes(eventId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(change), 1, 20, 2));
 		// when / then
@@ -175,8 +178,27 @@ class AdminDrawPublicationControllerTest {
 				.andExpect(jsonPath("$.data.totalElements").value(2)).andExpect(jsonPath("$.data.items[0].revision").value(2))
 				.andExpect(jsonPath("$.data.items[0].reason").value("연결 취소 사유"))
 				.andExpect(jsonPath("$.data.items[0].updatedAt").value(NOW.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].runId").value(runId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].confirmationId").value(confirmationId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].confirmedAt").value(NOW.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].cancellations[0].id").value(cancellationId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].cancellations[0].resultId").value(resultId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].confirmedBy").value(actorId.toString()))
+				.andExpect(jsonPath("$.data.items[0].executions[0].cancellations[0].reason").value("실행별 사유"))
 				.andExpect(jsonPath("$.data.items[0].changes[0].beforeUserId").value(before.toString()))
 				.andExpect(jsonPath("$.data.items[0].changes[0].afterUserId").value(after.toString()));
+	}
+
+	/** 다음 동작을 검증한다: 근거 연결이 없는 과거 공개 버전은 executions 빈 배열을 반환한다. */
+	@Test @DisplayName("근거 연결이 없는 과거 공개 버전은 executions 빈 배열을 반환한다")
+	void historyWithoutEvidenceReturnsEmptyExecutions() throws Exception {
+		// given
+		when(repository.eventExists(eventId)).thenReturn(true);
+		when(publications.changes(eventId, new PageQuery(1, 20))).thenReturn(new PageResult<>(
+				List.of(new DrawPublicationChange(publication(1), List.of())), 1, 20, 1));
+		// when / then
+		mvc.perform(selected(get("/api/v1/admin/events/{id}/result-changes", eventId)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].executions").isEmpty());
 	}
 
 	/** 큰 페이지는 전체 건수를 보존한 빈 목록을 반환한다는 시나리오를 검증한다. */

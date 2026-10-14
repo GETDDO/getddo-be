@@ -6,12 +6,10 @@ import java.util.UUID;
 
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /** 실행 결과 확정과 구분되는 관리자 확인의 불변 저장값이다. */
 @Getter
 @EqualsAndHashCode
-@Accessors(fluent = true)
 public final class DrawResultConfirmation {
 	private final UUID id;
 	private final UUID runId;

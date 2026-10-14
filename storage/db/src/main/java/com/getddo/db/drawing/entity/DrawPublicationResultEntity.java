@@ -31,10 +31,10 @@ public class DrawPublicationResultEntity implements Persistable<DrawPublicationR
 
 	/** 공개 버전·결과 복합키와 원본 실행·관리자 확인 참조를 저장 값으로 구성한다. */
 	public DrawPublicationResultEntity(UUID publicationId, UUID eventId, DrawPublication.Entry entry) {
-		id = new DrawPublicationResultId(publicationId, entry.resultId());
+		id = new DrawPublicationResultId(publicationId, entry.getResultId());
 		this.eventId = eventId;
-		runId = entry.runId();
-		confirmationId = entry.confirmationId();
+		runId = entry.getRunId();
+		confirmationId = entry.getConfirmationId();
 	}
 
 	/** 저장된 결과 ID·원본 실행 ID·선택적인 확인 ID를 공개 포함 결과로 복원한다. */

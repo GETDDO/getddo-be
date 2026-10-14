@@ -6,4 +6,5 @@
 
 - [백엔드 코드 스타일](code-style.md)
 - [백엔드 기능 담당자](backend-feature-assignments.md)
+- [테스트 실행 자원 제한](test-execution.md)
 - [이 저장소의 Pull Request 템플릿](../../.github/pull_request_template.md)

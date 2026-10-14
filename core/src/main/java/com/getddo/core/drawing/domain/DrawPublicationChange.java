@@ -6,26 +6,29 @@ import java.util.Objects;
 
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /** 직전 실제 공개 버전과 비교한 변경 이력. 확인자·사유·실제 공개 시각은 버전에 남는다. */
 @Getter
 @EqualsAndHashCode
-@Accessors(fluent = true)
 public final class DrawPublicationChange {
 	private final DrawPublication publication;
 	private final List<SlotChange> changes;
+	private final List<DrawPublicationExecution> executions;
 
 	/** 실제 공개 버전과 그 직전 버전 대비 변경 목록을 불변 값으로 보존한다. */
 	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes) {
-		changes = List.copyOf(changes);
+		this(publication, changes, List.of());
+	}
+
+	/** 실제 공개 버전과 자리 변경·실행별 근거 목록을 외부에서 바꿀 수 없는 값으로 보존한다. */
+	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes, List<DrawPublicationExecution> executions) {
 		this.publication = Objects.requireNonNull(publication, "publication");
-		this.changes = changes;
+		this.changes = List.copyOf(Objects.requireNonNull(changes, "changes"));
+		this.executions = List.copyOf(Objects.requireNonNull(executions, "executions"));
 	}
 
 	@Getter
 	@EqualsAndHashCode
-	@Accessors(fluent = true)
 	public static final class SlotChange {
 		private final UUID prizeId;
 		private final int slotNumber;

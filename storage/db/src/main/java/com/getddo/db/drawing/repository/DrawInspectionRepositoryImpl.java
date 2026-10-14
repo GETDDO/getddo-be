@@ -41,6 +41,54 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		where link.draw_run_id = ?
 		""";
 
+	/** 최근 실패·예약과 실행 원인 취소·결과 취소를 동일 조회 단위의 운영 요약으로 묶는다. */
+	@Override
+	public DrawExecutionSummary findExecutionSummary(UUID runId) {
+		DrawFailure latest = jdbc.query("select * from draw_failures where draw_run_id = ? order by failed_at desc, id desc limit 1",
+				(row, index) -> failure(row), toBytes(runId)).stream().findFirst().orElse(null);
+		long count = jdbc.queryForObject("select count(*) from draw_failures where draw_run_id = ?", Long.class, toBytes(runId));
+		List<DrawCancellationView> cancellations = jdbc.query("""
+			select c.* from award_cancellations c where c.draw_run_id = ?
+			union all
+			select c.* from draw_results r join award_cancellations c on c.draw_result_id = r.id
+			where r.draw_run_id = ? and (c.draw_run_id is null or c.draw_run_id <> ?)
+			order by canceled_at, id
+			""", (row, index) -> new DrawCancellationView(id(row, "id"), id(row, "draw_result_id"),
+					id(row, "draw_run_id"), id(row, "canceled_by"), row.getString("reason"), instant(row, "canceled_at")),
+				toBytes(runId), toBytes(runId), toBytes(runId));
+		return jdbc.queryForObject("select status, retry_at from draw_runs where id = ?", (row, index) -> {
+			java.time.Instant retry = instant(row, "retry_at");
+			return new DrawExecutionSummary(count, latest, retry, "FAILED".equals(row.getString("status")) && retry == null, cancellations);
+		}, toBytes(runId));
+	}
+
+	/** 실행별 실패 총수와 최신 이력 페이지를 조회하며 원문 예외를 새로 구성하지 않는다. */
+	@Override
+	public PageResult<DrawFailure> findFailures(UUID runId, PageQuery page) {
+		long count = jdbc.queryForObject("select count(*) from draw_failures where draw_run_id = ?", Long.class, toBytes(runId));
+		List<DrawFailure> rows = jdbc.query("select * from draw_failures where draw_run_id = ? order by failed_at desc, id desc limit ? offset ?",
+				(row, index) -> failure(row), toBytes(runId), page.getSize(), page.offset());
+		return new PageResult<>(rows, page.getPage(), page.getSize(), count);
+	}
+
+	/** DRAW_RUN 대상의 기존 감사 총수와 최신 페이지를 조회해 처리자·요청 근거를 보존한다. */
+	@Override
+	public PageResult<DrawExecutionAuditView> findExecutionAudits(UUID runId, PageQuery page) {
+		long count = jdbc.queryForObject("select count(*) from audit_logs where target_type = 'DRAW_RUN' and target_id = ?", Long.class, toBytes(runId));
+		List<DrawExecutionAuditView> rows = jdbc.query("""
+			select * from audit_logs where target_type = 'DRAW_RUN' and target_id = ?
+			order by created_at desc, id desc limit ? offset ?
+			""", (row, index) -> new DrawExecutionAuditView(id(row, "id"), id(row, "actor_id"), row.getString("action"),
+					row.getString("reason"), row.getString("before_data"), row.getString("after_data"), row.getString("request_id"),
+					instant(row, "created_at")), toBytes(runId), page.getSize(), page.offset());
+		return new PageResult<>(rows, page.getPage(), page.getSize(), count);
+	}
+
+	/** 저장된 분류 코드·시각과 선택적 추적 ID를 실패 조회값으로 복원한다. */
+	private static DrawFailure failure(java.sql.ResultSet row) throws java.sql.SQLException {
+		return new DrawFailure(id(row, "id"), id(row, "draw_run_id"), row.getString("failure_code"), instant(row, "failed_at"), row.getString("trace_id"));
+	}
+
 	@Override
 	public boolean eventExists(UUID eventId) {
 		return jdbc.queryForObject("select count(*) from events where id = ?", Long.class, toBytes(eventId)) > 0;
@@ -97,17 +145,20 @@ public class DrawInspectionRepositoryImpl implements DrawInspectionRepository {
 		if (run.getSnapshotFixedAt() == null) return new DrawVerificationReferences(original, candidates, List.of());
 		List<DrawHistoricalAward> awards = jdbc.query("""
 			select result.id, result.draw_run_id, run.event_id, result.event_prize_id, prize.event_id as prize_event_id,
-			result.slot_number, result.candidate_id, participant.user_id, run.confirmed_at
+			result.slot_number, result.candidate_id, participant.user_id, run.confirmed_at,
+			run.run_number, result.result_type, cancellation.canceled_at
 			from draw_results result join draw_runs run on run.id = result.draw_run_id
 			join event_prizes prize on prize.id = result.event_prize_id
-			join draw_candidates candidate on candidate.id = result.candidate_id
-			join event_participants participant on participant.id = candidate.participant_id
+			left join draw_candidates candidate on candidate.id = result.candidate_id
+			left join event_participants participant on participant.id = candidate.participant_id
+			left join award_cancellations cancellation on cancellation.draw_result_id = result.id
 			where run.event_id = ? and run.run_number < ? and run.confirmed_at <= ?
-			and run.status = 'CONFIRMED' and result.result_type = 'SELECTED'
+			and run.status = 'CONFIRMED'
 			order by run.run_number, result.id
 			""", (row, index) -> new DrawHistoricalAward(id(row, "id"), id(row, "draw_run_id"), id(row, "event_id"),
 				id(row, "event_prize_id"), id(row, "prize_event_id"), row.getInt("slot_number"), id(row, "candidate_id"),
-				id(row, "user_id"), instant(row, "confirmed_at")), toBytes(run.getEventId()), run.getRunNumber(),
+				id(row, "user_id"), instant(row, "confirmed_at"), row.getInt("run_number"), instant(row, "canceled_at"),
+				DrawSelectionResultType.valueOf(row.getString("result_type"))), toBytes(run.getEventId()), run.getRunNumber(),
 				java.time.LocalDateTime.ofInstant(run.getSnapshotFixedAt(), java.time.ZoneOffset.UTC));
 		return new DrawVerificationReferences(original, candidates, awards);
 	}

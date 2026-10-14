@@ -59,6 +59,7 @@ class DrawPublicationReplacementServiceTest {
 	private final List<DrawPublicationRun> runs = new ArrayList<>();
 	private final List<DrawPublicationCancellation> cancellations = new ArrayList<>();
 	private final MemoryTransactions transactions = new MemoryTransactions();
+	private final DrawPublicationNotificationService notifications = mock(DrawPublicationNotificationService.class);
 	private DrawPublicationService publications;
 	private DrawResultConfirmationService confirmations;
 	private DrawPublication latest;
@@ -72,8 +73,8 @@ class DrawPublicationReplacementServiceTest {
 	void setUp() {
 		when(clock.instant()).thenReturn(NOW);
 		TimeProvider time = new TimeProvider(clock);
-		publications = proxy(new DrawPublicationService(repository, snapshots, results, time));
-		confirmations = proxy(new DrawResultConfirmationService(repository, publications, new DrawPublicationAdminAuthorization(users), time));
+		publications = proxy(new DrawPublicationService(repository, snapshots, results, time, notifications));
+		confirmations = proxy(new DrawResultConfirmationService(repository, publications, new DrawAdminAuthorization(users), time));
 		for (UUID user : List.of(userA, userB, userC, userD)) candidates.put(user, UUID.randomUUID());
 		List<DrawSnapshot.Candidate> inputs = candidates.entrySet().stream().map(entry -> new DrawSnapshot.Candidate(
 				entry.getValue(), UUID.randomUUID(), entry.getKey(), 0, 1, null, null)).toList();
@@ -95,13 +96,13 @@ class DrawPublicationReplacementServiceTest {
 		when(repository.hasCancellationOrReplacement(eventId)).thenAnswer(invocation -> !cancellations.isEmpty() || !runs.isEmpty());
 		when(repository.findEventId(any())).thenReturn(Optional.of(eventId));
 		when(repository.findReplacementRuns(eventId)).thenAnswer(invocation -> runs.stream().map(run ->
-				new DrawPublicationRun(run.runId(), run.eventId(), run.runNumber(), run.status(), run.confirmedAt(),
-						run.results(), checked.get(run.runId()))).toList());
+				new DrawPublicationRun(run.getRunId(), run.getEventId(), run.getRunNumber(), run.getStatus(), run.getConfirmedAt(),
+						run.getResults(), checked.get(run.getRunId()))).toList());
 		when(repository.findCancellations(eventId)).thenAnswer(invocation -> List.copyOf(cancellations));
 		when(repository.saveConfirmation(any(), any(), any())).thenAnswer(invocation -> {
 			DrawResultConfirmation confirmation = new DrawResultConfirmation(UUID.randomUUID(), invocation.getArgument(0),
 					invocation.getArgument(1), invocation.getArgument(2));
-			checked.put(confirmation.runId(), confirmation);
+			checked.put(confirmation.getRunId(), confirmation);
 			return confirmation;
 		});
 		when(repository.saveInitial(eq(eventId), eq(initialRun), anyList(), any())).thenAnswer(invocation -> {
@@ -114,7 +115,7 @@ class DrawPublicationReplacementServiceTest {
 						invocation.getArgument(4), invocation.getArgument(5), invocation.getArgument(6)));
 		when(repository.wasPublished(any())).thenAnswer(invocation -> {
 			UUID id = invocation.getArgument(0);
-			return history.stream().flatMap(publication -> publication.entries().stream()).anyMatch(entry -> entry.resultId().equals(id));
+			return history.stream().flatMap(publication -> publication.getEntries().stream()).anyMatch(entry -> entry.getResultId().equals(id));
 		});
 	}
 
@@ -129,14 +130,14 @@ class DrawPublicationReplacementServiceTest {
 		// when
 		DrawResultConfirmation confirmation = confirmations.confirmReplacement(run, actorId);
 		// then
-		assertThat(latest.revision()).isEqualTo(1);
-		assertThat(latest.sourceDrawId()).isEqualTo(run);
-		assertThat(latest.entries()).containsExactly(new DrawPublication.Entry(replacement.getId(), run, confirmation.id()),
+		assertThat(latest.getRevision()).isEqualTo(1);
+		assertThat(latest.getSourceDrawId()).isEqualTo(run);
+		assertThat(latest.getEntries()).containsExactly(new DrawPublication.Entry(replacement.getId(), run, confirmation.getId()),
 				new DrawPublication.Entry(resultB.getId(), initialRun, null));
 		assertThat(publications.wasPublished(resultA.getId())).isFalse();
-		assertThat(latest.confirmedBy()).isEqualTo(actorId);
-		assertThat(latest.reason()).isEqualTo("취소 사유 1");
-		assertThat(latest.publishedAt()).isEqualTo(NOW);
+		assertThat(latest.getConfirmedBy()).isEqualTo(actorId);
+		assertThat(latest.getReason()).isEqualTo("취소 사유 1");
+		assertThat(latest.getPublishedAt()).isEqualTo(NOW);
 	}
 
 	/** 마감 +5분 전 확인은 기록만 저장하고 예정 시각 경계에 최초 공개한다는 시나리오를 검증한다. */
@@ -154,8 +155,8 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(publications.publishInitial(eventId)).isEmpty();
 		when(clock.instant()).thenReturn(NOW.plusSeconds(1));
 		DrawPublication first = publications.publishInitial(eventId).orElseThrow();
-		assertThat(first.confirmedAt()).isEqualTo(NOW);
-		assertThat(first.publishedAt()).isEqualTo(NOW.plusSeconds(1));
+		assertThat(first.getConfirmedAt()).isEqualTo(NOW);
+		assertThat(first.getPublishedAt()).isEqualTo(NOW.plusSeconds(1));
 		assertThat(publications.publishInitial(eventId)).contains(first);
 		assertThat(history).hasSize(1);
 	}
@@ -174,8 +175,8 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(publications.publishInitial(eventId)).isEmpty();
 		confirmations.confirmReplacement(first, actorId);
 		assertThat(history).hasSize(1);
-		assertThat(latest.entries()).extracting(DrawPublication.Entry::confirmationId)
-				.containsExactly(checked.get(first).id(), checked.get(second).id());
+		assertThat(latest.getEntries()).extracting(DrawPublication.Entry::getConfirmationId)
+				.containsExactly(checked.get(first).getId(), checked.get(second).getId());
 	}
 
 	/** 미준비 재추첨이 있으면 다른 결과 확인 후에도 최초 발표를 지연한다는 시나리오를 검증한다. */
@@ -193,7 +194,7 @@ class DrawPublicationReplacementServiceTest {
 				List.of(selected(2, userD)), null));
 		confirmations.confirmReplacement(second, actorId);
 		assertThat(history).hasSize(1);
-		assertThat(latest.entries()).hasSize(2);
+		assertThat(latest.getEntries()).hasSize(2);
 	}
 
 	/** 발표 후 미확인 결과는 비공개이며 확인 후 유지 명단과 새 결과로 다음 버전을 만든다는 시나리오를 검증한다. */
@@ -209,9 +210,9 @@ class DrawPublicationReplacementServiceTest {
 		// when
 		confirmations.confirmReplacement(run, actorId);
 		// then
-		assertThat(latest.revision()).isEqualTo(2);
-		assertThat(latest.type()).isEqualTo(DrawPublicationType.UPDATE);
-		assertThat(latest.entries()).extracting(DrawPublication.Entry::resultId).containsExactly(replacement.getId(), resultB.getId());
+		assertThat(latest.getRevision()).isEqualTo(2);
+		assertThat(latest.getType()).isEqualTo(DrawPublicationType.UPDATE);
+		assertThat(latest.getEntries()).extracting(DrawPublication.Entry::getResultId).containsExactly(replacement.getId(), resultB.getId());
 		assertThat(history.getFirst()).isEqualTo(first);
 		assertThat(publications.wasPublished(resultA.getId())).isTrue();
 		assertThat(publications.wasPublished(replacement.getId())).isTrue();
@@ -231,11 +232,11 @@ class DrawPublicationReplacementServiceTest {
 		DrawPublication intermediate = latest;
 		confirmations.confirmReplacement(first, actorId);
 		// then
-		assertThat(intermediate.entries()).extracting(DrawPublication.Entry::resultId).containsExactly(resultA.getId(), replacementB.getId());
-		assertThat(latest.revision()).isEqualTo(3);
-		assertThat(latest.sourceDrawId()).isEqualTo(first);
-		assertThat(latest.entries()).containsExactly(new DrawPublication.Entry(replacementA.getId(), first, checked.get(first).id()),
-				new DrawPublication.Entry(replacementB.getId(), second, checked.get(second).id()));
+		assertThat(intermediate.getEntries()).extracting(DrawPublication.Entry::getResultId).containsExactly(resultA.getId(), replacementB.getId());
+		assertThat(latest.getRevision()).isEqualTo(3);
+		assertThat(latest.getSourceDrawId()).isEqualTo(first);
+		assertThat(latest.getEntries()).containsExactly(new DrawPublication.Entry(replacementA.getId(), first, checked.get(first).getId()),
+				new DrawPublication.Entry(replacementB.getId(), second, checked.get(second).getId()));
 	}
 
 	/** 미확인 중간 결과가 다시 취소되면 선행 확인까지 기다리고 중간 당첨자는 공개하지 않는다는 시나리오를 검증한다. */
@@ -254,7 +255,7 @@ class DrawPublicationReplacementServiceTest {
 		// then
 		assertThat(history).hasSize(2);
 		assertThat(publications.wasPublished(privateResult.getId())).isFalse();
-		assertThat(latest.entries()).extracting(DrawPublication.Entry::resultId).containsExactly(finalResult.getId(), resultB.getId());
+		assertThat(latest.getEntries()).extracting(DrawPublication.Entry::getResultId).containsExactly(finalResult.getId(), resultB.getId());
 	}
 
 	/** 동일 확인·공개 재요청은 원래 확인자·시각과 한 공개 버전을 보존한다는 시나리오를 검증한다. */
@@ -272,6 +273,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(publications.publishConfirmed(eventId, run)).contains(published);
 		assertThat(latest).isEqualTo(published);
 		assertThat(history).hasSize(2);
+		verify(notifications, times(2)).register(any());
 		verify(repository, times(1)).saveConfirmation(eq(run), eq(actorId), any());
 		verify(repository, times(1)).savePublication(eq(eventId), eq(run), eq(2), any(), any(), anyList(), any());
 	}
@@ -288,7 +290,7 @@ class DrawPublicationReplacementServiceTest {
 				UserStatus.ACTIVE, Membership.VIP, null, null, null, null, NOW, NOW)));
 		// when / then
 		assertThat(confirmations.confirmReplacement(run, otherId)).isEqualTo(original);
-		assertThat(latest.confirmedBy()).isEqualTo(actorId);
+		assertThat(latest.getConfirmedBy()).isEqualTo(actorId);
 		assertThat(history).hasSize(1);
 		verify(repository, times(1)).saveConfirmation(eq(run), eq(actorId), any());
 	}
@@ -309,8 +311,8 @@ class DrawPublicationReplacementServiceTest {
 				List.of(selected(1, userC), unfilled), null));
 		confirmations.confirmReplacement(run, actorId);
 		assertThat(history).hasSize(1);
-		assertThat(latest.entries()).hasSize(1);
-		assertThat(latest.reason()).isEqualTo("취소 사유 1\n두 번째 취소");
+		assertThat(latest.getEntries()).hasSize(1);
+		assertThat(latest.getReason()).isEqualTo("취소 사유 1\n두 번째 취소");
 	}
 
 	/** 빈 자리 미충원 확정도 관리자 확인 후 취소 당첨자만 명단에서 제거한다는 시나리오를 검증한다. */
@@ -325,9 +327,15 @@ class DrawPublicationReplacementServiceTest {
 		// when / then
 		assertThat(history).hasSize(1);
 		confirmations.confirmReplacement(run, actorId);
-		assertThat(latest.entries()).containsExactly(new DrawPublication.Entry(resultB.getId(), initialRun, null));
-		assertThat(latest.revision()).isEqualTo(2);
+		assertThat(latest.getEntries()).containsExactly(new DrawPublication.Entry(resultB.getId(), initialRun, null));
+		assertThat(latest.getRevision()).isEqualTo(2);
 		assertThat(publications.wasPublished(unfilled.getId())).isFalse();
+		org.mockito.ArgumentCaptor<List<DrawPublicationExecution>> evidence = org.mockito.ArgumentCaptor.forClass(List.class);
+		verify(repository).saveExecutionEvidence(eq(latest.getId()), eq(eventId), evidence.capture());
+		assertThat(evidence.getValue()).hasSize(1);
+		assertThat(evidence.getValue().getFirst().getRunId()).isEqualTo(run);
+		assertThat(evidence.getValue().getFirst().getConfirmationId()).isEqualTo(checked.get(run).getId());
+		assertThat(evidence.getValue().getFirst().getConfirmedAt()).isEqualTo(checked.get(run).getConfirmedAt());
 	}
 
 	/** 공개 저장 실패는 Spring 확인 트랜잭션을 롤백하고 재요청에 한 번만 반영한다는 시나리오를 검증한다. */
@@ -344,6 +352,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(checked).isEmpty();
 		assertThat(latest).isEqualTo(first);
 		assertThat(history).hasSize(1);
+		verify(notifications).register(first);
 		doAnswer(invocation -> save(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3),
 				invocation.getArgument(4), invocation.getArgument(5), invocation.getArgument(6))).when(repository)
 				.savePublication(eq(eventId), any(), anyInt(), any(), any(), anyList(), any());
@@ -384,6 +393,7 @@ class DrawPublicationReplacementServiceTest {
 			assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo(initialPublication ? latest : firstResult);
 			assertThat(checked).hasSize(1);
 			assertThat(history).hasSize(initialPublication ? 1 : 2);
+			verify(notifications, times(initialPublication ? 1 : 2)).register(any());
 			verify(repository, times(1)).saveConfirmation(eq(run), eq(actorId), any());
 		} finally {
 			release.countDown(); executor.shutdownNow();
@@ -450,8 +460,8 @@ class DrawPublicationReplacementServiceTest {
 			List<DrawPublication.Entry> entries, Instant publishedAt) {
 		latest = new DrawPublication(UUID.randomUUID(), eventId, source, revision,
 				revision == 1 ? DrawPublicationType.INITIAL : DrawPublicationType.UPDATE, reason,
-				confirmation == null ? null : confirmation.confirmedBy(),
-				confirmation == null ? null : confirmation.confirmedAt(), publishedAt, entries);
+				confirmation == null ? null : confirmation.getConfirmedBy(),
+				confirmation == null ? null : confirmation.getConfirmedAt(), publishedAt, entries);
 		history.add(latest);
 		return latest;
 	}

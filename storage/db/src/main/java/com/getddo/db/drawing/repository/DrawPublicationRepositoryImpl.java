@@ -25,6 +25,8 @@ import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
 
 import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationExecution;
+import com.getddo.db.drawing.entity.DrawPublicationExecutionEntity;
 import com.getddo.core.drawing.domain.DrawPublishedSlot;
 import com.getddo.core.drawing.domain.DrawPublicationRun;
 import com.getddo.core.drawing.domain.DrawPublicationCancellation;
@@ -52,6 +54,60 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	private final EntityManager entityManager;
 	private final JdbcTemplate jdbc;
 	private final DrawResultConfirmationJpaRepository confirmations;
+	private final DrawPublicationExecutionJpaRepository executionEvidence;
+
+	/** 취소 근거는 실행 등록 시 확정된 award_cancellations의 불변 필드를 통해 조회한다. */
+	@Override
+	public void saveExecutionEvidence(UUID publicationId, UUID eventId, List<DrawPublicationExecution> executions) {
+		if (executions.isEmpty()) return;
+		executionEvidence.saveAllAndFlush(executions.stream()
+				.map(value -> new DrawPublicationExecutionEntity(publicationId, eventId, value)).toList());
+	}
+
+	/** 고정된 버전 연결과 수정하지 않는 확인·취소 근거만 읽는다. */
+	@Override
+	public Map<UUID, List<DrawPublicationExecution>> findExecutionEvidence(Set<UUID> publicationIds) {
+		if (publicationIds.isEmpty()) return Map.of();
+		String placeholders = String.join(",", Collections.nCopies(publicationIds.size(), "?"));
+		String sql = """
+			select link.publication_id, link.draw_run_id, checked.id confirmation_id, checked.confirmed_by, checked.confirmed_at
+			from draw_publication_executions link
+			join draw_result_confirmations checked on checked.id = link.confirmation_id and checked.draw_run_id = link.draw_run_id
+			join draw_runs run on run.id = link.draw_run_id
+			where link.publication_id in (
+			""" + placeholders + ") order by link.publication_id, run.run_number";
+		List<EvidenceRow> rows = jdbc.query(sql, (row, index) -> new EvidenceRow(fromBytes(row.getBytes("publication_id")),
+				fromBytes(row.getBytes("draw_run_id")), fromBytes(row.getBytes("confirmation_id")),
+				fromBytes(row.getBytes("confirmed_by")), instant(row, "confirmed_at")),
+				publicationIds.stream().map(id -> toBytes(id)).toArray());
+		Set<UUID> runIds = new HashSet<>();
+		for (EvidenceRow row : rows) runIds.add(row.runId());
+		Map<UUID, List<DrawPublicationCancellation>> causes = new HashMap<>();
+		if (!runIds.isEmpty()) {
+			String cancellationSql = "select id, draw_result_id, draw_run_id, reason from award_cancellations where draw_run_id in ("
+					+ String.join(",", Collections.nCopies(runIds.size(), "?")) + ") order by canceled_at, id";
+			jdbc.query(cancellationSql, (RowCallbackHandler) row -> {
+				UUID runId = fromBytes(row.getBytes("draw_run_id"));
+				causes.computeIfAbsent(runId, ignored -> new ArrayList<>()).add(new DrawPublicationCancellation(
+						fromBytes(row.getBytes("id")), fromBytes(row.getBytes("draw_result_id")), runId, row.getString("reason")));
+			}, runIds.stream().map(id -> toBytes(id)).toArray());
+		}
+		Map<UUID, List<DrawPublicationExecution>> loaded = new HashMap<>();
+		for (EvidenceRow row : rows) loaded.computeIfAbsent(row.publicationId(), ignored -> new ArrayList<>()).add(
+				new DrawPublicationExecution(row.runId(), row.confirmationId(), row.confirmedBy(), row.confirmedAt(),
+						causes.getOrDefault(row.runId(), List.of())));
+
+		return immutableCopy(loaded);
+	}
+
+	/** 반환 맵과 각 값 목록을 복사해 원본 조회 자료구조의 변경이 결과에 전파되지 않게 한다. */
+	private static <T> Map<UUID, List<T>> immutableCopy(Map<UUID, List<T>> loaded) {
+		Map<UUID, List<T>> immutable = new HashMap<>();
+		loaded.forEach((id, values) -> immutable.put(id, List.copyOf(values)));
+		return Map.copyOf(immutable);
+	}
+
+	private record EvidenceRow(UUID publicationId, UUID runId, UUID confirmationId, UUID confirmedBy, Instant confirmedAt) { }
 
 	/** 이벤트의 가장 높은 버전인 실제 공개 기록을 조회한다. */
 	@Override
@@ -80,7 +136,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 				included.computeIfAbsent(entry.getId().getPublicationId(), ignored -> new ArrayList<>()).add(entry.toDomain());
 			}
 		}
-		included.values().forEach(rows -> rows.sort(Comparator.comparing(DrawPublication.Entry::resultId)));
+		included.values().forEach(rows -> rows.sort(Comparator.comparing(DrawPublication.Entry::getResultId)));
 		List<DrawPublication> page = stored.stream().map(publication -> publication.toDomain(
 				included.getOrDefault(publication.getId(), List.of()))).toList();
 		return new PageResult<>(page, query.getPage(), query.getSize(), total);
@@ -137,9 +193,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 				new DrawPublishedSlot(fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number"),
 						fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")))),
 				publicationIds.stream().map(id -> toBytes(id)).toArray());
-		Map<UUID, List<DrawPublishedSlot>> immutable = new HashMap<>();
-		loaded.forEach((id, rows) -> immutable.put(id, List.copyOf(rows)));
-		return Map.copyOf(immutable);
+		return immutableCopy(loaded);
 	}
 
 	/** 이벤트에 기존 취소나 재추첨 실행이 존재하는지 확인한다. */
@@ -176,7 +230,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		Map<UUID, DrawResultConfirmation> checked = new HashMap<>();
 		for (DrawResultConfirmationEntity confirmation : confirmations.findByRunIdIn(runIds)) {
 			DrawResultConfirmation value = confirmation.toDomain();
-			checked.put(value.runId(), value);
+			checked.put(value.getRunId(), value);
 		}
 		return runs.stream().map(run -> new DrawPublicationRun(run.id(), run.eventId(), run.number(), run.status(),
 				run.confirmedAt(), results.getOrDefault(run.id(), List.of()), checked.get(run.id()))).toList();
@@ -214,8 +268,8 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			DrawResultConfirmation confirmation, List<DrawPublication.Entry> included, Instant publishedAt) {
 		included = DrawPublication.validatedEntries(included);
 		DrawPublicationEntity publication = new DrawPublicationEntity(eventId, sourceRunId, revision, reason,
-				confirmation == null ? null : confirmation.confirmedBy(),
-				confirmation == null ? null : confirmation.confirmedAt(), publishedAt);
+				confirmation == null ? null : confirmation.getConfirmedBy(),
+				confirmation == null ? null : confirmation.getConfirmedAt(), publishedAt);
 		DrawPublicationEntity saved = publications.saveAndFlush(publication);
 		entries.saveAllAndFlush(included.stream()
 				.map(entry -> new DrawPublicationResultEntity(saved.getId(), eventId, entry)).toList());

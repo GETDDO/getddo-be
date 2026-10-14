@@ -7,12 +7,10 @@ import java.util.UUID;
 
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /** 공개 버전과 실제 포함 결과를 보존한다. 현재 당첨 취소 여부로 과거 목록을 바꾸지 않는다. */
 @Getter
 @EqualsAndHashCode
-@Accessors(fluent = true)
 public final class DrawPublication {
 	private final UUID id;
 	private final UUID eventId;
@@ -69,7 +67,7 @@ public final class DrawPublication {
 	public static List<Entry> validatedEntries(List<Entry> entries) {
 		Objects.requireNonNull(entries, "entries");
 		List<Entry> copied = List.copyOf(entries);
-		if (copied.stream().map(Entry::resultId).distinct().count() != copied.size())
+		if (copied.stream().map(Entry::getResultId).distinct().count() != copied.size())
 			throw new IllegalArgumentException("duplicate publication result");
 		return copied;
 	}
@@ -77,7 +75,6 @@ public final class DrawPublication {
 	/** 유지 결과도 원본 실행과 원래 관리자 확인 식별자를 그대로 참조한다. */
 	@Getter
 	@EqualsAndHashCode
-	@Accessors(fluent = true)
 	public static final class Entry {
 		private final UUID resultId;
 		private final UUID runId;

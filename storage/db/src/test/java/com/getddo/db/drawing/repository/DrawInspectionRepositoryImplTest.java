@@ -25,6 +25,7 @@ class DrawInspectionRepositoryImplTest {
 	private final UUID runId = UUID.randomUUID(), eventId = UUID.randomUUID(), originalId = UUID.randomUUID();
 	private final Instant fixedAt = Instant.parse("2026-10-12T03:00:00Z");
 
+	/** 다음 동작을 검증한다: 과거 배정 조회는 이전 차수·입력 고정 시각·확정 결과로 제한하고 현재 취소 상태를 필터링하지 않는다. */
 	@Test
 	@DisplayName("과거 배정 조회는 이전 차수·입력 고정 시각·확정 결과로 제한하고 현재 취소 상태를 필터링하지 않는다")
 	void readsHistoricalAssignmentsAtInputTime() {
@@ -44,8 +45,8 @@ class DrawInspectionRepositoryImplTest {
 		assertThat(references.getOriginalRun()).isSameAs(original);
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbc).query(sql.capture(), org.mockito.ArgumentMatchers.<RowMapper<DrawHistoricalAward>>any(), eq(toBytes(eventId)), eq(2), eq(cutoff));
-		assertThat(sql.getValue()).contains("run.run_number < ?", "run.confirmed_at <= ?", "run.status = 'CONFIRMED'", "result.result_type = 'SELECTED'")
-				.doesNotContain("award_cancellations", "draw_publications");
+		assertThat(sql.getValue()).contains("run.run_number < ?", "run.confirmed_at <= ?", "run.status = 'CONFIRMED'", "left join award_cancellations", "run.run_number", "cancellation.canceled_at")
+				.doesNotContain("draw_publications", "cancellation.id is null", "result.result_type = 'SELECTED'");
 	}
 
 	@Test
