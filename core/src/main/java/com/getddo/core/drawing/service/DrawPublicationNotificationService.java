@@ -6,22 +6,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.getddo.core.common.exception.BusinessException;
-import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PUBLICATION;
 import com.getddo.core.drawing.domain.DrawPublication;
 import com.getddo.core.drawing.domain.DrawPublicationType;
-import com.getddo.core.drawing.domain.DrawPublishedSlot;
-import com.getddo.core.drawing.repository.DrawPublicationRepository;
 import com.getddo.core.drawing.repository.DrawPublicationNotificationRepository;
+import com.getddo.core.drawing.repository.DrawPublicationRepository;
 import com.getddo.core.notification.domain.NotificationJobRequest;
 import com.getddo.core.notification.domain.NotificationType;
 import com.getddo.core.notification.service.NotificationJobService;
 
-/** 공개와 같은 트랜잭션에서 기존 알림 작업을 등록한다. 생성·발송·재시도는 기존 처리기가 맡는다. */
+import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PUBLICATION;
+
+/** 실제 공개된 명단에서 알림 대상자를 정하고 기존 알림 서비스에 작업을 등록한다. 직접 생성·발송하지 않는다. */
 @Service
 @RequiredArgsConstructor
 public class DrawPublicationNotificationService {
@@ -45,13 +48,13 @@ public class DrawPublicationNotificationService {
 	private List<UUID> changedUsers(DrawPublication publication) {
 		DrawPublication previous = publications.findPrevious(publication.getEventId(), publication.getRevision())
 				.orElseThrow(() -> new BusinessException(INVALID_PUBLICATION));
-		Map<Slot, DrawPublishedSlot> before = index(publications.findPublishedSlots(previous.getId()));
-		Map<Slot, DrawPublishedSlot> after = index(publications.findPublishedSlots(publication.getId()));
+		Map<Slot, DrawPublication.Slot> before = index(publications.findPublishedSlots(previous.getId()));
+		Map<Slot, DrawPublication.Slot> after = index(publications.findPublishedSlots(publication.getId()));
 		Set<Slot> slots = new LinkedHashSet<>(before.keySet());
 		slots.addAll(after.keySet());
 		Set<UUID> changed = new LinkedHashSet<>();
 		for (Slot slot : slots) {
-			DrawPublishedSlot old = before.get(slot), updated = after.get(slot);
+			DrawPublication.Slot old = before.get(slot), updated = after.get(slot);
 			if (java.util.Objects.equals(old, updated)) continue;
 			if (old != null) changed.add(old.getUserId());
 			if (updated != null) changed.add(updated.getUserId());
@@ -60,10 +63,11 @@ public class DrawPublicationNotificationService {
 	}
 
 	/** 경품과 자리 번호로 명단을 대응시켜 유지 당첨자를 변경 대상에서 제외한다. */
-	private static Map<Slot, DrawPublishedSlot> index(List<DrawPublishedSlot> rows) {
-		Map<Slot, DrawPublishedSlot> indexed = new LinkedHashMap<>();
-		for (DrawPublishedSlot row : rows) indexed.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
+	private static Map<Slot, DrawPublication.Slot> index(List<DrawPublication.Slot> rows) {
+		Map<Slot, DrawPublication.Slot> indexed = new LinkedHashMap<>();
+		for (DrawPublication.Slot row : rows) indexed.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
 		return indexed;
 	}
-	private record Slot(UUID prizeId, int number) { }
+	private record Slot(UUID prizeId, int number) {
+	}
 }

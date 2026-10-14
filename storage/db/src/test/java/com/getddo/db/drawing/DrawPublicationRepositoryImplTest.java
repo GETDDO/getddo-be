@@ -1,33 +1,43 @@
 package com.getddo.db.drawing;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.Set;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.sql.ResultSet;
-
-import jakarta.persistence.EntityManager;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.RowCallbackHandler;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import com.getddo.core.drawing.domain.*;
 import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
-import com.getddo.db.drawing.entity.*;
-import com.getddo.db.drawing.repository.*;
-
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationRun;
+import com.getddo.core.drawing.domain.DrawPublicationType;
+import com.getddo.core.drawing.domain.DrawResult;
+import com.getddo.core.drawing.domain.DrawResultConfirmation;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.db.drawing.entity.DrawPublicationEntity;
+import com.getddo.db.drawing.entity.DrawPublicationExecutionEntity;
+import com.getddo.db.drawing.entity.DrawPublicationExecutionId;
+import com.getddo.db.drawing.entity.DrawPublicationResultEntity;
+import com.getddo.db.drawing.entity.DrawResultConfirmationEntity;
+import com.getddo.db.drawing.repository.DrawPublicationExecutionJpaRepository;
+import com.getddo.db.drawing.repository.DrawPublicationJpaRepository;
+import com.getddo.db.drawing.repository.DrawPublicationRepositoryImpl;
+import com.getddo.db.drawing.repository.DrawPublicationResultJpaRepository;
+import com.getddo.db.drawing.repository.DrawResultConfirmationJpaRepository;
+import jakarta.persistence.EntityManager;
+import java.sql.ResultSet;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.test.util.ReflectionTestUtils;
+import static com.getddo.db.common.util.UuidBinary.toBytes;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static com.getddo.db.common.util.UuidBinary.toBytes;
 
 /** JPA 대역으로 공개·확인 변환을 검증한다. 실제 DB 제약·잠금·시각 정밀도 검증은 아니다. */
 class DrawPublicationRepositoryImplTest {
@@ -55,7 +65,7 @@ class DrawPublicationRepositoryImplTest {
 	void savesExecutionIdentity() {
 		// given
 		UUID version = UUID.randomUUID(), event = UUID.randomUUID();
-		DrawPublicationExecution execution = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), NOW, List.of());
+		DrawPublication.Execution execution = new DrawPublication.Execution(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), NOW, List.of());
 		doAnswer(invocation -> {
 			List<DrawPublicationExecutionEntity> rows = invocation.getArgument(0);
 			assertThat(rows).singleElement().satisfies(row -> {
@@ -91,15 +101,15 @@ class DrawPublicationRepositoryImplTest {
 			return null;
 		}).when(jdbc).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
 		// when
-		java.util.Map<UUID, List<DrawPublicationExecution>> loaded = repository.findExecutionEvidence(Set.of(version, missing));
+		java.util.Map<UUID, List<DrawPublication.Execution>> loaded = repository.findExecutionEvidence(Set.of(version, missing));
 		// then
 		assertThat(loaded).doesNotContainKey(missing);
-		assertThat(loaded.get(version)).extracting(DrawPublicationExecution::getRunId).containsExactly(runA, runB);
+		assertThat(loaded.get(version)).extracting(DrawPublication.Execution::getRunId).containsExactly(runA, runB);
 		assertThat(loaded.get(version).getFirst().getConfirmationId()).isEqualTo(checkA);
 		assertThat(loaded.get(version).getFirst().getConfirmedBy()).isEqualTo(actor);
 		assertThat(loaded.get(version).getFirst().getConfirmedAt()).isEqualTo(NOW);
 		assertThat(loaded.get(version).getFirst().getCancellations()).usingRecursiveComparison().isEqualTo(List.of(
-				new DrawPublicationCancellation(cancelA, resultA, runA, "첫 사유"), new DrawPublicationCancellation(cancelB, resultB, runA, "다음 사유")));
+				new DrawPublication.Cancellation(cancelA, resultA, runA, "첫 사유"), new DrawPublication.Cancellation(cancelB, resultB, runA, "다음 사유")));
 		assertThat(loaded.get(version).getLast().getCancellations()).isEmpty();
 		assertThatThrownBy(() -> loaded.put(missing, List.of())).isInstanceOf(UnsupportedOperationException.class);
 		assertThatThrownBy(() -> loaded.get(version).clear()).isInstanceOf(UnsupportedOperationException.class);

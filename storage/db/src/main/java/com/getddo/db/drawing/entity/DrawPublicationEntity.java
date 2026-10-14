@@ -4,10 +4,18 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -19,9 +27,13 @@ import com.getddo.core.drawing.domain.DrawPublicationType;
 @Entity
 @Immutable
 @Table(name = "draw_publications", uniqueConstraints = {
-		@UniqueConstraint(name = "uq_draw_publications_event", columnNames = {"id", "event_id"}),
-		@UniqueConstraint(name = "uq_draw_publications_1", columnNames = {"event_id", "revision"})
-})
+			@UniqueConstraint(name = "uq_draw_publications_event", columnNames = {
+				"id", "event_id"
+			}),
+			@UniqueConstraint(name = "uq_draw_publications_1", columnNames = {
+				"event_id", "revision"
+			})
+		})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DrawPublicationEntity {
 	@Id @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
@@ -54,7 +66,8 @@ public class DrawPublicationEntity {
 	public DrawPublicationEntity(UUID eventId, UUID sourceDrawId, int revision, String reason,
 			UUID confirmedBy, Instant confirmedAt, Instant publishedAt) {
 		DrawPublicationType type = revision == 1 ? DrawPublicationType.INITIAL : DrawPublicationType.UPDATE;
-		DrawPublication.validateMetadata(eventId, sourceDrawId, revision, type, reason, confirmedBy, confirmedAt, publishedAt);
+		DrawPublication.validateMetadata(eventId, sourceDrawId, revision, type, reason,
+				confirmedBy, confirmedAt, publishedAt);
 		this.eventId = eventId;
 		this.sourceDrawId = sourceDrawId;
 		this.publishedAt = publishedAt;
@@ -67,7 +80,8 @@ public class DrawPublicationEntity {
 
 	/** 검증된 공개 모델에서 새 버전을 구성한다. ID는 저장 시 발급한다. */
 	public DrawPublicationEntity(DrawPublication publication) {
-		this(publication.getEventId(), publication.getSourceDrawId(), publication.getRevision(), publication.getReason(),
+		this(publication.getEventId(), publication.getSourceDrawId(), publication.getRevision(),
+				publication.getReason(),
 				publication.getConfirmedBy(), publication.getConfirmedAt(), publication.getPublishedAt());
 	}
 

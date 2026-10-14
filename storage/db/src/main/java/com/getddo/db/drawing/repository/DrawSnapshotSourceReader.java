@@ -28,8 +28,11 @@ import static com.getddo.db.common.util.UuidBinary.toBytes;
 public class DrawSnapshotSourceReader {
 	private final JdbcTemplate jdbc;
 
-	public DrawSnapshotSourceReader(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+	public DrawSnapshotSourceReader(JdbcTemplate jdbc) {
+		this.jdbc = jdbc;
+	}
 
+	/** 이벤트 행을 먼저 잠근 뒤 추첨에 필요한 이벤트 조건과 경품을 조회한다. */
 	public Optional<DrawSnapshotSource.Event> lockEvent(UUID eventId) {
 		List<DrawSnapshotSource.Event> events = jdbc.query("""
 			select id, event_type, weighting_enabled, ends_at, status, deleted_at, membership_rule
@@ -38,7 +41,9 @@ public class DrawSnapshotSourceReader {
 				EventType.valueOf(row.getString("event_type")), row.getBoolean("weighting_enabled"),
 				instant(row, "ends_at"), EventStatus.valueOf(row.getString("status")),
 				row.getObject("deleted_at") != null, row.getString("membership_rule"), List.of()), toBytes(eventId));
-		if (events.isEmpty()) return Optional.empty();
+		if (events.isEmpty()) {
+			return Optional.empty();
+		}
 		List<DrawSnapshotSource.Prize> prizes = jdbc.query("""
 			select id, prize_rank, winner_count from event_prizes where event_id = ? order by prize_rank
 			""", (row, index) -> new DrawSnapshotSource.Prize(fromBytes(row.getBytes("id")),
@@ -48,6 +53,7 @@ public class DrawSnapshotSourceReader {
 				event.endsAt(), event.status(), event.deleted(), event.membershipRule(), prizes));
 	}
 
+	/** 응모자·응모·사용 이력을 일괄 조회해 후보 입력을 구성한다. */
 	public List<DrawSnapshotSource.Participant> findParticipants(UUID eventId) {
 		// 세 번의 일괄 조회로 응모자·응모·이력을 결합한다. 응모자별 N+1 조회를 하지 않는다.
 		List<DrawSnapshotSource.Participant> participants = jdbc.query("""
@@ -64,21 +70,21 @@ public class DrawSnapshotSourceReader {
 			join event_participants p on p.id = e.participant_id
 			where p.event_id = ? and h.operation_type = 'USE' and e.status = 'ACCEPTED' order by h.id
 			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
-			uses.computeIfAbsent(fromBytes(row.getBytes("event_entry_id")), key -> new ArrayList<>())
-					.add(new DrawSnapshotSource.Use(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("ticket_id")),
-							fromBytes(row.getBytes("user_id")), TicketGrade.valueOf(row.getString("grade"))));
-		}, toBytes(eventId));
+				uses.computeIfAbsent(fromBytes(row.getBytes("event_entry_id")), key -> new ArrayList<>())
+						.add(new DrawSnapshotSource.Use(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("ticket_id")),
+								fromBytes(row.getBytes("user_id")), TicketGrade.valueOf(row.getString("grade"))));
+			}, toBytes(eventId));
 		Map<UUID, List<DrawSnapshotSource.Entry>> entries = new LinkedHashMap<>();
 		jdbc.query("""
 			select e.id, e.participant_id, e.deducted_ticket_count, e.created_at
 			from event_entries e join event_participants p on p.id = e.participant_id
 			where p.event_id = ? and e.status = 'ACCEPTED' order by e.id
 			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
-			UUID id = fromBytes(row.getBytes("id"));
-			entries.computeIfAbsent(fromBytes(row.getBytes("participant_id")), key -> new ArrayList<>())
-					.add(new DrawSnapshotSource.Entry(id, row.getLong("deducted_ticket_count"),
-							instant(row, "created_at"), uses.getOrDefault(id, List.of())));
-		}, toBytes(eventId));
+				UUID id = fromBytes(row.getBytes("id"));
+				entries.computeIfAbsent(fromBytes(row.getBytes("participant_id")), key -> new ArrayList<>())
+						.add(new DrawSnapshotSource.Entry(id, row.getLong("deducted_ticket_count"),
+								instant(row, "created_at"), uses.getOrDefault(id, List.of())));
+			}, toBytes(eventId));
 		return participants.stream().map(p -> new DrawSnapshotSource.Participant(p.id(), p.userId(),
 				p.usedTicketCount(), p.membership(), p.role(), entries.getOrDefault(p.id(), List.of()))).toList();
 	}

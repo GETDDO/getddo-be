@@ -3,15 +3,18 @@ package com.getddo.db.drawing.repository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
 import jakarta.persistence.EntityManager;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+
 import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.drawing.domain.DrawCheckItem;
 import com.getddo.core.drawing.domain.DrawVerification;
 import com.getddo.core.drawing.repository.DrawCheckRepository;
 import com.getddo.db.drawing.entity.DrawCheckEntity;
@@ -27,7 +30,8 @@ public class DrawCheckRepositoryImpl implements DrawCheckRepository {
 	private final EntityManager entityManager;
 
 	@Override
-	public DrawVerification save(UUID runId, UUID actorId, Instant checkedAt, boolean passed, List<DrawCheckItem> items) {
+	public DrawVerification save(UUID runId, UUID actorId, Instant checkedAt, boolean passed,
+			List<DrawVerification.Item> items) {
 		DrawRunEntity run = entityManager.getReference(DrawRunEntity.class, runId);
 		DrawCheckEntity entity = repository.saveAndFlush(new DrawCheckEntity(run, actorId,
 				passed, mapper.snapshot(items), checkedAt));

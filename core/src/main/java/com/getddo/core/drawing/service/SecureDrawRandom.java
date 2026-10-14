@@ -19,7 +19,8 @@ final class SecureDrawRandom implements DrawRandom {
 		BigInteger value;
 		do {
 			value = new BigInteger(upperExclusive.bitLength(), random);
-		} while (value.compareTo(upperExclusive) >= 0);
+		}
+		while (value.compareTo(upperExclusive) >= 0);
 		return value;
 	}
 }

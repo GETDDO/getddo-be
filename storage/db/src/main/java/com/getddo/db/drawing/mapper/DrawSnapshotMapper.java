@@ -3,6 +3,7 @@ package com.getddo.db.drawing.mapper;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
+
 import tools.jackson.databind.json.JsonMapper;
 
 import com.getddo.core.drawing.domain.DrawSnapshot;
@@ -25,20 +26,22 @@ public class DrawSnapshotMapper {
 
 	/** 저장할 조건을 JSON으로 직렬화하고 실행 엔티티의 일회성 입력 확정 규칙을 적용한다. */
 	public void fixInput(DrawRunEntity run, DrawSnapshot snapshot) {
-		run.fixInput(snapshot.status(), snapshot.algorithmVersion(), json.writeValueAsString(snapshot.rules()), snapshot.fixedAt());
+		run.fixInput(snapshot.status(), snapshot.algorithmVersion(), json.writeValueAsString(snapshot.rules()),
+				snapshot.fixedAt());
 	}
 
 	/** 실행 행과 해당 실행에 연결된 후보만으로 기존 스냅샷을 복원한다. */
 	public DrawSnapshot toDomain(DrawRunEntity run, List<DrawCandidateEntity> candidates) {
 		DrawSnapshot.Rules rules = run.getRulesSnapshot() == null ? null
-				: json.readValue(run.getRulesSnapshot(), DrawSnapshot.Rules.class);
+		: json.readValue(run.getRulesSnapshot(), DrawSnapshot.Rules.class);
 		return new DrawSnapshot(run.getId(), run.getEventId(), run.getStatus(), run.getSnapshotFixedAt(),
 				run.getAlgorithmVersion(), rules, candidates.stream().map(this::toDomain).toList(), run.getDrawType());
 	}
 
 	/** 현재 사용자 정보 대신 저장된 자격 근거에서 사용자 식별자와 과거 excluded 값을 복원한다. */
 	private DrawSnapshot.Candidate toDomain(DrawCandidateEntity candidate) {
-		DrawSnapshot.EligibilityEvidence eligibility = json.readValue(candidate.getEligibilitySnapshot(), DrawSnapshot.EligibilityEvidence.class);
+		DrawSnapshot.EligibilityEvidence eligibility = json.readValue(candidate.getEligibilitySnapshot(),
+				DrawSnapshot.EligibilityEvidence.class);
 		return new DrawSnapshot.Candidate(candidate.getId(), candidate.getParticipantId(), eligibility.userId(),
 				candidate.getTicketCount(), candidate.getWeight(),
 				json.readValue(candidate.getEntrySnapshot(), DrawSnapshot.EntryEvidence.class), eligibility);

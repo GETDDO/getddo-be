@@ -4,14 +4,19 @@ import java.util.Optional;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.AwardCancellation;
+import com.getddo.core.drawing.domain.AwardCancellationReceipt;
+import com.getddo.core.drawing.domain.DrawExecutionResult;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSnapshot;
 
-/** 등록 서비스의 커밋 뒤 같은 실행 ID로 GD-87 실행·재개 기능을 호출한다. */
+/** 당첨 취소를 등록한 뒤, 연결된 재추첨 실행을 시작하거나 같은 실행을 재개한다. */
 @Service
 @RequiredArgsConstructor
 public class AwardCancellationService {
@@ -37,6 +42,6 @@ public class AwardCancellationService {
 	public DrawExecutionResult startOrResume(UUID actorId, UUID cancellationId) {
 		DrawSnapshot run = query.findConnected(actorId, cancellationId);
 		return run.status() == DrawRunStatus.FAILED
-				? executions.resume(run.runId(), actorId) : executions.execute(run.runId(), actorId);
+		? executions.resume(run.runId(), actorId) : executions.execute(run.runId(), actorId);
 	}
 }

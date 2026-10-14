@@ -1,9 +1,10 @@
 package com.getddo.core.drawing.domain;
 
 import java.time.Instant;
-import java.util.UUID;
-import lombok.Getter;
 import java.util.Objects;
+import java.util.UUID;
+
+import lombok.Getter;
 
 /** 이전 실행의 자리 결과와 취소 시각. 검증 입력 고정 당시의 최신 배정을 판단한다. */
 @Getter

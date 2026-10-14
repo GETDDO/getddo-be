@@ -12,9 +12,17 @@ public enum AwardCancellationErrorCode implements ErrorCode {
 	private final String code;
 	private final String message;
 	AwardCancellationErrorCode(int status, String code, String message) {
-		this.status = status; this.code = code; this.message = message;
+		this.status = status;
+		this.code = code;
+		this.message = message;
 	}
-	@Override public int getStatus() { return status; }
-	@Override public String getCode() { return code; }
-	@Override public String getMessage() { return message; }
+	@Override public int getStatus() {
+		return status;
+	}
+	@Override public String getCode() {
+		return code;
+	}
+	@Override public String getMessage() {
+		return message;
+	}
 }

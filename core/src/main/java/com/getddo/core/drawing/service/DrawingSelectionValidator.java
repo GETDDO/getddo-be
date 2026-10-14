@@ -9,11 +9,12 @@ import java.util.UUID;
 import com.getddo.core.drawing.domain.DrawCandidate;
 import com.getddo.core.drawing.domain.DrawPrize;
 
-/** 선정과 저장 스냅샷 정합성 검증에서 같은 후보·경품 규칙을 사용한다. 난수나 영속성에 의존하지 않는다. */
+/** 후보·가중치·경품 설정이 추첨에 사용할 수 있는 값인지 검사한다. */
 final class DrawingSelectionValidator {
 
 	/** 검증 함수만 제공하며 인스턴스 생성을 막는다. */
-	private DrawingSelectionValidator() { }
+	private DrawingSelectionValidator() {
+	}
 
 	/** 후보 ID·사용자 중복과 미가중치 조건을 검증하여 이벤트 내 중복 당첨을 방지한다. */
 	static void validateCandidates(List<DrawCandidate> candidates, boolean weightingEnabled) {

@@ -2,29 +2,39 @@ package com.getddo.core.drawing.service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import lombok.RequiredArgsConstructor;
-import lombok.Getter;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.drawing.domain.*;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.DrawConfirmation;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationChange;
+import com.getddo.core.drawing.domain.DrawPublicationRun;
+import com.getddo.core.drawing.domain.DrawResult;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSelection;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
@@ -32,7 +42,7 @@ import com.getddo.core.event.domain.EventStatus;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
-/** 최초 공개와 관리자 확인된 재추첨 명단 갱신을 처리하고 실제 공개 이력을 보존한다. */
+/** 최초 결과를 공개하거나 확인된 재추첨으로 명단을 갱신한다. 공개 버전과 알림 작업을 함께 저장한다. */
 @Service
 @RequiredArgsConstructor
 public class DrawPublicationService {
@@ -84,7 +94,7 @@ public class DrawPublicationService {
 			notifications.register(saved);
 			return Optional.of(saved);
 		}
-		DrawPublicationComposition composed = DrawPublicationAssembler.compose(snapshot, confirmation,
+		DrawPublicationAssembler.Composition composed = DrawPublicationAssembler.compose(snapshot, confirmation,
 				publications.findReplacementRuns(eventId), publications.findCancellations(eventId), triggerRunId, now);
 		if (existing.isEmpty() && !composed.isComplete()) return Optional.empty();
 		if (existing.isPresent()) {
@@ -116,8 +126,9 @@ public class DrawPublicationService {
 		DrawPublicationRun requested = runs.stream().filter(run -> run.getRunId().equals(runId)).findFirst()
 				.orElseThrow(() -> new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE));
 		if (requested.getStatus() != DrawRunStatus.CONFIRMED)
-			throw new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE);
-		DrawPublicationAssembler.compose(locked, confirmed, runs, publications.findCancellations(eventId), runId, time.now());
+		throw new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE);
+		DrawPublicationAssembler.compose(locked, confirmed, runs, publications.findCancellations(eventId),
+				runId, time.now());
 		return requested;
 	}
 
@@ -130,11 +141,15 @@ public class DrawPublicationService {
 
 	/** 공개 조회 계약과 분리된 내부 이력 조회이며 취소된 결과도 과거 버전에 남는다. */
 	@Transactional(readOnly = true)
-	public List<DrawPublication> history(UUID eventId) { return publications.findHistory(eventId); }
+	public List<DrawPublication> history(UUID eventId) {
+		return publications.findHistory(eventId);
+	}
 
 	/** 실행 상태가 아니라 해당 결과가 실제 포함됐던 버전으로 판정한다. */
 	@Transactional(readOnly = true)
-	public boolean wasPublished(UUID resultId) { return publications.wasPublished(resultId); }
+	public boolean wasPublished(UUID resultId) {
+		return publications.wasPublished(resultId);
+	}
 
 	/** 실제 공개 버전끼리 비교하며 비공개 취소·미확인 실행을 변경 이력으로 노출하지 않는다. */
 	@Transactional(readOnly = true)
@@ -144,11 +159,11 @@ public class DrawPublicationService {
 		if (versions.isEmpty()) return List.of();
 		Set<UUID> ids = new HashSet<>();
 		for (DrawPublication version : versions) ids.add(version.getId());
-		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
-		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
-		List<DrawPublishedSlot> before = List.of();
+		Map<UUID, List<DrawPublication.Slot>> slots = publications.findPublishedSlots(ids);
+		Map<UUID, List<DrawPublication.Execution>> evidence = publications.findExecutionEvidence(ids);
+		List<DrawPublication.Slot> before = List.of();
 		for (DrawPublication publication : versions) {
-			List<DrawPublishedSlot> after = slots.getOrDefault(publication.getId(), List.of());
+			List<DrawPublication.Slot> after = slots.getOrDefault(publication.getId(), List.of());
 			DrawPublicationChange change = compare(publication, before, after);
 			history.add(new DrawPublicationChange(publication, change.getChanges(),
 					evidence.getOrDefault(publication.getId(), List.of())));
@@ -161,36 +176,39 @@ public class DrawPublicationService {
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public PageResult<DrawPublicationChange> changes(UUID eventId, PageQuery query) {
 		PageResult<DrawPublication> page = publications.findHistory(eventId, query);
-		if (page.getItems().isEmpty()) return new PageResult<>(List.of(), query.getPage(), query.getSize(), page.getTotalElements());
+		if (page.getItems().isEmpty()) return new PageResult<>(List.of(), query.getPage(),
+				query.getSize(), page.getTotalElements());
 		List<DrawPublication> versions = page.getItems();
 		Optional<DrawPublication> boundary = publications.findPrevious(eventId, versions.getLast().getRevision());
 		Set<UUID> ids = new HashSet<>();
 		for (DrawPublication version : versions) ids.add(version.getId());
 		boundary.ifPresent(version -> ids.add(version.getId()));
-		Map<UUID, List<DrawPublishedSlot>> slots = publications.findPublishedSlots(ids);
-		Map<UUID, List<DrawPublicationExecution>> evidence = publications.findExecutionEvidence(ids);
+		Map<UUID, List<DrawPublication.Slot>> slots = publications.findPublishedSlots(ids);
+		Map<UUID, List<DrawPublication.Execution>> evidence = publications.findExecutionEvidence(ids);
 		List<DrawPublicationChange> changes = new ArrayList<>();
 		for (int index = 0; index < versions.size(); index++) {
 			DrawPublication current = versions.get(index);
 			DrawPublication previous = index + 1 < versions.size() ? versions.get(index + 1) : boundary.orElse(null);
-			DrawPublicationChange change = compare(current, previous == null ? List.of() : slots.getOrDefault(previous.getId(), List.of()),
+			DrawPublicationChange change = compare(current, previous == null ? List.of() : slots.getOrDefault(previous.getId(),
+					List.of()),
 					slots.getOrDefault(current.getId(), List.of()));
-			changes.add(new DrawPublicationChange(current, change.getChanges(), evidence.getOrDefault(current.getId(), List.of())));
+			changes.add(new DrawPublicationChange(current, change.getChanges(), evidence.getOrDefault(current.getId(),
+					List.of())));
 		}
 		return new PageResult<>(changes, query.getPage(), query.getSize(), page.getTotalElements());
 	}
 
 	/** 두 실제 공개 명단을 경품 자리로 비교해 결과 또는 사용자가 바뀐 자리만 반환한다. */
-	private static DrawPublicationChange compare(DrawPublication publication, List<DrawPublishedSlot> previous,
-			List<DrawPublishedSlot> current) {
-		Map<Slot, DrawPublishedSlot> before = new LinkedHashMap<>(), after = new LinkedHashMap<>();
-		for (DrawPublishedSlot row : previous) before.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
-		for (DrawPublishedSlot row : current) after.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
+	private static DrawPublicationChange compare(DrawPublication publication, List<DrawPublication.Slot> previous,
+			List<DrawPublication.Slot> current) {
+		Map<Slot, DrawPublication.Slot> before = new LinkedHashMap<>(), after = new LinkedHashMap<>();
+		for (DrawPublication.Slot row : previous) before.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
+		for (DrawPublication.Slot row : current) after.put(new Slot(row.getPrizeId(), row.getSlotNumber()), row);
 		Set<Slot> all = new LinkedHashSet<>(before.keySet());
 		all.addAll(after.keySet());
 		List<DrawPublicationChange.SlotChange> changes = new ArrayList<>();
 		for (Slot slot : all) {
-			DrawPublishedSlot old = before.get(slot), updated = after.get(slot);
+			DrawPublication.Slot old = before.get(slot), updated = after.get(slot);
 			if (Objects.equals(old, updated)) continue;
 			changes.add(new DrawPublicationChange.SlotChange(slot.getPrizeId(), slot.getNumber(),
 					old == null ? null : old.getResultId(), old == null ? null : old.getUserId(),
@@ -242,5 +260,7 @@ public class DrawPublicationService {
 	}
 
 	/** 최초 실행과 확정 결과의 불일치를 업무 예외로 거절한다. */
-	private static void invalid() { throw new BusinessException(INVALID_RUN); }
+	private static void invalid() {
+		throw new BusinessException(INVALID_RUN);
+	}
 }
