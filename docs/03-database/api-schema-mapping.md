@@ -79,7 +79,7 @@
 | --- | --- | --- | --- |
 | M04 내 제출 | `GET /api/v1/missions/{missionId}/submissions/me` | `missions` | 읽기만 한다. 없는 미션은 404 `MISSION-003`이다. |
 | M04 내 제출 | 같음 | `mission_submissions` | 요청 사용자의 제출만 최신순(`created_at` 내림차순, 같으면 ID 내림차순)으로 읽는다. `page`는 1부터, `size`는 1~100(기본 20)이다. 오답 제출도 `isCompleted=false`, `reward=null`인 정상 결과로 포함한다. 답변과 정답은 응답에 싣지 않는다. |
-| M04 내 제출 | 같음 | `mission_reward_claims`, `tickets`, `ticket_histories` | 완료한 제출에만 그 제출의 보상 청구를 찾아 응모권 지급 결과(`ticketCount`, `grade`, `grantedAt`, `expiresAt`)를 다시 읽는다. 제출 접수(M03)의 재전송 응답과 같은 규칙이다. 완료한 제출에 청구나 지급이 없으면 데이터가 어긋난 것이므로 숨기지 않고 오류로 처리한다. |
+| M04 내 제출 | 같음 | `mission_reward_claims`, `tickets`, `ticket_histories` | 완료한 제출에만 그 제출의 보상 청구를 찾아 응모권 지급 결과(`claimId`, `ticketCount`, `grade`, `grantedAt`, `expiresAt`)를 다시 읽는다. 제출 접수(M03)의 재전송 응답과 같은 규칙이다. 완료한 제출에 청구나 지급이 없으면 데이터가 어긋난 것이므로 숨기지 않고 오류로 처리한다. |
 
 ### 미션 제출 API 현행 매핑 (GD-175)
 
