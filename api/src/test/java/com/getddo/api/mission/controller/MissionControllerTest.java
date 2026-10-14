@@ -295,10 +295,14 @@ class MissionControllerTest {
 		// given
 		// when
 		// then
-		mvc.perform(asUser(get("/api/v1/missions")).param("page", "0")).andExpect(status().isBadRequest());
+		mvc.perform(asUser(get("/api/v1/missions")).param("page", "0"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("COMMON-002"));
 		mvc.perform(asUser(get("/api/v1/missions")).param("size", "0")).andExpect(status().isBadRequest());
 		mvc.perform(asUser(get("/api/v1/missions")).param("size", "101")).andExpect(status().isBadRequest());
-		mvc.perform(asUser(get("/api/v1/missions")).param("missionType", "GAME")).andExpect(status().isBadRequest());
+		mvc.perform(asUser(get("/api/v1/missions")).param("missionType", "GAME"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("COMMON-005"));
 		verifyNoInteractions(queryService);
 	}
 
