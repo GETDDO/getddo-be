@@ -11,9 +11,11 @@ import jakarta.persistence.PostLoad;
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.Immutable;
 import org.springframework.data.domain.Persistable;
 
@@ -49,9 +51,13 @@ public class DrawRunCandidateEntity implements Persistable<DrawRunCandidateId> {
 	}
 
 	@Override
-	public boolean isNew() { return newEntity; }
+	public boolean isNew() {
+		return newEntity;
+	}
 
 	@PostLoad
 	@PostPersist
-	private void markPersisted() { newEntity = false; }
+	private void markPersisted() {
+		newEntity = false;
+	}
 }

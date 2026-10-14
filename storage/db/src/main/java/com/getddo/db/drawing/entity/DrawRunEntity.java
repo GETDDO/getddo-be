@@ -9,9 +9,11 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -23,9 +25,13 @@ import com.getddo.db.common.entity.BaseEntity;
 @Getter
 @Entity
 @Table(name = "draw_runs", uniqueConstraints = {
-		@UniqueConstraint(name = "uq_draw_runs_event", columnNames = {"id", "event_id"}),
-		@UniqueConstraint(name = "uq_draw_runs_1", columnNames = {"event_id", "run_number"})
-})
+			@UniqueConstraint(name = "uq_draw_runs_event", columnNames = {
+				"id", "event_id"
+			}),
+			@UniqueConstraint(name = "uq_draw_runs_1", columnNames = {
+				"event_id", "run_number"
+			})
+		})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DrawRunEntity extends BaseEntity {
 	@Column(name = "event_id", nullable = false, updatable = false, length = 16)
@@ -109,9 +115,11 @@ public class DrawRunEntity extends BaseEntity {
 		snapshotFixedAt = fixedAt;
 		if (status == DrawRunStatus.NO_ENTRIES) releaseAttempt();
 	}
+
 	/** 결과 저장과 같은 트랜잭션에서만 호출한다. 실패하면 READY와 결과 모두 롤백된다. */
 	public void confirm(Instant now) {
-		if ((status != DrawRunStatus.READY && status != DrawRunStatus.RUNNING) || now == null || snapshotFixedAt == null || now.isBefore(snapshotFixedAt)) {
+		if ((status != DrawRunStatus.READY && status != DrawRunStatus.RUNNING)
+				|| now == null || snapshotFixedAt == null || now.isBefore(snapshotFixedAt)) {
 			throw new IllegalStateException("저장 입력이 있는 READY/RUNNING 실행만 결과를 확정할 수 있습니다.");
 		}
 		if (startedAt == null) startedAt = now;
@@ -123,7 +131,8 @@ public class DrawRunEntity extends BaseEntity {
 	/** 소유권 확정은 별도 서비스 트랜잭션에서 한다. 입력과 실패 집계는 변경하지 않는다. */
 	public void claim(UUID attemptId, Instant now, Instant leaseUntil, Instant cycleStartedAt) {
 		if (this.attemptId != null || (status != DrawRunStatus.READY && status != DrawRunStatus.PREPARING
-				&& status != DrawRunStatus.FAILED) || attemptId == null || now == null || leaseUntil == null || cycleStartedAt == null || !leaseUntil.isAfter(now)) {
+				&& status != DrawRunStatus.FAILED) || attemptId == null || now == null
+				|| leaseUntil == null || cycleStartedAt == null || !leaseUntil.isAfter(now)) {
 			throw new IllegalStateException("실행 소유권을 얻을 수 없습니다.");
 		}
 		this.attemptId = attemptId;
@@ -144,6 +153,9 @@ public class DrawRunEntity extends BaseEntity {
 	}
 
 	/** 확정·정상 종료 또는 실패 처리 뒤 소유권과 예약을 해제한다. */
-	public void releaseAttempt() { attemptId = null; leaseUntil = null; retryAt = null; }
-
+	public void releaseAttempt() {
+		attemptId = null;
+		leaseUntil = null;
+		retryAt = null;
+	}
 }

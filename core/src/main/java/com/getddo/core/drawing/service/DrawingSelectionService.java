@@ -12,7 +12,7 @@ import com.getddo.core.drawing.domain.DrawCandidate;
 import com.getddo.core.drawing.domain.DrawPrize;
 import com.getddo.core.drawing.domain.DrawSelection;
 
-/** 확정된 후보·경품만 입력받아 상위 등수부터 당첨자를 선정한다. */
+/** 고정된 후보와 가중치를 사용해 상위 등수부터 당첨자를 뽑는다. */
 @Service
 public final class DrawingSelectionService {
 

@@ -2,26 +2,64 @@ package com.getddo.core.drawing.domain;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import lombok.Getter;
 
-/** 검증자·시각과 항목별 결과를 보존한 검증 이력 한 건이다. */
+/** 관리자가 검사한 추첨의 통과 여부·검사 항목·처리자·시각을 보존한다. */
 @Getter
 public final class DrawVerification {
 	private final UUID id;
 	private final UUID drawRunId;
 	private final boolean passed;
-	private final List<DrawCheckItem> checks;
+	private final List<DrawVerification.Item> checks;
 	private final Instant verifiedAt;
 	private final UUID verifiedBy;
 
-	public DrawVerification(UUID id, UUID drawRunId, boolean passed, List<DrawCheckItem> checks, Instant verifiedAt, UUID verifiedBy) {
+	/** 검사 결과와 항목을 복사해 관리자 검증 기록을 보존한다. */
+	public DrawVerification(UUID id, UUID drawRunId, boolean passed, List<DrawVerification.Item> checks,
+			Instant verifiedAt, UUID verifiedBy) {
 		this.id = id;
 		this.drawRunId = drawRunId;
 		this.passed = passed;
 		this.checks = List.copyOf(checks);
 		this.verifiedAt = verifiedAt;
 		this.verifiedBy = verifiedBy;
+	}
+
+	/** 수량·가중치·자리 등의 검사 한 항목에 대한 코드·통과 여부·안내다. */
+	@Getter
+	public static final class Item {
+		private final String code;
+		private final boolean passed;
+		private final String message;
+
+		/** 검사 코드별 통과 여부와 관리자 안내를 묶는다. */
+		public Item(String code, boolean passed, String message) {
+			this.code = code;
+			this.passed = passed;
+			this.message = message;
+		}
+	}
+
+	/** 재추첨 검사에 사용할 최초 입력과 과거 자리 배정이다. 검증 데이터와 같은 조회 트랜잭션에서 읽는다. */
+	@Getter
+	public static final class References {
+		private final DrawInspectionView.Run originalRun;
+		private final List<DrawInspectionView.Candidate> originalCandidates;
+		private final List<DrawHistoricalAward> historicalAwards;
+
+		/** 필수 목록은 복사하고, 최초 실행이 없는 경우는 null로 구분한다. */
+		public References(DrawInspectionView.Run originalRun, List<DrawInspectionView.Candidate> originalCandidates,
+				List<DrawHistoricalAward> historicalAwards) {
+			this.originalRun = originalRun;
+			this.originalCandidates = List.copyOf(Objects.requireNonNull(originalCandidates, "originalCandidates"));
+			this.historicalAwards = List.copyOf(Objects.requireNonNull(historicalAwards, "historicalAwards"));
+		}
+		/** 최초 추첨처럼 비교할 과거 실행·후보·배정이 없는 경우를 표현한다. */
+		public static DrawVerification.References empty() {
+			return new DrawVerification.References(null, List.of(), List.of());
+		}
 	}
 }

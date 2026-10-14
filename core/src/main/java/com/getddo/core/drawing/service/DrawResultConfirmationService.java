@@ -3,20 +3,21 @@ package com.getddo.core.drawing.service;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationConfirmation;
 import com.getddo.core.drawing.domain.DrawPublicationRun;
 import com.getddo.core.drawing.domain.DrawResultConfirmation;
-import com.getddo.core.drawing.domain.DrawPublicationConfirmation;
-import com.getddo.core.drawing.domain.DrawPublication;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
 
 import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.*;
 
-/** 재추첨 관리자 확인과 실제 명단 반영을 원자적으로 처리한다. */
+/** 관리자의 재추첨 결과 확인을 기록하고, 공개 가능한 시점이면 명단에 반영한다. */
 @RequiredArgsConstructor
 public class DrawResultConfirmationService {
 	private final DrawPublicationRepository repository;
@@ -40,7 +41,7 @@ public class DrawResultConfirmationService {
 	public DrawPublicationConfirmation confirmBeforeInitial(UUID runId, UUID actorId) {
 		DrawPublicationRun run = authorizeAndLock(runId, actorId);
 		if (repository.findLatest(run.getEventId()).isPresent() && run.getConfirmation() == null)
-			throw new BusinessException(INVALID_PHASE);
+		throw new BusinessException(INVALID_PHASE);
 		return finish(run, actorId);
 	}
 

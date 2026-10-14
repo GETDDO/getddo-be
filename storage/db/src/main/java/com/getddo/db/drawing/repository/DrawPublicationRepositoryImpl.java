@@ -1,49 +1,47 @@
 package com.getddo.db.drawing.repository;
 
-import java.time.Instant;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.Map;
-import java.util.Set;
-import java.util.HashMap;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
-import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Repository;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.jdbc.core.RowCallbackHandler;
 
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.stereotype.Repository;
+
+import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
-
 import com.getddo.core.drawing.domain.DrawPublication;
-import com.getddo.core.drawing.domain.DrawPublicationExecution;
-import com.getddo.db.drawing.entity.DrawPublicationExecutionEntity;
-import com.getddo.core.drawing.domain.DrawPublishedSlot;
 import com.getddo.core.drawing.domain.DrawPublicationRun;
-import com.getddo.core.drawing.domain.DrawPublicationCancellation;
+import com.getddo.core.drawing.domain.DrawResult;
 import com.getddo.core.drawing.domain.DrawResultConfirmation;
 import com.getddo.core.drawing.domain.DrawRunStatus;
-import com.getddo.core.drawing.domain.DrawResult;
 import com.getddo.core.drawing.domain.DrawSelection;
 import com.getddo.core.drawing.domain.DrawSelectionResultType;
-import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
 import com.getddo.db.drawing.entity.DrawPublicationEntity;
+import com.getddo.db.drawing.entity.DrawPublicationExecutionEntity;
 import com.getddo.db.drawing.entity.DrawPublicationResultEntity;
 import com.getddo.db.drawing.entity.DrawResultConfirmationEntity;
 
-import static com.getddo.db.common.util.UuidBinary.toBytes;
-import static com.getddo.db.common.util.UuidBinary.fromBytes;
 import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PUBLICATION;
+import static com.getddo.db.common.util.UuidBinary.fromBytes;
+import static com.getddo.db.common.util.UuidBinary.toBytes;
 
 /** 공개 전용 JPA 저장. 선정·취소·재추첨 등록의 공용 파일을 변경하지 않는다. */
 @Repository
@@ -58,7 +56,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 
 	/** 취소 근거는 실행 등록 시 확정된 award_cancellations의 불변 필드를 통해 조회한다. */
 	@Override
-	public void saveExecutionEvidence(UUID publicationId, UUID eventId, List<DrawPublicationExecution> executions) {
+	public void saveExecutionEvidence(UUID publicationId, UUID eventId, List<DrawPublication.Execution> executions) {
 		if (executions.isEmpty()) return;
 		executionEvidence.saveAllAndFlush(executions.stream()
 				.map(value -> new DrawPublicationExecutionEntity(publicationId, eventId, value)).toList());
@@ -66,7 +64,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 
 	/** 고정된 버전 연결과 수정하지 않는 확인·취소 근거만 읽는다. */
 	@Override
-	public Map<UUID, List<DrawPublicationExecution>> findExecutionEvidence(Set<UUID> publicationIds) {
+	public Map<UUID, List<DrawPublication.Execution>> findExecutionEvidence(Set<UUID> publicationIds) {
 		if (publicationIds.isEmpty()) return Map.of();
 		String placeholders = String.join(",", Collections.nCopies(publicationIds.size(), "?"));
 		String sql = """
@@ -77,25 +75,26 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			where link.publication_id in (
 			""" + placeholders + ") order by link.publication_id, run.run_number";
 		List<EvidenceRow> rows = jdbc.query(sql, (row, index) -> new EvidenceRow(fromBytes(row.getBytes("publication_id")),
+
 				fromBytes(row.getBytes("draw_run_id")), fromBytes(row.getBytes("confirmation_id")),
 				fromBytes(row.getBytes("confirmed_by")), instant(row, "confirmed_at")),
 				publicationIds.stream().map(id -> toBytes(id)).toArray());
 		Set<UUID> runIds = new HashSet<>();
 		for (EvidenceRow row : rows) runIds.add(row.runId());
-		Map<UUID, List<DrawPublicationCancellation>> causes = new HashMap<>();
+		Map<UUID, List<DrawPublication.Cancellation>> causes = new HashMap<>();
 		if (!runIds.isEmpty()) {
 			String cancellationSql = "select id, draw_result_id, draw_run_id, reason from award_cancellations where draw_run_id in ("
-					+ String.join(",", Collections.nCopies(runIds.size(), "?")) + ") order by canceled_at, id";
+			+ String.join(",", Collections.nCopies(runIds.size(), "?")) + ") order by canceled_at, id";
 			jdbc.query(cancellationSql, (RowCallbackHandler) row -> {
-				UUID runId = fromBytes(row.getBytes("draw_run_id"));
-				causes.computeIfAbsent(runId, ignored -> new ArrayList<>()).add(new DrawPublicationCancellation(
+						UUID runId = fromBytes(row.getBytes("draw_run_id"));
+						causes.computeIfAbsent(runId, ignored -> new ArrayList<>()).add(new DrawPublication.Cancellation(
 						fromBytes(row.getBytes("id")), fromBytes(row.getBytes("draw_result_id")), runId, row.getString("reason")));
-			}, runIds.stream().map(id -> toBytes(id)).toArray());
+					}, runIds.stream().map(id -> toBytes(id)).toArray());
 		}
-		Map<UUID, List<DrawPublicationExecution>> loaded = new HashMap<>();
+		Map<UUID, List<DrawPublication.Execution>> loaded = new HashMap<>();
 		for (EvidenceRow row : rows) loaded.computeIfAbsent(row.publicationId(), ignored -> new ArrayList<>()).add(
-				new DrawPublicationExecution(row.runId(), row.confirmationId(), row.confirmedBy(), row.confirmedAt(),
-						causes.getOrDefault(row.runId(), List.of())));
+				new DrawPublication.Execution(row.runId(), row.confirmationId(), row.confirmedBy(), row.confirmedAt(),
+				causes.getOrDefault(row.runId(), List.of())));
 
 		return immutableCopy(loaded);
 	}
@@ -107,7 +106,9 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		return Map.copyOf(immutable);
 	}
 
-	private record EvidenceRow(UUID publicationId, UUID runId, UUID confirmationId, UUID confirmedBy, Instant confirmedAt) { }
+	private record EvidenceRow(UUID publicationId, UUID runId, UUID confirmationId,
+			UUID confirmedBy, Instant confirmedAt) {
+	}
 
 	/** 이벤트의 가장 높은 버전인 실제 공개 기록을 조회한다. */
 	@Override
@@ -152,17 +153,20 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	/** 이벤트 식별자의 저장 여부를 확인한다. */
 	@Override
 	public boolean eventExists(UUID eventId) {
-		Integer exists = jdbc.queryForObject("select exists(select 1 from events where id = ?)", Integer.class, toBytes(eventId));
+		Integer exists = jdbc.queryForObject("select exists(select 1 from events where id = ?)",
+				Integer.class, toBytes(eventId));
 		return exists != null && exists == 1;
 	}
 
 	/** 결과가 현재 취소됐는지와 무관하게 과거 공개 포함 기록의 존재를 확인한다. */
 	@Override
-	public boolean wasPublished(UUID resultId) { return entries.existsByIdResultId(resultId); }
+	public boolean wasPublished(UUID resultId) {
+		return entries.existsByIdResultId(resultId);
+	}
 
 	/** 실제 포함 결과만 조인한다. 취소 여부·현재 유효 배정을 과거 공개 여부로 해석하지 않는다. */
 	@Override
-	public List<DrawPublishedSlot> findPublishedSlots(UUID publicationId) {
+	public List<DrawPublication.Slot> findPublishedSlots(UUID publicationId) {
 		return jdbc.query("""
 			select r.event_prize_id, r.slot_number, r.id, participant.user_id
 			from draw_publication_results published join draw_results r on r.id = published.draw_result_id
@@ -170,16 +174,16 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			join event_participants participant on participant.id = candidate.participant_id
 			where published.publication_id = ?
 			order by r.event_prize_id, r.slot_number
-			""", (row, index) -> new DrawPublishedSlot(fromBytes(row.getBytes("event_prize_id")),
-				row.getInt("slot_number"), fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id"))),
-				toBytes(publicationId));
+			""", (row, index) -> new DrawPublication.Slot(fromBytes(row.getBytes("event_prize_id")),
+		row.getInt("slot_number"), fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id"))),
+		toBytes(publicationId));
 	}
 
 	/** 페이지의 포함 결과와 경계 이전 버전을 한 번에 조회한다. UUID 값은 모두 바인딩한다. */
 	@Override
-	public Map<UUID, List<DrawPublishedSlot>> findPublishedSlots(Set<UUID> publicationIds) {
+	public Map<UUID, List<DrawPublication.Slot>> findPublishedSlots(Set<UUID> publicationIds) {
 		if (publicationIds.isEmpty()) return Map.of();
-		Map<UUID, List<DrawPublishedSlot>> loaded = new HashMap<>();
+		Map<UUID, List<DrawPublication.Slot>> loaded = new HashMap<>();
 		for (UUID id : publicationIds) loaded.put(id, new ArrayList<>());
 		String placeholders = String.join(",", Collections.nCopies(publicationIds.size(), "?"));
 		String sql = """
@@ -190,9 +194,9 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			where published.publication_id in (
 			""" + placeholders + ") order by published.publication_id, r.event_prize_id, r.slot_number";
 		jdbc.query(sql, (RowCallbackHandler) row -> loaded.get(fromBytes(row.getBytes("publication_id"))).add(
-				new DrawPublishedSlot(fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number"),
-						fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")))),
-				publicationIds.stream().map(id -> toBytes(id)).toArray());
+		new DrawPublication.Slot(fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number"),
+				fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")))),
+		publicationIds.stream().map(id -> toBytes(id)).toArray());
 		return immutableCopy(loaded);
 	}
 
@@ -212,7 +216,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	@Override
 	public Optional<UUID> findEventId(UUID runId) {
 		return jdbc.query("select event_id from draw_runs where id = ?",
-				(row, index) -> fromBytes(row.getBytes("event_id")), toBytes(runId)).stream().findFirst();
+		(row, index) -> fromBytes(row.getBytes("event_id")), toBytes(runId)).stream().findFirst();
 	}
 
 	/** 이벤트의 재추첨 실행과 결과·관리자 확인을 일괄 조회해 실행 ID로 연결한다. */
@@ -222,7 +226,8 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			select id, event_id, run_number, status, confirmed_at from draw_runs
 			where event_id = ? and draw_type = 'REPLACEMENT' order by run_number
 			""", (row, index) -> new ReplacementRunRow(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("event_id")),
-					row.getInt("run_number"), DrawRunStatus.valueOf(row.getString("status")), instant(row, "confirmed_at")), toBytes(eventId));
+		row.getInt("run_number"), DrawRunStatus.valueOf(row.getString("status")), instant(row,
+		"confirmed_at")), toBytes(eventId));
 		if (runs.isEmpty()) return List.of();
 		Set<UUID> runIds = new HashSet<>();
 		for (ReplacementRunRow run : runs) runIds.add(run.id());
@@ -233,30 +238,31 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 			checked.put(value.getRunId(), value);
 		}
 		return runs.stream().map(run -> new DrawPublicationRun(run.id(), run.eventId(), run.number(), run.status(),
-				run.confirmedAt(), results.getOrDefault(run.id(), List.of()), checked.get(run.id()))).toList();
+		run.confirmedAt(), results.getOrDefault(run.id(), List.of()), checked.get(run.id()))).toList();
 	}
 
 	/** JDBC 조회의 실행 메타데이터. 확정 결과·확인 기록은 실행 ID로 일괄 결합한다. */
-	private record ReplacementRunRow(UUID id, UUID eventId, int number, DrawRunStatus status, Instant confirmedAt) { }
+	private record ReplacementRunRow(UUID id, UUID eventId, int number, DrawRunStatus status, Instant confirmedAt) {
+	}
 
 	/** 이벤트의 기존 결과에 연결된 취소 사유와 재추첨 실행 참조를 조회한다. */
 	@Override
-	public List<DrawPublicationCancellation> findCancellations(UUID eventId) {
+	public List<DrawPublication.Cancellation> findCancellations(UUID eventId) {
 		return jdbc.query("""
 			select c.id, c.draw_result_id, c.draw_run_id, c.reason from award_cancellations c
 			join draw_results result on result.id = c.draw_result_id
 			join draw_runs origin on origin.id = result.draw_run_id
 			where origin.event_id = ? order by c.canceled_at, c.id
-			""", (row, index) -> new DrawPublicationCancellation(fromBytes(row.getBytes("id")),
-				fromBytes(row.getBytes("draw_result_id")), nullableUuid(row, "draw_run_id"), row.getString("reason")),
-				toBytes(eventId));
+			""", (row, index) -> new DrawPublication.Cancellation(fromBytes(row.getBytes("id")),
+		fromBytes(row.getBytes("draw_result_id")), nullableUuid(row, "draw_run_id"), row.getString("reason")),
+		toBytes(eventId));
 	}
 
 	/** 이벤트 선잠금 안에서만 호출한다. UNIQUE와 서비스의 재조회로 확인자를 덮어쓰지 않는다. */
 	@Override
 	public DrawResultConfirmation saveConfirmation(UUID runId, UUID actorId, Instant confirmedAt) {
 		DrawResultConfirmationEntity saved = confirmations.saveAndFlush(
-				new DrawResultConfirmationEntity(runId, actorId, confirmedAt));
+		new DrawResultConfirmationEntity(runId, actorId, confirmedAt));
 		UUID id = saved.getId();
 		entityManager.detach(saved);
 		return confirmations.findById(id).orElseThrow().toDomain();
@@ -265,11 +271,11 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 	/** 공개 메타데이터와 포함 결과를 저장하고 재조회한 실제 공개 버전을 반환한다. */
 	@Override
 	public DrawPublication savePublication(UUID eventId, UUID sourceRunId, int revision, String reason,
-			DrawResultConfirmation confirmation, List<DrawPublication.Entry> included, Instant publishedAt) {
+	DrawResultConfirmation confirmation, List<DrawPublication.Entry> included, Instant publishedAt) {
 		included = DrawPublication.validatedEntries(included);
 		DrawPublicationEntity publication = new DrawPublicationEntity(eventId, sourceRunId, revision, reason,
-				confirmation == null ? null : confirmation.getConfirmedBy(),
-				confirmation == null ? null : confirmation.getConfirmedAt(), publishedAt);
+		confirmation == null ? null : confirmation.getConfirmedBy(),
+		confirmation == null ? null : confirmation.getConfirmedAt(), publishedAt);
 		DrawPublicationEntity saved = publications.saveAndFlush(publication);
 		entries.saveAllAndFlush(included.stream()
 				.map(entry -> new DrawPublicationResultEntity(saved.getId(), eventId, entry)).toList());
@@ -312,8 +318,8 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		}
 		Integer order = row.getObject("selection_order", Integer.class);
 		DrawSelection selection = new DrawSelection(fromBytes(row.getBytes("event_prize_id")),
-				row.getInt("prize_rank"), row.getInt("slot_number"), order, nullableUuid(row, "candidate_id"),
-				nullableUuid(row, "user_id"), type);
+		row.getInt("prize_rank"), row.getInt("slot_number"), order, nullableUuid(row, "candidate_id"),
+		nullableUuid(row, "user_id"), type);
 		return new DrawResult(fromBytes(row.getBytes("id")), selection, instant(row, "created_at"));
 	}
 
@@ -322,6 +328,7 @@ public class DrawPublicationRepositoryImpl implements DrawPublicationRepository 
 		byte[] bytes = row.getBytes(column);
 		return bytes == null ? null : fromBytes(bytes);
 	}
+
 	/** DB 시각을 UTC Instant로 변환하며 SQL NULL은 그대로 유지한다. */
 	private static Instant instant(ResultSet row, String column) throws SQLException {
 		java.time.LocalDateTime value = row.getObject(column, java.time.LocalDateTime.class);

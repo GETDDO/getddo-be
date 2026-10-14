@@ -1,5 +1,13 @@
 package com.getddo.core.drawing.service;
 
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationType;
+import com.getddo.core.drawing.repository.DrawPublicationNotificationRepository;
+import com.getddo.core.drawing.repository.DrawPublicationRepository;
+import com.getddo.core.notification.domain.NotificationJobRequest;
+import com.getddo.core.notification.domain.NotificationType;
+import com.getddo.core.notification.service.NotificationJobService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -9,22 +17,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.TransactionInterceptor;
-import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
-import org.springframework.transaction.TransactionDefinition;
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
-import com.getddo.core.notification.domain.NotificationJobRequest;
-import com.getddo.core.notification.domain.NotificationType;
-import com.getddo.core.notification.service.NotificationJobService;
 import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PUBLICATION;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /** 기존 알림 등록 입력과 추첨 공개 트랜잭션 경계를 검증한다. */
 class DrawPublicationNotificationServiceTest {
@@ -62,13 +64,13 @@ class DrawPublicationNotificationServiceTest {
 		// given
 		DrawPublication previous = publication(1), current = publication(2);
 		UUID canceled = UUID.randomUUID(), winner = UUID.randomUUID(), retained = UUID.randomUUID();
-		DrawPublishedSlot keep = new DrawPublishedSlot(prize, 2, UUID.randomUUID(), retained);
+		DrawPublication.Slot keep = new DrawPublication.Slot(prize, 2, UUID.randomUUID(), retained);
 		when(publications.findPrevious(event, 2)).thenReturn(Optional.of(previous));
 		when(publications.findPublishedSlots(previous.getId())).thenReturn(List.of(
-				new DrawPublishedSlot(prize, 1, UUID.randomUUID(), canceled), keep,
-				new DrawPublishedSlot(prize, 3, UUID.randomUUID(), canceled)));
+				new DrawPublication.Slot(prize, 1, UUID.randomUUID(), canceled), keep,
+				new DrawPublication.Slot(prize, 3, UUID.randomUUID(), canceled)));
 		when(publications.findPublishedSlots(current.getId())).thenReturn(List.of(
-				new DrawPublishedSlot(prize, 1, UUID.randomUUID(), winner), keep));
+				new DrawPublication.Slot(prize, 1, UUID.randomUUID(), winner), keep));
 		// when
 		service.register(current);
 		// then

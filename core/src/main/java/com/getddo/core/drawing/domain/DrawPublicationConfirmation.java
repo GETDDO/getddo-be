@@ -1,7 +1,7 @@
 package com.getddo.core.drawing.domain;
 
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
 
 import lombok.Getter;
 
@@ -17,7 +17,7 @@ public final class DrawPublicationConfirmation {
 		this.eventId = Objects.requireNonNull(eventId, "eventId");
 		this.confirmation = Objects.requireNonNull(confirmation, "confirmation");
 		if (publication != null && !eventId.equals(publication.getEventId()))
-			throw new IllegalArgumentException("publication belongs to another event");
+		throw new IllegalArgumentException("publication belongs to another event");
 		this.publication = publication;
 	}
 }

@@ -2,6 +2,7 @@ package com.getddo.db.drawing.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
+
 import com.getddo.core.drawing.domain.DrawFailure;
 import com.getddo.db.drawing.entity.DrawFailureEntity;
 

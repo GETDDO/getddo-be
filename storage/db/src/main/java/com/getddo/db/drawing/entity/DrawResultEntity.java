@@ -1,7 +1,7 @@
 package com.getddo.db.drawing.entity;
 
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,9 +14,11 @@ import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.Immutable;
 
 import com.getddo.core.drawing.domain.DrawSelection;
@@ -28,11 +30,19 @@ import com.getddo.db.common.entity.BaseEntity;
 @Entity
 @Immutable
 @Table(name = "draw_results", uniqueConstraints = {
-		@UniqueConstraint(name = "uq_draw_results_run", columnNames = {"id", "draw_run_id"}),
-		@UniqueConstraint(name = "uq_draw_results_1", columnNames = {"draw_run_id", "event_prize_id", "slot_number"}),
-		@UniqueConstraint(name = "uq_draw_results_2", columnNames = {"draw_run_id", "candidate_id"}),
-		@UniqueConstraint(name = "uq_draw_results_3", columnNames = {"draw_run_id", "selection_order"})
-})
+			@UniqueConstraint(name = "uq_draw_results_run", columnNames = {
+				"id", "draw_run_id"
+			}),
+			@UniqueConstraint(name = "uq_draw_results_1", columnNames = {
+				"draw_run_id", "event_prize_id", "slot_number"
+			}),
+			@UniqueConstraint(name = "uq_draw_results_2", columnNames = {
+				"draw_run_id", "candidate_id"
+			}),
+			@UniqueConstraint(name = "uq_draw_results_3", columnNames = {
+				"draw_run_id", "selection_order"
+			})
+		})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DrawResultEntity extends BaseEntity {
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -55,9 +65,9 @@ public class DrawResultEntity extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumns(value = {
-			@JoinColumn(name = "draw_run_id", referencedColumnName = "draw_run_id", insertable = false, updatable = false),
-			@JoinColumn(name = "candidate_id", referencedColumnName = "candidate_id", insertable = false, updatable = false)
-	}, foreignKey = @ForeignKey(name = "fk_draw_results_3"))
+				@JoinColumn(name = "draw_run_id", referencedColumnName = "draw_run_id", insertable = false, updatable = false),
+				@JoinColumn(name = "candidate_id", referencedColumnName = "candidate_id", insertable = false, updatable = false)
+			}, foreignKey = @ForeignKey(name = "fk_draw_results_3"))
 	private DrawRunCandidateEntity runCandidate;
 
 	@Column(name = "selection_order", updatable = false)

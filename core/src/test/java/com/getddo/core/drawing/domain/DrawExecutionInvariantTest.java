@@ -1,11 +1,12 @@
 package com.getddo.core.drawing.domain;
 
+import com.getddo.core.drawing.exception.DrawingErrorCode;
+import com.getddo.core.drawing.service.DrawExecutionControlService;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import com.getddo.core.drawing.exception.DrawingErrorCode;
 import static org.assertj.core.api.Assertions.*;
 
 class DrawExecutionInvariantTest {
@@ -18,9 +19,9 @@ class DrawExecutionInvariantTest {
 		// given
 		DrawExecutionState state = state(DrawRunStatus.READY, token, null, now);
 		// when / then
-		assertThatNullPointerException().isThrownBy(() -> new DrawExecutionClaim(null, false));
-		assertThatIllegalArgumentException().isThrownBy(() -> new DrawExecutionClaim(state, true, DrawingErrorCode.INVALID_RUN));
-		assertThat(new DrawExecutionClaim(state, false, DrawingErrorCode.INVALID_RUN).isClaimed()).isFalse();
+		assertThatNullPointerException().isThrownBy(() -> new DrawExecutionControlService.Claim(null, false));
+		assertThatIllegalArgumentException().isThrownBy(() -> new DrawExecutionControlService.Claim(state, true, DrawingErrorCode.INVALID_RUN));
+		assertThat(new DrawExecutionControlService.Claim(state, false, DrawingErrorCode.INVALID_RUN).isClaimed()).isFalse();
 	}
 
 	/** 다음 동작을 검증한다: DB CHECK와 다른 소유권·예약 조합을 생성할 수 없다. */

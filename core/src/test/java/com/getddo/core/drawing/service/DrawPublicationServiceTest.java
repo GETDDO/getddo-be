@@ -1,28 +1,37 @@
 package com.getddo.core.drawing.service;
 
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.DrawConfirmation;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationChange;
+import com.getddo.core.drawing.domain.DrawPublicationRun;
+import com.getddo.core.drawing.domain.DrawPublicationType;
+import com.getddo.core.drawing.domain.DrawResult;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSelection;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
+import com.getddo.core.drawing.repository.DrawPublicationRepository;
+import com.getddo.core.drawing.repository.DrawResultRepository;
+import com.getddo.core.drawing.repository.DrawSnapshotRepository;
+import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.domain.EventType;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
-
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
-import com.getddo.core.event.domain.EventStatus;
-import com.getddo.core.event.domain.EventType;
-
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -116,7 +125,7 @@ class DrawPublicationServiceTest {
 		UUID replacement = UUID.randomUUID();
 		when(publications.findReplacementRuns(eventId)).thenReturn(List.of(new DrawPublicationRun(replacement,
 				eventId, 1, DrawRunStatus.PREPARING, null, List.of(), null)));
-		when(publications.findCancellations(eventId)).thenReturn(List.of(new DrawPublicationCancellation(
+		when(publications.findCancellations(eventId)).thenReturn(List.of(new DrawPublication.Cancellation(
 				UUID.randomUUID(), resultId, replacement, "취소 사유")));
 		// when / then
 		assertThat(service.publishInitial(eventId)).isEmpty();
@@ -195,8 +204,8 @@ class DrawPublicationServiceTest {
 		DrawPublication update = new DrawPublication(UUID.randomUUID(), eventId, replacementRun, 2,
 				DrawPublicationType.UPDATE, "변경 사유", UUID.randomUUID(), NOW.minusSeconds(1), NOW,
 				List.of(new DrawPublication.Entry(replacementResult, replacementRun, confirmationId)));
-		DrawPublishedSlot before = new DrawPublishedSlot(prizeId, 1, resultId, userId);
-		DrawPublishedSlot after = new DrawPublishedSlot(prizeId, 1, replacementResult, replacementUser);
+		DrawPublication.Slot before = new DrawPublication.Slot(prizeId, 1, resultId, userId);
+		DrawPublication.Slot after = new DrawPublication.Slot(prizeId, 1, replacementResult, replacementUser);
 		when(publications.findHistory(eventId)).thenReturn(List.of(initial, update));
 		Set<UUID> ids = Set.of(initial.getId(), update.getId());
 		when(publications.findPublishedSlots(ids)).thenReturn(Map.of(initial.getId(), List.of(before), update.getId(), List.of(after)));

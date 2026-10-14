@@ -1,13 +1,12 @@
 package com.getddo.core.drawing.domain;
 
+import com.getddo.core.drawing.service.DrawPublicationAssembler;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.*;
 
 /** 공개 모델의 불변 조건을 검증한다. 취소·재추첨의 실제 연동 검증은 아니다. */
@@ -104,26 +103,26 @@ class DrawPublicationTest {
 				NOW, List.of(), null)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new DrawPublicationRun(initialRun, eventId, 1, DrawRunStatus.CONFIRMED,
 				NOW, List.of(), confirmation)).isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new DrawPublicationCancellation(null, UUID.randomUUID(), null, "사유"))
+		assertThatThrownBy(() -> new DrawPublication.Cancellation(null, UUID.randomUUID(), null, "사유"))
 				.isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new DrawPublicationCancellation(UUID.randomUUID(), null, null, "사유"))
+		assertThatThrownBy(() -> new DrawPublication.Cancellation(UUID.randomUUID(), null, null, "사유"))
 				.isInstanceOf(NullPointerException.class);
-		assertThat(new DrawPublicationCancellation(UUID.randomUUID(), UUID.randomUUID(), null, "사유").getReplacementRunId()).isNull();
+		assertThat(new DrawPublication.Cancellation(UUID.randomUUID(), UUID.randomUUID(), null, "사유").getReplacementRunId()).isNull();
 		assertThatThrownBy(() -> new DrawPublicationChange(null, List.of())).isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationChange.SlotChange(UUID.randomUUID(), 0, null, null, null, null))
 				.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new DrawPublicationChange.SlotChange(null, 1, null, null, null, null))
 				.isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new DrawPublicationComposition(false, null, null, null, List.of()))
+		assertThatThrownBy(() -> new DrawPublicationAssembler.Composition(false, null, null, null, List.of()))
 				.isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new DrawPublicationConfirmation(eventId, null, null)).isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 0, UUID.randomUUID(), UUID.randomUUID()))
+		assertThatThrownBy(() -> new DrawPublication.Slot(UUID.randomUUID(), 0, UUID.randomUUID(), UUID.randomUUID()))
 				.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 1, UUID.randomUUID(), null))
+		assertThatThrownBy(() -> new DrawPublication.Slot(UUID.randomUUID(), 1, UUID.randomUUID(), null))
 				.isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new DrawPublishedSlot(null, 1, UUID.randomUUID(), UUID.randomUUID()))
+		assertThatThrownBy(() -> new DrawPublication.Slot(null, 1, UUID.randomUUID(), UUID.randomUUID()))
 				.isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new DrawPublishedSlot(UUID.randomUUID(), 1, null, UUID.randomUUID()))
+		assertThatThrownBy(() -> new DrawPublication.Slot(UUID.randomUUID(), 1, null, UUID.randomUUID()))
 				.isInstanceOf(NullPointerException.class);
 	}
 }

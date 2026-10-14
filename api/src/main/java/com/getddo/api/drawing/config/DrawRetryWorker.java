@@ -1,12 +1,15 @@
 package com.getddo.api.drawing.config;
 
 import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
+
 import com.getddo.core.drawing.service.DrawExecutionControlService;
 import com.getddo.core.drawing.service.DrawExecutionService;
 
@@ -24,9 +27,14 @@ public class DrawRetryWorker {
 	public void poll() {
 		try {
 			for (UUID runId : control.findDue()) {
-				try { executions.execute(runId); }
-				catch (RuntimeException failure) { log.warn("Draw retry deferred: runId={}", runId); }
+				try {
+					executions.execute(runId);
+				} catch (RuntimeException failure) {
+					log.warn("Draw retry deferred: runId={}", runId);
+				}
 			}
-		} catch (RuntimeException failure) { log.warn("Draw retry polling unavailable"); }
+		} catch (RuntimeException failure) {
+			log.warn("Draw retry polling unavailable");
+		}
 	}
 }
