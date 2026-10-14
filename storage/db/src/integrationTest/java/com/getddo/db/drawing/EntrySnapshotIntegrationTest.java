@@ -6,7 +6,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -26,15 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.SpringBootConfiguration;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.FilterType;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -42,7 +33,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.mysql.MySQLContainer;
 
-import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawSnapshotSource;
@@ -54,15 +44,11 @@ import com.getddo.core.entry.exception.EntryException;
 import com.getddo.core.entry.service.EntryService;
 import com.getddo.core.ticket.domain.TicketGrade;
 import com.getddo.core.user.domain.Membership;
-import com.getddo.db.common.config.JpaAuditingConfig;
-import com.getddo.db.drawing.mapper.DrawSnapshotMapper;
-import com.getddo.db.drawing.repository.DrawSnapshotRepositoryImpl;
 import com.getddo.db.drawing.repository.DrawSnapshotSourceReader;
 import com.getddo.db.entry.repository.EntryParticipantRepositoryImpl;
-import com.getddo.db.support.MySqlTestConfiguration;
 import com.getddo.db.ticket.MutableClock;
+import com.getddo.db.support.EntrySnapshotTestApplication;
 import com.getddo.db.ticket.TicketGrantSeeds;
-import com.getddo.db.ticket.TicketIntegrationTestApplication;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -74,10 +60,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 
 /** 실제 응모·차감·원장과 스냅샷의 커밋, 롤백 및 이벤트 잠금 경계를 MySQL에서 검증한다. */
-@SpringBootTest(classes = EntrySnapshotIntegrationTest.TestApplication.class,
+@SpringBootTest(classes = EntrySnapshotTestApplication.class,
 		properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.properties.hibernate.jdbc.time_zone=UTC"})
 class EntrySnapshotIntegrationTest {
-	private static final Instant NOW = Instant.parse("2026-09-15T03:00:00Z");
+	private static final Instant NOW = EntrySnapshotTestApplication.INITIAL_TIME;
 	private static final Instant END = NOW.plusSeconds(60);
 	@Autowired private EntityManager entityManager;
 	@Autowired private EntryService entries;
@@ -551,18 +537,4 @@ class EntrySnapshotIntegrationTest {
 		if (!latch.await(20, TimeUnit.SECONDS)) throw new AssertionError("서비스 경계 동기화 시간 초과");
 	}
 
-	@SpringBootConfiguration
-	@EnableAutoConfiguration
-	@ComponentScan(basePackages = {"com.getddo.core.ticket", "com.getddo.db.ticket",
-			"com.getddo.core.entry", "com.getddo.db.entry"},
-			excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE,
-					classes = TicketIntegrationTestApplication.class))
-	@EntityScan(basePackages = {"com.getddo.db.ticket", "com.getddo.db.entry", "com.getddo.db.drawing.entity"})
-	@EnableJpaRepositories(basePackages = {"com.getddo.db.ticket", "com.getddo.db.entry", "com.getddo.db.drawing.repository"})
-	@Import({JpaAuditingConfig.class, MySqlTestConfiguration.class, DrawSnapshotService.class,
-			DrawSnapshotRepositoryImpl.class, DrawSnapshotSourceReader.class, DrawSnapshotMapper.class})
-	static class TestApplication {
-		@Bean MutableClock clock() { return new MutableClock(NOW); }
-		@Bean TimeProvider timeProvider(Clock clock) { return new TimeProvider(clock); }
-	}
 }
