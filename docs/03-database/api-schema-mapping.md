@@ -50,7 +50,7 @@
 
 ## 미션 모델·저장소 현행 매핑 (GD-167)
 
-미션 제출 API(M03)는 구현되어 있고, 조회(M01·M02·M04)와 관리자(AM01~AM03) API는 아직 없다. 모두 `V003` 테이블을 쓰고, 미션 제출은 V025가 추가한 `mission_submissions.request_hash` 컬럼도 쓴다.
+미션 제출(M03)과 목록·상세 조회(M01·M02) API는 구현되어 있고, 내 제출 조회(M04)와 관리자(AM01~AM03) API는 아직 없다. 모두 `V003` 테이블을 쓰고, 미션 제출은 V025가 추가한 `mission_submissions.request_hash` 컬럼도 쓴다.
 
 | 도메인 객체 | 테이블 | 저장소 | 비고 |
 | --- | --- | --- | --- |
@@ -58,6 +58,17 @@
 | `MissionSubmission` + 답변 | `mission_submissions`, `quiz_answers`, `survey_answers` | `MissionSubmissionRepository` | 제출 시각은 서버가 저장한 시각(`created_at`)이다. 답변의 `mission_id`는 복합 외래 키가 제출·문항의 소속 미션을 맞춘다. |
 | `QuizQuestionProgress` | `quiz_question_progress` | `QuizQuestionProgressRepository` | 사용자·문항 단위로 정답 완료를 한 번만 기록한다. |
 | `MissionRewardClaim` | `mission_reward_claims` | `MissionRewardClaimRepository` | 사용자·미션 단위로 한 번만 청구한다. 응모권은 1장으로 고정이다. |
+
+### 미션 조회 API 현행 매핑 (GD-174)
+
+| API | 경로 | 테이블 | 접근 |
+| --- | --- | --- | --- |
+| M01 목록 | `GET /api/v1/missions` | `missions` | 읽기만 한다. `missionType` 조건만 적용하고 상태·기간으로 거르지 않아 `ACTIVE`·`ENDED` 미션을 모두 시작 시각 내림차순(같으면 ID 내림차순)으로 돌려준다. `page`는 1부터, `size`는 1~100(기본 20)이다. |
+| M01 목록 | 같음 | `mission_submissions` | 페이지의 미션 ID만 모아 사용자의 완료 제출이 있는 미션을 한 번에 조회해 `completed`를 만든다. |
+| M02 상세 | `GET /api/v1/missions/{missionId}` | `missions`, 문항·선택지 테이블 | 읽기만 한다. 문항과 선택지는 표시 순서이며 없는 미션은 404 `MISSION-003`이다. 응답에는 정답(`correctAnswer`, 선택지의 정답 여부)을 싣지 않는다. |
+| M02 상세 | 같음 | `mission_submissions` | 사용자의 완료 제출이 있으면 `completed=true`이다. |
+
+`rewardTicketCount`는 미션 보상이 항상 응모권 1장이라 1로 고정이며 지급 등급은 완료할 때 정해진다. `imageUrl`은 이미지 저장소가 정해지기 전이라 이벤트 조회와 같이 null이다. 퀴즈 문항의 `required`는 모든 문항을 맞혀야 완료하므로 항상 true이다.
 
 ### 미션 제출 API 현행 매핑 (GD-175)
 
@@ -84,7 +95,7 @@
 | D06 | `current_awards`는 현재 당첨 배정이고 공개 revision별 스냅샷 테이블은 없음 | 재추첨 실행 중의 새 배정과 기존 공개 명단을 구분해야 함. `current_awards`를 그대로 공개 조회하지 않고 publication 상태·변경 이력과 일치시키는 설계 필요 |
 | D07 | `game_reward_claims`는 사용자·source_key 및 사용자·게임·보상일 UNIQUE를 모두 가짐 | 현재 원격 `dev`에 추가된 사용자·게임·보상일 UNIQUE를 기준으로 중복 지급을 검증 |
 | D08 | `reward_policies`에 게임별 보상 조건 JSON 또는 검증 버전 필드는 없음. `games.rules`는 현재 게임 규칙 | 다음 일일 기준일 적용이 필요한 게임 보상 조건의 버전·예약 저장 구조 설계 필요 |
-| D09 | 업무 Controller·DTO와 사용자 문맥 필터가 기능별로 구현되어 있다(출석, 응모, 응모권 조회, 이벤트 조회·등록, 알림, 추첨 등). 미션은 제출(M03)만 구현되어 있고 조회(M01·M02·M04)와 관리자(AM01~AM03) API는 없다 | 본 문서의 API 중 구현되지 않은 것은 호출할 수 없다. 구현된 API는 Swagger와 공용 계약을 대조한다 |
+| D09 | 업무 Controller·DTO와 사용자 문맥 필터가 기능별로 구현되어 있다(출석, 응모, 응모권 조회, 이벤트 조회·등록, 알림, 추첨 등). 미션은 제출(M03)과 목록·상세 조회(M01·M02)가 구현되어 있고 내 제출 조회(M04)와 관리자(AM01~AM03) API는 없다 | 본 문서의 API 중 구현되지 않은 것은 호출할 수 없다. 구현된 API는 Swagger와 공용 계약을 대조한다 |
 | D10 | `missions.status`는 `ACTIVE`/`ENDED` 두 값뿐이다(API 초안의 `DRAFT`는 스키마에 없음). 문항별 `quiz_question_progress` 존재 | 시작 전 초안 상태를 쓰려면 새 마이그레이션이 필요하다. 상태 전환·다문항 누적 달성 정책은 테이블에서 역으로 확정하지 않음 |
 | D11 | 응모권 지급 원장은 `tickets`·`ticket_histories`이며 지급 수량은 1 이상이다. 출석 단계 정책은 보상 0을 허용 | 보상 정책의 수량과 실제 지급을 구분. 지급량 0 허용 범위와 응답 계약 확인 필요 |
 
