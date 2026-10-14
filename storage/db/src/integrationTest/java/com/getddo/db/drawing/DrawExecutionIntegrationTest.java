@@ -19,6 +19,8 @@ import com.getddo.core.drawing.service.DrawExecutionControlService;
 import com.getddo.core.drawing.service.DrawExecutionService;
 import com.getddo.core.drawing.service.DrawSnapshotService;
 import com.getddo.core.drawing.service.DrawingSelectionService;
+import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.service.EventStatusChangeService;
 import com.getddo.db.drawing.entity.DrawRunEntity;
 import com.getddo.db.drawing.repository.DrawResultJpaRepository;
 import com.getddo.db.drawing.repository.DrawRunJpaRepository;
@@ -26,6 +28,7 @@ import com.getddo.db.ticket.MutableClock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -47,9 +50,18 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.NOT_EXECUTABLE;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = DrawSnapshotIntegrationTest.TestApplication.class,
 		properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.properties.hibernate.jdbc.time_zone=UTC"})
@@ -67,6 +79,7 @@ class DrawExecutionIntegrationTest {
 	@Autowired private MutableClock clock;
 	@MockitoSpyBean private DrawResultJpaRepository results;
 	@MockitoSpyBean private DrawingSelectionService selection;
+	@MockitoSpyBean private EventStatusChangeService eventStatuses;
 	private UUID eventId, prizeId, adminId;
 
 	/** 임시 MySQL에 최초 실행용 관리자·이벤트·경품을 준비하고 고정 시각과 대역 호출 이력을 초기화한다. */
@@ -82,6 +95,117 @@ class DrawExecutionIntegrationTest {
 			insert into event_prizes (id, event_id, prize_rank, name, winner_count, created_at, updated_at)
 			values (?, ?, 1, '경품', 3, ?, ?)
 			""", toBytes(prizeId), toBytes(eventId), utc(NOW), utc(NOW));
+	}
+
+	@Test @DisplayName("마감 5분 경계와 취소·삭제·등록 여부를 조회에서 구분한다")
+	void pollsOnlyUnregisteredEligibleEvents() {
+		// given
+		jdbc.update("update events set ends_at = ? where id = ?", utc(NOW.minusSeconds(600)), toBytes(eventId));
+		clock.set(NOW.minusSeconds(300).minusNanos(1000));
+		// when / then
+		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+		clock.set(NOW.minusSeconds(300));
+		assertThat(snapshots.findInitialDue()).contains(eventId);
+		jdbc.update("update events set status = 'CANCELED' where id = ?", toBytes(eventId));
+		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+		assertThatThrownBy(() -> snapshots.registerInitial(eventId)).isInstanceOf(BusinessException.class);
+		jdbc.update("update events set status = 'OPEN', deleted_at = ? where id = ?", utc(NOW), toBytes(eventId));
+		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+		assertThatThrownBy(() -> snapshots.registerInitial(eventId)).isInstanceOf(BusinessException.class);
+		jdbc.update("update events set deleted_at = null where id = ?", toBytes(eventId));
+		UUID runId = snapshots.registerInitial(eventId);
+		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+		assertThat(control.findDue()).contains(runId);
+	}
+
+	@Test @DisplayName("동시 최초 등록은 하나의 실행을 만들고 등록 후 중단은 같은 실행으로 복구한다")
+	void concurrentRegistrationAndRecovery() throws Exception {
+		// given
+		participant(user("USER"));
+		CountDownLatch start = new CountDownLatch(1);
+		try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
+			Future<UUID> first = pool.submit(() -> { start.await(); return snapshots.registerInitial(eventId); });
+			Future<UUID> second = pool.submit(() -> { start.await(); return snapshots.registerInitial(eventId); });
+			// when
+			start.countDown();
+			UUID runId = first.get(15, TimeUnit.SECONDS);
+			// then
+			assertThat(second.get(15, TimeUnit.SECONDS)).isEqualTo(runId);
+			assertThat(control.findDue()).contains(runId);
+			assertThat(executions.execute(runId).getStatus()).isEqualTo(DrawRunStatus.CONFIRMED);
+			assertThat(jdbc.queryForObject("select status from events where id = ?", String.class, toBytes(eventId)))
+					.isEqualTo("DRAW_CONFIRMED");
+			List<DrawResult> stored = confirmation.confirm(runId).getResults();
+			assertThat(executions.execute(runId).getConfirmation().getResults()).extracting(DrawResult::getId)
+					.containsExactlyElementsOf(stored.stream().map(DrawResult::getId).toList());
+			assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+			assertThat(control.findDue()).doesNotContain(runId);
+			assertThat(jdbc.queryForObject("select count(*) from draw_runs where event_id = ?", Long.class, toBytes(eventId)))
+					.isEqualTo(1);
+			assertThat(jdbc.queryForObject("select count(*) from draw_publications where event_id = ?", Long.class, toBytes(eventId)))
+					.isZero();
+			assertThat(jdbc.queryForObject("select count(*) from notification_jobs where event_id = ?", Long.class, toBytes(eventId)))
+					.isZero();
+		}
+	}
+
+	@Test @DisplayName("응모자 없음 종료는 이벤트와 함께 커밋되고 다시 선정하지 않는다")
+	void noEntriesTerminatesEventOnce() {
+		// given
+		UUID runId = snapshots.registerInitial(eventId);
+		// when
+		assertThat(executions.execute(runId).getStatus()).isEqualTo(DrawRunStatus.NO_ENTRIES);
+		// then
+		assertThat(jdbc.queryForObject("select status from events where id = ?", String.class, toBytes(eventId)))
+				.isEqualTo("NO_ENTRANTS");
+		assertThat(executions.execute(runId).getStatus()).isEqualTo(DrawRunStatus.NO_ENTRIES);
+		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+		assertThat(control.findDue()).doesNotContain(runId);
+		assertThat(countResults(runId)).isZero();
+		verifyNoInteractions(selection);
+	}
+
+	@Test @DisplayName("이벤트 상태 변경 실패는 결과 저장을 롤백하고 같은 실행의 운영자 대기를 남긴다")
+	void stateChangeFailureRollsBackConfirmation() {
+		// given
+		participant(user("USER"));
+		UUID runId = snapshots.registerInitial(eventId);
+		new TransactionTemplate(manager).executeWithoutResult(status ->
+			doThrow(new IllegalStateException()).when(eventStatuses).changeStatus(eventId,
+					EventStatus.CLOSED, EventStatus.DRAW_CONFIRMED));
+		// when
+		assertThat(executions.execute(runId).getStatus()).isEqualTo(DrawRunStatus.FAILED);
+		// then
+		assertThat(countResults(runId)).isZero();
+		assertThat(jdbc.queryForObject("select status from events where id = ?", String.class, toBytes(eventId)))
+				.isEqualTo("CLOSED");
+		assertThat(runs.findById(runId).orElseThrow().getRetryAt()).isNull();
+		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+		assertThat(control.findDue()).doesNotContain(runId);
+	}
+
+	@Test @DisplayName("폴링은 과거 누락 이벤트를 마감 순으로 최대 20건 조회한다")
+	void boundsPollingBatchWithoutLosingOlderEvents() {
+		// given
+		List<UUID> expected = new ArrayList<>();
+		for (int index = 0; index < 21; index++) {
+			UUID id = UUID.randomUUID();
+			expected.add(id);
+			jdbc.update("""
+				insert into events (id, title, description, image_key, event_type, weighting_enabled,
+				starts_at, ends_at, status, membership_rule, created_at, updated_at)
+				values (?, '누락 탐색', '설명', 'test.png', 'NO_TICKET', false, ?, ?, 'CLOSED', 'vip', ?, ?)
+				""", toBytes(id), utc(NOW.minusSeconds(3600)), utc(NOW.minusSeconds(900 - index)), utc(NOW), utc(NOW));
+		}
+		clock.set(NOW.minusSeconds(400));
+		try {
+			// when / then
+			assertThat(snapshots.findInitialDue()).containsExactlyElementsOf(expected.subList(0, 20));
+			jdbc.update("update events set status = 'CANCELED' where id = ?", toBytes(expected.getFirst()));
+			assertThat(snapshots.findInitialDue()).containsExactlyElementsOf(expected.subList(1, 21));
+		} finally {
+			for (UUID id : expected) jdbc.update("update events set status = 'CANCELED' where id = ?", toBytes(id));
+		}
 	}
 
 	/** 선정 롤백 뒤 실패·예약이 별도 확정되고 같은 고정 입력으로 재시도한다. */
