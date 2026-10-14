@@ -164,4 +164,19 @@ class MissionQueryServiceIntegrationTest extends MissionIntegrationTestSupport {
 	private static byte[] bytes(UUID id) {
 		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
+
+	@Test
+	@DisplayName("페이지 오프셋이 int 범위를 넘어도 예외 없이 빈 목록과 전체 건수를 돌려준다")
+	void hugePageReturnsEmptyItemsWithTotal() {
+		// given
+		saveSurveyStartingAt("목록", clock.instant());
+		long total = queryService.findMissions(userId, null, ALL).getTotalElements();
+		// when
+		PageResult<MissionSummary> result = queryService.findMissions(userId, null,
+				new PageQuery(Integer.MAX_VALUE, 100));
+		// then
+		assertThat(result.getItems()).isEmpty();
+		assertThat(result.getTotalElements()).isEqualTo(total).isPositive();
+		assertThat(result.getPage()).isEqualTo(Integer.MAX_VALUE);
+	}
 }

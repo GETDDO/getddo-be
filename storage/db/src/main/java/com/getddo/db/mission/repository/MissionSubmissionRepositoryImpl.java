@@ -67,10 +67,14 @@ public class MissionSubmissionRepositoryImpl implements MissionSubmissionReposit
 
 	@Override
 	public PageResult<MissionSubmission> findByUser(UUID userId, UUID missionId, PageQuery page) {
+		// JPA는 오프셋을 int로 바꾸므로 범위를 넘는 페이지는 조회하지 않고 전체 건수만 확인한다.
+		boolean beyondIntOffset = page.offset() > Integer.MAX_VALUE;
+		PageRequest pageable = beyondIntOffset ? PageRequest.of(0, 1, NEWEST_FIRST)
+				: PageRequest.of(page.getPage() - 1, page.getSize(), NEWEST_FIRST);
 		Page<MissionSubmissionEntity> found = submissionJpaRepository.findByUserIdAndMissionId(userId, missionId,
-				PageRequest.of(page.getPage() - 1, page.getSize(), NEWEST_FIRST));
-		return new PageResult<>(withAnswers(found.getContent()), page.getPage(), page.getSize(),
-				found.getTotalElements());
+				pageable);
+		List<MissionSubmission> items = beyondIntOffset ? List.of() : withAnswers(found.getContent());
+		return new PageResult<>(items, page.getPage(), page.getSize(), found.getTotalElements());
 	}
 
 	@Override
