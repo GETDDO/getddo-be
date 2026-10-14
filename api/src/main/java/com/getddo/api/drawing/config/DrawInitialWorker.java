@@ -32,11 +32,11 @@ public class DrawInitialWorker {
 					UUID runId = snapshots.registerInitial(eventId);
 					executions.execute(runId);
 				} catch (RuntimeException failure) {
-					log.warn("Initial draw deferred: eventId={}", eventId);
+					log.warn("Initial draw deferred: eventId={}, failureType={}", eventId, failure.getClass().getSimpleName());
 				}
 			}
 		} catch (RuntimeException failure) {
-			log.warn("Initial draw polling unavailable");
+			log.warn("Initial draw polling unavailable: failureType={}", failure.getClass().getSimpleName());
 		}
 	}
 }

@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.TransientDataAccessResourceException;
@@ -165,18 +167,21 @@ class DrawExecutionIntegrationTest {
 		verifyNoInteractions(selection);
 	}
 
-	@Test @DisplayName("이벤트 상태 변경 실패는 결과 저장을 롤백하고 같은 실행의 운영자 대기를 남긴다")
-	void stateChangeFailureRollsBackConfirmation() {
+	@ParameterizedTest
+	@CsvSource({"DRAW_CONFIRMED,true", "NO_ENTRANTS,false"})
+	@DisplayName("최초 확정·응모자 없음 상태 변경 실패는 저장을 롤백하고 운영자 대기를 남긴다")
+	void stateChangeFailureRollsBackInitialTermination(EventStatus terminalStatus, boolean hasEntrants) {
 		// given
-		participant(user("USER"));
+		if (hasEntrants) participant(user("USER"));
 		UUID runId = snapshots.registerInitial(eventId);
 		new TransactionTemplate(manager).executeWithoutResult(status ->
 			doThrow(new IllegalStateException()).when(eventStatuses).changeStatus(eventId,
-					EventStatus.CLOSED, EventStatus.DRAW_CONFIRMED));
+					EventStatus.CLOSED, terminalStatus));
 		// when
 		assertThat(executions.execute(runId).getStatus()).isEqualTo(DrawRunStatus.FAILED);
 		// then
 		assertThat(countResults(runId)).isZero();
+		if (!hasEntrants) assertThat(runs.findById(runId).orElseThrow().getSnapshotFixedAt()).isNull();
 		assertThat(jdbc.queryForObject("select status from events where id = ?", String.class, toBytes(eventId)))
 				.isEqualTo("CLOSED");
 		assertThat(runs.findById(runId).orElseThrow().getRetryAt()).isNull();
