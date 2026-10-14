@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.getddo.core.entry.exception.EntryErrorCode;
 import com.getddo.core.ticket.domain.TicketGrade;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,10 +26,16 @@ class EntryDomainTest {
 		UUID userId = UUID.randomUUID();
 		EntryParticipant participant = new EntryParticipant(UUID.randomUUID(), eventId, userId, 0, AT);
 		// when
-		Entry entry = Entry.accepted(UUID.randomUUID(), participant, 3, AT);
+		Entry entry = Entry.accepted(UUID.randomUUID(), participant,
+				Map.of(TicketGrade.BRONZE, 1L, TicketGrade.GOLD, 2L), AT);
 		// then
+		assertThat(entry.getStatus()).isEqualTo(EntryStatus.ACCEPTED);
 		assertThat(entry.getRequestedTicketCount()).isEqualTo(3);
 		assertThat(entry.getDeductedTicketCount()).isEqualTo(3);
+		assertThat(entry.getRequestedTicketsByGrade()).containsEntry(TicketGrade.BRONZE, 1L)
+				.containsEntry(TicketGrade.SILVER, 0L).containsEntry(TicketGrade.GOLD, 2L);
+		assertThat(entry.getDeductedTicketsByGrade()).isEqualTo(entry.getRequestedTicketsByGrade());
+		assertThat(entry.getRejectionCode()).isNull();
 		assertThat(entry.getEventId()).isEqualTo(eventId);
 		assertThat(entry.getParticipantId()).isEqualTo(participant.getId());
 		assertThat(entry.getUserId()).isEqualTo(userId);
@@ -57,9 +64,53 @@ class EntryDomainTest {
 		UUID id = UUID.randomUUID();
 		// when
 		// then
-		assertThatThrownBy(() -> new Entry(id, id, id, id, -1, 0, AT)).isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new Entry(id, id, id, id, 1, 2, AT)).isInstanceOf(IllegalArgumentException.class);
-		assertThat(new Entry(id, id, id, id, 0, 0, AT).getDeductedTicketCount()).isZero();
+		assertThatThrownBy(() -> accepted(id, -1, 0)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> accepted(id, 1, 2)).isInstanceOf(IllegalArgumentException.class);
+		assertThat(accepted(id, 0, 0).getDeductedTicketCount()).isZero();
+	}
+
+	private static Entry accepted(UUID id, int requested, int deducted) {
+		return new Entry(id, id, id, id, EntryStatus.ACCEPTED, requested, Map.of(), deducted, null, null, AT);
+	}
+
+	@Test
+	@DisplayName("거절된 응모는 응모자와 차감 없이 요청 장수와 거절 코드·사유를 남긴다")
+	void rejectedEntryKeepsRequestWithoutDeduction() {
+		// given
+		UUID id = UUID.randomUUID();
+		// when
+		Entry entry = Entry.rejected(id, UUID.randomUUID(), UUID.randomUUID(), Map.of(TicketGrade.SILVER, 2L),
+				EntryErrorCode.TICKET_LIMIT_EXCEEDED, AT);
+		// then
+		assertThat(entry.isRejected()).isTrue();
+		assertThat(entry.getParticipantId()).isNull();
+		assertThat(entry.getRequestedTicketCount()).isEqualTo(2);
+		assertThat(entry.getRequestedTicketsByGrade()).containsEntry(TicketGrade.SILVER, 2L);
+		assertThat(entry.getDeductedTicketCount()).isZero();
+		assertThat(entry.getDeductedTicketsByGrade().values()).containsOnly(0L);
+		assertThat(entry.getRejectionCode()).isEqualTo("ENTRY-007");
+		assertThat(entry.getRejectionReason()).isEqualTo(EntryErrorCode.TICKET_LIMIT_EXCEEDED.getMessage());
+	}
+
+	@Test
+	@DisplayName("상태와 맞지 않는 응모자·차감·거절 정보는 만들 수 없다")
+	void entryRejectsInconsistentStatusFields() {
+		// given
+		UUID id = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.ACCEPTED, 0, Map.of(), 0, null, null, AT))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.ACCEPTED, 0, Map.of(), 0, "ENTRY-005", "사유", AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.REJECTED, 1, Map.of(), 0, "ENTRY-005", "사유", AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, Map.of(), 1, "ENTRY-005", "사유", AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, Map.of(), 0, null, "사유", AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, Map.of(), 0, "ENTRY-005", " ", AT))
+				.isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test

@@ -287,10 +287,10 @@ public class TicketGrantSeeds {
 				""", bytes(participantId), bytes(eventId), bytes(userId), SEED_TIME);
 		UUID entryId = uuidV7();
 		jdbc.update("""
-				insert into event_entries (id, participant_id, user_id, requested_ticket_count,
+				insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count,
 				  deducted_ticket_count, created_at)
-				values (?, ?, ?, 0, 0, ?)
-				""", bytes(entryId), bytes(participantId), bytes(userId), SEED_TIME);
+				values (?, (select event_id from event_participants where id = ?), ?, ?, 0, 0, ?)
+				""", bytes(entryId), bytes(participantId), bytes(participantId), bytes(userId), SEED_TIME);
 		return entryId;
 	}
 

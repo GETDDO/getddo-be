@@ -55,8 +55,8 @@ class AdminAwardCancellationIntegrationTest {
 			UUID owner = user("USER"), participant = UUID.randomUUID();
 			jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
 					toBytes(participant), toBytes(event), toBytes(owner), utc(now.minusSeconds(302)));
-			jdbc.update("insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at) values (?, ?, ?, 0, 0, ?)",
-					toBytes(UUID.randomUUID()), toBytes(participant), toBytes(owner), utc(now.minusSeconds(302)));
+			jdbc.update("insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at) values (?, (select event_id from event_participants where id = ?), ?, ?, 0, 0, ?)",
+					toBytes(UUID.randomUUID()), toBytes(participant), toBytes(participant), toBytes(owner), utc(now.minusSeconds(302)));
 		}
 		DrawSnapshot initial = snapshots.prepareInitial(event);
 		win = confirmation.confirm(initial.runId()).getResults().getFirst().getId();
