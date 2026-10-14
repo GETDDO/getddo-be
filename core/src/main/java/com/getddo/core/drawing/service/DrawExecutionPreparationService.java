@@ -2,18 +2,22 @@ package com.getddo.core.drawing.service;
 
 import java.util.List;
 import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.repository.*;
+
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
-/** 입력 확정은 선정과 분리하여 선정 실패에도 저장 스냅샷을 보존한다. */
+/** 선정 전에 추첨 입력을 저장한다. 선정에 실패해도 같은 후보와 조건으로 다시 시도할 수 있게 한다. */
 @Service
 @RequiredArgsConstructor
 public class DrawExecutionPreparationService {

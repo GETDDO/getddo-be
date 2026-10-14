@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -24,7 +25,7 @@ import com.getddo.core.user.domain.*;
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.ADMIN_REQUIRED;
 
-/** 취소·재추첨 등록·멱등 키·감사를 원자적으로 확정한다. 실제 실행은 이 커밋 뒤에 호출한다. */
+/** 개별 당첨 취소와 빈 자리 재추첨 등록을 함께 저장한다. 실제 추첨 실행은 이 트랜잭션이 끝난 뒤 시작한다. */
 @Service
 @RequiredArgsConstructor
 public class AwardCancellationRegistrationService {
@@ -59,10 +60,11 @@ public class AwardCancellationRegistrationService {
 				&& result.getSelection().getResultType() == DrawSelectionResultType.SELECTED)) throw new BusinessException(NOT_CANCELABLE);
 		UUID runId = replacements.register(target.eventId());
 		UUID id = cancellations.nextId();
-		AwardCancellation saved = cancellations.save(new AwardCancellation(id, winId, runId, actorId, normalized, now, requestKey));
+		AwardCancellation saved = cancellations.save(new AwardCancellation(id, winId,
+				runId, actorId, normalized, now, requestKey));
 		audit.record(new AuditLogCommand(actorId, "AWARD_CANCEL", "DRAW_RESULT", winId, normalized,
 				Map.of("isCanceled", false), Map.of("isCanceled", true, "cancellationId", saved.id().toString(),
-						"replacementRunId", runId.toString()), requestKey.toString()));
+				"replacementRunId", runId.toString()), requestKey.toString()));
 		replacements.markRedrawing(target.eventId(), now);
 		return saved;
 	}
@@ -72,19 +74,20 @@ public class AwardCancellationRegistrationService {
 	public Optional<AwardCancellation> replay(UUID actorId, UUID winId, UUID requestKey, String reason) {
 		requireAdmin(actorId);
 		validateRequest(winId, requestKey, reason);
-		return cancellations.findByRequestKey(requestKey).map(existing -> matching(existing, actorId, winId, reason.strip()));
+		return cancellations.findByRequestKey(requestKey).map(existing -> matching(existing,
+				actorId, winId, reason.strip()));
 	}
 
 	private static AwardCancellation matching(AwardCancellation existing, UUID actorId, UUID winId, String reason) {
 		if (!existing.canceledBy().equals(actorId) || !existing.drawResultId().equals(winId) || !existing.reason().equals(reason))
-			throw new BusinessException(KEY_CONFLICT);
+		throw new BusinessException(KEY_CONFLICT);
 		if (existing.replacementRunId() == null) throw new BusinessException(NOT_CANCELABLE);
 		return existing;
 	}
 
 	private static void validateRequest(UUID winId, UUID requestKey, String reason) {
 		if (winId == null || requestKey == null || reason == null || reason.isBlank() || reason.strip().length() > 1000)
-			throw new BusinessException(INVALID_REQUEST);
+		throw new BusinessException(INVALID_REQUEST);
 	}
 
 	/** 현재 DB 역할·활성 상태를 공통 검사로 대조하고 취소 업무의 권한 오류를 유지한다. */

@@ -2,10 +2,10 @@ package com.getddo.core.drawing.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,7 +30,7 @@ import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
-/** READY 스냅샷의 결과와 CONFIRMED 상태를 원자적으로 저장한다. */
+/** 선정 결과와 추첨 완료 상태를 같은 트랜잭션에 저장한다. */
 @Service
 public class DrawConfirmationService {
 	private final DrawResultRepository repository;
@@ -58,11 +58,15 @@ public class DrawConfirmationService {
 	 * @throws BusinessException 실행·스냅샷·배정 관계가 잘못됐거나 이벤트가 실행 불가한 경우
 	 */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
-	public DrawConfirmation confirm(UUID runId) { return confirmLocked(runId, null); }
+	public DrawConfirmation confirm(UUID runId) {
+		return confirmLocked(runId, null);
+	}
 
 	/** 공통 실행은 자신의 시도 토큰으로만 저장 입력을 확정한다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
-	public DrawConfirmation confirm(UUID runId, UUID attemptId) { return confirmLocked(runId, attemptId); }
+	public DrawConfirmation confirm(UUID runId, UUID attemptId) {
+		return confirmLocked(runId, attemptId);
+	}
 
 	/** 이벤트·실행 잠금 아래 저장 입력으로 선정·확정한다. CONFIRMED 재요청은 토큰 검사 없이 저장 결과를 반환하며, 미확정 실행에만 시도 토큰 검증을 적용한다. */
 	private DrawConfirmation confirmLocked(UUID runId, UUID attemptId) {
@@ -144,7 +148,7 @@ public class DrawConfirmationService {
 					|| !retainedIds.add(retained.resultId()) || !retainedUsers.add(retained.userId())
 					|| !retainedSlots.add(retained.prizeId() + ":" + retained.slotNumber())
 					|| targets.stream().anyMatch(slot -> slot.prizeId().equals(retained.prizeId())
-							&& slot.slotNumber() == retained.slotNumber())) invalid();
+					&& slot.slotNumber() == retained.slotNumber())) invalid();
 		}
 		Set<UUID> participants = new HashSet<>();
 		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
@@ -192,9 +196,11 @@ public class DrawConfirmationService {
 		for (DrawSnapshot.Slot slot : slots) counts.merge(slot.prizeId(), 1, Integer::sum);
 		List<DrawPrize> prizes = new ArrayList<>();
 		for (DrawSnapshotSource.Prize prize : snapshot.rules().prizes()) {
-			if (counts.containsKey(prize.id())) prizes.add(new DrawPrize(prize.id(), prize.rank(), counts.get(prize.id())));
+			if (counts.containsKey(prize.id())) prizes.add(new DrawPrize(prize.id(), prize.rank(),
+					counts.get(prize.id())));
 		}
-		List<DrawSelection> selected = selection.select(toCandidates(snapshot), prizes, snapshot.rules().weightingEnabled());
+		List<DrawSelection> selected = selection.select(toCandidates(snapshot), prizes,
+				snapshot.rules().weightingEnabled());
 		if (selected == null || selected.size() != slots.size()) invalid();
 		Map<UUID, Integer> virtualSlots = new HashMap<>();
 		List<DrawSelection> mapped = new ArrayList<>();
@@ -240,7 +246,8 @@ public class DrawConfirmationService {
 		int order = 0;
 		Set<UUID> users = new HashSet<>(), candidates = new HashSet<>();
 		Map<UUID, UUID> candidateUsers = new HashMap<>();
-		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) candidateUsers.put(candidate.id(), candidate.userId());
+		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) candidateUsers.put(candidate.id(),
+				candidate.userId());
 		for (int index = 0; index < slots.size(); index++) {
 			DrawSnapshot.Slot slot = slots.get(index);
 			DrawSelection result = results.get(index);
@@ -255,5 +262,7 @@ public class DrawConfirmationService {
 	}
 
 	/** 실행·스냅샷·선정 결과의 불일치를 공통 도메인 오류로 전달해 확정 트랜잭션을 롤백한다. */
-	private static void invalid() { throw new BusinessException(INVALID_RUN); }
+	private static void invalid() {
+		throw new BusinessException(INVALID_RUN);
+	}
 }

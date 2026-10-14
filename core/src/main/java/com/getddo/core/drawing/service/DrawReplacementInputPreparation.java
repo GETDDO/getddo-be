@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +16,7 @@ import com.getddo.core.drawing.repository.*;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
 
-/** GD-87이 이벤트·실행 잠금과 시도 소유권을 확보한 준비 트랜잭션에 참여한다. */
+/** 취소로 빈 자리의 재추첨 입력을 준비한다. 공통 실행 서비스가 확보한 잠금과 트랜잭션을 사용한다. */
 @Service
 @RequiredArgsConstructor
 public class DrawReplacementInputPreparation implements DrawInputPreparation {
@@ -26,7 +27,9 @@ public class DrawReplacementInputPreparation implements DrawInputPreparation {
 	private final ReplacementDrawInputBuilder builder;
 	private final TimeProvider time;
 
-	@Override public boolean supports(DrawType type) { return type == DrawType.REPLACEMENT; }
+	@Override public boolean supports(DrawType type) {
+		return type == DrawType.REPLACEMENT;
+	}
 
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -46,11 +49,12 @@ public class DrawReplacementInputPreparation implements DrawInputPreparation {
 		ReplacementDrawInput input = builder.build(original, target,
 				replacements.findCurrentResults(registered.eventId(), original), canceled);
 		DrawSnapshot.Rules rules = input.originalRules();
-		DrawSnapshot.Rules fixedRules = new DrawSnapshot.Rules(2, rules.weightingEnabled(), rules.eventType(), rules.membershipRule(),
+		DrawSnapshot.Rules fixedRules = new DrawSnapshot.Rules(2, rules.weightingEnabled(),
+				rules.eventType(), rules.membershipRule(),
 				rules.bronzeWeight(), rules.silverWeight(), rules.goldWeight(), rules.prizes(), input.originalRunId(),
 				input.vacantSlots(),
 				input.retainedResults().stream().map(result -> new DrawSnapshot.RetainedAward(result.getId(),
-						result.getSelection().getUserId(), result.getSelection().getPrizeId(), result.getSelection().getSlotNumber())).toList());
+				result.getSelection().getUserId(), result.getSelection().getPrizeId(), result.getSelection().getSlotNumber())).toList());
 		return snapshots.saveRegisteredReplacement(new DrawSnapshot(runId, registered.eventId(), DrawRunStatus.READY,
 				time.now(), original.algorithmVersion(), fixedRules, input.candidates(), DrawType.REPLACEMENT));
 	}

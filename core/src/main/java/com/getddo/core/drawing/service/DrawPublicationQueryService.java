@@ -3,6 +3,7 @@ package com.getddo.core.drawing.service;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,10 +13,10 @@ import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.drawing.domain.DrawPublicationChange;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
 import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.ADMIN_REQUIRED;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
 
-/** 관리자 권한과 이벤트 존재를 확인한 뒤 변경 이력의 한 페이지를 조회한다. */
+/** 관리자 권한을 확인한 뒤 실제 공개 명단의 변경 이력을 페이지로 조회한다. */
 @RequiredArgsConstructor
 public class DrawPublicationQueryService {
 	private final DrawPublicationService publications;

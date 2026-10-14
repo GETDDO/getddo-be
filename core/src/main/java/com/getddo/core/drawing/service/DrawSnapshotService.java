@@ -9,22 +9,22 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
-import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawSnapshotSource;
+import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
-/** 정상 접수된 응모의 수량·차감 근거를 검증하고 최초 추첨 입력을 불변 스냅샷으로 확정한다. */
+/** 정상 접수된 응모의 실제 차감 수량을 확인하고 최초 추첨의 후보·가중치·조건을 고정해 저장한다. */
 @Service
 public class DrawSnapshotService {
 	public static final String ALGORITHM_VERSION = "weighted-without-replacement-v1";
@@ -33,7 +33,8 @@ public class DrawSnapshotService {
 
 	/** 최초 실행 영속성 경계와 서버 기준 시각을 주입한다. */
 	public DrawSnapshotService(DrawSnapshotRepository repository, TimeProvider time) {
-		this.repository = repository; this.time = time;
+		this.repository = repository;
+		this.time = time;
 	}
 
 	/**
@@ -133,12 +134,12 @@ public class DrawSnapshotService {
 			if (event.type() == EventType.NO_TICKET && total != 0) invalid();
 			if (event.type() == EventType.TICKET && (total == 0 || (!event.weightingEnabled() && total != 1))) invalid();
 			long weight = event.type() == EventType.TICKET && event.weightingEnabled()
-					? Math.addExact(bronze, Math.addExact(Math.multiplyExact(silver, 3), Math.multiplyExact(gold, 5))) : 1;
+			? Math.addExact(bronze, Math.addExact(Math.multiplyExact(silver, 3), Math.multiplyExact(gold, 5))) : 1;
 			if (weight <= 0) invalid();
 			return new DrawSnapshot.Candidate(null, participant.id(), participant.userId(), total, weight,
 					new DrawSnapshot.EntryEvidence(1, bronze, silver, gold, participant.entries()),
 					new DrawSnapshot.EligibilityEvidence(1, participant.userId(), participant.membership(),
-							participant.role(), false, now));
+					participant.role(), false, now));
 		} catch (ArithmeticException overflow) {
 			throw new BusinessException(INVALID_EVIDENCE);
 		}
@@ -158,5 +159,7 @@ public class DrawSnapshotService {
 	}
 
 	/** 잘못된 응모·경품 근거를 일관된 도메인 오류로 거절한다. */
-	private static void invalid() { throw new BusinessException(INVALID_EVIDENCE); }
+	private static void invalid() {
+		throw new BusinessException(INVALID_EVIDENCE);
+	}
 }
