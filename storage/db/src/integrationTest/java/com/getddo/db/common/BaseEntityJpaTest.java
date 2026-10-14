@@ -57,7 +57,7 @@ class BaseEntityJpaTest {
 	}
 
 	@Test
-	@DisplayName("UUID v7을 binary(16)으로 저장하고 동일한 ID와 생성 시각을 조회한다")
+	@DisplayName("생성 전용 Entity는 UUID v7·생성 시각만 저장하고 동일한 값으로 조회된다")
 	void storesUuidV7AsBinary16AndReloadsSameValue() {
 		// given
 		CreatedRecord first = new CreatedRecord();
@@ -99,6 +99,11 @@ class BaseEntityJpaTest {
 		CreatedRecord loaded = entityManager.find(CreatedRecord.class, id);
 		assertThat(loaded.getId()).isEqualTo(id);
 		assertThat(loaded.getCreatedAt()).isEqualTo(first.getCreatedAt());
+		assertThat(jdbc.queryForList("""
+				select column_name from information_schema.columns
+				where table_schema = database()
+				  and table_name = 'auditing_created_record'
+				""", String.class)).containsExactlyInAnyOrder("id", "created_at");
 	}
 
 	@Test
@@ -150,23 +155,4 @@ class BaseEntityJpaTest {
 				.isEqualTo(EXPECTED_CREATED);
 	}
 
-	@Test
-	@DisplayName("생성 시각 전용 Entity는 수정 시각 컬럼 없이 저장된다")
-	void creationOnlyEntityDoesNotRequireModificationColumn() {
-		// given
-		CreatedRecord record = new CreatedRecord();
-		// when
-		entityManager.persist(record);
-		entityManager.flush();
-		UUID id = record.getId();
-		entityManager.clear();
-		// then
-		assertThat(entityManager.find(CreatedRecord.class, id).getCreatedAt())
-				.isEqualTo(EXPECTED_CREATED);
-		assertThat(jdbc.queryForList("""
-				select column_name from information_schema.columns
-				where table_schema = database()
-				  and table_name = 'auditing_created_record'
-				""", String.class)).containsExactlyInAnyOrder("id", "created_at");
-	}
 }

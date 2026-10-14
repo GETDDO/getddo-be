@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,17 +15,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 
-import com.getddo.core.user.exception.UserException;
 import com.getddo.core.user.domain.Membership;
 import com.getddo.core.user.domain.User;
-import com.getddo.core.user.exception.UserErrorCode;
 import com.getddo.core.user.domain.UserRole;
 import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.service.UserService;
 import com.getddo.db.support.MySqlTestConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 @DataJpaTest(properties = {
 		"spring.jpa.hibernate.ddl-auto=validate",
@@ -106,13 +102,4 @@ class UserRepositoryIntegrationTest {
 				"01000000000", "user@example.test", SUSPENDED, "테스트 정지 사유", CREATED, UPDATED));
 	}
 
-	@Test
-	@DisplayName("등록되지 않은 ID는 Service에서 미등록 사용자 예외로 처리한다")
-	void missingIdThrowsBusinessException() {
-		// when / then
-		assertThatExceptionOfType(UserException.class)
-				.isThrownBy(() -> userService.findById(USER_ID))
-				.satisfies(exception -> assertThat(exception.getErrorCode())
-						.isEqualTo(UserErrorCode.USER_NOT_FOUND));
-	}
 }

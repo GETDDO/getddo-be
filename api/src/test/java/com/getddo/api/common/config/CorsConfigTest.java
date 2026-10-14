@@ -66,38 +66,23 @@ class CorsConfigTest {
 						.filter(user -> user.getId().equals(USER_ID));
 			});
 
-	@Test
-	@DisplayName("사용자 헤더의 사전 요청을 사용자 조회 없이 허용한다")
-	void allowsApprovedPreflight() {
+	@ParameterizedTest
+	@CsvSource({
+			"/api/v1/users/me, GET, 'X-User-ID,X-User-Role,X-User-Membership', 'X-User-ID, X-User-Role, X-User-Membership'",
+			"/api/v1/events/00000000-0000-0000-0000-000000000001/entries, POST, 'Content-Type,Idempotency-Key,X-User-ID,X-User-Role,X-User-Membership', 'Content-Type, Idempotency-Key, X-User-ID, X-User-Role, X-User-Membership'"
+	})
+	@DisplayName("사용자·응모 API의 사전 요청은 사용자 조회 없이 문맥·멱등 헤더를 허용한다")
+	void allowsApprovedPreflight(String path, String method, String requestedHeaders, String allowedHeaders) {
 		// given / when / then
 		runner.run(context -> {
-			mvc(context).perform(options("/api/v1/users/me")
+			mvc(context).perform(options(path)
 					.header("Origin", ORIGIN)
-					.header("Access-Control-Request-Method", "GET")
-					.header("Access-Control-Request-Headers", "X-User-ID,X-User-Role,X-User-Membership"))
+					.header("Access-Control-Request-Method", method)
+					.header("Access-Control-Request-Headers", requestedHeaders))
 					.andExpect(status().isOk())
 					.andExpect(header().string("Access-Control-Allow-Origin", ORIGIN))
-					.andExpect(header().string("Access-Control-Allow-Headers",
-							"X-User-ID, X-User-Role, X-User-Membership"))
+					.andExpect(header().string("Access-Control-Allow-Headers", allowedHeaders))
 					.andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
-			assertThat(lookups.get()).isZero();
-		});
-	}
-
-	@Test
-	@DisplayName("이벤트 응모의 사전 요청이 Idempotency-Key 헤더를 허용한다")
-	void allowsIdempotencyKeyForEntryPreflight() {
-		// given / when / then
-		runner.run(context -> {
-			mvc(context).perform(options("/api/v1/events/00000000-0000-0000-0000-000000000001/entries")
-					.header("Origin", ORIGIN)
-					.header("Access-Control-Request-Method", "POST")
-					.header("Access-Control-Request-Headers",
-							"Content-Type,Idempotency-Key,X-User-ID,X-User-Role,X-User-Membership"))
-					.andExpect(status().isOk())
-					.andExpect(header().string("Access-Control-Allow-Origin", ORIGIN))
-					.andExpect(header().string("Access-Control-Allow-Headers",
-							"Content-Type, Idempotency-Key, X-User-ID, X-User-Role, X-User-Membership"));
 			assertThat(lookups.get()).isZero();
 		});
 	}

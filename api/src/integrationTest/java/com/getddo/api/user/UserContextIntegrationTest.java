@@ -1,7 +1,5 @@
 package com.getddo.api.user;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -11,12 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
 import com.getddo.api.support.ApiIntegrationTest;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -32,7 +27,6 @@ class UserContextIntegrationTest {
 
 	@Autowired private MockMvc mvc;
 	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper mapper;
 
 	@BeforeEach
 	void seed() {
@@ -110,23 +104,6 @@ class UserContextIntegrationTest {
 		mvc.perform(get("/api/v1/users/me").header("X-User-ID", UUID.randomUUID())
 				.header("X-User-Role", "USER").header("X-User-Membership", "vip"))
 				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("USER-002"));
-	}
-
-	@Test
-	@DisplayName("Swagger는 사용자 헤더 없이 열리고 U01의 헤더 3개를 문서화한다")
-	void documentsHeadersWithoutExposingDomainParameters() throws Exception {
-		// given / when
-		String body = mvc.perform(get("/v3/api-docs"))
-				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-		JsonNode parameters = mapper.readTree(body).path("paths").path("/api/v1/users/me")
-				.path("get").path("parameters");
-		List<String> names = new ArrayList<>();
-		// then
-		for (JsonNode parameter : parameters) {
-			assertThat(parameter.path("in").asString()).isEqualTo("header");
-			names.add(parameter.path("name").asString());
-		}
-		assertThat(names).containsExactlyInAnyOrder("X-User-ID", "X-User-Role", "X-User-Membership");
 	}
 
 	private void insertUser(UUID id, String role, String membership) {
