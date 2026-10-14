@@ -1,5 +1,16 @@
 package com.getddo.core.drawing.service;
 
+import com.getddo.core.audit.service.AuditLogService;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.repository.*;
+import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.domain.EventType;
+import com.getddo.core.user.domain.Membership;
+import com.getddo.core.user.domain.User;
+import com.getddo.core.user.domain.UserRole;
+import com.getddo.core.user.domain.UserStatus;
+import com.getddo.core.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -12,21 +23,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
-import com.getddo.core.audit.service.AuditLogService;
-import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
-import com.getddo.core.event.domain.EventStatus;
-import com.getddo.core.event.domain.EventType;
-import com.getddo.core.user.repository.UserRepository;
-import com.getddo.core.user.domain.User;
-import com.getddo.core.user.domain.UserRole;
-import com.getddo.core.user.domain.UserStatus;
-import com.getddo.core.user.domain.Membership;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.NOT_EXECUTABLE;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class DrawExecutionControlServiceTest {
 	private static final Instant NOW = Instant.parse("2026-10-12T03:00:00Z");
@@ -57,7 +57,7 @@ class DrawExecutionControlServiceTest {
 		when(executions.lockRun(runId)).thenReturn(Optional.of(running), Optional.of(failed), Optional.of(failed));
 		when(failures.countSince(runId, CYCLE)).thenReturn(1L);
 		// when
-		DrawExecutionClaim claim = control.claim(runId, null, false, false);
+		DrawExecutionControlService.Claim claim = control.claim(runId, null, false, false);
 		// then
 		assertThat(claim.isClaimed()).isFalse();
 		assertThat(claim.getState().getStatus()).isEqualTo(DrawRunStatus.FAILED);
@@ -84,7 +84,7 @@ class DrawExecutionControlServiceTest {
 		when(executions.lockRun(runId)).thenReturn(Optional.of(running), Optional.of(failed), Optional.of(failed));
 		when(failures.countSince(runId, CYCLE)).thenReturn(1L);
 		// when
-		DrawExecutionClaim claim = control.claim(runId, actorId, true, true);
+		DrawExecutionControlService.Claim claim = control.claim(runId, actorId, true, true);
 		// then
 		assertThat(claim.getRejectionCode()).isSameAs(NOT_EXECUTABLE);
 		verify(failures).append(argThat(failure -> failure.getId().equals(attemptId)));
@@ -101,7 +101,7 @@ class DrawExecutionControlServiceTest {
 		when(executions.lockRun(runId)).thenReturn(Optional.of(running), Optional.of(failed));
 		when(failures.countSince(runId, CYCLE)).thenReturn(1L);
 		// when
-		DrawExecutionClaim claim = control.claim(runId, null, false, false);
+		DrawExecutionControlService.Claim claim = control.claim(runId, null, false, false);
 		// then
 		assertThat(claim.isClaimed()).isFalse();
 		assertThat(claim.getState().getRetryAt()).isEqualTo(NOW.plusSeconds(10));
@@ -116,7 +116,7 @@ class DrawExecutionControlServiceTest {
 		when(executions.lockRun(runId)).thenReturn(Optional.of(state(DrawRunStatus.FAILED, null, null, NOW)),
 				Optional.of(state(DrawRunStatus.FAILED, null, null, null)));
 		// when
-		DrawExecutionClaim claim = control.claim(runId, null, false, false);
+		DrawExecutionControlService.Claim claim = control.claim(runId, null, false, false);
 		// then
 		assertThat(claim.getState().getRetryAt()).isNull();
 		verify(executions).fail(runId, null);
@@ -129,7 +129,7 @@ class DrawExecutionControlServiceTest {
 		// given
 		when(executions.lockRun(runId)).thenReturn(Optional.of(state(DrawRunStatus.FAILED, null, null, null)));
 		// when
-		DrawExecutionClaim claim = control.claim(runId, null, false, false);
+		DrawExecutionControlService.Claim claim = control.claim(runId, null, false, false);
 		// then
 		assertThat(claim.isClaimed()).isFalse();
 		verify(executions, never()).claim(any(), any(), any(), any(), any());

@@ -1,12 +1,24 @@
 package com.getddo.api.drawing.controller;
 
+import com.getddo.api.common.context.CurrentUserArgumentResolver;
+import com.getddo.api.common.exception.GlobalExceptionHandler;
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.repository.DrawPublicationRepository;
+import com.getddo.core.drawing.service.*;
+import com.getddo.core.user.domain.*;
+import com.getddo.core.user.repository.UserRepository;
+import com.getddo.core.user.service.UserService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,20 +29,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
-
-import com.getddo.api.common.context.CurrentUserArgumentResolver;
-import com.getddo.api.common.exception.GlobalExceptionHandler;
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.common.pagination.PageQuery;
-import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.DrawPublicationRepository;
-import com.getddo.core.drawing.service.*;
-import com.getddo.core.user.domain.*;
-import com.getddo.core.user.repository.UserRepository;
-import com.getddo.core.user.service.UserService;
-
 import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -167,8 +165,8 @@ class AdminDrawPublicationControllerTest {
 		UUID confirmationId = UUID.randomUUID(), cancellationId = UUID.randomUUID(), resultId = UUID.randomUUID();
 		DrawPublicationChange change = new DrawPublicationChange(latest, List.of(new DrawPublicationChange.SlotChange(
 				prize, 1, UUID.randomUUID(), before, UUID.randomUUID(), after)), List.of(
-				new DrawPublicationExecution(runId, confirmationId, actorId, NOW, List.of(
-						new DrawPublicationCancellation(cancellationId, resultId, runId, "실행별 사유")))));
+				new DrawPublication.Execution(runId, confirmationId, actorId, NOW, List.of(
+						new DrawPublication.Cancellation(cancellationId, resultId, runId, "실행별 사유")))));
 		when(repository.eventExists(eventId)).thenReturn(true);
 		when(publications.changes(eventId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(change), 1, 20, 2));
 		// when / then

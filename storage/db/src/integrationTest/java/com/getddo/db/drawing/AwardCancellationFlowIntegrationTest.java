@@ -1,18 +1,30 @@
 package com.getddo.db.drawing;
 
-import java.time.Instant;
-import com.getddo.core.user.repository.UserRepository;
-import com.getddo.core.notification.service.NotificationJobService;
-import com.getddo.db.notification.repository.NotificationJobRepositoryImpl;
-import com.getddo.core.notification.service.MockNotificationSender;
-import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.exception.ErrorCode;
 import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.repository.*;
+import com.getddo.core.drawing.service.*;
+import com.getddo.core.notification.service.MockNotificationSender;
+import com.getddo.core.notification.service.NotificationJobService;
+import com.getddo.core.user.repository.UserRepository;
+import com.getddo.db.audit.repository.AuditLogRepositoryImpl;
+import com.getddo.db.drawing.entity.DrawResultEntity;
+import com.getddo.db.drawing.repository.*;
+import com.getddo.db.notification.repository.NotificationJobRepositoryImpl;
+import com.getddo.db.ticket.LockWaitProbe;
+import com.getddo.db.ticket.MutableClock;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -22,7 +34,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,22 +43,10 @@ import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.mysql.MySQLContainer;
-
-import com.getddo.db.audit.repository.AuditLogRepositoryImpl;
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.common.exception.ErrorCode;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
-import com.getddo.core.drawing.service.*;
-import com.getddo.db.drawing.entity.DrawResultEntity;
-import com.getddo.db.drawing.repository.*;
-import com.getddo.db.ticket.LockWaitProbe;
-import com.getddo.db.ticket.MutableClock;
-
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.ADMIN_REQUIRED;
-import static com.getddo.db.common.util.UuidBinary.toBytes;
 import static com.getddo.db.common.util.UuidBinary.fromBytes;
+import static com.getddo.db.common.util.UuidBinary.toBytes;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -441,9 +440,9 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(first.execution().getConfirmation().getResults().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
 		assertThat(second.execution().getConfirmation().getResults().getFirst().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
 		assertThat(version.getEntries()).hasSize(1);
-		List<DrawPublicationExecution> evidence = publications.changes(small.eventId()).getFirst().getExecutions();
+		List<DrawPublication.Execution> evidence = publications.changes(small.eventId()).getFirst().getExecutions();
 		assertThat(evidence).hasSize(2);
-		DrawRunDetailView unfilledDetail = inspections.detail(users.findById(actor).orElseThrow(), first.cancellation().replacementRunId());
+		DrawInspectionView.Detail unfilledDetail = inspections.detail(users.findById(actor).orElseThrow(), first.cancellation().replacementRunId());
 		assertThat(unfilledDetail.getResults()).singleElement().satisfies(result -> {
 			assertThat(result.getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
 			assertThat(result.getUserId()).isNull();
@@ -451,7 +450,7 @@ class AwardCancellationFlowIntegrationTest {
 			assertThat(result.getSelectionOrder()).isNull();
 			assertThat(result.isWasPublished()).isFalse();
 		});
-		DrawRunView nextRun = inspections.run(users.findById(actor).orElseThrow(), second.cancellation().replacementRunId());
+		DrawInspectionView.Run nextRun = inspections.run(users.findById(actor).orElseThrow(), second.cancellation().replacementRunId());
 		List<DrawHistoricalAward> historical = inspectionRecords.findReplacementReferences(nextRun).getHistoricalAwards();
 		assertThat(historical).extracting(DrawHistoricalAward::getId).doesNotHaveDuplicates();
 		assertThat(historical).filteredOn(award -> award.getRunId().equals(first.cancellation().replacementRunId()))
@@ -461,8 +460,8 @@ class AwardCancellationFlowIntegrationTest {
 					assertThat(award.getUserId()).isNull();
 					assertThat(award.getCanceledAt()).isNull();
 				});
-		assertThat(evidence.stream().map(DrawPublicationExecution::getConfirmedBy)).containsExactly(actor, otherAdmin);
-		assertThat(evidence.stream().flatMap(value -> value.getCancellations().stream()).map(DrawPublicationCancellation::getReason))
+		assertThat(evidence.stream().map(DrawPublication.Execution::getConfirmedBy)).containsExactly(actor, otherAdmin);
+		assertThat(evidence.stream().flatMap(value -> value.getCancellations().stream()).map(DrawPublication.Cancellation::getReason))
 				.containsExactly("첫 번째 사유", "두 번째 사유");
 	}
 
@@ -475,7 +474,7 @@ class AwardCancellationFlowIntegrationTest {
 		AwardCancellationReceipt failed = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "실패 검증");
 		UUID runId = failed.cancellation().replacementRunId();
 		// then
-		DrawExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
+		DrawInspectionView.ExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
 		assertThat(summary.getFailureCount()).isEqualTo(1);
 		assertThat(summary.getLatestFailure().getFailureCode()).isEqualTo("TRANSIENT_STORAGE");
 		assertThat(summary.getRetryAt()).isNotNull();
@@ -571,7 +570,7 @@ class AwardCancellationFlowIntegrationTest {
 		// when
 		UUID runId = service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "운영자 대기").cancellation().replacementRunId();
 		// then
-		DrawExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
+		DrawInspectionView.ExecutionSummary summary = inspections.detail(users.findById(actor).orElseThrow(), runId).getExecution();
 		assertThat(summary.getFailureCount()).isEqualTo(1);
 		assertThat(summary.getLatestFailure().getFailureCode()).isEqualTo("INTERNAL_ERROR");
 		assertThat(summary.getRetryAt()).isNull();
@@ -601,19 +600,19 @@ class AwardCancellationFlowIntegrationTest {
 		assertThat(latest.getEntries().stream().map(DrawPublication.Entry::getResultId)).doesNotContain(newWinner.getId());
 		assertThat(publications.changes(fixture.eventId()).get(1)).usingRecursiveComparison().isEqualTo(firstEvidence);
 		assertThat(publications.history(fixture.eventId()).get(1)).isEqualTo(firstVersion);
-		assertThat(publications.changes(fixture.eventId()).getLast().getExecutions().stream().map(DrawPublicationExecution::getRunId))
+		assertThat(publications.changes(fixture.eventId()).getLast().getExecutions().stream().map(DrawPublication.Execution::getRunId))
 				.containsExactly(secondRun);
 		assertThat(jobCount(fixture.eventId())).isEqualTo(3);
-		DrawRunDetailView previousDetail = inspections.detail(users.findById(actor).orElseThrow(), firstRun);
+		DrawInspectionView.Detail previousDetail = inspections.detail(users.findById(actor).orElseThrow(), firstRun);
 		assertThat(previousDetail.getResults()).filteredOn(result -> result.getId().equals(newWinner.getId()))
 				.singleElement().satisfies(result -> {
 					assertThat(result.isCanceled()).isTrue();
 					assertThat(result.isWasPublished()).isTrue();
 				});
-		assertThat(previousDetail.getExecution().getCancellations()).extracting(DrawCancellationView::getId)
+		assertThat(previousDetail.getExecution().getCancellations()).extracting(DrawInspectionView.Cancellation::getId)
 				.containsExactly(first.cancellation().id(), second.cancellation().id());
 		assertThat(inspections.detail(users.findById(actor).orElseThrow(), secondRun).getExecution().getCancellations())
-				.extracting(DrawCancellationView::getId).containsExactly(second.cancellation().id());
+				.extracting(DrawInspectionView.Cancellation::getId).containsExactly(second.cancellation().id());
 	}
 
 	/** 이벤트의 실제 알림 작업 행 수로 공개 버전별 중복 등록 여부를 확인한다. */

@@ -1,7 +1,16 @@
 package com.getddo.core.drawing.service;
 
-import java.time.Instant;
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.repository.*;
+import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.domain.EventType;
+import com.getddo.core.user.domain.*;
+import com.getddo.core.user.repository.UserRepository;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,7 +24,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,16 +35,6 @@ import org.springframework.transaction.annotation.AnnotationTransactionAttribute
 import org.springframework.transaction.interceptor.TransactionInterceptor;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
-
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
-import com.getddo.core.event.domain.EventStatus;
-import com.getddo.core.event.domain.EventType;
-import com.getddo.core.user.domain.*;
-import com.getddo.core.user.repository.UserRepository;
-
 import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -57,7 +55,7 @@ class DrawPublicationReplacementServiceTest {
 	private final Map<UUID, DrawResultConfirmation> checked = new HashMap<>();
 	private final List<DrawPublication> history = new ArrayList<>();
 	private final List<DrawPublicationRun> runs = new ArrayList<>();
-	private final List<DrawPublicationCancellation> cancellations = new ArrayList<>();
+	private final List<DrawPublication.Cancellation> cancellations = new ArrayList<>();
 	private final MemoryTransactions transactions = new MemoryTransactions();
 	private final DrawPublicationNotificationService notifications = mock(DrawPublicationNotificationService.class);
 	private DrawPublicationService publications;
@@ -301,7 +299,7 @@ class DrawPublicationReplacementServiceTest {
 	void validatesAllCancellationSlotsInOneRun() {
 		// given
 		UUID run = addRun(1, resultA, DrawRunStatus.CONFIRMED, List.of(selected(1, userC)));
-		cancellations.add(new DrawPublicationCancellation(UUID.randomUUID(), resultB.getId(), run, "두 번째 취소"));
+		cancellations.add(new DrawPublication.Cancellation(UUID.randomUUID(), resultB.getId(), run, "두 번째 취소"));
 		// when / then: 두 자리 중 한 자리만 확정된 명단을 먼저 공개하지 않는다.
 		assertThatThrownBy(() -> confirmations.confirmReplacement(run, actorId)).isInstanceOf(BusinessException.class);
 		assertThat(checked).isEmpty();
@@ -330,7 +328,7 @@ class DrawPublicationReplacementServiceTest {
 		assertThat(latest.getEntries()).containsExactly(new DrawPublication.Entry(resultB.getId(), initialRun, null));
 		assertThat(latest.getRevision()).isEqualTo(2);
 		assertThat(publications.wasPublished(unfilled.getId())).isFalse();
-		org.mockito.ArgumentCaptor<List<DrawPublicationExecution>> evidence = org.mockito.ArgumentCaptor.forClass(List.class);
+		org.mockito.ArgumentCaptor<List<DrawPublication.Execution>> evidence = org.mockito.ArgumentCaptor.forClass(List.class);
 		verify(repository).saveExecutionEvidence(eq(latest.getId()), eq(eventId), evidence.capture());
 		assertThat(evidence.getValue()).hasSize(1);
 		assertThat(evidence.getValue().getFirst().getRunId()).isEqualTo(run);
@@ -443,7 +441,7 @@ class DrawPublicationReplacementServiceTest {
 	private UUID addRun(int number, DrawResult canceled, DrawRunStatus status, List<DrawResult> selected) {
 		UUID id = UUID.randomUUID();
 		runs.add(new DrawPublicationRun(id, eventId, number, status, status == DrawRunStatus.CONFIRMED ? NOW : null, selected, null));
-		cancellations.add(new DrawPublicationCancellation(UUID.randomUUID(), canceled.getId(), id, "취소 사유 " + number));
+		cancellations.add(new DrawPublication.Cancellation(UUID.randomUUID(), canceled.getId(), id, "취소 사유 " + number));
 		return id;
 	}
 	/** 시험용 후보에 연결된 지정 자리의 선정 결과를 만든다. */

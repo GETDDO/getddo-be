@@ -1,5 +1,13 @@
 package com.getddo.db.drawing;
 
+import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.service.DrawConfirmationService;
+import com.getddo.core.drawing.service.DrawInspectionService;
+import com.getddo.core.drawing.service.DrawSnapshotService;
+import com.getddo.core.user.domain.*;
+import com.getddo.db.ticket.MutableClock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -12,13 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import com.getddo.core.common.pagination.PageQuery;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.service.DrawConfirmationService;
-import com.getddo.core.drawing.service.DrawInspectionService;
-import com.getddo.core.drawing.service.DrawSnapshotService;
-import com.getddo.core.user.domain.*;
-import com.getddo.db.ticket.MutableClock;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
 import static org.assertj.core.api.Assertions.*;
 
@@ -68,7 +69,7 @@ class DrawInspectionIntegrationTest {
 	void persistsChecksAndPreservesOriginals() {
 		// given
 		Map<String, Object> before = runRow();
-		DrawRunDetailView detail = service.detail(admin, runId);
+		DrawInspectionView.Detail detail = service.detail(admin, runId);
 		clock.set(NOW.plusNanos(123456789));
 		// when
 		DrawVerification passed = service.verify(admin, runId);
@@ -116,11 +117,11 @@ class DrawInspectionIntegrationTest {
 			insert into draw_runs (id, event_id, run_number, draw_type, status, created_at)
 			values (?, ?, 1, 'REPLACEMENT', 'PREPARING', ?)
 			""", toBytes(replacement), toBytes(eventId), utc(NOW));
-		DrawCandidateView original = service.candidates(admin, runId, new PageQuery(1, 1)).getItems().getFirst();
+		DrawInspectionView.Candidate original = service.candidates(admin, runId, new PageQuery(1, 1)).getItems().getFirst();
 		jdbc.update("insert into draw_run_candidates (draw_run_id, candidate_id) values (?, ?)", toBytes(replacement), toBytes(original.getSnapshot().id()));
 		// when / then
-		assertThat(service.runs(admin, eventId, new PageQuery(1, 1)).getItems()).extracting(DrawRunView::getId).containsExactly(replacement);
-		assertThat(service.runs(admin, eventId, new PageQuery(2, 1)).getItems()).extracting(DrawRunView::getId).containsExactly(runId);
+		assertThat(service.runs(admin, eventId, new PageQuery(1, 1)).getItems()).extracting(DrawInspectionView.Run::getId).containsExactly(replacement);
+		assertThat(service.runs(admin, eventId, new PageQuery(2, 1)).getItems()).extracting(DrawInspectionView.Run::getId).containsExactly(runId);
 		assertThat(service.candidates(admin, replacement, new PageQuery(1, 1)).getItems()).singleElement().usingRecursiveComparison().isEqualTo(original);
 		assertThat(service.candidates(admin, replacement, new PageQuery(2, 1)).getItems()).isEmpty();
 		assertThat(service.run(admin, replacement).getOriginalDrawId()).isEqualTo(runId);
@@ -130,7 +131,7 @@ class DrawInspectionIntegrationTest {
 	@DisplayName("실행 공개만으로 결과를 공개 판정하지 않고 실제 공개 행과 취소를 분리한다")
 	void publicationAndCancellationAreIndependent() {
 		// given: 취소·공개 처리는 담당 서비스 대신 저장 자료 fixture만 구성한다.
-		DrawResultView selected = service.results(admin, runId).stream().filter(result -> result.getResultType() == DrawSelectionResultType.SELECTED).findFirst().orElseThrow();
+		DrawInspectionView.Result selected = service.results(admin, runId).stream().filter(result -> result.getResultType() == DrawSelectionResultType.SELECTED).findFirst().orElseThrow();
 		assertThat(selected.isWasPublished()).isFalse();
 		assertThat(selected.isCanceled()).isFalse();
 		UUID publication = UUID.randomUUID();
@@ -143,13 +144,13 @@ class DrawInspectionIntegrationTest {
 			values (?, ?, ?, '관리자 사유', ?)
 			""", toBytes(UUID.randomUUID()), toBytes(selected.getId()), toBytes(admin.getId()), utc(NOW));
 		// when / then: 공개 전에 취소된 결과는 공개 이력이 없다.
-		DrawResultView canceled = service.results(admin, runId).stream().filter(result -> result.getId().equals(selected.getId())).findFirst().orElseThrow();
+		DrawInspectionView.Result canceled = service.results(admin, runId).stream().filter(result -> result.getId().equals(selected.getId())).findFirst().orElseThrow();
 		assertThat(canceled.isCanceled()).isTrue();
 		assertThat(canceled.isWasPublished()).isFalse();
 		// 이미 실제 명단에 포함된 경우에는 둘 다 true다.
 		jdbc.update("insert into draw_publication_results (publication_id, draw_result_id, event_id, draw_run_id) values (?, ?, ?, ?)",
 				toBytes(publication), toBytes(selected.getId()), toBytes(eventId), toBytes(runId));
-		List<DrawResultView> results = service.results(admin, runId);
+		List<DrawInspectionView.Result> results = service.results(admin, runId);
 		assertThat(results).filteredOn(result -> result.getId().equals(selected.getId())).allMatch(result -> result.isCanceled() && result.isWasPublished());
 		assertThat(results).filteredOn(result -> result.getResultType() == DrawSelectionResultType.UNFILLED).allMatch(result -> !result.isCanceled() && !result.isWasPublished());
 		assertThat(service.verify(admin, runId).isPassed()).isTrue();

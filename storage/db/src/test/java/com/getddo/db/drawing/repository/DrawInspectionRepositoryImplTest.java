@@ -1,5 +1,9 @@
 package com.getddo.db.drawing.repository;
 
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawVerification;
+import com.getddo.db.drawing.mapper.DrawInspectionRulesMapper;
 import java.sql.ResultSet;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -11,12 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.db.drawing.mapper.DrawInspectionRulesMapper;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /** JDBC 대역으로 SQL 조건·바인딩·행 변환을 검증한다. 실제 MySQL 실행 결과로 표현하지 않는다. */
 class DrawInspectionRepositoryImplTest {
@@ -30,17 +32,17 @@ class DrawInspectionRepositoryImplTest {
 	@DisplayName("과거 배정 조회는 이전 차수·입력 고정 시각·확정 결과로 제한하고 현재 취소 상태를 필터링하지 않는다")
 	void readsHistoricalAssignmentsAtInputTime() {
 		// given
-		DrawRunView original = run(originalId, DrawType.INITIAL, null, fixedAt.minusSeconds(60));
-		DrawRunView run = run(runId, DrawType.REPLACEMENT, originalId, fixedAt);
-		when(jdbc.query(contains("where run.id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawRunView>>any(), eq(toBytes(originalId))))
+		DrawInspectionView.Run original = run(originalId, DrawType.INITIAL, null, fixedAt.minusSeconds(60));
+		DrawInspectionView.Run run = run(runId, DrawType.REPLACEMENT, originalId, fixedAt);
+		when(jdbc.query(contains("where run.id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawInspectionView.Run>>any(), eq(toBytes(originalId))))
 				.thenReturn(List.of(original));
-		when(jdbc.query(contains("where link.draw_run_id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawCandidateView>>any(), eq(toBytes(originalId))))
+		when(jdbc.query(contains("where link.draw_run_id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawInspectionView.Candidate>>any(), eq(toBytes(originalId))))
 				.thenReturn(List.of());
 		LocalDateTime cutoff = LocalDateTime.ofInstant(fixedAt, ZoneOffset.UTC);
 		when(jdbc.query(contains("run.run_number < ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawHistoricalAward>>any(), eq(toBytes(eventId)), eq(2), eq(cutoff)))
 				.thenReturn(List.of());
 		// when
-		DrawVerificationReferences references = repository.findReplacementReferences(run);
+		DrawVerification.References references = repository.findReplacementReferences(run);
 		// then
 		assertThat(references.getOriginalRun()).isSameAs(original);
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
@@ -67,13 +69,13 @@ class DrawInspectionRepositoryImplTest {
 			"originalRunId":"%s","targetSlots":[{"prizeId":"%s","rank":1,"slotNumber":3}],"retainedAwards":[]}
 			""".formatted(prizeId, originalId, prizeId));
 		when(row.getObject("snapshot_fixed_at", LocalDateTime.class)).thenReturn(LocalDateTime.ofInstant(fixedAt, ZoneOffset.UTC));
-		when(jdbc.query(contains("where run.id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawRunView>>any(), eq(toBytes(runId))))
+		when(jdbc.query(contains("where run.id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawInspectionView.Run>>any(), eq(toBytes(runId))))
 				.thenAnswer(invocation -> {
-					RowMapper<DrawRunView> mapper = invocation.getArgument(1);
+					RowMapper<DrawInspectionView.Run> mapper = invocation.getArgument(1);
 					return List.of(mapper.mapRow(row, 0));
 				});
 		// when
-		DrawRunView run = repository.findRun(runId).orElseThrow();
+		DrawInspectionView.Run run = repository.findRun(runId).orElseThrow();
 		// then
 		assertThat(run.getOriginalDrawId()).isEqualTo(originalId);
 		assertThat(run.getReplacementRules().getOriginalRunId()).isEqualTo(originalId);
@@ -86,7 +88,7 @@ class DrawInspectionRepositoryImplTest {
 	@DisplayName("원본 실행 참조가 없으면 임의 최초 실행을 찾아 검증 근거를 만들어내지 않는다")
 	void missingOriginalReturnsMissingEvidence() {
 		// given / when
-		DrawVerificationReferences references = repository.findReplacementReferences(run(runId, DrawType.REPLACEMENT, null, fixedAt));
+		DrawVerification.References references = repository.findReplacementReferences(run(runId, DrawType.REPLACEMENT, null, fixedAt));
 		// then
 		assertThat(references.getOriginalRun()).isNull();
 		assertThat(references.getOriginalCandidates()).isEmpty();
@@ -101,21 +103,21 @@ class DrawInspectionRepositoryImplTest {
 		ResultSet row = mock(ResultSet.class);
 		when(row.getBytes("user_id")).thenReturn(toBytes(winner));
 		when(row.getString("result_type")).thenReturn("SELECTED");
-		when(jdbc.query(contains("select result.*"), org.mockito.ArgumentMatchers.<RowMapper<DrawResultView>>any(), eq(toBytes(runId))))
+		when(jdbc.query(contains("select result.*"), org.mockito.ArgumentMatchers.<RowMapper<DrawInspectionView.Result>>any(), eq(toBytes(runId))))
 				.thenAnswer(invocation -> {
-					RowMapper<DrawResultView> mapper = invocation.getArgument(1);
-					DrawResultView selected = mapper.mapRow(row, 0);
+					RowMapper<DrawInspectionView.Result> mapper = invocation.getArgument(1);
+					DrawInspectionView.Result selected = mapper.mapRow(row, 0);
 					when(row.getBytes("user_id")).thenReturn(null);
 					when(row.getString("result_type")).thenReturn("UNFILLED");
 					return List.of(selected, mapper.mapRow(row, 1));
 				});
-		List<DrawResultView> results = repository.findResults(runId);
+		List<DrawInspectionView.Result> results = repository.findResults(runId);
 		assertThat(results).hasSize(2);
 		assertThat(results.getFirst().getUserId()).isEqualTo(winner);
 		assertThat(results.getLast().getUserId()).isNull();
 		assertThat(results.getLast().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-		verify(jdbc).query(sql.capture(), org.mockito.ArgumentMatchers.<RowMapper<DrawResultView>>any(), eq(toBytes(runId)));
+		verify(jdbc).query(sql.capture(), org.mockito.ArgumentMatchers.<RowMapper<DrawInspectionView.Result>>any(), eq(toBytes(runId)));
 		assertThat(sql.getValue()).contains("left join draw_candidates", "left join event_participants", "order by prize.prize_rank, result.slot_number")
 				.doesNotContain("entry_snapshot", "eligibility_snapshot");
 	}
@@ -125,16 +127,16 @@ class DrawInspectionRepositoryImplTest {
 	void nullEntryArrayDoesNotAbortCandidateRead() throws Exception {
 		ResultSet row = mock(ResultSet.class);
 		when(row.getString("entry_snapshot")).thenReturn("{\"version\":1,\"bronzeCount\":0,\"silverCount\":0,\"goldCount\":0,\"entries\":null}");
-		when(jdbc.query(contains("where link.draw_run_id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawCandidateView>>any(), eq(toBytes(runId))))
+		when(jdbc.query(contains("where link.draw_run_id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DrawInspectionView.Candidate>>any(), eq(toBytes(runId))))
 				.thenAnswer(invocation -> {
-					RowMapper<DrawCandidateView> mapper = invocation.getArgument(1);
+					RowMapper<DrawInspectionView.Candidate> mapper = invocation.getArgument(1);
 					return List.of(mapper.mapRow(row, 0));
 				});
 		assertThat(repository.findAllCandidates(runId).getFirst().getSnapshot().entryEvidence()).isNull();
 	}
 
-	private DrawRunView run(UUID id, DrawType type, UUID firstId, Instant fixedAt) {
-		return new DrawRunView(id, eventId, type == DrawType.INITIAL ? 0 : 2, type, DrawRunStatus.CONFIRMED,
+	private DrawInspectionView.Run run(UUID id, DrawType type, UUID firstId, Instant fixedAt) {
+		return new DrawInspectionView.Run(id, eventId, type == DrawType.INITIAL ? 0 : 2, type, DrawRunStatus.CONFIRMED,
 				firstId, null, null, fixedAt, fixedAt, fixedAt, fixedAt);
 	}
 }

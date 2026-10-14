@@ -1,11 +1,11 @@
 package com.getddo.core.drawing.domain;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
 
-import lombok.Getter;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 /** 직전 실제 공개 버전과 비교한 변경 이력. 확인자·사유·실제 공개 시각은 버전에 남는다. */
 @Getter
@@ -13,7 +13,7 @@ import lombok.EqualsAndHashCode;
 public final class DrawPublicationChange {
 	private final DrawPublication publication;
 	private final List<SlotChange> changes;
-	private final List<DrawPublicationExecution> executions;
+	private final List<DrawPublication.Execution> executions;
 
 	/** 실제 공개 버전과 그 직전 버전 대비 변경 목록을 불변 값으로 보존한다. */
 	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes) {
@@ -21,7 +21,8 @@ public final class DrawPublicationChange {
 	}
 
 	/** 실제 공개 버전과 자리 변경·실행별 근거 목록을 외부에서 바꿀 수 없는 값으로 보존한다. */
-	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes, List<DrawPublicationExecution> executions) {
+	public DrawPublicationChange(DrawPublication publication, List<SlotChange> changes,
+			List<DrawPublication.Execution> executions) {
 		this.publication = Objects.requireNonNull(publication, "publication");
 		this.changes = List.copyOf(Objects.requireNonNull(changes, "changes"));
 		this.executions = List.copyOf(Objects.requireNonNull(executions, "executions"));
@@ -39,7 +40,7 @@ public final class DrawPublicationChange {
 
 		/** 자리별 공개 전후 결과와 사용자를 보존한다. 한쪽 명단에 없는 값은 null이다. */
 		public SlotChange(UUID prizeId, int slotNumber, UUID beforeResultId, UUID beforeUserId,
-			UUID afterResultId, UUID afterUserId) {
+				UUID afterResultId, UUID afterUserId) {
 			this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
 			if (slotNumber < 1) throw new IllegalArgumentException("slotNumber must be positive");
 			this.slotNumber = slotNumber;

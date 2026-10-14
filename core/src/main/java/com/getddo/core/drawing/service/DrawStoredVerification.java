@@ -1,5 +1,6 @@
 package com.getddo.core.drawing.service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -9,70 +10,78 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.time.Instant;
 
 import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawVerification;
 
-/** 저장 자료만 검증하며 난수·현재 응모 수량·현재 경품 설정을 사용하지 않는다. */
+/** 저장된 입력과 결과를 비교해 수량·가중치·자리 배정·취소 시점이 맞는지 검사한다. 당첨자를 다시 뽑지 않는다. */
 public final class DrawStoredVerification {
-	private DrawStoredVerification() { }
-
-	/** 최초 실행의 기존 호출을 유지한다. 재추첨은 저장된 최초 입력·과거 배정을 함께 전달한다. */
-	public static List<DrawCheckItem> verify(DrawRunView run, List<DrawCandidateView> candidates,
-			List<DrawResultView> results) {
-		return verify(run, candidates, results, DrawVerificationReferences.empty());
+	private DrawStoredVerification() {
 	}
 
-	public static List<DrawCheckItem> verify(DrawRunView run, List<DrawCandidateView> candidates,
-			List<DrawResultView> results, DrawVerificationReferences references) {
-		DrawVerificationReferences stored = references == null ? DrawVerificationReferences.empty() : references;
-		List<DrawCheckItem> checks = new ArrayList<>();
+	/** 최초 실행의 기존 호출을 유지한다. 재추첨은 저장된 최초 입력·과거 배정을 함께 전달한다. */
+	public static List<DrawVerification.Item> verify(DrawInspectionView.Run run,
+			List<DrawInspectionView.Candidate> candidates,
+			List<DrawInspectionView.Result> results) {
+		return verify(run, candidates, results, DrawVerification.References.empty());
+	}
+
+	public static List<DrawVerification.Item> verify(DrawInspectionView.Run run,
+			List<DrawInspectionView.Candidate> candidates,
+			List<DrawInspectionView.Result> results, DrawVerification.References references) {
+		DrawVerification.References stored = references == null ? DrawVerification.References.empty() : references;
+		List<DrawVerification.Item> checks = new ArrayList<>();
 		boolean replacement = run.getDrawType() == DrawType.REPLACEMENT;
 		boolean supported = run.getRules() != null
 				&& ((run.getDrawType() == DrawType.INITIAL && run.getRules().version() == 1)
-						|| (replacement && run.getRules().version() == 2 && run.getReplacementRules() != null))
+				|| (replacement && run.getRules().version() == 2 && run.getReplacementRules() != null))
 				&& DrawSnapshotService.ALGORITHM_VERSION.equals(run.getAlgorithmVersion());
 		checks.add(item("SUPPORTED_INPUT", supported, "실행 종류·입력 버전·알고리즘 검증 범위"));
 		checks.add(item("FIXED_INPUT", run.getSnapshotFixedAt() != null && run.getConfirmedAt() != null
 				&& !run.getConfirmedAt().isBefore(run.getSnapshotFixedAt()), "입력·결과 확정 시각"));
 		checks.add(item("CANDIDATE_RELATIONS", relations(run, candidates), "실행·원본 후보·응모자 연결"));
 		Instant evidenceFixedAt = replacement && stored.getOriginalRun() != null
-				? stored.getOriginalRun().getSnapshotFixedAt() : run.getSnapshotFixedAt();
-		checks.add(item("CANDIDATE_EVIDENCE", supported && evidence(run, candidates, evidenceFixedAt, replacement), "저장 응모 수량·등급·가중치 근거"));
+		? stored.getOriginalRun().getSnapshotFixedAt() : run.getSnapshotFixedAt();
+		checks.add(item("CANDIDATE_EVIDENCE", supported && evidence(run, candidates,
+				evidenceFixedAt, replacement), "저장 응모 수량·등급·가중치 근거"));
 		if (replacement) {
-			checks.add(item("REPLACEMENT_SOURCE", supported && replacementSource(run, candidates, stored), "최초 조건·후보·최초 가중치·과거 당첨 후보 제외"));
+			checks.add(item("REPLACEMENT_SOURCE", supported && replacementSource(run, candidates,
+					stored), "최초 조건·후보·최초 가중치·과거 당첨 후보 제외"));
 			checks.add(item("REPLACEMENT_SLOTS", supported && replacementSlots(run, stored), "고정 대상 자리·유지 결과의 원본 배정"));
 		}
 		checks.add(item("RESULTS", supported && results(run, candidates, results), "저장 경품 자리·선정 순서·후보·사용자 중복"));
 		return List.copyOf(checks);
 	}
 
-	private static DrawCheckItem item(String code, boolean passed, String scope) {
-		return new DrawCheckItem(code, passed, scope + (passed ? ": 일치" : ": 불일치 또는 검증 범위 미지원"));
+	private static DrawVerification.Item item(String code, boolean passed, String scope) {
+		return new DrawVerification.Item(code, passed, scope + (passed ? ": 일치" : ": 불일치 또는 검증 범위 미지원"));
 	}
 
-	private static boolean relations(DrawRunView run, List<DrawCandidateView> candidates) {
+	private static boolean relations(DrawInspectionView.Run run, List<DrawInspectionView.Candidate> candidates) {
 		Set<UUID> ids = new HashSet<>(), participants = new HashSet<>(), users = new HashSet<>();
-		for (DrawCandidateView view : candidates) {
+		for (DrawInspectionView.Candidate view : candidates) {
 			DrawSnapshot.Candidate candidate = view.getSnapshot();
 			if (candidate.id() == null || candidate.participantId() == null || candidate.userId() == null
 					|| !ids.add(candidate.id()) || !participants.add(candidate.participantId()) || !users.add(candidate.userId())
 					|| !run.getEventId().equals(view.getSourceEventId())
 					|| !run.getEventId().equals(view.getParticipantEventId())
 					|| !candidate.userId().equals(view.getParticipantUserId())
-					|| !Objects.equals(run.getDrawType() == DrawType.INITIAL ? run.getId() : run.getOriginalDrawId(), view.getSourceRunId())) return false;
+					|| !Objects.equals(run.getDrawType() == DrawType.INITIAL ? run.getId() : run.getOriginalDrawId(),
+					view.getSourceRunId())) return false;
 		}
 		return true;
 	}
 
-	private static boolean evidence(DrawRunView run, List<DrawCandidateView> candidates, Instant evidenceFixedAt, boolean allowEmpty) {
+	private static boolean evidence(DrawInspectionView.Run run, List<DrawInspectionView.Candidate> candidates,
+			Instant evidenceFixedAt, boolean allowEmpty) {
 		DrawSnapshot.Rules rules = run.getRules();
 		if (evidenceFixedAt == null || rules.bronzeWeight() != 1 || rules.silverWeight() != 3 || rules.goldWeight() != 5
 				|| !("TICKET".equals(rules.eventType()) || "NO_TICKET".equals(rules.eventType()))
 				|| ("NO_TICKET".equals(rules.eventType()) && rules.weightingEnabled())) return false;
 		Set<UUID> entries = new HashSet<>(), histories = new HashSet<>(), tickets = new HashSet<>();
 		try {
-			for (DrawCandidateView view : candidates) {
+			for (DrawInspectionView.Candidate view : candidates) {
 				DrawSnapshot.Candidate candidate = view.getSnapshot();
 				DrawSnapshot.EntryEvidence entry = candidate.entryEvidence();
 				DrawSnapshot.EligibilityEvidence eligibility = candidate.eligibilityEvidence();
@@ -106,13 +115,16 @@ public final class DrawStoredVerification {
 						Math.addExact(Math.multiplyExact(silver, 3), Math.multiplyExact(gold, 5))) : 1;
 				if (candidate.weight() != weight || weight < 1) return false;
 			}
-		} catch (ArithmeticException overflow) { return false; }
+		} catch (ArithmeticException overflow) {
+			return false;
+		}
 		return allowEmpty || !candidates.isEmpty();
 	}
 
 	/** 현재 응모·사용자 상태 대신 최초 저장 조건과 불변 후보 근거를 대조한다. */
-	private static boolean replacementSource(DrawRunView run, List<DrawCandidateView> candidates, DrawVerificationReferences references) {
-		DrawRunView original = references.getOriginalRun();
+	private static boolean replacementSource(DrawInspectionView.Run run, List<DrawInspectionView.Candidate> candidates,
+			DrawVerification.References references) {
+		DrawInspectionView.Run original = references.getOriginalRun();
 		DrawReplacementRulesView replacement = run.getReplacementRules();
 		if (run.getRunNumber() < 1 || original == null || replacement == null || run.getSnapshotFixedAt() == null
 				|| !Objects.equals(run.getOriginalDrawId(), replacement.getOriginalRunId())
@@ -121,11 +133,12 @@ public final class DrawStoredVerification {
 				|| original.getRunNumber() != 0 || original.getStatus() != DrawRunStatus.CONFIRMED
 				|| original.getConfirmedAt() == null || original.getConfirmedAt().isAfter(run.getSnapshotFixedAt())
 				|| !Objects.equals(run.getAlgorithmVersion(), original.getAlgorithmVersion())
-				|| original.getRules() == null || original.getRules().version() != 1 || !sameConditions(run.getRules(), original.getRules())
+				|| original.getRules() == null || original.getRules().version() != 1 || !sameConditions(run.getRules(),
+				original.getRules())
 				|| !relations(original, references.getOriginalCandidates())
 				|| !evidence(original, references.getOriginalCandidates(), original.getSnapshotFixedAt(), false)) return false;
 		Map<UUID, DrawSnapshot.Candidate> firstCandidates = new HashMap<>();
-		for (DrawCandidateView candidate : references.getOriginalCandidates()) {
+		for (DrawInspectionView.Candidate candidate : references.getOriginalCandidates()) {
 			firstCandidates.put(candidate.getSnapshot().id(), candidate.getSnapshot());
 		}
 		Set<UUID> winners = new HashSet<>(), awardIds = new HashSet<>();
@@ -135,7 +148,8 @@ public final class DrawStoredVerification {
 					|| !run.getEventId().equals(award.getEventId()) || !run.getEventId().equals(award.getPrizeEventId())
 					|| award.getConfirmedAt() == null || award.getConfirmedAt().isAfter(run.getSnapshotFixedAt())
 					|| award.getRunNumber() < 0 || award.getRunNumber() >= run.getRunNumber()
-					|| award.getResultType() == null || (award.getCanceledAt() != null && award.getCanceledAt().isBefore(award.getConfirmedAt()))) return false;
+					|| award.getResultType() == null
+				|| (award.getCanceledAt() != null && award.getCanceledAt().isBefore(award.getConfirmedAt()))) return false;
 			if (award.getResultType() == DrawSelectionResultType.SELECTED) {
 				if (candidate == null || !Objects.equals(candidate.userId(), award.getUserId())) return false;
 				winners.add(award.getCandidateId());
@@ -144,7 +158,7 @@ public final class DrawStoredVerification {
 		Set<UUID> expected = new HashSet<>(firstCandidates.keySet());
 		expected.removeAll(winners);
 		Set<UUID> actual = new HashSet<>();
-		for (DrawCandidateView candidate : candidates) {
+		for (DrawInspectionView.Candidate candidate : candidates) {
 			if (!candidate.getSnapshot().equals(firstCandidates.get(candidate.getSnapshot().id()))
 					|| !actual.add(candidate.getSnapshot().id())) return false;
 		}
@@ -152,7 +166,8 @@ public final class DrawStoredVerification {
 	}
 
 	private static boolean sameConditions(DrawSnapshot.Rules current, DrawSnapshot.Rules original) {
-		return current.weightingEnabled() == original.weightingEnabled() && Objects.equals(current.eventType(), original.eventType())
+		return current.weightingEnabled() == original.weightingEnabled() && Objects.equals(current.eventType(),
+				original.eventType())
 				&& Objects.equals(current.membershipRule(), original.membershipRule()) && current.bronzeWeight() == original.bronzeWeight()
 				&& current.silverWeight() == original.silverWeight() && current.goldWeight() == original.goldWeight()
 				&& current.prizes().size() == original.prizes().size()
@@ -160,7 +175,7 @@ public final class DrawStoredVerification {
 	}
 
 	/** 고정 시각 이전 최신 자리 배정의 취소·유지 여부와 완전성을 검증한다. 이후 취소는 소급 반영하지 않는다. */
-	private static boolean replacementSlots(DrawRunView run, DrawVerificationReferences references) {
+	private static boolean replacementSlots(DrawInspectionView.Run run, DrawVerification.References references) {
 		DrawReplacementRulesView replacement = run.getReplacementRules();
 		if (replacement == null || replacement.getTargetSlots().isEmpty() || run.getSnapshotFixedAt() == null) return false;
 		Map<UUID, DrawSnapshotSource.Prize> prizes = new HashMap<>();
@@ -189,7 +204,8 @@ public final class DrawStoredVerification {
 			DrawHistoricalAward award = latest.get(key);
 			DrawSnapshotSource.Prize prize = prizes.get(retained.getPrizeId());
 			if (award == null || prize == null || award.getResultType() != DrawSelectionResultType.SELECTED
-					|| canceledAtFixedTime(award, run.getSnapshotFixedAt()) || !Objects.equals(retained.getResultId(), award.getId())
+					|| canceledAtFixedTime(award, run.getSnapshotFixedAt()) || !Objects.equals(retained.getResultId(),
+					award.getId())
 					|| !retainedIds.add(retained.getResultId()) || retained.getUserId() == null
 					|| !retainedUsers.add(retained.getUserId()) || !Objects.equals(retained.getUserId(), award.getUserId())
 					|| retained.getSlotNumber() < 1 || retained.getSlotNumber() > prize.winnerCount() || !occupied.add(key)) return false;
@@ -207,11 +223,15 @@ public final class DrawStoredVerification {
 		return award.getCanceledAt() != null && !award.getCanceledAt().isAfter(fixedAt);
 	}
 
-	private static String slotKey(UUID prizeId, int slot) { return prizeId + ":" + slot; }
+	private static String slotKey(UUID prizeId, int slot) {
+		return prizeId + ":" + slot;
+	}
 
-	private static boolean results(DrawRunView run, List<DrawCandidateView> candidates, List<DrawResultView> stored) {
+	private static boolean results(DrawInspectionView.Run run, List<DrawInspectionView.Candidate> candidates,
+			List<DrawInspectionView.Result> stored) {
 		Map<UUID, UUID> candidateUsers = new HashMap<>();
-		for (DrawCandidateView view : candidates) candidateUsers.put(view.getSnapshot().id(), view.getSnapshot().userId());
+		for (DrawInspectionView.Candidate view : candidates) candidateUsers.put(view.getSnapshot().id(),
+				view.getSnapshot().userId());
 		Map<UUID, DrawSnapshotSource.Prize> prizes = new HashMap<>();
 		Set<Integer> ranks = new HashSet<>();
 		long slots = 0;
@@ -223,23 +243,23 @@ public final class DrawStoredVerification {
 		if (prizes.isEmpty()) return false;
 		boolean replacement = run.getDrawType() == DrawType.REPLACEMENT;
 		List<DrawReplacementRulesView.Slot> targets = replacement && run.getReplacementRules() != null
-				? new ArrayList<>(run.getReplacementRules().getTargetSlots()) : List.of();
+		? new ArrayList<>(run.getReplacementRules().getTargetSlots()) : List.of();
 		if (replacement ? targets.isEmpty() || targets.size() != stored.size() : slots != stored.size()) return false;
 		if (replacement) targets.sort(Comparator.comparingInt(DrawReplacementRulesView.Slot::getRank)
 				.thenComparingInt(DrawReplacementRulesView.Slot::getSlotNumber));
-		List<DrawResultView> ordered = new ArrayList<>(stored);
-		for (DrawResultView result : ordered) {
+		List<DrawInspectionView.Result> ordered = new ArrayList<>(stored);
+		for (DrawInspectionView.Result result : ordered) {
 			if (!prizes.containsKey(result.getPrizeId()) || !run.getId().equals(result.getRunId())
 					|| !run.getEventId().equals(result.getPrizeEventId())) return false;
 		}
-		ordered.sort(Comparator.comparingInt((DrawResultView result) -> prizes.get(result.getPrizeId()).rank())
-				.thenComparingInt(DrawResultView::getSlotNumber));
+		ordered.sort(Comparator.comparingInt((DrawInspectionView.Result result) -> prizes.get(result.getPrizeId()).rank())
+				.thenComparingInt(DrawInspectionView.Result::getSlotNumber));
 		Set<UUID> resultIds = new HashSet<>(), selected = new HashSet<>(), users = new HashSet<>();
 		Map<UUID, Integer> nextSlots = new HashMap<>();
 		int order = 0;
 		boolean unfilled = false;
 		int index = 0;
-		for (DrawResultView result : ordered) {
+		for (DrawInspectionView.Result result : ordered) {
 			int slot = nextSlots.merge(result.getPrizeId(), 1, Integer::sum);
 			if (replacement) {
 				DrawReplacementRulesView.Slot target = targets.get(index++);

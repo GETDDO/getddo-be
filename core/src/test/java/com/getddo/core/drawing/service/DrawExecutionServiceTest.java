@@ -1,5 +1,8 @@
 package com.getddo.core.drawing.service;
 
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.*;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -8,13 +11,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.TransientDataAccessResourceException;
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class DrawExecutionServiceTest {
 	private static final Instant NOW = Instant.parse("2026-10-12T03:00:00Z");
@@ -30,7 +30,7 @@ class DrawExecutionServiceTest {
 	void rejectsAfterRecoveryHasReturned() {
 		// given
 		DrawExecutionState failed = state(DrawRunStatus.FAILED);
-		when(control.claim(runId, null, false, false)).thenReturn(new DrawExecutionClaim(failed, false, NOT_EXECUTABLE));
+		when(control.claim(runId, null, false, false)).thenReturn(new DrawExecutionControlService.Claim(failed, false, NOT_EXECUTABLE));
 		// when / then
 		assertThatThrownBy(() -> service.execute(runId)).isInstanceOfSatisfying(BusinessException.class,
 				failure -> assertThat(failure.getErrorCode()).isSameAs(NOT_EXECUTABLE));
@@ -45,7 +45,7 @@ class DrawExecutionServiceTest {
 		DrawExecutionState confirmed = state(DrawRunStatus.CONFIRMED);
 		DrawConfirmation stored = new DrawConfirmation(runId, eventId, NOW, List.of());
 		DrawExecutionResult result = new DrawExecutionResult(runId, DrawRunStatus.CONFIRMED, stored);
-		when(control.claim(runId, null, false, false)).thenReturn(new DrawExecutionClaim(confirmed, false));
+		when(control.claim(runId, null, false, false)).thenReturn(new DrawExecutionControlService.Claim(confirmed, false));
 		when(attempts.stored(confirmed)).thenReturn(result);
 		// when / then
 		assertThat(service.execute(runId)).isSameAs(result);
@@ -59,7 +59,7 @@ class DrawExecutionServiceTest {
 		// given
 		DrawExecutionState running = state(DrawRunStatus.PREPARING);
 		DrawExecutionState failed = state(DrawRunStatus.FAILED);
-		when(control.claim(runId, null, false, false)).thenReturn(new DrawExecutionClaim(running, true));
+		when(control.claim(runId, null, false, false)).thenReturn(new DrawExecutionControlService.Claim(running, true));
 		doThrow(new TransientDataAccessResourceException("diagnostic detail")).when(preparations).prepare(runId, attemptId);
 		when(control.recordFailure(runId, attemptId, DrawFailureCode.TRANSIENT_STORAGE, NOW)).thenReturn(failed);
 		when(attempts.stored(failed)).thenReturn(new DrawExecutionResult(runId, DrawRunStatus.FAILED, null));

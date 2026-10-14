@@ -1,5 +1,9 @@
 package com.getddo.core.drawing.service;
 
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawVerification;
+import com.getddo.core.ticket.domain.TicketGrade;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -7,8 +11,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.ticket.domain.TicketGrade;
 import static org.assertj.core.api.Assertions.*;
 
 class DrawStoredVerificationTest {
@@ -20,12 +22,12 @@ class DrawStoredVerificationTest {
 	@DisplayName("저장된 가중치·응모 근거·선정·미충원을 난수 없이 검증한다")
 	void verifiesStoredResults() {
 		// given
-		DrawRunView run = run(DrawType.INITIAL);
+		DrawInspectionView.Run run = run(DrawType.INITIAL);
 		// when
-		List<DrawCheckItem> checks = DrawStoredVerification.verify(run, List.of(candidate(1, 5)),
+		List<DrawVerification.Item> checks = DrawStoredVerification.verify(run, List.of(candidate(1, 5)),
 				List.of(result(1, 1, candidateId, true, true), result(2, null, null, false, false)));
 		// then: 공개 후 취소된 당첨도 원래 확정 결과의 정합성을 바꾸지 않는다.
-		assertThat(checks).allMatch(DrawCheckItem::isPassed);
+		assertThat(checks).allMatch(DrawVerification.Item::isPassed);
 	}
 
 	@Test
@@ -41,8 +43,8 @@ class DrawStoredVerificationTest {
 	@DisplayName("가중치 미적용 응모권 이벤트는 저장된 브론즈 한 장 근거만 통과한다")
 	void unweightedTicketEvidenceRequiresBronze(TicketGrade grade) {
 		// given
-		DrawRunView weighted = run(DrawType.INITIAL);
-		DrawRunView unweighted = new DrawRunView(runId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED, null,
+		DrawInspectionView.Run weighted = run(DrawType.INITIAL);
+		DrawInspectionView.Run unweighted = new DrawInspectionView.Run(runId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED, null,
 				weighted.getAlgorithmVersion(), new DrawSnapshot.Rules(1, false, "TICKET", "ALL", 1, 3, 5,
 				weighted.getRules().prizes()), fixedAt, fixedAt, fixedAt, fixedAt);
 		DrawSnapshotSource.Use use = new DrawSnapshotSource.Use(UUID.randomUUID(), UUID.randomUUID(), userId, grade);
@@ -52,11 +54,11 @@ class DrawStoredVerificationTest {
 				grade == TicketGrade.GOLD ? 1 : 0, List.of(entry)),
 				new DrawSnapshot.EligibilityEvidence(1, userId, "VIP", "USER", false, fixedAt));
 		// when
-		List<DrawCheckItem> checks = DrawStoredVerification.verify(unweighted,
-				List.of(new DrawCandidateView(snapshot, runId, eventId, eventId, userId)), validResults());
+		List<DrawVerification.Item> checks = DrawStoredVerification.verify(unweighted,
+				List.of(new DrawInspectionView.Candidate(snapshot, runId, eventId, eventId, userId)), validResults());
 		// then
 		assertThat(checks).filteredOn(item -> item.getCode().equals("CANDIDATE_EVIDENCE"))
-				.extracting(DrawCheckItem::isPassed).containsExactly(grade == TicketGrade.BRONZE);
+				.extracting(DrawVerification.Item::isPassed).containsExactly(grade == TicketGrade.BRONZE);
 	}
 
 	@Test
@@ -66,7 +68,7 @@ class DrawStoredVerificationTest {
 		assertResultsFail(List.of(result(1, null, null, false, false), result(2, 1, candidateId, false, false)));
 		assertResultsFail(List.of(result(1, 1, candidateId, false, false), result(1, null, null, false, false)));
 		assertResultsFail(List.of(result(1, 2, candidateId, false, false), result(2, null, null, false, false)));
-		assertResultsFail(List.of(new DrawResultView(UUID.randomUUID(), UUID.randomUUID(), prizeId, eventId, 1, 1,
+		assertResultsFail(List.of(new DrawInspectionView.Result(UUID.randomUUID(), UUID.randomUUID(), prizeId, eventId, 1, 1,
 				DrawSelectionResultType.SELECTED, candidateId, false, false), result(2, null, null, false, false)));
 	}
 
@@ -74,8 +76,8 @@ class DrawStoredVerificationTest {
 	@DisplayName("중복 사용자 후보·다른 이벤트 후보 연결을 불일치로 기록한다")
 	void rejectsCandidateRelations() {
 		// given
-		DrawCandidateView candidate = candidate(1, 5);
-		DrawCandidateView wrongEvent = new DrawCandidateView(candidate.getSnapshot(), runId, UUID.randomUUID(), eventId, userId);
+		DrawInspectionView.Candidate candidate = candidate(1, 5);
+		DrawInspectionView.Candidate wrongEvent = new DrawInspectionView.Candidate(candidate.getSnapshot(), runId, UUID.randomUUID(), eventId, userId);
 		// when / then
 		assertThat(checks(List.of(candidate, candidate), validResults())).anyMatch(item -> item.getCode().equals("CANDIDATE_RELATIONS") && !item.isPassed());
 		assertThat(checks(List.of(wrongEvent), validResults())).anyMatch(item -> item.getCode().equals("CANDIDATE_RELATIONS") && !item.isPassed());
@@ -94,37 +96,37 @@ class DrawStoredVerificationTest {
 	void missingEvidenceAndTimeFailSafely() {
 		// given
 		DrawSnapshot.Candidate broken = new DrawSnapshot.Candidate(candidateId, participantId, null, 1, 5, null, null);
-		DrawRunView run = new DrawRunView(runId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED,
+		DrawInspectionView.Run run = new DrawInspectionView.Run(runId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED,
 				null, DrawSnapshotService.ALGORITHM_VERSION, run(DrawType.INITIAL).getRules(), null, null, fixedAt, fixedAt);
 		// when / then
-		assertThat(DrawStoredVerification.verify(run, List.of(new DrawCandidateView(broken, runId, eventId, eventId, userId)), validResults()))
+		assertThat(DrawStoredVerification.verify(run, List.of(new DrawInspectionView.Candidate(broken, runId, eventId, eventId, userId)), validResults()))
 				.anyMatch(item -> !item.isPassed());
 	}
 
-	private List<DrawCheckItem> checks(List<DrawCandidateView> candidates, List<DrawResultView> results) {
+	private List<DrawVerification.Item> checks(List<DrawInspectionView.Candidate> candidates, List<DrawInspectionView.Result> results) {
 		return DrawStoredVerification.verify(run(DrawType.INITIAL), candidates, results);
 	}
-	private void assertResultsFail(List<DrawResultView> results) {
+	private void assertResultsFail(List<DrawInspectionView.Result> results) {
 		assertThat(checks(List.of(candidate(1, 5)), results)).anyMatch(item -> item.getCode().equals("RESULTS") && !item.isPassed());
 	}
-	private List<DrawResultView> validResults() {
+	private List<DrawInspectionView.Result> validResults() {
 		return List.of(result(1, 1, candidateId, false, false), result(2, null, null, false, false));
 	}
-	private DrawResultView result(int slot, Integer order, UUID candidate, boolean published, boolean canceled) {
-		return new DrawResultView(UUID.randomUUID(), runId, prizeId, eventId, slot, order,
+	private DrawInspectionView.Result result(int slot, Integer order, UUID candidate, boolean published, boolean canceled) {
+		return new DrawInspectionView.Result(UUID.randomUUID(), runId, prizeId, eventId, slot, order,
 				candidate == null ? DrawSelectionResultType.UNFILLED : DrawSelectionResultType.SELECTED, candidate, published, canceled);
 	}
-	private DrawRunView run(DrawType type) {
-		return new DrawRunView(runId, eventId, 0, type, DrawRunStatus.CONFIRMED, null,
+	private DrawInspectionView.Run run(DrawType type) {
+		return new DrawInspectionView.Run(runId, eventId, 0, type, DrawRunStatus.CONFIRMED, null,
 				DrawSnapshotService.ALGORITHM_VERSION, new DrawSnapshot.Rules(1, true, "TICKET", "ALL", 1, 3, 5,
 				List.of(new DrawSnapshotSource.Prize(prizeId, 1, 2))), fixedAt, fixedAt, fixedAt, fixedAt);
 	}
-	private DrawCandidateView candidate(long count, long weight) {
+	private DrawInspectionView.Candidate candidate(long count, long weight) {
 		DrawSnapshotSource.Use use = new DrawSnapshotSource.Use(UUID.randomUUID(), UUID.randomUUID(), userId, TicketGrade.GOLD);
 		DrawSnapshotSource.Entry entry = new DrawSnapshotSource.Entry(UUID.randomUUID(), 1, fixedAt.minusSeconds(300), List.of(use));
 		DrawSnapshot.Candidate snapshot = new DrawSnapshot.Candidate(candidateId, participantId, userId, count, weight,
 				new DrawSnapshot.EntryEvidence(1, 0, 0, 1, List.of(entry)),
 				new DrawSnapshot.EligibilityEvidence(1, userId, "VIP", "USER", false, fixedAt));
-		return new DrawCandidateView(snapshot, runId, eventId, eventId, userId);
+		return new DrawInspectionView.Candidate(snapshot, runId, eventId, eventId, userId);
 	}
 }

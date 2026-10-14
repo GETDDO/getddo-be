@@ -1,5 +1,15 @@
 package com.getddo.db.drawing;
 
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.repository.DrawFailureRepository;
+import com.getddo.core.drawing.repository.DrawSnapshotRepository;
+import com.getddo.core.drawing.service.*;
+import com.getddo.core.drawing.service.DrawExecutionControlService;
+import com.getddo.db.drawing.entity.DrawRunEntity;
+import com.getddo.db.drawing.repository.DrawResultJpaRepository;
+import com.getddo.db.drawing.repository.DrawRunJpaRepository;
+import com.getddo.db.ticket.MutableClock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -22,20 +32,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.DrawFailureRepository;
-import com.getddo.core.drawing.repository.DrawSnapshotRepository;
-import com.getddo.core.drawing.service.*;
-import com.getddo.db.drawing.entity.DrawRunEntity;
-import com.getddo.db.drawing.repository.DrawResultJpaRepository;
-import com.getddo.db.drawing.repository.DrawRunJpaRepository;
-import com.getddo.db.ticket.MutableClock;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.NOT_EXECUTABLE;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest(classes = DrawSnapshotIntegrationTest.TestApplication.class,
 		properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.properties.hibernate.jdbc.time_zone=UTC"})
@@ -158,7 +159,7 @@ class DrawExecutionIntegrationTest {
 	void commitsInterruptedFailureBeforeManualRejection() {
 		// given
 		UUID runId = snapshots.registerInitial(eventId);
-		DrawExecutionClaim first = control.claim(runId, null, false, false);
+		DrawExecutionControlService.Claim first = control.claim(runId, null, false, false);
 		jdbc.update("update events set status = 'CANCELED' where id = ?", toBytes(eventId));
 		clock.set(NOW.plusSeconds(301));
 		// when / then
@@ -196,7 +197,7 @@ class DrawExecutionIntegrationTest {
 	void concurrentFailureStorageIsIdempotent() throws Exception {
 		// given
 		UUID runId = snapshots.registerInitial(eventId);
-		DrawExecutionClaim owned = control.claim(runId, null, false, false);
+		DrawExecutionControlService.Claim owned = control.claim(runId, null, false, false);
 		UUID token = owned.getState().getAttemptId();
 		CountDownLatch start = new CountDownLatch(1);
 		ExecutorService pool = Executors.newFixedThreadPool(2);

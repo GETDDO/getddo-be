@@ -1,5 +1,14 @@
 package com.getddo.core.drawing.service;
 
+import com.getddo.core.common.exception.BusinessException;
+import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.repository.*;
+import com.getddo.core.user.domain.*;
+import com.getddo.core.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -8,19 +17,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.common.pagination.PageQuery;
-import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
-import com.getddo.core.user.domain.*;
-import com.getddo.core.user.repository.UserRepository;
-
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -39,13 +37,13 @@ class DrawPublicationPagingTest {
 	void comparesBoundaryVersionAndBatchesSlots() {
 		// given
 		DrawPublication first = publication(1), second = publication(2), third = publication(3);
-		DrawPublishedSlot original = slot(), middle = slot(), latest = slot();
+		DrawPublication.Slot original = slot(), middle = slot(), latest = slot();
 		PageQuery query = new PageQuery(1, 1);
 		when(repository.findHistory(event, query)).thenReturn(new PageResult<>(List.of(third), 1, 1, 3));
 		when(repository.findPrevious(event, 3)).thenReturn(Optional.of(second));
 		when(repository.findPublishedSlots(Set.of(third.getId(), second.getId()))).thenReturn(Map.of(third.getId(), List.of(latest), second.getId(), List.of(middle)));
-		DrawPublicationExecution currentEvidence = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW, List.of());
-		DrawPublicationExecution boundaryEvidence = new DrawPublicationExecution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW.minusSeconds(1), List.of());
+		DrawPublication.Execution currentEvidence = new DrawPublication.Execution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW, List.of());
+		DrawPublication.Execution boundaryEvidence = new DrawPublication.Execution(UUID.randomUUID(), UUID.randomUUID(), actor, NOW.minusSeconds(1), List.of());
 		when(repository.findExecutionEvidence(Set.of(third.getId(), second.getId()))).thenReturn(
 				Map.of(third.getId(), List.of(currentEvidence), second.getId(), List.of(boundaryEvidence)));
 		// when
@@ -113,7 +111,7 @@ class DrawPublicationPagingTest {
 				revision == 1 ? null : "사유", revision == 1 ? null : actor, revision == 1 ? null : NOW, NOW, List.of());
 	}
 	/** 시험용 경품 자리의 실제 공개 결과와 사용자 값을 구성한다. */
-	private DrawPublishedSlot slot() { return new DrawPublishedSlot(prize, 1, UUID.randomUUID(), UUID.randomUUID()); }
+	private DrawPublication.Slot slot() { return new DrawPublication.Slot(prize, 1, UUID.randomUUID(), UUID.randomUUID()); }
 	/** 지정 역할과 상태를 가진 시험용 사용자 문맥을 구성한다. */
 	private User user(UserRole role, UserStatus status) { return new User(actor, "조회 사용자", role, status, Membership.VIP, null, null, null, null, NOW, NOW); }
 }

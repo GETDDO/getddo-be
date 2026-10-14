@@ -1,12 +1,13 @@
 package com.getddo.core.drawing.service;
 
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.Comparator;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,8 @@ import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawVerification;
 import com.getddo.core.drawing.repository.DrawCheckRepository;
 import com.getddo.core.drawing.repository.DrawInspectionRepository;
 import com.getddo.core.user.domain.User;
@@ -23,7 +26,7 @@ import com.getddo.core.user.domain.User;
 import static com.getddo.core.drawing.exception.DrawInspectionErrorCode.*;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
 
-/** 조회와 검증 이력 저장의 업무 트랜잭션을 관리한다. 공통 실행 기능을 호출하지 않는다. */
+/** 관리자에게 저장된 실행·후보·결과를 조회해 주고, 규칙 검사 결과를 검증 이력에 남긴다. */
 @Service
 @RequiredArgsConstructor
 public class DrawInspectionService {
@@ -32,37 +35,37 @@ public class DrawInspectionService {
 	private final TimeProvider time;
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-	public PageResult<DrawRunView> runs(User user, UUID eventId, PageQuery page) {
+	public PageResult<DrawInspectionView.Run> runs(User user, UUID eventId, PageQuery page) {
 		admin(user);
 		if (!repository.eventExists(eventId)) throw new BusinessException(EVENT_NOT_FOUND);
 		return repository.findRuns(eventId, page);
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-	public DrawRunView run(User user, UUID runId) {
+	public DrawInspectionView.Run run(User user, UUID runId) {
 		admin(user);
 		return requireRun(runId);
 	}
 
 	/** 하나의 읽기 트랜잭션에서 실행·결과와 실패·취소 요약을 함께 조회한다. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-	public DrawRunDetailView detail(User user, UUID runId) {
+	public DrawInspectionView.Detail detail(User user, UUID runId) {
 		admin(user);
-		DrawRunView run = requireRun(runId);
-		return new DrawRunDetailView(run, orderedResults(run), repository.findExecutionSummary(runId));
+		DrawInspectionView.Run run = requireRun(runId);
+		return new DrawInspectionView.Detail(run, orderedResults(run), repository.findExecutionSummary(runId));
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-	public PageResult<DrawCandidateView> candidates(User user, UUID runId, PageQuery page) {
+	public PageResult<DrawInspectionView.Candidate> candidates(User user, UUID runId, PageQuery page) {
 		admin(user);
 		requireRun(runId);
 		return repository.findCandidates(runId, page);
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-	public List<DrawResultView> results(User user, UUID runId) {
+	public List<DrawInspectionView.Result> results(User user, UUID runId) {
 		admin(user);
-		DrawRunView run = requireRun(runId);
+		DrawInspectionView.Run run = requireRun(runId);
 		return orderedResults(run);
 	}
 
@@ -76,7 +79,7 @@ public class DrawInspectionService {
 
 	/** 관리자 권한과 실행 존재를 확인한 뒤 원본 감사 행을 변경하지 않고 조회한다. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-	public PageResult<DrawExecutionAuditView> executionAudits(User user, UUID runId, PageQuery page) {
+	public PageResult<DrawInspectionView.Audit> executionAudits(User user, UUID runId, PageQuery page) {
 		admin(user);
 		requireRun(runId);
 		return repository.findExecutionAudits(runId, page);
@@ -86,13 +89,13 @@ public class DrawInspectionService {
 	@Transactional(isolation = Isolation.REPEATABLE_READ)
 	public DrawVerification verify(User user, UUID runId) {
 		admin(user);
-		DrawRunView run = requireRun(runId);
+		DrawInspectionView.Run run = requireRun(runId);
 		if (run.getStatus() != DrawRunStatus.CONFIRMED) throw new BusinessException(CHECK_NOT_ALLOWED);
-		List<DrawCheckItem> items = DrawStoredVerification.verify(run,
+		List<DrawVerification.Item> items = DrawStoredVerification.verify(run,
 				repository.findAllCandidates(runId), repository.findResults(runId),
 				run.getDrawType() == DrawType.REPLACEMENT ? repository.findReplacementReferences(run)
-						: DrawVerificationReferences.empty());
-		boolean passed = items.stream().allMatch(DrawCheckItem::isPassed);
+				: DrawVerification.References.empty());
+		boolean passed = items.stream().allMatch(DrawVerification.Item::isPassed);
 		return checks.save(runId, user.getId(), time.now(), passed, items);
 	}
 
@@ -104,17 +107,17 @@ public class DrawInspectionService {
 	}
 
 	/** 현재 경품 등수가 바뀌어도 응답 순서는 저장된 추첨 조건의 등수·자리 순이다. */
-	private List<DrawResultView> orderedResults(DrawRunView run) {
+	private List<DrawInspectionView.Result> orderedResults(DrawInspectionView.Run run) {
 		Map<UUID, Integer> ranks = new HashMap<>();
 		if (run.getRules() != null) {
 			for (DrawSnapshotSource.Prize prize : run.getRules().prizes()) ranks.put(prize.id(), prize.rank());
 		}
 		return repository.findResults(run.getId()).stream().sorted(Comparator
-				.comparingInt((DrawResultView result) -> ranks.getOrDefault(result.getPrizeId(), Integer.MAX_VALUE))
-				.thenComparingInt(DrawResultView::getSlotNumber)).toList();
+				.comparingInt((DrawInspectionView.Result result) -> ranks.getOrDefault(result.getPrizeId(), Integer.MAX_VALUE))
+				.thenComparingInt(DrawInspectionView.Result::getSlotNumber)).toList();
 	}
 
-	private DrawRunView requireRun(UUID runId) {
+	private DrawInspectionView.Run requireRun(UUID runId) {
 		return repository.findRun(runId).orElseThrow(() -> new BusinessException(RUN_NOT_FOUND));
 	}
 
