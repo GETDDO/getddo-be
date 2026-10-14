@@ -157,4 +157,19 @@ class MissionSubmissionQueryServiceIntegrationTest extends MissionIntegrationTes
 	private static byte[] bytes(UUID id) {
 		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
 	}
+
+	@Test
+	@DisplayName("페이지 오프셋이 int 범위를 넘어도 예외 없이 빈 목록과 전체 건수를 돌려준다")
+	void hugePageReturnsEmptyItemsWithTotal() {
+		// given
+		MissionDetail quiz = saveQuizMission("퀴즈");
+		submit(userId, quiz, false);
+		// when
+		PageResult<MissionSubmissionResult> result = queryService.findMySubmissions(userId, quiz.getMission().getId(),
+				new PageQuery(Integer.MAX_VALUE, 100));
+		// then
+		assertThat(result.getItems()).isEmpty();
+		assertThat(result.getTotalElements()).isEqualTo(1);
+		assertThat(result.getPage()).isEqualTo(Integer.MAX_VALUE);
+	}
 }
