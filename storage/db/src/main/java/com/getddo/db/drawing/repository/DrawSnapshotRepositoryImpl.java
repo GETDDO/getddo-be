@@ -5,7 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.common.exception.BusinessException;
@@ -58,10 +60,12 @@ public class DrawSnapshotRepositoryImpl implements DrawSnapshotRepository {
 		DrawRunEntity run = runs.saveAndFlush(new DrawRunEntity(eventId));
 		return mapper.toDomain(run, List.of());
 	}
+
 	/** 실행 ID에 저장된 상태·규칙·후보 연결을 복원하며 입력 미고정 실행도 그대로 반환한다. */
 	@Override public Optional<DrawSnapshot> findRegistered(UUID runId) {
 		return runs.findById(runId).map(run -> mapper.toDomain(run, links.findCandidates(runId)));
 	}
+
 	/** 같은 이벤트의 미고정 INITIAL/PREPARING 실행인지 검증하고 후보·입력을 한 번 저장한다. */
 	@Override public DrawSnapshot saveRegisteredInitial(DrawSnapshot snapshot) {
 		DrawRunEntity run = runs.findForUpdate(snapshot.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));

@@ -1,18 +1,27 @@
 package com.getddo.core.drawing.service;
 
 import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
+import com.getddo.core.drawing.domain.DrawConfirmation;
+import com.getddo.core.drawing.domain.DrawExecutionResult;
+import com.getddo.core.drawing.domain.DrawExecutionState;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.repository.DrawExecutionRepository;
+import com.getddo.core.drawing.repository.DrawResultRepository;
+import com.getddo.core.drawing.repository.DrawSnapshotRepository;
+
 import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
 
-/** 저장 입력을 사용한 선정·결과·상태를 원자적으로 확정한다. */
+/** 고정된 입력으로 당첨자를 선정하고 결과와 실행 완료 상태를 함께 저장한다. */
 @Service
 @RequiredArgsConstructor
 public class DrawExecutionAttemptService {

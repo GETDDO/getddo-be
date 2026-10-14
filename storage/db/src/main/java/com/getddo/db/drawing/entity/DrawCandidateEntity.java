@@ -10,9 +10,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -24,7 +26,9 @@ import com.getddo.db.common.entity.BaseEntity;
 @Entity
 @Immutable
 @Table(name = "draw_candidates", uniqueConstraints =
-		@UniqueConstraint(name = "uq_draw_candidates_1", columnNames = {"draw_run_id", "participant_id"}))
+		@UniqueConstraint(name = "uq_draw_candidates_1", columnNames = {
+			"draw_run_id", "participant_id"
+		}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DrawCandidateEntity extends BaseEntity {
 	@Column(name = "participant_id", nullable = false, updatable = false, length = 16)

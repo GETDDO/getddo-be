@@ -21,7 +21,7 @@ import com.getddo.core.drawing.domain.ReplacementDrawInput;
 
 import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
 
-/** 현재 자격·차단 기록·응모권을 조회하지 않고 최초 입력으로 취소된 자리의 후보만 계산한다. */
+/** 최초 추첨의 후보와 조건에서 유지 당첨자를 빼고, 취소로 빈 자리의 재추첨 입력을 만든다. */
 @Component
 public class ReplacementDrawInputBuilder {
 	/**
@@ -73,7 +73,8 @@ public class ReplacementDrawInputBuilder {
 			if (!excludedUsers.contains(candidate.userId())) remaining.add(candidate);
 		}
 		// 빈 후보도 유효 입력이다. UNFILLED 저장은 GD-87 공통 확정 기능에서 처리한다.
-		return new ReplacementDrawInput(original.runId(), original.rules(), remaining, List.of(vacant), retainedResults);
+		return new ReplacementDrawInput(original.runId(), original.rules(), remaining,
+				List.of(vacant), retainedResults);
 	}
 
 	private static void validateResult(DrawResult result, Map<UUID, DrawSnapshot.Candidate> candidates,
@@ -90,5 +91,7 @@ public class ReplacementDrawInputBuilder {
 		return new DrawSnapshot.Slot(selection.getPrizeId(), selection.getRank(), selection.getSlotNumber());
 	}
 
-	private static void invalid() { throw new BusinessException(INVALID_RUN); }
+	private static void invalid() {
+		throw new BusinessException(INVALID_RUN);
+	}
 }

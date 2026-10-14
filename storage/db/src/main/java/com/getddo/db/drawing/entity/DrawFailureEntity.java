@@ -2,13 +2,16 @@ package com.getddo.db.drawing.entity;
 
 import java.time.Instant;
 import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import com.getddo.core.drawing.domain.DrawFailure;
 
 /** 실제 실패 스키마에는 created_at이 없어 BaseEntity를 상속하지 않는다. */
@@ -29,7 +32,10 @@ public class DrawFailureEntity {
 	private String traceId;
 	/** 실패 ID·실행 참조·코드·시각·추적 ID를 그대로 보존해 동일 실패 저장의 멱등성을 유지한다. */
 	public DrawFailureEntity(DrawFailure failure) {
-		id = failure.getId(); runId = failure.getRunId(); failureCode = failure.getFailureCode();
-		failedAt = failure.getFailedAt(); traceId = failure.getTraceId();
+		id = failure.getId();
+		runId = failure.getRunId();
+		failureCode = failure.getFailureCode();
+		failedAt = failure.getFailedAt();
+		traceId = failure.getTraceId();
 	}
 }

@@ -2,10 +2,18 @@ package com.getddo.db.drawing.entity;
 
 import java.util.UUID;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.EmbeddedId;
+import jakarta.persistence.Entity;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import org.hibernate.annotations.Immutable;
 import org.springframework.data.domain.Persistable;
 
@@ -44,10 +52,14 @@ public class DrawPublicationResultEntity implements Persistable<DrawPublicationR
 
 	/** 할당된 복합키의 신규 행도 merge가 아닌 persist로 저장할 수 있도록 신규 상태를 반환한다. */
 	@Override
-	public boolean isNew() { return newEntity; }
+	public boolean isNew() {
+		return newEntity;
+	}
 
 	/** 저장 또는 로드가 완료된 공개 포함 행을 기존 영속 행으로 표시한다. */
 	@PostLoad
 	@PostPersist
-	private void markPersisted() { newEntity = false; }
+	private void markPersisted() {
+		newEntity = false;
+	}
 }

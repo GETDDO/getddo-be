@@ -15,7 +15,9 @@ import java.util.Set;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -82,7 +84,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			join draw_runs origin on origin.id = c.draw_run_id
 			where link.draw_run_id = ?
 			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> collectCandidateOwner(row, snapshot, owners),
-				toBytes(snapshot.runId()));
+		toBytes(snapshot.runId()));
 		if (owners.size() != snapshot.candidates().size()) invalid();
 		for (DrawSnapshot.Candidate candidate : snapshot.candidates()) {
 			if (!candidate.userId().equals(owners.get(candidate.id()))) {
@@ -134,7 +136,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			where cancellation.draw_run_id = ? and origin.event_id = ? and origin.status = 'CONFIRMED'
 			and r.result_type = 'SELECTED'
 			""", (row, index) -> fromBytes(row.getBytes("event_prize_id")) + ":" + row.getInt("slot_number"),
-				toBytes(snapshot.runId()), toBytes(snapshot.eventId()));
+		toBytes(snapshot.runId()), toBytes(snapshot.eventId()));
 		if (targetSlots.isEmpty() || canceledSlots.size() != targetSlots.size() || !targetSlots.equals(new HashSet<>(canceledSlots))) invalid();
 		validateRetainedAwards(snapshot);
 	}
@@ -154,18 +156,18 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 			where run.event_id = ? and r.id in (%s) and run.status = 'CONFIRMED' and r.result_type = 'SELECTED'
 			and not exists (select 1 from award_cancellations cancellation where cancellation.draw_result_id = r.id)
 			""".formatted(placeholders), (row, index) -> new DrawSnapshot.RetainedAward(
-				fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")),
-				fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number")), parameters.toArray());
+		fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")),
+		fromBytes(row.getBytes("event_prize_id")), row.getInt("slot_number")), parameters.toArray());
 		if (!new HashSet<>(stored).equals(new HashSet<>(expected))) invalid();
 	}
 
 	/** 후보의 참여 이벤트·생성 원본 실행을 검증하고 후보와 사용자의 연결을 기록한다. */
 	private static void collectCandidateOwner(ResultSet row, DrawSnapshot snapshot, Map<UUID, UUID> owners)
-			throws SQLException {
+	throws SQLException {
 		if (!snapshot.eventId().equals(fromBytes(row.getBytes("participant_event")))
 				|| !snapshot.eventId().equals(fromBytes(row.getBytes("origin_event")))
 				|| !(snapshot.drawType() == DrawType.INITIAL ? snapshot.runId() : snapshot.rules().originalRunId())
-						.equals(fromBytes(row.getBytes("origin_id")))) {
+				.equals(fromBytes(row.getBytes("origin_id")))) {
 			invalid();
 		}
 		owners.put(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("user_id")));
@@ -173,7 +175,9 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 
 	/** READY 실행에 저장된 부분 결과가 있는지 조회한다. 결과를 삭제하거나 보정하지 않는다. */
 	@Override
-	public boolean hasResults(UUID runId) { return results.existsByDrawRunId(runId); }
+	public boolean hasResults(UUID runId) {
+		return results.existsByDrawRunId(runId);
+	}
 
 	/** CONFIRMED 선정 결과에서 취소된 배정을 제외한다. 원래 결과 이력과 공개 명단은 변경하지 않는다. */
 	@Override
@@ -192,8 +196,8 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 	/** 취소되지 않은 확정 당첨 행을 현재 유효 배정 모델로 변환한다. */
 	private static DrawSelection toCurrentAward(ResultSet row, int index) throws SQLException {
 		return new DrawSelection(fromBytes(row.getBytes("event_prize_id")), row.getInt("prize_rank"),
-				row.getInt("slot_number"), row.getInt("selection_order"), fromBytes(row.getBytes("candidate_id")),
-				fromBytes(row.getBytes("user_id")), DrawSelectionResultType.SELECTED);
+		row.getInt("slot_number"), row.getInt("selection_order"), fromBytes(row.getBytes("candidate_id")),
+		fromBytes(row.getBytes("user_id")), DrawSelectionResultType.SELECTED);
 	}
 
 	/**
@@ -236,5 +240,7 @@ public class DrawResultRepositoryImpl implements DrawResultRepository {
 	}
 
 	/** 실행·스냅샷 관계의 불일치를 도메인 오류로 보고하여 상위 서비스가 전체 작업을 롤백하게 한다. */
-	private static void invalid() { throw new BusinessException(INVALID_RUN); }
+	private static void invalid() {
+		throw new BusinessException(INVALID_RUN);
+	}
 }

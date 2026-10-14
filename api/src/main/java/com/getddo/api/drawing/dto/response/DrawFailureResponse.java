@@ -1,16 +1,21 @@
 package com.getddo.api.drawing.dto.response;
+
 import java.time.Instant;
 import java.util.UUID;
+
 import com.getddo.core.drawing.domain.DrawFailure;
 import com.getddo.core.drawing.domain.DrawFailureCode;
 
 /** 저장된 분류 코드와 안전한 안내 문구만 제공한다. 원문 예외를 응답하지 않는다. */
-public record DrawFailureResponse(UUID id, UUID runId, String failureCode, String message, Instant failedAt, String traceId) {
+public record DrawFailureResponse(UUID id, UUID runId, String failureCode, String message,
+		Instant failedAt, String traceId) {
 	/** 실패 기록을 원문 예외 없이 관리자용 응답으로 변환한다. */
 	public static DrawFailureResponse from(DrawFailure failure) {
-		return new DrawFailureResponse(failure.getId(), failure.getRunId(), failure.getFailureCode(), message(failure.getFailureCode()),
+		return new DrawFailureResponse(failure.getId(), failure.getRunId(), failure.getFailureCode(),
+				message(failure.getFailureCode()),
 				failure.getFailedAt(), failure.getTraceId());
 	}
+
 	/** 과거 미분류 코드도 안전한 기본 문구로 처리한다. */
 	private static String message(String code) {
 		try {
@@ -22,6 +27,8 @@ public record DrawFailureResponse(UUID id, UUID runId, String failureCode, Strin
 				case NOT_EXECUTABLE -> "현재 이벤트 상태에서는 추첨할 수 없습니다.";
 				case INTERNAL_ERROR -> "추첨 처리 중 오류가 발생했습니다. 운영자 확인이 필요합니다.";
 			};
-		} catch (IllegalArgumentException unknown) { return "추첨 처리 실패 이력을 확인해야 합니다."; }
+		} catch (IllegalArgumentException unknown) {
+			return "추첨 처리 실패 이력을 확인해야 합니다.";
+		}
 	}
 }

@@ -1,5 +1,26 @@
 package com.getddo.api.drawing.controller;
 
+import com.getddo.api.common.context.CurrentUserArgumentResolver;
+import com.getddo.api.common.exception.GlobalExceptionHandler;
+import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.drawing.domain.DrawFailure;
+import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawReplacementRulesView;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
+import com.getddo.core.drawing.domain.DrawType;
+import com.getddo.core.drawing.domain.DrawVerification;
+import com.getddo.core.drawing.repository.DrawCheckRepository;
+import com.getddo.core.drawing.repository.DrawInspectionRepository;
+import com.getddo.core.drawing.service.DrawInspectionService;
+import com.getddo.core.user.domain.User;
+import com.getddo.core.user.domain.UserRole;
+import com.getddo.core.user.domain.UserStatus;
+import com.getddo.core.user.service.UserService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -13,18 +34,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import com.getddo.api.common.context.CurrentUserArgumentResolver;
-import com.getddo.api.common.exception.GlobalExceptionHandler;
-import com.getddo.core.common.pagination.PageQuery;
-import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
-import com.getddo.core.drawing.repository.*;
-import com.getddo.core.drawing.service.DrawInspectionService;
-import com.getddo.core.user.domain.*;
-import com.getddo.core.user.service.UserService;
-import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -53,11 +64,11 @@ class AdminDrawControllerTest {
 	void returnsExecutionSummaryAndHistories() throws Exception {
 		// given
 		DrawFailure failure = new DrawFailure(UUID.randomUUID(), runId, "INTERRUPTED", now, null);
-		DrawCancellationView cancellation = new DrawCancellationView(UUID.randomUUID(), UUID.randomUUID(), runId, actorId, "관리자 취소", now);
-		when(repository.findExecutionSummary(runId)).thenReturn(new DrawExecutionSummary(2, failure, now.plusSeconds(10), false, List.of(cancellation)));
+		DrawInspectionView.Cancellation cancellation = new DrawInspectionView.Cancellation(UUID.randomUUID(), UUID.randomUUID(), runId, actorId, "관리자 취소", now);
+		when(repository.findExecutionSummary(runId)).thenReturn(new DrawInspectionView.ExecutionSummary(2, failure, now.plusSeconds(10), false, List.of(cancellation)));
 		when(repository.findFailures(runId, new PageQuery(1, 1))).thenReturn(new PageResult<>(List.of(failure), 1, 1, 2));
 		when(repository.findExecutionAudits(runId, new PageQuery(1, 1))).thenReturn(new PageResult<>(List.of(
-				new DrawExecutionAuditView(UUID.randomUUID(), actorId, "DRAW_RESUME", null, "{}", "{}", null, now)), 1, 1, 2));
+				new DrawInspectionView.Audit(UUID.randomUUID(), actorId, "DRAW_RESUME", null, "{}", "{}", null, now)), 1, 1, 2));
 		// when / then
 		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.execution.failureCount").value(2))
@@ -102,7 +113,7 @@ class AdminDrawControllerTest {
 	void detailSeparatesPublicationAndCancellation() throws Exception {
 		// given
 		UUID winnerId = UUID.randomUUID();
-		when(repository.findResults(runId)).thenReturn(List.of(new DrawResultView(UUID.randomUUID(), runId,
+		when(repository.findResults(runId)).thenReturn(List.of(new DrawInspectionView.Result(UUID.randomUUID(), runId,
 				UUID.randomUUID(), eventId, 1, 1, DrawSelectionResultType.SELECTED, UUID.randomUUID(), winnerId, true, true)));
 		// when / then
 		mvc.perform(get("/api/v1/admin/draws/{id}", runId).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name()))
@@ -119,7 +130,7 @@ class AdminDrawControllerTest {
 		when(repository.findAllCandidates(runId)).thenReturn(List.of());
 		when(repository.findResults(runId)).thenReturn(List.of());
 		DrawVerification stored = new DrawVerification(UUID.randomUUID(), runId, false,
-				List.of(new DrawCheckItem("RESULTS", false, "저장 결과 불일치")), now, actorId);
+				List.of(new DrawVerification.Item("RESULTS", false, "저장 결과 불일치")), now, actorId);
 		when(checks.save(eq(runId), eq(actorId), eq(now), eq(false), anyList())).thenReturn(stored);
 		when(checks.findByRun(runId, new PageQuery(1, 20))).thenReturn(new PageResult<>(List.of(stored), 1, 20, 1));
 		// when / then
@@ -146,7 +157,7 @@ class AdminDrawControllerTest {
 	void replacementDetailIncludesStoredTargetsAndRetainedAwards() throws Exception {
 		// given
 		UUID firstId = UUID.randomUUID(), prizeId = UUID.randomUUID(), awardId = UUID.randomUUID(), winnerId = UUID.randomUUID();
-		DrawRunView replacement = new DrawRunView(runId, eventId, 1, DrawType.REPLACEMENT, DrawRunStatus.CONFIRMED, firstId,
+		DrawInspectionView.Run replacement = new DrawInspectionView.Run(runId, eventId, 1, DrawType.REPLACEMENT, DrawRunStatus.CONFIRMED, firstId,
 				"weighted-without-replacement-v1", new DrawSnapshot.Rules(2, false, "NO_TICKET", "ALL", 1, 3, 5,
 				List.of(new DrawSnapshotSource.Prize(prizeId, 1, 3)), firstId,
 				List.of(new DrawSnapshot.Slot(prizeId, 1, 3)), List.of(new DrawSnapshot.RetainedAward(awardId, winnerId, prizeId, 1))), now, now, now, now,
@@ -206,8 +217,8 @@ class AdminDrawControllerTest {
 		mvc.perform(get("/api/v1/admin/draws/{id}", UUID.randomUUID()).header("X-User-ID", actorId).header("X-User-Role", selected.getRole().name())).andExpect(status().isNotFound());
 	}
 
-	private DrawRunView run() {
-		return new DrawRunView(runId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED, null, null, null, now, now, now, now);
+	private DrawInspectionView.Run run() {
+		return new DrawInspectionView.Run(runId, eventId, 0, DrawType.INITIAL, DrawRunStatus.CONFIRMED, null, null, null, now, now, now, now);
 	}
 	private User user(UserRole role, UserStatus status) {
 		return new User(actorId, "관리자", role, status, null, null, null, null, null, now, now);
