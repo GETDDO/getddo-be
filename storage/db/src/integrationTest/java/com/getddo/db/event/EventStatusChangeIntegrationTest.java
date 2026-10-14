@@ -27,6 +27,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -36,6 +37,7 @@ import org.testcontainers.mysql.MySQLContainer;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.exception.EventErrorCode;
 import com.getddo.core.event.exception.EventException;
+import com.getddo.core.event.repository.EventRepository;
 import com.getddo.core.event.service.EventStatusChangeService;
 import com.getddo.db.common.config.JpaAuditingConfig;
 import com.getddo.db.common.util.UuidBinary;
@@ -59,6 +61,7 @@ class EventStatusChangeIntegrationTest {
 	private static final int WAIT_SECONDS = 45;
 
 	@Autowired private EventStatusChangeService service;
+	@Autowired private EventRepository repository;
 	@Autowired private EventJpaRepository events;
 	@Autowired private PlatformTransactionManager transactionManager;
 	@Autowired private JdbcTemplate jdbc;
@@ -133,6 +136,76 @@ class EventStatusChangeIntegrationTest {
 				.isInstanceOf(IllegalTransactionStateException.class);
 		assertThat(storedStatus()).isEqualTo(EventStatus.CLOSED);
 		assertThat(updatedAt()).isEqualTo(utc(CREATED));
+	}
+
+	@Test
+	@DisplayName("존재하지 않는 이벤트는 프록시 예외 대신 EVENT_NOT_FOUND를 반환한다")
+	void rejectsMissingEventWithBusinessError() {
+		// given
+		UUID missingId = UUID.randomUUID();
+		// when / then
+		assertError(EventErrorCode.EVENT_NOT_FOUND, missingId, EventStatus.CLOSED, EventStatus.DRAW_CONFIRMED);
+		assertThat(jdbc.queryForObject("select count(*) from events where id=?", Long.class,
+				UuidBinary.toBytes(missingId))).isZero();
+		assertThat(storedStatus()).isEqualTo(EventStatus.CLOSED);
+		assertThat(updatedAt()).isEqualTo(utc(CREATED));
+	}
+
+	@Test
+	@DisplayName("삭제된 이벤트는 EVENT_NOT_FOUND를 반환하고 상태·수정 시각·삭제 시각을 유지한다")
+	void rejectsDeletedEventWithoutChangingRow() {
+		// given
+		jdbc.update("update events set deleted_at=? where id=?", utc(CREATED), bytes());
+		// when / then
+		assertError(EventErrorCode.EVENT_NOT_FOUND, eventId, EventStatus.CLOSED, EventStatus.DRAW_CONFIRMED);
+		assertThat(storedStatus()).isEqualTo(EventStatus.CLOSED);
+		assertThat(updatedAt()).isEqualTo(utc(CREATED));
+		assertThat(jdbc.queryForObject("select deleted_at from events where id=?", LocalDateTime.class, bytes()))
+				.isEqualTo(utc(CREATED));
+	}
+
+	@Test
+	@DisplayName("취소된 이벤트의 상태 변경은 충돌을 반환하고 상태와 수정 시각을 유지한다")
+	void rejectsLeavingCanceledStatusWithoutWrite() {
+		// given
+		jdbc.update("update events set status='CANCELED' where id=?", bytes());
+		// when / then
+		assertError(EventErrorCode.STATUS_CHANGE_CONFLICT, eventId, EventStatus.CANCELED, EventStatus.OPEN);
+		assertThat(storedStatus()).isEqualTo(EventStatus.CANCELED);
+		assertThat(updatedAt()).isEqualTo(utc(CREATED));
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = EventStatus.class, names = {"CLOSED", "CANCELED"})
+	@DisplayName("동일 상태 요청은 취소 상태를 포함해 실제 DB의 상태와 수정 시각을 바꾸지 않는다")
+	void sameStatusDoesNotChangeUpdatedAt(EventStatus state) {
+		// given
+		jdbc.update("update events set status=? where id=?", state.name(), bytes());
+		// when
+		transaction().executeWithoutResult(status -> service.changeStatus(eventId, state, state));
+		// then
+		assertThat(storedStatus()).isEqualTo(state);
+		assertThat(updatedAt()).isEqualTo(utc(CREATED));
+	}
+
+	@Test
+	@DisplayName("잠금 없는 직접 상태 저장은 호출 계약 위반으로 거절하고 DB를 바꾸지 않는다")
+	void rejectsRepositoryWriteWithoutExclusiveLock() {
+		// given / when / then
+		assertThatThrownBy(() -> transaction().executeWithoutResult(status -> {
+			// 일반 조회로 Entity를 관리 중이어도 쓰기 잠금이 없다면 저장할 수 없다.
+			events.findById(eventId).orElseThrow();
+			repository.updateStatus(eventId, EventStatus.DRAW_CONFIRMED);
+		})).isInstanceOf(InvalidDataAccessApiUsageException.class)
+				.hasRootCauseInstanceOf(IllegalStateException.class)
+				.rootCause().hasMessage("상태 변경 전에 같은 트랜잭션에서 이벤트 쓰기 잠금을 확보해야 합니다.");
+		assertThat(storedStatus()).isEqualTo(EventStatus.CLOSED);
+		assertThat(updatedAt()).isEqualTo(utc(CREATED));
+	}
+
+	private void assertError(EventErrorCode code, UUID id, EventStatus expected, EventStatus next) {
+		assertThatThrownBy(() -> transaction().executeWithoutResult(status -> service.changeStatus(id, expected, next)))
+				.isInstanceOfSatisfying(EventException.class, failure -> assertThat(failure.getErrorCode()).isEqualTo(code));
 	}
 
 	/** 각 스레드에 독립 트랜잭션을 열고 실제 InnoDB 잠금 대기를 확인한 뒤 보유자를 종료한다. */

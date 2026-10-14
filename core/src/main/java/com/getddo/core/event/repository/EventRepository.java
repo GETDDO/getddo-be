@@ -24,6 +24,7 @@ public interface EventRepository {
 	/**
 	 * 같은 트랜잭션에서 findStatusByIdForUpdate로 동일 이벤트를 잠그고 예상 상태·취소 상태 검증을
 	 * 완료한 뒤 호출한다. 설정·경품은 변경하지 않고 상태를 반영해 flush한다.
+	 * 쓰기 잠금 없는 호출은 영속성 구현의 계약 위반으로 거절한다.
 	 */
 	void updateStatus(UUID eventId, EventStatus newStatus);
 
