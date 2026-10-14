@@ -1,8 +1,10 @@
 package com.getddo.core.game.domain;
 
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,11 +23,18 @@ class ColorWordRoundGeneratorTest {
 	void matchesSharedContractVector() throws Exception {
 		// given
 		ColorWordRoundGenerator generator = new ColorWordRoundGenerator(123456789);
-		try (BufferedReader reader = new BufferedReader(new InputStreamReader(getClass()
-				.getResourceAsStream("/game/color-word-generator-v1.csv"), StandardCharsets.UTF_8))) {
+		InputStream resource = getClass().getResourceAsStream("/game/color-word-generator-v1.csv");
+		assertThat(resource).as("공유 문제열 CSV 리소스").isNotNull();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource, StandardCharsets.UTF_8))) {
 			// when / then
-			for (String line : reader.lines().skip(1).toList()) {
-				String[] fields = line.split(",");
+			assertThat(reader.readLine()).isEqualTo("seed,sequence,word,ink");
+			List<String> lines = reader.lines().toList();
+			assertThat(lines).as("채택 계약의 공유 문제열").hasSizeGreaterThanOrEqualTo(4);
+			for (int index = 0; index < lines.size(); index++) {
+				String[] fields = lines.get(index).split(",", -1);
+				assertThat(fields).hasSize(4);
+				assertThat(Long.parseLong(fields[0])).isEqualTo(123456789L);
+				assertThat(Integer.parseInt(fields[1])).isEqualTo(index + 1);
 				ColorWordRound round = generator.next();
 				assertThat(round.getWord().name().toLowerCase(Locale.ROOT)).isEqualTo(fields[2]);
 				assertThat(round.getInk().name().toLowerCase(Locale.ROOT)).isEqualTo(fields[3]);

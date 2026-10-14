@@ -23,10 +23,14 @@ const random = () => {
   x ^= x << 5;
   return (x >>> 0) / 4294967296;
 };
-const rows = readFileSync(new URL('./color-word-generator-v1.csv', import.meta.url), 'utf8').trim().split('\n').slice(1);
+const [header, ...rows] = readFileSync(new URL('./color-word-generator-v1.csv', import.meta.url), 'utf8').trim().split(/\r?\n/);
+assert.equal(header, 'seed,sequence,word,ink');
+assert.ok(rows.length >= 4, 'Expected at least four shared contract vectors');
 let previous;
 for (const [index, row] of rows.entries()) {
-  const [seed, sequence, word, ink] = row.split(',');
+  const fields = row.split(',');
+  assert.equal(fields.length, 4);
+  const [seed, sequence, word, ink] = fields;
   assert.equal(Number(seed), 123456789);
   assert.equal(Number(sequence), index + 1);
   previous = next(random, previous);
