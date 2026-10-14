@@ -1,12 +1,15 @@
 package com.getddo.api.event;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.sql.DriverManager;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.mysql.MySQLContainer;
 
 import com.getddo.api.support.ApiIntegrationTest;
 import com.getddo.db.common.util.UuidBinary;
@@ -38,6 +42,9 @@ import com.getddo.core.notification.service.NotificationJobService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -50,7 +57,8 @@ class AdminEventDeletionTest {
 	private static final Instant NOW = Instant.parse("2026-10-13T00:00:00Z");
 	private static final Instant START = NOW.plusSeconds(3600);
 	@Autowired private MockMvc mvc;
-	@Autowired private JdbcTemplate jdbc;
+	@MockitoSpyBean private JdbcTemplate jdbc;
+	@Autowired private MySQLContainer mysql;
 	@Autowired private EventDeletionService deletions;
 	@Autowired private PlatformTransactionManager transactions;
 	@Autowired private NotificationJobService jobs;
@@ -62,6 +70,7 @@ class AdminEventDeletionTest {
 	private UUID event;
 	private UUID prize;
 	private UUID participant;
+	private UUID additionalRecipient;
 
 	@BeforeEach
 	void setUp() {
@@ -72,6 +81,7 @@ class AdminEventDeletionTest {
 		event = UUID.randomUUID();
 		prize = UUID.randomUUID();
 		participant = UUID.randomUUID();
+		additionalRecipient = null;
 		jdbc.update("""
 			insert into events(id,title,description,event_type,weighting_enabled,membership_rule,
 			starts_at,ends_at,status,created_at,updated_at)
@@ -93,6 +103,9 @@ class AdminEventDeletionTest {
 		jdbc.update("delete from event_prizes where event_id=?", bytes(event));
 		jdbc.update("delete from events where id=?", bytes(event));
 		jdbc.update("delete from users where id in (?,?)", bytes(admin), bytes(user));
+		if (additionalRecipient != null) {
+			jdbc.update("delete from users where id=?", bytes(additionalRecipient));
+		}
 	}
 
 	@Test
@@ -269,9 +282,88 @@ class AdminEventDeletionTest {
 		assertThat(jobRepository.claimNextJob(NOW)).isPresent();
 	}
 
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("알림 생성·삭제가 실제 잠금에 경합해도 먼저 생성된 알림을 보존하고 삭제 이후 추가 생성을 막는다")
+	void serializesConcurrentGenerationAndDeletion(boolean deletionFirst) throws Exception {
+		// given
+		additionalRecipient = user("USER");
+		UUID id = startJob(List.of(user, additionalRecipient));
+		var request = jobRepository.findRequest(id);
+		var job = jobRepository.claimNextJob(NOW).orElseThrow();
+		assertThat(jobRepository.createNotification(job, request, user, NOW)).isTrue();
+		assertThat(jobs.processNextDelivery()).isTrue();
+		jdbc.update("update notifications set is_read=true where job_id=?", bytes(id));
+		var previous = jdbc.queryForMap("select hex(id) as id,title,body,link_url,created_at,is_read,mock_delivery_status,mock_sent_at from notifications where job_id=?", bytes(id));
+		CountDownLatch held = new CountDownLatch(1);
+		CountDownLatch release = new CountDownLatch(1);
+		if (deletionFirst) {
+			doAnswer(invocation -> {
+				invocation.callRealMethod();
+				held.countDown();
+				if (!release.await(20, TimeUnit.SECONDS)) { throw new IllegalStateException("삭제 커밋 대기 시간 초과"); }
+				return null;
+			}).when(notifications).stopForDeletedEvent(event);
+		} else {
+			// 실제 생성 트랜잭션의 작업 잠금 이후, FK를 확인하는 INSERT 전에 잠시 멈춘다.
+			doAnswer(invocation -> {
+				held.countDown();
+				if (!release.await(20, TimeUnit.SECONDS)) { throw new IllegalStateException("알림 INSERT 대기 시간 초과"); }
+				return invocation.callRealMethod();
+			}).when(jdbc).update(argThat((String sql) -> sql.contains("insert into notifications")), any(Object[].class));
+		}
+		Callable<Boolean> deletion = () -> { deletions.delete(event, admin); return false; };
+		Callable<Boolean> generation = () -> jobRepository.createNotification(job, request, additionalRecipient, NOW);
+		// when
+		try (var executor = Executors.newFixedThreadPool(2)) {
+			var first = executor.submit(deletionFirst ? deletion : generation);
+			java.util.concurrent.Future<Boolean> second;
+			try {
+				assertThat(held.await(10, TimeUnit.SECONDS)).isTrue();
+				second = executor.submit(deletionFirst ? generation : deletion);
+				awaitDatabaseLockWait();
+			} finally {
+				release.countDown();
+			}
+			// then
+			assertThat(first.get(30, TimeUnit.SECONDS)).isEqualTo(!deletionFirst);
+			assertThat(second.get(30, TimeUnit.SECONDS)).isFalse();
+		}
+		assertThat(deletedAt()).isEqualTo(utc(NOW));
+		assertThat(jdbc.queryForMap("select hex(id) as id,title,body,link_url,created_at,is_read,mock_delivery_status,mock_sent_at from notifications where job_id=? and user_id=?", bytes(id), bytes(user)))
+				.isEqualTo(previous);
+		assertThat(jdbc.queryForObject("select count(*) from notifications where job_id=?", Long.class, bytes(id)))
+				.isEqualTo(deletionFirst ? 1L : 2L);
+		assertThat(jdbc.queryForObject("select json_unquote(json_extract(payload,'$.generationStoppedBy')) from notification_jobs where id=?", String.class, bytes(id)))
+				.isEqualTo("event-deleted:" + event);
+		assertThat(jobRepository.createNotification(job, request, additionalRecipient, NOW)).isFalse();
+		assertThat(jdbc.queryForObject("select count(*) from notification_jobs where event_id=?", Long.class, bytes(event))).isEqualTo(1);
+	}
+
+	/** 두 스레드가 실제 InnoDB 행 잠금에 경합한 것을 확인한 뒤 보유 잠금을 해제한다. */
+	private void awaitDatabaseLockWait() throws Exception {
+		try (var root = DriverManager.getConnection(mysql.getJdbcUrl(), "root", mysql.getPassword());
+				var statement = root.prepareStatement("""
+					select count(*) from performance_schema.data_lock_waits w
+					join performance_schema.data_locks l on l.engine_lock_id = w.blocking_engine_lock_id
+					and l.engine = w.engine where l.object_schema = ?
+					""")) {
+			statement.setString(1, mysql.getDatabaseName());
+			await().atMost(Duration.ofSeconds(10)).until(() -> {
+				try (var rows = statement.executeQuery()) {
+					return rows.next() && rows.getInt(1) > 0;
+				}
+			});
+		}
+	}
+
 	private UUID startJob() {
+		return startJob(List.of(user));
+	}
+
+	private UUID startJob(List<UUID> recipients) {
 		return jobs.register(new NotificationJobRequest("deletion-test:" + event, NotificationType.EVENT_START,
-				event, null, "이벤트 시작 안내", "잠시 후 시작", "/events/" + event, NOW, List.of(user)));
+				event, null, "이벤트 시작 안내", "잠시 후 시작", "/events/" + event, NOW, recipients));
 	}
 
 	private void participation() {
