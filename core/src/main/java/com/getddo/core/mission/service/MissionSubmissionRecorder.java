@@ -35,8 +35,6 @@ import com.getddo.core.mission.repository.MissionSubmissionRepository;
 import com.getddo.core.mission.repository.QuizQuestionProgressRepository;
 import com.getddo.core.ticket.domain.GrantCommand;
 import com.getddo.core.ticket.domain.GrantResult;
-import com.getddo.core.ticket.domain.GrantSource;
-import com.getddo.core.ticket.domain.GrantSourceType;
 import com.getddo.core.ticket.service.TicketGrantService;
 
 /**
@@ -68,6 +66,7 @@ public class MissionSubmissionRecorder {
 	private final QuizQuestionProgressRepository progressRepository;
 	private final MissionRewardClaimRepository claimRepository;
 	private final TicketGrantService grantService;
+	private final MissionSubmissionResultReader resultReader;
 	private final TimeProvider timeProvider;
 
 	/**
@@ -88,7 +87,7 @@ public class MissionSubmissionRecorder {
 		Optional<MissionSubmission> completed = submissionRepository.findCompleted(command.getUserId(),
 				command.getMissionId());
 		if (completed.isPresent()) {
-			return resultOf(completed.get(), false);
+			return resultReader.read(completed.get(), false);
 		}
 
 		Mission mission = detail.getMission();
@@ -131,9 +130,10 @@ public class MissionSubmissionRecorder {
 
 	private MissionRewardReceipt claimAndGrant(MissionSubmission saved, Mission mission) {
 		MissionRewardClaim claim = claimRepository.insert(MissionRewardClaim.of(saved));
-		GrantResult granted = grantService.grant(new GrantCommand(saved.getUserId(), grantSource(claim),
+		GrantResult granted = grantService.grant(new GrantCommand(saved.getUserId(),
+				MissionSubmissionResultReader.grantSource(claim),
 				claim.getTicketCount(), mission.getTitle()));
-		return receiptOf(granted);
+		return MissionSubmissionResultReader.receiptOf(granted);
 	}
 
 	/**
@@ -151,30 +151,6 @@ public class MissionSubmissionRecorder {
 				|| !stored.getRequestHash().equals(command.getRequestHash())) {
 			throw new MissionException(MissionErrorCode.IDEMPOTENCY_CONFLICT);
 		}
-		return resultOf(stored, false);
-	}
-
-	/** 저장된 제출의 결과를 만든다. 완료한 제출이면 그 보상 청구로 확정된 응모권 지급 결과를 다시 읽는다. */
-	private MissionSubmissionResult resultOf(MissionSubmission submission, boolean created) {
-		MissionRewardReceipt reward = null;
-		if (submission.isCompleted()) {
-			MissionRewardClaim claim = claimRepository
-					.findByUserAndMission(submission.getUserId(), submission.getMissionId())
-					.filter(found -> found.getMissionSubmissionId().equals(submission.getId()))
-					.orElseThrow(() -> new IllegalStateException("완료한 미션 제출에 보상 청구가 없다."));
-			reward = receiptOf(grantService.findGrant(grantSource(claim))
-					.orElseThrow(() -> new IllegalStateException("미션 보상 청구에 응모권 지급 결과가 없다.")));
-		}
-		return new MissionSubmissionResult(submission.getId(), submission.getMissionId(), submission.getCreatedAt(),
-				submission.isCompleted(), reward, created);
-	}
-
-	private static GrantSource grantSource(MissionRewardClaim claim) {
-		return new GrantSource(GrantSourceType.MISSION, claim.getId());
-	}
-
-	private static MissionRewardReceipt receiptOf(GrantResult granted) {
-		return new MissionRewardReceipt(granted.getQuantity(), granted.getGrade(), granted.getGrantedAt(),
-				granted.getExpiresAt());
+		return resultReader.read(stored, false);
 	}
 }

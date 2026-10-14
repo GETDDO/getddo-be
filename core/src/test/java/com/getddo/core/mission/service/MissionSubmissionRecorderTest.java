@@ -91,7 +91,7 @@ class MissionSubmissionRecorderTest {
 	void setUp() {
 		TimeProvider time = new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC));
 		recorder = new MissionSubmissionRecorder(missionRepository, submissionRepository, progressRepository,
-				claimRepository, grantService, time);
+				claimRepository, grantService, new MissionSubmissionResultReader(claimRepository, grantService), time);
 	}
 
 	private Mission mission(MissionType type, Instant startsAt, Instant endsAt, MissionStatus status) {
