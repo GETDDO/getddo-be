@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.entry.domain.EntryCommand;
 import com.getddo.core.entry.domain.EntryReceipt;
 import com.getddo.core.entry.exception.EntryErrorCode;
@@ -21,6 +22,10 @@ import com.getddo.core.entry.exception.EntryException;
  * 커밋한다. 같은 사용자의 첫 응모가 동시에 겹치거나 같은 응모 ID가 동시에 오면 응모자·응모 저장의 UNIQUE 위반이나 잠금
  * 교착으로 롤백되므로, 새 트랜잭션에서 한 번 더 처리해 먼저 확정된 결과를 반환하거나 이어서 응모한다. 호출자 트랜잭션에
  * 합류하면 롤백 표시가 남아 이 재처리를 할 수 없다.</p>
+ *
+ * <p>스펙이 이력으로 남기도록 한 업무 거절({@link EntryRejections})은 응모 트랜잭션이 롤백된 뒤 별도 트랜잭션
+ * ({@link EntryRejectionRecorder})에서 기록하고 원래 예외를 그대로 던진다. 같은 응모 ID를 다시 요청하면 저장된 거절 코드로
+ * 처음과 같은 오류를 돌려준다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -30,6 +35,7 @@ public class EntryService {
 	private static final int MYSQL_DUPLICATE_ENTRY = 1062;
 
 	private final EntryRecorder recorder;
+	private final EntryRejectionRecorder rejectionRecorder;
 
 	/**
 	 * 요청 사용자가 이벤트에 응모한다.
@@ -46,6 +52,41 @@ public class EntryService {
 				|| command.getEntryId() == null) {
 			throw new EntryException(EntryErrorCode.INVALID_ENTRY_REQUEST);
 		}
+		try {
+			return process(command);
+		} catch (BusinessException failure) {
+			if (rememberRejection(command, failure)) {
+				throw failure;
+			}
+			// 같은 응모 ID의 결과가 동시에 먼저 확정됐다. 그 결과를 돌려주거나 같은 거절을 그대로 던진다.
+			return process(command);
+		}
+	}
+
+	/**
+	 * 업무 거절을 별도 트랜잭션에서 이력으로 남긴다. 이력 저장이 실패해도 사용자에게는 원래 거절을 돌려주므로 실패는 원래
+	 * 예외에 덧붙여 남기고 삼키지 않는다.
+	 *
+	 * @return 같은 응모 ID의 결과가 동시에 먼저 저장되어 다시 처리해야 하면 false
+	 */
+	private boolean rememberRejection(EntryCommand command, BusinessException failure) {
+		try {
+			rejectionRecorder.record(command, failure);
+			return true;
+		} catch (DataIntegrityViolationException violation) {
+			if (isDuplicateKey(violation)) {
+				return false;
+			}
+			failure.addSuppressed(violation);
+			return true;
+		} catch (RuntimeException recordingFailure) {
+			failure.addSuppressed(recordingFailure);
+			return true;
+		}
+	}
+
+	/** 응모 결과를 한 번 처리하고, 동시 응모로 롤백되면 새 트랜잭션에서 한 번 다시 처리한다. */
+	private EntryReceipt process(EntryCommand command) {
 		try {
 			return recorder.record(command);
 		} catch (PessimisticLockingFailureException concurrentEntry) {

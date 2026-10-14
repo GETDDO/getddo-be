@@ -2,6 +2,7 @@ package com.getddo.core.entry.service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -107,8 +108,7 @@ public class EntryRecorder {
 		EntryParticipant participant = found.orElseGet(() -> participantRepository
 				.create(EntryParticipant.first(event.getId(), command.getUserId(), acceptedAt)));
 
-		entryRepository.save(Entry.accepted(command.getEntryId(), participant, Math.toIntExact(total),
-				acceptedAt));
+		entryRepository.save(Entry.accepted(command.getEntryId(), participant, tickets, acceptedAt));
 		if (total > 0) {
 			useTickets(event, command, tickets);
 			participantRepository.addUsedTicketCount(participant.getId(), total);
@@ -120,12 +120,24 @@ public class EntryRecorder {
 		return new EntryReceipt(command.getEntryId(), event.getId(), event.getTitle(), tickets, acceptedAt, true);
 	}
 
-	/** 같은 응모 ID로 이미 접수된 응모의 기존 결과를 돌려준다. 다른 사용자·이벤트·응모권 구성이면 거절한다. */
+	/**
+	 * 같은 응모 ID로 이미 처리된 요청의 기존 결과를 돌려준다. 접수된 응모는 기존 영수증을, 거절된 요청은 처음과 같은 오류를
+	 * 돌려준다. 다른 사용자·이벤트·응모권 구성이면 거절한다.
+	 */
 	private EntryReceipt replay(EntryCommand command, Map<TicketGrade, Long> tickets, Entry entry) {
 		long total = tickets.values().stream().mapToLong(Long::longValue).sum();
 		if (!entry.getUserId().equals(command.getUserId()) || !entry.getEventId().equals(command.getEventId())
 				|| entry.getRequestedTicketCount() != total) {
 			throw new EntryException(EntryErrorCode.IDEMPOTENCY_CONFLICT);
+		}
+		if (entry.isRejected()) {
+			// 거절 건은 차감 이력이 없어 등급별 구성을 저장한 요청 장수와 직접 비교한다.
+			boolean sameGrades = Arrays.stream(TicketGrade.values()).allMatch(
+					grade -> tickets.getOrDefault(grade, 0L).equals(entry.getRequestedTicketsByGrade().get(grade)));
+			if (!sameGrades) {
+				throw new EntryException(EntryErrorCode.IDEMPOTENCY_CONFLICT);
+			}
+			throw EntryRejections.restore(entry.getRejectionCode());
 		}
 		EntryEvent event = eventReader.find(entry.getEventId())
 				.orElseThrow(() -> new EntryException(EntryErrorCode.EVENT_NOT_FOUND));
