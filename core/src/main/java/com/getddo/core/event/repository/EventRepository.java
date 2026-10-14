@@ -13,7 +13,11 @@ public interface EventRepository {
 	/** 현재 이벤트와 경품을 잠금 읽기한다. 삭제된 이벤트는 반환하지 않는다. */
 	Optional<RegisteredEvent> findByIdForUpdate(UUID eventId);
 
-	/** 미삭제 이벤트 행을 잠그고 최신 상태를 읽는다. 호출자 트랜잭션에서 사용한다. */
+	/**
+	 * 미삭제 이벤트 행을 잠그고 최신 상태를 읽는다. 호출자 트랜잭션에서 사용한다.
+	 * 호출자의 미반영 변경을 flush한 뒤 해당 이벤트의 기존 Entity 참조를 분리하고 다시 적재한다.
+	 * 영속성 구현의 호출자는 상태 변경 후 이전 Entity 참조로 수정하지 않고 저장소에서 재조회한다.
+	 */
 	Optional<EventStatus> findStatusByIdForUpdate(UUID eventId);
 
 	/**
