@@ -474,6 +474,7 @@ class DrawSnapshotIntegrationTest {
 		}
 		DrawSnapshot snapshot = service.prepareInitial(eventId);
 		assertThat(snapshot.candidates()).hasSize(1);
+		assertThat(snapshot.candidates().getFirst().participantId()).isEqualTo(participant);
 		assertThat(snapshot.candidates().getFirst().entryEvidence().entries()).hasSize(1);
 		assertThat(snapshot.candidates().getFirst().ticketCount()).isZero();
 	}

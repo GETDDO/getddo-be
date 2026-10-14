@@ -70,7 +70,8 @@ class EntryDomainTest {
 	}
 
 	private static Entry accepted(UUID id, int requested, int deducted) {
-		return new Entry(id, id, id, id, EntryStatus.ACCEPTED, requested, Map.of(), deducted, null, null, AT);
+		Map<TicketGrade, Long> byGrade = requested > 0 ? Map.of(TicketGrade.BRONZE, (long) requested) : Map.of();
+		return new Entry(id, id, id, id, EntryStatus.ACCEPTED, requested, byGrade, deducted, null, null, AT);
 	}
 
 	@Test
@@ -93,23 +94,44 @@ class EntryDomainTest {
 	}
 
 	@Test
+	@DisplayName("등급별 요청 장수의 합이 요청 수량과 다르거나 음수·null이 있으면 만들 수 없다")
+	void entryRejectsInconsistentGradeCounts() {
+		// given
+		UUID id = UUID.randomUUID();
+		Map<TicketGrade, Long> nullValue = new java.util.EnumMap<>(TicketGrade.class);
+		nullValue.put(TicketGrade.GOLD, null);
+		// when
+		// then
+		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.ACCEPTED, 3, Map.of(TicketGrade.GOLD, 2L), 3,
+				null, null, AT)).isInstanceOf(IllegalArgumentException.class);
+		assertThat(new Entry(id, id, id, id, EntryStatus.ACCEPTED, 0, Map.of(), 0, null, null, AT)
+				.getRequestedTicketsByGrade().values()).containsOnly(0L);
+		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.ACCEPTED, 1,
+				Map.of(TicketGrade.GOLD, 2L, TicketGrade.SILVER, -1L), 1, null, null, AT))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.ACCEPTED, 1, nullValue, 1, null, null, AT))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
 	@DisplayName("상태와 맞지 않는 응모자·차감·거절 정보는 만들 수 없다")
 	void entryRejectsInconsistentStatusFields() {
 		// given
 		UUID id = UUID.randomUUID();
+		Map<TicketGrade, Long> one = Map.of(TicketGrade.GOLD, 1L);
 		// when
 		// then
 		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.ACCEPTED, 0, Map.of(), 0, null, null, AT))
 				.isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.ACCEPTED, 0, Map.of(), 0, "ENTRY-005", "사유", AT))
 				.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.REJECTED, 1, Map.of(), 0, "ENTRY-005", "사유", AT))
+		assertThatThrownBy(() -> new Entry(id, id, id, id, EntryStatus.REJECTED, 1, one, 0, "ENTRY-005", "사유", AT))
 				.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, Map.of(), 1, "ENTRY-005", "사유", AT))
+		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, one, 1, "ENTRY-005", "사유", AT))
 				.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, Map.of(), 0, null, "사유", AT))
+		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, one, 0, null, "사유", AT))
 				.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, Map.of(), 0, "ENTRY-005", " ", AT))
+		assertThatThrownBy(() -> new Entry(id, null, id, id, EntryStatus.REJECTED, 1, one, 0, "ENTRY-005", " ", AT))
 				.isInstanceOf(IllegalArgumentException.class);
 	}
 

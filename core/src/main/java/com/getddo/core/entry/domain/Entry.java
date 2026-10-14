@@ -68,9 +68,20 @@ public final class Entry {
 				throw new IllegalArgumentException("거절된 응모에는 거절 코드와 사유가 있어야 한다.");
 			}
 		}
+		Map<TicketGrade, Long> byGrade = complete(Objects.requireNonNull(requestedTicketsByGrade, "requestedTicketsByGrade"));
+		long gradeSum = 0;
+		for (Long count : byGrade.values()) {
+			if (count == null || count < 0) {
+				throw new IllegalArgumentException("등급별 요청 장수는 0 이상이어야 한다.");
+			}
+			gradeSum += count;
+		}
+		if (gradeSum != requestedTicketCount) {
+			throw new IllegalArgumentException("등급별 요청 장수의 합이 요청 수량과 같아야 한다.");
+		}
 		this.participantId = participantId;
 		this.requestedTicketCount = requestedTicketCount;
-		this.requestedTicketsByGrade = complete(requestedTicketsByGrade);
+		this.requestedTicketsByGrade = byGrade;
 		this.deductedTicketCount = deductedTicketCount;
 		this.rejectionCode = rejectionCode;
 		this.rejectionReason = rejectionReason;
