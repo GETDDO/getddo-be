@@ -1,5 +1,6 @@
 package com.getddo.db.event.repository;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.UUID;
@@ -9,6 +10,7 @@ import org.hibernate.LockMode;
 import org.hibernate.Locking;
 import org.hibernate.Session;
 import org.springframework.stereotype.Repository;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
@@ -19,17 +21,21 @@ import com.getddo.core.event.repository.EventRepository;
 import com.getddo.db.event.entity.EventEntity;
 import com.getddo.db.event.entity.EventPrizeEntity;
 import com.getddo.db.event.mapper.EventEntityMapper;
+import com.getddo.db.common.util.UuidBinary;
 
 @Repository
 public class EventRepositoryImpl implements EventRepository {
 	private final EventJpaRepository jpaRepository;
 	private final EventEntityMapper mapper;
 	private final EntityManager entityManager;
+	private final JdbcTemplate jdbc;
 
-	public EventRepositoryImpl(EventJpaRepository jpaRepository, EventEntityMapper mapper, EntityManager entityManager) {
+	public EventRepositoryImpl(EventJpaRepository jpaRepository, EventEntityMapper mapper, EntityManager entityManager,
+			JdbcTemplate jdbc) {
 		this.jpaRepository = jpaRepository;
 		this.mapper = mapper;
 		this.entityManager = entityManager;
+		this.jdbc = jdbc;
 	}
 
 	@Override
@@ -73,6 +79,22 @@ public class EventRepositoryImpl implements EventRepository {
 		event.modify(settings);
 		jpaRepository.flush();
 		return toDomain(event);
+	}
+
+	@Override
+	public boolean hasParticipationHistory(UUID eventId) {
+		// 관리자 조회가 만든 과거 스냅샷을 사용하지 않고, 이벤트 잠금 이후의 최신 응모자 행을 읽는다.
+		return !jdbc.query("select id from event_participants where event_id = ? limit 1 for share",
+				(row, index) -> row.getBytes("id"), UuidBinary.toBytes(eventId)).isEmpty();
+	}
+
+	@Override
+	public void softDelete(UUID eventId, Instant deletedAt) {
+		EventEntity event = jpaRepository.findById(eventId)
+				.filter(saved -> saved.getDeletedAt() == null)
+				.orElseThrow(() -> new EventException(EventErrorCode.EVENT_NOT_FOUND));
+		event.markDeleted(deletedAt);
+		jpaRepository.flush();
 	}
 
 	private RegisteredEvent toDomain(EventEntity event) {

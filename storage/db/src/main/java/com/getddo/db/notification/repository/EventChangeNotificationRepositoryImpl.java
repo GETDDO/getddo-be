@@ -52,6 +52,13 @@ public class EventChangeNotificationRepositoryImpl implements EventChangeNotific
 	}
 
 	@Override
+	public boolean isDeletedEvent(UUID eventId) {
+		return Boolean.TRUE.equals(jdbc.queryForObject(
+				"select deleted_at is not null from events where id = ? for share",
+				Boolean.class, UuidBinary.toBytes(eventId)));
+	}
+
+	@Override
 	public void stopStartJobs(UUID eventId, String occurrenceKey) {
 		// 성공·실패 상태를 덮어쓰지 않고 실행 중지 근거를 별도로 보존한다.
 		jdbc.update("""

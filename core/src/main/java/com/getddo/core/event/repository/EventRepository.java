@@ -1,5 +1,6 @@
 package com.getddo.core.event.repository;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +20,10 @@ public interface EventRepository {
 	 * 호출자는 설정의 업무 검증과 기존 경품 ID의 이벤트 소유권 검증을 완료해야 한다.
 	 */
 	RegisteredEvent update(UUID eventId, EventRegistration settings);
+
+	/** 이벤트 잠금을 확보한 뒤 최초 성공 응모로 생성된 응모자 기록을 최신 읽기로 확인한다. */
+	boolean hasParticipationHistory(UUID eventId);
+
+	/** 같은 트랜잭션에서 동일 이벤트의 선행 잠금 조회·삭제 조건 검증 후 논리 삭제하고 flush한다. */
+	void softDelete(UUID eventId, Instant deletedAt);
 }
