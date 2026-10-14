@@ -10,6 +10,7 @@ import com.getddo.core.drawing.domain.DrawSnapshot;
 /** 관리자용 확정 후보. 현재 사용자 개인정보를 조회·추가하지 않는다. */
 public record DrawCandidateResponse(UUID id, UUID participantId, UUID userId, long ticketCount, long weight,
 		EntryEvidence entrySnapshot, EligibilityEvidence eligibilitySnapshot) {
+	/** 저장된 후보와 응모 근거를 API 응답으로 변환한다. */
 	public static DrawCandidateResponse from(DrawInspectionView.Candidate view) {
 		DrawSnapshot.Candidate candidate = view.getSnapshot();
 		return new DrawCandidateResponse(candidate.id(), candidate.participantId(), candidate.userId(),

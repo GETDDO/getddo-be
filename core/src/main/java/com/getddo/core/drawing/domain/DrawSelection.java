@@ -14,6 +14,7 @@ public final class DrawSelection {
 	private final UUID userId;
 	private final DrawSelectionResultType resultType;
 
+	/** 선정·미충원 종류에 맞는 후보와 선정 순서를 검증해 경품 자리 결과를 만든다. */
 	public DrawSelection(UUID prizeId, int rank, int slotNumber, Integer selectionOrder,
 			UUID candidateId, UUID userId, DrawSelectionResultType resultType) {
 		this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
@@ -35,6 +36,7 @@ public final class DrawSelection {
 		this.userId = userId;
 	}
 
+	/** 후보가 선정된 경품 자리와 선정 순서를 확정 결과로 만든다. */
 	public static DrawSelection selected(DrawPrize prize, int slotNumber, int selectionOrder, DrawCandidate candidate) {
 		Objects.requireNonNull(prize, "prize");
 		Objects.requireNonNull(candidate, "candidate");
@@ -42,6 +44,7 @@ public final class DrawSelection {
 				candidate.getCandidateId(), candidate.getUserId(), DrawSelectionResultType.SELECTED);
 	}
 
+	/** 후보가 부족한 자리는 사용자와 선정 순서 없이 미충원 결과로 만든다. */
 	public static DrawSelection unfilled(DrawPrize prize, int slotNumber) {
 		Objects.requireNonNull(prize, "prize");
 		return new DrawSelection(prize.getPrizeId(), prize.getRank(), slotNumber, null,

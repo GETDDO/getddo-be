@@ -3,7 +3,13 @@ package com.getddo.db.drawing.entity;
 import java.util.Objects;
 import java.util.UUID;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.EmbeddedId;
+import jakarta.persistence.Entity;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 import lombok.AccessLevel;
 import lombok.Getter;

@@ -13,7 +13,9 @@ import com.getddo.core.drawing.domain.DrawSnapshot;
 import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.AwardCancellationRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
-import com.getddo.core.user.domain.*;
+import com.getddo.core.user.domain.User;
+import com.getddo.core.user.domain.UserRole;
+import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.repository.UserRepository;
 
 import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.NOT_CANCELABLE;

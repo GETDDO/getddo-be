@@ -6,8 +6,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.getddo.core.drawing.domain.*;
 import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
+import com.getddo.core.drawing.domain.DrawType;
 
 /** 실행 및 실패·재시도·취소 근거의 관리자 상세 응답. */
 public record DrawRunDetailResponse(UUID id, UUID eventId, int runNumber, DrawType drawType,

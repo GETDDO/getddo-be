@@ -15,6 +15,7 @@ public record DrawRulesResponse(int version, boolean weightingEnabled, String ev
 		targetSlots = List.copyOf(targetSlots);
 		retainedAwards = List.copyOf(retainedAwards);
 	}
+	/** 저장된 추첨 조건를 API 응답으로 변환한다. */
 	public static DrawRulesResponse from(DrawInspectionView.Run run) {
 		DrawSnapshot.Rules rules = run.getRules();
 		DrawReplacementRulesView replacement = run.getReplacementRules();

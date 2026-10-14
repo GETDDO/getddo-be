@@ -11,8 +11,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawHistoricalAward;
 import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawReplacementRulesView;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
+import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.domain.DrawVerification;
 
 /** 저장된 입력과 결과를 비교해 수량·가중치·자리 배정·취소 시점이 맞는지 검사한다. 당첨자를 다시 뽑지 않는다. */

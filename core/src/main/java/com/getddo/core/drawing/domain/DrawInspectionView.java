@@ -30,6 +30,7 @@ public final class DrawInspectionView {
 		private final Instant confirmedAt;
 		private final Instant createdAt;
 
+		/** 저장된 최초 추첨의 조건·상태·시각을 조회값으로 묶는다. 재추첨 조건은 비워 둔다. */
 		public Run(UUID id, UUID eventId, int runNumber, DrawType drawType, DrawRunStatus status,
 				UUID originalDrawId, String algorithmVersion, DrawSnapshot.Rules rules, Instant snapshotFixedAt,
 				Instant startedAt, Instant confirmedAt, Instant createdAt) {
@@ -37,6 +38,7 @@ public final class DrawInspectionView {
 					snapshotFixedAt, startedAt, confirmedAt, createdAt, null);
 		}
 
+		/** 재추첨 조건까지 포함해 저장된 실행 정보를 조회값으로 묶는다. */
 		public Run(UUID id, UUID eventId, int runNumber, DrawType drawType, DrawRunStatus status,
 				UUID originalDrawId, String algorithmVersion, DrawSnapshot.Rules rules, Instant snapshotFixedAt,
 				Instant startedAt, Instant confirmedAt, Instant createdAt, DrawReplacementRulesView replacementRules) {
@@ -71,8 +73,8 @@ public final class DrawInspectionView {
 		public Detail(DrawInspectionView.Run run, List<DrawInspectionView.Result> results,
 				DrawInspectionView.ExecutionSummary execution) {
 			this.execution = execution;
-			this.run = run;
-			this.results = List.copyOf(results);
+			this.run = Objects.requireNonNull(run, "run");
+			this.results = List.copyOf(Objects.requireNonNull(results, "results"));
 		}
 	}
 
@@ -85,6 +87,7 @@ public final class DrawInspectionView {
 		private final UUID participantEventId;
 		private final UUID participantUserId;
 
+		/** 검증에 필요한 저장 후보와 실행·이벤트·사용자 연결 정보를 묶는다. */
 		public Candidate(DrawSnapshot.Candidate snapshot, UUID sourceRunId, UUID sourceEventId,
 				UUID participantEventId, UUID participantUserId) {
 			this.snapshot = snapshot;
@@ -110,6 +113,7 @@ public final class DrawInspectionView {
 		private final boolean wasPublished;
 		private final boolean canceled;
 
+		/** 사용자 식별자 없이 저장 결과와 공개·취소 여부를 묶는다. */
 		public Result(UUID id, UUID runId, UUID prizeId, UUID prizeEventId, int slotNumber,
 				Integer selectionOrder, DrawSelectionResultType resultType, UUID candidateId,
 				boolean wasPublished, boolean canceled) {
@@ -117,6 +121,7 @@ public final class DrawInspectionView {
 					candidateId, null, wasPublished, canceled);
 		}
 
+		/** 저장 결과와 선정 사용자, 공개·취소 여부를 함께 묶는다. */
 		public Result(UUID id, UUID runId, UUID prizeId, UUID prizeEventId, int slotNumber,
 				Integer selectionOrder, DrawSelectionResultType resultType, UUID candidateId,
 				UUID userId, boolean wasPublished, boolean canceled) {

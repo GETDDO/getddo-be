@@ -17,8 +17,13 @@ import tools.jackson.databind.json.JsonMapper;
 
 import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.common.pagination.PageResult;
-import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawFailure;
+import com.getddo.core.drawing.domain.DrawHistoricalAward;
 import com.getddo.core.drawing.domain.DrawInspectionView;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.domain.DrawVerification;
 import com.getddo.core.drawing.repository.DrawInspectionRepository;
 import com.getddo.db.drawing.mapper.DrawInspectionRulesMapper;

@@ -32,32 +32,36 @@ public class DrawSnapshotSourceReader {
 		this.jdbc = jdbc;
 	}
 
+	/** 이벤트 행을 먼저 잠근 뒤 추첨에 필요한 이벤트 조건과 경품을 조회한다. */
 	public Optional<DrawSnapshotSource.Event> lockEvent(UUID eventId) {
 		List<DrawSnapshotSource.Event> events = jdbc.query("""
 			select id, event_type, weighting_enabled, ends_at, status, deleted_at, membership_rule
 			from events where id = ? for update
 			""", (row, index) -> new DrawSnapshotSource.Event(fromBytes(row.getBytes("id")),
-		EventType.valueOf(row.getString("event_type")), row.getBoolean("weighting_enabled"),
-		instant(row, "ends_at"), EventStatus.valueOf(row.getString("status")),
-		row.getObject("deleted_at") != null, row.getString("membership_rule"), List.of()), toBytes(eventId));
-		if (events.isEmpty()) return Optional.empty();
+				EventType.valueOf(row.getString("event_type")), row.getBoolean("weighting_enabled"),
+				instant(row, "ends_at"), EventStatus.valueOf(row.getString("status")),
+				row.getObject("deleted_at") != null, row.getString("membership_rule"), List.of()), toBytes(eventId));
+		if (events.isEmpty()) {
+			return Optional.empty();
+		}
 		List<DrawSnapshotSource.Prize> prizes = jdbc.query("""
 			select id, prize_rank, winner_count from event_prizes where event_id = ? order by prize_rank
 			""", (row, index) -> new DrawSnapshotSource.Prize(fromBytes(row.getBytes("id")),
-		row.getInt("prize_rank"), row.getInt("winner_count")), toBytes(eventId));
+				row.getInt("prize_rank"), row.getInt("winner_count")), toBytes(eventId));
 		DrawSnapshotSource.Event event = events.getFirst();
 		return Optional.of(new DrawSnapshotSource.Event(event.id(), event.type(), event.weightingEnabled(),
-		event.endsAt(), event.status(), event.deleted(), event.membershipRule(), prizes));
+				event.endsAt(), event.status(), event.deleted(), event.membershipRule(), prizes));
 	}
 
+	/** 응모자·응모·사용 이력을 일괄 조회해 후보 입력을 구성한다. */
 	public List<DrawSnapshotSource.Participant> findParticipants(UUID eventId) {
 		// 세 번의 일괄 조회로 응모자·응모·이력을 결합한다. 응모자별 N+1 조회를 하지 않는다.
 		List<DrawSnapshotSource.Participant> participants = jdbc.query("""
 			select p.id, p.user_id, p.used_ticket_count, u.membership, u.role
 			from event_participants p join users u on u.id = p.user_id where p.event_id = ? order by p.id
 			""", (row, index) -> new DrawSnapshotSource.Participant(fromBytes(row.getBytes("id")),
-		fromBytes(row.getBytes("user_id")), row.getLong("used_ticket_count"), row.getString("membership"),
-		row.getString("role"), List.of()), toBytes(eventId));
+				fromBytes(row.getBytes("user_id")), row.getLong("used_ticket_count"), row.getString("membership"),
+				row.getString("role"), List.of()), toBytes(eventId));
 		Map<UUID, List<DrawSnapshotSource.Use>> uses = new LinkedHashMap<>();
 		jdbc.query("""
 			select h.event_entry_id, h.id, h.ticket_id, t.user_id, t.grade
@@ -66,27 +70,27 @@ public class DrawSnapshotSourceReader {
 			join event_participants p on p.id = e.participant_id
 			where p.event_id = ? and h.operation_type = 'USE' order by h.id
 			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
-		uses.computeIfAbsent(fromBytes(row.getBytes("event_entry_id")), key -> new ArrayList<>())
-				.add(new DrawSnapshotSource.Use(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("ticket_id")),
-		fromBytes(row.getBytes("user_id")), TicketGrade.valueOf(row.getString("grade"))));
-	}, toBytes(eventId));
-	Map<UUID, List<DrawSnapshotSource.Entry>> entries = new LinkedHashMap<>();
-	jdbc.query("""
+				uses.computeIfAbsent(fromBytes(row.getBytes("event_entry_id")), key -> new ArrayList<>())
+						.add(new DrawSnapshotSource.Use(fromBytes(row.getBytes("id")), fromBytes(row.getBytes("ticket_id")),
+								fromBytes(row.getBytes("user_id")), TicketGrade.valueOf(row.getString("grade"))));
+			}, toBytes(eventId));
+		Map<UUID, List<DrawSnapshotSource.Entry>> entries = new LinkedHashMap<>();
+		jdbc.query("""
 			select e.id, e.participant_id, e.deducted_ticket_count, e.created_at
 			from event_entries e join event_participants p on p.id = e.participant_id
 			where p.event_id = ? order by e.id
 			""", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
-	UUID id = fromBytes(row.getBytes("id"));
-	entries.computeIfAbsent(fromBytes(row.getBytes("participant_id")), key -> new ArrayList<>())
-			.add(new DrawSnapshotSource.Entry(id, row.getLong("deducted_ticket_count"),
-	instant(row, "created_at"), uses.getOrDefault(id, List.of())));
-}, toBytes(eventId));
-return participants.stream().map(p -> new DrawSnapshotSource.Participant(p.id(), p.userId(),
-p.usedTicketCount(), p.membership(), p.role(), entries.getOrDefault(p.id(), List.of()))).toList();
-}
+				UUID id = fromBytes(row.getBytes("id"));
+				entries.computeIfAbsent(fromBytes(row.getBytes("participant_id")), key -> new ArrayList<>())
+						.add(new DrawSnapshotSource.Entry(id, row.getLong("deducted_ticket_count"),
+								instant(row, "created_at"), uses.getOrDefault(id, List.of())));
+			}, toBytes(eventId));
+		return participants.stream().map(p -> new DrawSnapshotSource.Participant(p.id(), p.userId(),
+				p.usedTicketCount(), p.membership(), p.role(), entries.getOrDefault(p.id(), List.of()))).toList();
+	}
 
-private static Instant instant(ResultSet row, String column) throws SQLException {
-LocalDateTime value = row.getObject(column, LocalDateTime.class);
-return value == null ? null : value.toInstant(ZoneOffset.UTC);
-}
+	private static Instant instant(ResultSet row, String column) throws SQLException {
+		LocalDateTime value = row.getObject(column, LocalDateTime.class);
+		return value == null ? null : value.toInstant(ZoneOffset.UTC);
+	}
 }

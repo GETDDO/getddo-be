@@ -15,7 +15,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.common.exception.BusinessException;
-import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.CancellationTarget;
+import com.getddo.core.drawing.domain.DrawResult;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.ReplacementDrawRepository;
 import com.getddo.db.drawing.entity.DrawResultEntity;
 import com.getddo.db.drawing.entity.DrawRunEntity;

@@ -2,6 +2,7 @@ package com.getddo.core.drawing.domain;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import lombok.Getter;
@@ -16,6 +17,7 @@ public final class DrawVerification {
 	private final Instant verifiedAt;
 	private final UUID verifiedBy;
 
+	/** 검사 결과와 항목을 복사해 관리자 검증 기록을 보존한다. */
 	public DrawVerification(UUID id, UUID drawRunId, boolean passed, List<DrawVerification.Item> checks,
 			Instant verifiedAt, UUID verifiedBy) {
 		this.id = id;
@@ -33,6 +35,7 @@ public final class DrawVerification {
 		private final boolean passed;
 		private final String message;
 
+		/** 검사 코드별 통과 여부와 관리자 안내를 묶는다. */
 		public Item(String code, boolean passed, String message) {
 			this.code = code;
 			this.passed = passed;
@@ -47,12 +50,14 @@ public final class DrawVerification {
 		private final List<DrawInspectionView.Candidate> originalCandidates;
 		private final List<DrawHistoricalAward> historicalAwards;
 
+		/** 필수 목록은 복사하고, 최초 실행이 없는 경우는 null로 구분한다. */
 		public References(DrawInspectionView.Run originalRun, List<DrawInspectionView.Candidate> originalCandidates,
 				List<DrawHistoricalAward> historicalAwards) {
 			this.originalRun = originalRun;
-			this.originalCandidates = List.copyOf(originalCandidates);
-			this.historicalAwards = List.copyOf(historicalAwards);
+			this.originalCandidates = List.copyOf(Objects.requireNonNull(originalCandidates, "originalCandidates"));
+			this.historicalAwards = List.copyOf(Objects.requireNonNull(historicalAwards, "historicalAwards"));
 		}
+		/** 최초 추첨처럼 비교할 과거 실행·후보·배정이 없는 경우를 표현한다. */
 		public static DrawVerification.References empty() {
 			return new DrawVerification.References(null, List.of(), List.of());
 		}

@@ -10,6 +10,7 @@ import com.getddo.core.drawing.domain.DrawSelectionResultType;
 public record DrawResultResponse(UUID id, UUID prizeId, Integer prizeRank, int slotNumber, Integer selectionOrder,
 		DrawSelectionResultType resultType, UUID candidateId, UUID userId, boolean wasPublished,
 		@JsonProperty("isCanceled") boolean isCanceled) {
+	/** 선정 또는 미충원 결과를 API 응답으로 변환한다. */
 	public static DrawResultResponse from(DrawInspectionView.Result result, Integer rank, UUID userId) {
 		return new DrawResultResponse(result.getId(), result.getPrizeId(), rank, result.getSlotNumber(),
 				result.getSelectionOrder(), result.getResultType(), result.getCandidateId(), userId,

@@ -10,7 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.AwardCancellation;
+import com.getddo.core.drawing.domain.AwardCancellationReceipt;
+import com.getddo.core.drawing.domain.DrawExecutionResult;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSnapshot;
 
 /** 당첨 취소를 등록한 뒤, 연결된 재추첨 실행을 시작하거나 같은 실행을 재개한다. */
 @Service
