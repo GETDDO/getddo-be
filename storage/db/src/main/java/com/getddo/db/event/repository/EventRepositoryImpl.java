@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.hibernate.LockMode;
 import org.hibernate.Locking;
 import org.hibernate.Session;
@@ -56,6 +57,26 @@ public class EventRepositoryImpl implements EventRepository {
 				.setHibernateLockMode(LockMode.PESSIMISTIC_WRITE)
 				.setLockScope(Locking.Scope.INCLUDE_FETCHES)
 				.uniqueResultOptional().map(this::toDomain);
+	}
+
+	@Override
+	public Optional<EventStatus> findStatusByIdForUpdate(UUID eventId) {
+		// 호출자의 미반영 변경을 보존한 뒤 refresh해 1차 캐시에 남은 이전 상태로 판정하지 않는다.
+		entityManager.flush();
+		return jpaRepository.findByIdForUpdate(eventId).map(event -> {
+			entityManager.refresh(event, LockModeType.PESSIMISTIC_WRITE);
+			return event.getStatus();
+		});
+	}
+
+	/** 선행 상태 잠금 조회가 관리 중인 Entity를 재사용하며 상태와 공통 수정 시각만 저장한다. */
+	@Override
+	public void updateStatus(UUID eventId, EventStatus newStatus) {
+		EventEntity event = jpaRepository.findById(eventId)
+				.filter(saved -> saved.getDeletedAt() == null)
+				.orElseThrow(() -> new EventException(EventErrorCode.EVENT_NOT_FOUND));
+		event.changeStatus(newStatus);
+		jpaRepository.flush();
 	}
 
 	/**
