@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -128,7 +129,7 @@ class MissionApiIntegrationTest {
 		UUID key = UUID.randomUUID();
 		// when
 		// then
-		mvc.perform(submit(key, answers(OPTION_OK, "겟또")))
+		String created = mvc.perform(submit(key, answers(OPTION_OK, "겟또")))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.submissionId").value(key.toString()))
@@ -137,14 +138,17 @@ class MissionApiIntegrationTest {
 				.andExpect(jsonPath("$.data.reward.claimId").isString())
 				.andExpect(jsonPath("$.data.reward.ticketCount").value(1))
 				.andExpect(jsonPath("$.data.reward.grade").isString())
-				.andExpect(jsonPath("$.data.reward.expiresAt").isString());
+				.andExpect(jsonPath("$.data.reward.expiresAt").isString())
+				.andReturn().getResponse().getContentAsString();
+		String claimId = JsonPath.read(created, "$.data.reward.claimId");
 		mvc.perform(get("/api/v1/tickets/me").headers(headers()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.availableCount").value(1));
 		mvc.perform(submit(key, answers(OPTION_OK, "겟또")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.submissionId").value(key.toString()))
-				.andExpect(jsonPath("$.data.isCompleted").value(true));
+				.andExpect(jsonPath("$.data.isCompleted").value(true))
+				.andExpect(jsonPath("$.data.reward.claimId").value(claimId));
 		mvc.perform(get("/api/v1/tickets/me").headers(headers()))
 				.andExpect(jsonPath("$.data.availableCount").value(1));
 		assertThat(count("select count(*) from mission_reward_claims where user_id = ?")).isEqualTo(1);
@@ -273,7 +277,9 @@ class MissionApiIntegrationTest {
 		UUID doneKey = UUID.randomUUID();
 		UUID otherKey = UUID.randomUUID();
 		mvc.perform(submit(wrongKey, answers(OPTION_NO, "겟또"))).andExpect(status().isCreated());
-		mvc.perform(submit(doneKey, answers(OPTION_OK, "겟또"))).andExpect(status().isCreated());
+		String doneBody = mvc.perform(submit(doneKey, answers(OPTION_OK, "겟또"))).andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+		String doneClaimId = JsonPath.read(doneBody, "$.data.reward.claimId");
 		mvc.perform(submit(OTHER, otherKey, answers(OPTION_OK, "겟또"))).andExpect(status().isCreated());
 		String done = "$.data.items[?(@.submissionId=='" + doneKey + "')]";
 		String wrong = "$.data.items[?(@.submissionId=='" + wrongKey + "')]";
@@ -283,7 +289,7 @@ class MissionApiIntegrationTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.totalElements").value(2))
 				.andExpect(jsonPath(done + ".isCompleted").value(true))
-				.andExpect(jsonPath(done + ".reward.claimId").isNotEmpty())
+				.andExpect(jsonPath(done + ".reward.claimId").value(contains(doneClaimId)))
 				.andExpect(jsonPath(done + ".reward.ticketCount").value(1))
 				.andExpect(jsonPath(done + ".reward.grade").isNotEmpty())
 				.andExpect(jsonPath(wrong + ".isCompleted").value(false))
