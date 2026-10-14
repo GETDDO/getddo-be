@@ -66,7 +66,7 @@ public class MissionController {
 	 */
 	@GetMapping
 	public ResponseEnvelope<PageResult<MissionSummaryResponse>> list(
-			@CurrentUser User user,
+			@CurrentUser(membershipRequired = false) User user,
 			@RequestParam(defaultValue = "1") @Min(1) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 			@RequestParam(required = false) MissionType missionType) {
@@ -82,7 +82,8 @@ public class MissionController {
 	 * @param missionId 조회할 미션. 없으면 404다
 	 */
 	@GetMapping("/{missionId}")
-	public ResponseEnvelope<MissionDetailResponse> detail(@CurrentUser User user, @PathVariable UUID missionId) {
+	public ResponseEnvelope<MissionDetailResponse> detail(@CurrentUser(membershipRequired = false) User user,
+			@PathVariable UUID missionId) {
 		return ResponseEnvelope.success(MissionDetailResponse.from(queryService.findMission(user.getId(), missionId),
 				timeProvider.now()));
 	}
@@ -100,7 +101,7 @@ public class MissionController {
 	 */
 	@PostMapping("/{missionId}/submissions")
 	public ResponseEntity<ResponseEnvelope<MissionSubmissionResponse>> submit(
-			@CurrentUser User user,
+			@CurrentUser(membershipRequired = false) User user,
 			@PathVariable UUID missionId,
 			@Parameter(description = "제출 요청을 구분하는 UUID. 같은 제출의 재시도는 같은 값을 보낸다.")
 			@RequestHeader("Idempotency-Key") UUID submissionId,

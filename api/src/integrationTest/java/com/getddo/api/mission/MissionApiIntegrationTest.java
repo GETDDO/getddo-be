@@ -187,7 +187,6 @@ class MissionApiIntegrationTest {
 		HttpHeaders headers = new HttpHeaders();
 		headers.set("X-User-ID", USER.toString());
 		headers.set("X-User-Role", "USER");
-		headers.set("X-User-Membership", "vip");
 		return headers;
 	}
 

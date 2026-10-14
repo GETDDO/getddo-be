@@ -95,7 +95,7 @@ class MissionControllerTest {
 	}
 
 	private static MockHttpServletRequestBuilder asUser(MockHttpServletRequestBuilder request) {
-		return request.header("X-User-ID", USER_ID).header("X-User-Role", "USER").header("X-User-Membership", "vip");
+		return request.header("X-User-ID", USER_ID).header("X-User-Role", "USER");
 	}
 
 	private MockHttpServletRequestBuilder submit(String body) {
@@ -361,5 +361,19 @@ class MissionControllerTest {
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.code").value("MISSION-003"));
+	}
+
+	@Test
+	@DisplayName("멤버십 헤더 없이도 미션 API를 호출할 수 있고, 헤더를 보내면 DB 멤버십과 달라 409 USER-006이다")
+	void membershipHeaderIsOptional() throws Exception {
+		// given
+		when(queryService.findMissions(any(), any(), any())).thenReturn(new PageResult<>(List.of(), 1, 20, 0));
+		// when
+		// then
+		mvc.perform(asUser(get("/api/v1/missions")).header("X-User-Membership", "vip")).andExpect(status().isOk());
+		mvc.perform(asUser(get("/api/v1/missions")).header("X-User-Membership", "vvip"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("USER-006"));
+		verify(queryService).findMissions(USER_ID, null, new PageQuery(1, 20));
 	}
 }
