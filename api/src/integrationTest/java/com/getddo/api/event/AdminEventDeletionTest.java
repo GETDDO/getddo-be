@@ -424,9 +424,9 @@ class AdminEventDeletionTest {
 		jdbc.update("insert into event_participants(id,event_id,user_id,created_at,used_ticket_count) values(?,?,?,?,0)",
 				bytes(participant), bytes(event), bytes(user), utc(NOW));
 		jdbc.update("""
-			insert into event_entries(id,participant_id,user_id,requested_ticket_count,deducted_ticket_count,created_at)
-			values(?,?,?,0,0,?)
-			""", bytes(UUID.randomUUID()), bytes(participant), bytes(user), utc(NOW));
+			insert into event_entries(id,event_id,participant_id,user_id,requested_ticket_count,deducted_ticket_count,created_at)
+			values(?,?,?,?,0,0,?)
+			""", bytes(UUID.randomUUID()), bytes(event), bytes(participant), bytes(user), utc(NOW));
 	}
 
 	private ResultActions remove(UUID actor, String role) throws Exception {
