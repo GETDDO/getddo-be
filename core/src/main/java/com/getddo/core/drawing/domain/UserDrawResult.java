@@ -66,13 +66,20 @@ public final class UserDrawResult {
 		private final Integer revision;
 		private final Instant serverTime;
 
-		/** 당첨 결과에만 경품이 연결되도록 해 비공개 경품의 잘못된 전달을 막는다. */
+		/** 본인 결과와 공개 버전·경품의 조합이 응답 계약과 어긋나지 않도록 검증한다. */
 		public MyResult(UUID eventId, MyDrawResultStatus result, RegisteredEvent.Prize prize,
 				boolean published, Integer revision, Instant serverTime) {
 			this.eventId = Objects.requireNonNull(eventId, "eventId");
 			this.result = Objects.requireNonNull(result, "result");
 			if ((result == MyDrawResultStatus.WON) != (prize != null)) {
 				throw new IllegalArgumentException("only WON results require a prize");
+			}
+			if (published ? revision == null || revision < 1 : revision != null) {
+				throw new IllegalArgumentException("publication revision does not match published flag");
+			}
+			if (((result == MyDrawResultStatus.WON || result == MyDrawResultStatus.LOST) && !published)
+					|| (result == MyDrawResultStatus.PENDING && published)) {
+				throw new IllegalArgumentException("result does not match publication state");
 			}
 			this.prize = prize;
 			this.published = published;
@@ -92,8 +99,10 @@ public final class UserDrawResult {
 			this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
 			Objects.requireNonNull(name, "name");
 			int length = name.codePointCount(0, name.length());
-			if (length <= 1) {
+			if (length == 0) {
 				this.maskedName = name;
+			} else if (length == 1) {
+				this.maskedName = "*";
 			} else {
 				String first = name.substring(0, name.offsetByCodePoints(0, 1));
 				this.maskedName = length == 2 ? first + "*"

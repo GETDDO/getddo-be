@@ -170,8 +170,28 @@ class UserDrawResultServiceTest {
 		}
 	}
 
+	@Test
+	@DisplayName("본인 결과 모델은 공개 여부와 버전·결과 상태가 다른 조합을 거절한다")
+	void rejectsPublicationStateMismatch() {
+		// given
+		RegisteredEvent.Prize prize = new RegisteredEvent.Prize(prizeId, 1, "경품", null, null, 1);
+		// when / then
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.WON, prize, false, null, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.LOST, null, false, null, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.PENDING, null, true, 1, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.NOT_ENTERED, null, false, 1, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.CANCELED, null, true, null, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.WON, prize, true, 0, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
 	@ParameterizedTest
-	@CsvSource({"김수,김*", "김민수,김*수", "남궁민수,남**수", "김,김", "😀민수,😀*수"})
+	@CsvSource({"김수,김*", "김민수,김*수", "남궁민수,남**수", "김,*", "😀민수,😀*수", "😀,*", "'',''"})
 	@DisplayName("이름을 글자 수에 맞게 가리고 미등록 전화번호는 null로 유지한다")
 	void masksName(String name, String masked) {
 		// given
