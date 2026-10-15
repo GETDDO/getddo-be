@@ -56,3 +56,11 @@ Swagger 전용 어노테이션이 없는 테스트 전용 Controller로 UI 접�
 ```
 
 라이브러리 설정은 [springdoc 공식 문서](https://springdoc.org/)를 참고합니다.
+
+## GD-140 사용자 결과 조회 구현
+
+E08·E09의 공용 계약은 [SPEC 추첨 API](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/05-api/drawing.md)를 따른다. `UserDrawResultController`는 기존 사용자 문맥과 응답 봉투를 사용하며 `UserDrawResultService`에 조회를 위임한다. 멤버십 제한이 없는 결과 조회이므로 멤버십 헤더는 선택이다.
+
+서비스의 읽기 전용 REPEATABLE_READ 트랜잭션에서 이벤트와 최신 `draw_publications` 버전을 함께 읽는다. 당첨자는 해당 버전의 `draw_publication_results` 연결로만 읽고, 이후 취소 기록이나 최신 내부 확정 결과로 명단을 바꾸지 않는다. 최초 버전의 공개 시각과 최신 버전의 반영 시각을 구분한다. 저장소는 이름·전화번호를 읽는 즉시 마스킹한 조회 모델로 변환하며, HTTP DTO는 공개 계약의 필드만 제공한다. 응모 여부는 ACCEPTED 응모 이력으로 판정하며 REJECTED 기록은 포함하지 않는다.
+
+단위·MVC 검증과 기존 공개 서비스 기반 MySQL 검증은 GD-199의 최초 확인·수동 공개 서비스 합동 검증과 구분한다. GD-199가 준비되면 공개 전후 및 최초 공개 전 취소·재추첨 후 최종 명단을 실제 서비스로 함께 검증해야 한다.
