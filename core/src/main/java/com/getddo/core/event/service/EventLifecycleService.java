@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,12 +18,12 @@ import com.getddo.core.event.repository.EventRepository;
 /** 후보를 순환 조회하고 별도 Bean의 이벤트별 트랜잭션을 호출한다. 한 이벤트의 실패는 다음 후보를 막지 않는다. */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EventLifecycleService {
 	private final EventRepository events;
 	private final TimeProvider timeProvider;
 	private final EventLifecycleTransitionService transitions;
 	private final AtomicReference<UUID> cursor = new AtomicReference<>();
-	private static final System.Logger LOG = System.getLogger(EventLifecycleService.class.getName());
 
 	/**
 	 * 외부 트랜잭션 안에서 호출하지 않는다. 후보 조회에는 잠금을 잡지 않고 각 상태 변경만 독립 커밋한다.
@@ -41,7 +42,7 @@ public class EventLifecycleService {
 			try {
 				if (transitions.advance(eventId, cutoff)) { changed++; }
 			} catch (RuntimeException failure) {
-				LOG.log(System.Logger.Level.WARNING, "Event lifecycle deferred: eventId={0}, failureType={1}",
+				log.warn("Event lifecycle deferred: eventId={}, failureType={}",
 						eventId, failure.getClass().getSimpleName());
 			}
 		}
