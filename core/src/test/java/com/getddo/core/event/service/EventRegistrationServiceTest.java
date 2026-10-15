@@ -17,6 +17,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.audit.service.AuditLogService;
+import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
@@ -40,14 +42,24 @@ class EventRegistrationServiceTest {
 	private EventRepository events;
 	private EventActorRepository actors;
 	private EventRegistrationService service;
+	private AuditLogService auditLogs;
 
 	@BeforeEach
 	void setUp() {
 		events = mock(EventRepository.class);
 		actors = mock(EventActorRepository.class);
+		auditLogs = mock(AuditLogService.class);
+		when(events.create(any(), any())).thenAnswer(invocation -> {
+			EventRegistration input = invocation.getArgument(0);
+			return new RegisteredEvent(UUID.randomUUID(), input.getTitle(), input.getDescription(), input.getImageKey(),
+					input.getEventType(), input.isWeightingEnabled(), input.getMaxTicketsPerUser(), input.getMembershipRule(),
+					input.getStartsAt(), input.getEndsAt(), invocation.getArgument(1), NOW, NOW,
+					input.getPrizes().stream().map(prize -> new RegisteredEvent.Prize(UUID.randomUUID(), prize.getRank(),
+							prize.getName(), prize.getDescription(), prize.getImageKey(), prize.getWinnerCount())).toList());
+		});
 		when(actors.findById(ADMIN_ID)).thenReturn(Optional.of(new EventActorRepository.Actor(true, true)));
 		service = new EventRegistrationService(events, actors,
-				new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+				new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), auditLogs);
 	}
 
 	@Test

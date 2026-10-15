@@ -1,6 +1,8 @@
 package com.getddo.db.event.repository;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.List;
@@ -18,6 +20,7 @@ import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.domain.EventCancellationState;
+import com.getddo.core.event.domain.EventLifecycleState;
 import com.getddo.core.event.exception.EventErrorCode;
 import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.repository.EventRepository;
@@ -84,6 +87,23 @@ public class EventRepositoryImpl implements EventRepository {
 	public Optional<EventCancellationState> findCancellationByIdForUpdate(UUID eventId) {
 		return findStatusByIdForUpdate(eventId)
 				.flatMap(ignored -> jpaRepository.findById(eventId)).map(mapper::toCancellationState);
+	}
+
+	@Override
+	public List<UUID> findLifecycleDueIdsForUpdate(Instant now, int limit) {
+		entityManager.flush();
+		LocalDateTime cutoff = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
+		return jdbc.query("""
+				select id from events where deleted_at is null
+				and ((status = 'SCHEDULED' and starts_at <= ?) or (status = 'OPEN' and ends_at <= ?))
+				order by id limit ? for update skip locked
+				""", (row, index) -> UuidBinary.fromBytes(row.getBytes("id")), cutoff, cutoff, limit);
+	}
+
+	@Override
+	public Optional<EventLifecycleState> findLifecycleByIdForUpdate(UUID eventId) {
+		return findStatusByIdForUpdate(eventId)
+				.flatMap(ignored -> jpaRepository.findById(eventId)).map(mapper::toLifecycleState);
 	}
 
 	@Override

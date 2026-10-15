@@ -95,6 +95,10 @@
 
 제출·답변·정답 진행·보상 청구·응모권 지급은 한 트랜잭션(`READ COMMITTED`)이다. 같은 사용자의 동시 완료는 제출 PK, `(user_id, quiz_question_id)`, `(user_id, mission_id)` 유일 제약이 직렬화하고, 늦은 요청은 새 트랜잭션에서 한 번 다시 처리해 먼저 확정된 결과를 본다.
 
+### 이벤트 모집 상태와 감사 저장 (GD-203)
+
+DB 컬럼 추가 없이 기존 `events.status`·`updated_at`과 `audit_logs`를 사용한다. 시작·마감 경과 이벤트는 JDBC `FOR UPDATE SKIP LOCKED`로 선점한 뒤 최신 JPA 잠금 조회로 상태를 반영한다. 등록·수정의 감사 JSON에는 저장된 경품 ID와 설정을 기록하며, 상태·설정과 감사 저장은 같은 트랜잭션이다. 시각 응답 변경·잠금·실패 복구는 [이벤트 구현 문서](../02-api/event-lifecycle-and-audit.md)를 따른다.
+
 ## 확인된 차이와 구현 검토 항목
 
 | ID | 코드·SQL에서 확인한 사실 | 명세 영향과 후속 작업 |

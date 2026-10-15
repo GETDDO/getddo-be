@@ -9,11 +9,11 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 등록·조회에서 사용하는 저장된 이벤트와 경품 정보. 최초 발표 예정 시각도 이 모델에서 계산한다. */
+/** 등록·조회에서 사용하는 저장된 이벤트와 경품 정보. 관리자용 자동 추첨 기준 시각을 제공한다. */
 @Getter
 @EqualsAndHashCode
 public final class RegisteredEvent {
-	private static final Duration PUBLICATION_DELAY = Duration.ofMinutes(5);
+	private static final Duration DRAW_DELAY = Duration.ofMinutes(5);
 
 	private final UUID id;
 	private final String title;
@@ -60,9 +60,9 @@ public final class RegisteredEvent {
 		this.prizes = List.copyOf(prizes);
 	}
 
-	/** 정상 최초 발표의 예정 시각이며, 실제 발표 완료 시각이나 재추첨 발표 시각을 뜻하지 않는다. */
-	public Instant getPublicationScheduledAt() {
-		return endsAt.plus(PUBLICATION_DELAY);
+	/** 마감 5분 후의 최초 자동 추첨 기준이다. 실제 실행·관리자 확인·수동 공개 시각은 별도다. */
+	public Instant getDrawScheduledAt() {
+		return endsAt.plus(DRAW_DELAY);
 	}
 
 	@Getter

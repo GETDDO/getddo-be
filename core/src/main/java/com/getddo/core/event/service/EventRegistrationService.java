@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.audit.domain.AuditLogCommand;
+import com.getddo.core.audit.service.AuditLogService;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.RegisteredEvent;
@@ -24,6 +26,7 @@ public class EventRegistrationService {
 	private final EventRepository eventRepository;
 	private final EventActorRepository actorRepository;
 	private final TimeProvider timeProvider;
+	private final AuditLogService auditLogs;
 
 	@Transactional
 	public RegisteredEvent register(EventRegistration registration) {
@@ -42,6 +45,9 @@ public class EventRegistrationService {
 		Instant now = timeProvider.now();
 		EventStatus initialStatus = now.isBefore(registration.getStartsAt()) ? EventStatus.SCHEDULED
 				: now.isBefore(registration.getEndsAt()) ? EventStatus.OPEN : EventStatus.CLOSED;
-		return eventRepository.create(registration, initialStatus);
+		RegisteredEvent saved = eventRepository.create(registration, initialStatus);
+		auditLogs.record(new AuditLogCommand(registration.getActorId(), "EVENT_CREATE", "EVENT", saved.getId(),
+				null, null, EventAuditSnapshot.from(saved), null));
+		return saved;
 	}
 }
