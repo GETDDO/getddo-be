@@ -34,6 +34,7 @@ public record MissionSubmissionResponse(
 				.receivedAt(result.getReceivedAt())
 				.isCompleted(result.isCompleted())
 				.reward(result.getReward() == null ? null : RewardReceiptResponse.builder()
+						.claimId(result.getReward().getClaimId())
 						.ticketCount(result.getReward().getTicketCount())
 						.grade(result.getReward().getGrade().name())
 						.grantedAt(result.getReward().getGrantedAt())
@@ -46,9 +47,11 @@ public record MissionSubmissionResponse(
 	/**
 	 * 응모권 지급 결과. 값은 응모권 서비스가 확정한 것을 그대로 담는다.
 	 *
+	 * @param claimId 보상 청구 ID
 	 * @param grade 지급한 응모권 등급({@code BRONZE}·{@code SILVER}·{@code GOLD})
 	 */
 	@Builder
-	public record RewardReceiptResponse(long ticketCount, String grade, Instant grantedAt, Instant expiresAt) {
+	public record RewardReceiptResponse(UUID claimId, long ticketCount, String grade, Instant grantedAt,
+			Instant expiresAt) {
 	}
 }

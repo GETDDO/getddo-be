@@ -80,7 +80,7 @@
 | --- | --- | --- | --- |
 | M04 내 제출 | `GET /api/v1/missions/{missionId}/submissions/me` | `missions` | 읽기만 한다. 없는 미션은 404 `MISSION-003`이다. |
 | M04 내 제출 | 같음 | `mission_submissions` | 요청 사용자의 제출만 최신순(`created_at` 내림차순, 같으면 ID 내림차순)으로 읽는다. `page`는 1부터, `size`는 1~100(기본 20)이다. 오답 제출도 `isCompleted=false`, `reward=null`인 정상 결과로 포함한다. 답변과 정답은 응답에 싣지 않는다. |
-| M04 내 제출 | 같음 | `mission_reward_claims`, `tickets`, `ticket_histories` | 완료한 제출에만 그 제출의 보상 청구를 찾아 응모권 지급 결과(`ticketCount`, `grade`, `grantedAt`, `expiresAt`)를 다시 읽는다. 제출 접수(M03)의 재전송 응답과 같은 규칙이다. 완료한 제출에 청구나 지급이 없으면 데이터가 어긋난 것이므로 숨기지 않고 오류로 처리한다. |
+| M04 내 제출 | 같음 | `mission_reward_claims`, `tickets`, `ticket_histories` | 완료한 제출에만 그 제출의 보상 청구를 찾아 응모권 지급 결과(`claimId`, `ticketCount`, `grade`, `grantedAt`, `expiresAt`)를 다시 읽는다. 제출 접수(M03)의 재전송 응답과 같은 규칙이다. 완료한 제출에 청구나 지급이 없으면 데이터가 어긋난 것이므로 숨기지 않고 오류로 처리한다. |
 
 ### 미션 제출 API 현행 매핑 (GD-175)
 
@@ -90,7 +90,7 @@
 | M03 제출 | 같음 | `missions`, 문항·선택지 테이블 | 읽기만 한다. 운영 기간은 서버가 제출을 받은 시각이 `[starts_at, ends_at)`이고 `ACTIVE`일 때만 인정한다. |
 | M03 제출 | 같음 | `quiz_answers`, `survey_answers` | 서버가 채점한 답변을 저장한다. 이미 정답으로 완료한 퀴즈 문항에 다시 보낸 답변은 채점·저장하지 않는다. |
 | M03 제출 | 같음 | `quiz_question_progress` | 이번 제출로 처음 맞힌 문항을 문항 ID 순서로 기록한다(퀴즈는 문항별 정답을 누적하며 모든 문항을 맞히면 완료). |
-| M03 제출 | 같음 | `mission_reward_claims` | 완료하면 사용자·미션당 한 번 청구한다. 이미 완료한 미션의 재제출은 기존 완료 결과를 돌려준다. |
+| M03 제출 | 같음 | `mission_reward_claims` | 완료하면 사용자·미션당 한 번 청구한다. 이미 완료한 미션의 재제출은 기존 완료 결과를 돌려준다. 응답의 `reward.claimId`는 이 청구의 ID이고, 새 제출·같은 키의 재전송·M04 조회가 같은 값을 돌려준다. |
 | M03 제출 | 같음 | `tickets`, `ticket_histories` | 보상 청구 저장 뒤 지급 서비스가 같은 트랜잭션에서 응모권을 지급한다(`GRANT` 이력, 사유는 미션 제목). |
 
 제출·답변·정답 진행·보상 청구·응모권 지급은 한 트랜잭션(`READ COMMITTED`)이다. 같은 사용자의 동시 완료는 제출 PK, `(user_id, quiz_question_id)`, `(user_id, mission_id)` 유일 제약이 직렬화하고, 늦은 요청은 새 트랜잭션에서 한 번 다시 처리해 먼저 확정된 결과를 본다.

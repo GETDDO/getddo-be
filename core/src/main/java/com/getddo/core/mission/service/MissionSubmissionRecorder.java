@@ -133,7 +133,7 @@ public class MissionSubmissionRecorder {
 		GrantResult granted = grantService.grant(new GrantCommand(saved.getUserId(),
 				MissionSubmissionResultReader.grantSource(claim),
 				claim.getTicketCount(), mission.getTitle()));
-		return MissionSubmissionResultReader.receiptOf(granted);
+		return MissionSubmissionResultReader.receiptOf(claim, granted);
 	}
 
 	/**
