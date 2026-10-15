@@ -17,7 +17,7 @@ import com.getddo.core.game.domain.GamePlayStartResult;
 import com.getddo.core.game.service.GamePlayStartService;
 import com.getddo.core.user.domain.User;
 
-/** 색깔 게임 시작(G03). 사용자 헤더는 공통 사용자 문맥 처리로 DB와 대조한다. */
+/** 게임 시작(G03). 사용자 헤더는 공통 사용자 문맥 처리로 DB와 대조한다. */
 @RestController
 @RequestMapping("/api/v1/games/{gameId}/plays")
 @RequiredArgsConstructor

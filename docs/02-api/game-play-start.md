@@ -5,8 +5,8 @@
 ## 내부 처리
 
 1. `GamePlayController`는 기존 `@CurrentUser(membershipRequired=false)`로 DB와 대조한 사용자와 게임 UUID를 `GamePlayStartService`에 전달한다. 공통 사용자 문맥·헤더 오류는 변경하지 않았다.
-2. Service는 활성 계정과 시작 가능한 `COLOR_WORD`/`color-word-v1` 설정을 검사한다. 사용자 선택에 따라 활성 ADMIN을 별도로 차단하지 않는다.
-3. `ColorWordRules`가 DB 규칙 JSON의 채택된 공개 필드를 엄격히 복원한다. 누락·형식·버전 불일치는 기본값으로 바꾸지 않는다. 지원되지 않는 게임/버전과 손상된 지원 버전 설정은 구분한다.
+2. Service는 활성 계정·활성 게임을 확인하고 등록된 `GamePlayStartHandler` 중 게임 코드·규칙 버전을 지원하는 처리기를 선택한다. 미지원은 기존 409이며 중복 처리기는 임의 선택하지 않고 서버 설정 오류로 거절한다. 현재 등록된 처리기는 색깔 게임 하나이며 사용자 선택에 따라 활성 ADMIN을 별도로 차단하지 않는다.
+3. `ColorWordPlayStartHandler`가 `ColorWordRules`로 DB 규칙 JSON의 채택된 공개 필드를 엄격히 복원하고 생성 버전을 준비한다. 누락·형식·버전 불일치는 기본값으로 바꾸지 않는다. 지원되지 않는 게임/버전과 손상된 지원 버전 설정은 구분한다.
 4. `GamePlayCredentials`는 `SecureRandom`으로 32바이트 토큰과 0이 아닌 unsigned 32-bit seed를 각각 발급한다. 토큰 원문의 SHA-256을 기존 `GamePlay.start`와 `GamePlayRepository.insert`에 전달한다. seed는 공개 재현 값이며 인증 수단이 아니다.
 5. `GamePlayCredentials.matches`는 저장된 플레이의 ID·시각·사용자·게임과 토큰 해시를 확인하고 고정 시간 해시 비교를 사용한다. 다른 사용자·게임·플레이·과거/미저장 플레이의 재사용은 거절한다. 공개 오류·만료 적용과 결과 HTTP 진입점 연결은 GD-159 후속이다.
 6. 기존 공통 Entity의 UUID v7·`createdAt`을 사용한다. 시각은 JPA Auditing의 공통 Clock 기준 UTC·마이크로초 값이며 서비스에서 별도 현재 시각을 만들어 응답과 저장을 어긋나게 하지 않는다.
@@ -64,3 +64,13 @@ Jira GD-156은 발급 외 토큰 재사용 방지·미완료·만료 경계까�
 ## 2026-10-15 리뷰 보완
 
 저장 규칙 파싱 실패 시 고정 오류 문구와 공통 500 응답은 유지한다. 서버 진단에는 원인 예외의 클래스명과 스택 위치만 보존하며 원본 메시지·JSON·하위 cause는 연결하지 않는다. 기존 회귀 테스트는 잘못된 JSON·누락 필드·정책 불일치에 대해 진단 정보 보존과 전체 스택 출력의 원문 비노출을 확인하도록 보완했다. `:core:compileTestJava --offline`은 성공했으며(4초), 사용자 로컬 테스트 실행 방침에 따라 테스트 실행은 CI에서 확인한다. 공용 계정 자격·오류 계약과 다른 담당 영역은 변경하지 않았다.
+
+## 게임별 시작 처리 확장
+
+사용자 요청으로 같은 시작 URL과 Controller·Service를 유지하고 게임별 준비만 분리했다. `GamePlayStartService`는 계정·게임 조회, 처리기 선택, 토큰·seed 발급, 트랜잭션·저장을 맡는다. `ColorWordPlayStartHandler`는 색깔 코드·규칙 버전 지원 판정, 저장 규칙 검증, 생성 버전 선택을 맡는다. `GamePlayStartResult`는 색깔 전용 타입 대신 `GameStartRules`를 받아 공개 응답 DTO 변환까지 전달한다. API에서는 `GameRulesResponse`가 게임별 공개 DTO로 변환하며 도메인 객체를 직접 직렬화하지 않는다. Swagger에도 현재 지원하는 공개 규칙 타입을 명시한다.
+
+타꼬런은 시작·판정 계약 확정 후 처리기와 규칙 모델·공개 DTO 매핑을 추가해 같은 진입점을 재사용한다. 타꼬런을 현재 지원하거나, 처리기 추가만으로 전체 HTTP 연동이 완성된다는 뜻은 아니다. 현재 `gameData`의 생성 버전·unsigned seed 및 저장 모델은 기존 색깔 계약 그대로이며 타꼬런도 같은 생성 알고리즘·seed 범위를 쓴다고 확정하지 않았다. 다른 시작 데이터나 계정 자격이 필요하면 해당 계약과 저장 호환성부터 확인한다. 타꼬런 처리기 미등록 상태의 요청은 기존처럼 409다.
+
+기존 색깔 응답의 6개 필드·5개 공개 규칙·토큰/seed·201/오류 계약·저장 스냅샷은 유지한다. 추가 회귀 테스트는 다른 테스트용 게임 처리기를 통한 공통 저장과 중복 처리기 거절을 검증한다. 기존 Controller JSON 단언과 실제 MySQL 통합 검증을 유지하고 공개 규칙 Swagger 문서 검증을 추가했다. 테스트용 게임은 타꼬런의 미확정 계약을 의미하지 않는다.
+
+최종 `:core:compileTestJava :api:compileTestJava :api:compileIntegrationTestJava --offline` 컴파일이 성공했다(2초). 이 구조 변경 후 로컬 테스트·전체 빌드를 실행하지 않았으며 기존 사용자 방침에 따라 최신 커밋의 CI로 검증한다.

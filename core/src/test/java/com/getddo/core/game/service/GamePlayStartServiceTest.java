@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,6 +19,8 @@ import com.getddo.core.game.domain.ColorWordRules;
 import com.getddo.core.game.domain.Game;
 import com.getddo.core.game.domain.GamePlay;
 import com.getddo.core.game.domain.GamePlayStartResult;
+import com.getddo.core.game.domain.GameStartConfiguration;
+import com.getddo.core.game.domain.GameStartRules;
 import com.getddo.core.game.exception.GameErrorCode;
 import com.getddo.core.game.repository.GamePlayRepository;
 import com.getddo.core.game.repository.GameRepository;
@@ -45,7 +48,7 @@ class GamePlayStartServiceTest {
 			""";
 	private final GameRepository games = mock(GameRepository.class);
 	private final GamePlayRepository plays = mock(GamePlayRepository.class);
-	private final GamePlayStartService service = new GamePlayStartService(games, plays);
+	private final GamePlayStartService service = new GamePlayStartService(games, plays, List.of(new ColorWordPlayStartHandler()));
 
 	@ParameterizedTest
 	@EnumSource(UserRole.class)
@@ -78,7 +81,8 @@ class GamePlayStartServiceTest {
 		assertThat(result.getPlayToken()).matches("[A-Za-z0-9_-]{43}");
 		assertThat(result.getPlay().getId()).isEqualTo(PLAY_ID);
 		assertThat(result.getPlay().getStartedAt()).isEqualTo(START);
-		assertThat(result.getRules().getInitialLives()).isEqualTo(3);
+		assertThat(result.getRules()).isInstanceOfSatisfying(ColorWordRules.class,
+				rules -> assertThat(rules.getInitialLives()).isEqualTo(3));
 	}
 
 	@ParameterizedTest
@@ -151,6 +155,41 @@ class GamePlayStartServiceTest {
 		when(plays.insert(any())).thenThrow(failure);
 		// when / then
 		assertThatThrownBy(() -> service.start(user(UserRole.USER, UserStatus.ACTIVE), GAME_ID)).isSameAs(failure);
+	}
+
+	@Test
+	@DisplayName("다른 게임 처리기를 추가하면 같은 시작 서비스로 해당 규칙과 생성 버전을 저장한다")
+	void usesRegisteredGameHandler() {
+		// given: 타꼬런 계약을 가정하지 않는 테스트용 게임이다.
+		GameStartRules rules = mock(GameStartRules.class);
+		GamePlayStartHandler handler = mock(GamePlayStartHandler.class);
+		Game game = game("TEST_GAME", "test-v1", true, "{}");
+		when(games.findById(GAME_ID)).thenReturn(Optional.of(game));
+		when(handler.supports(game)).thenReturn(true);
+		when(handler.prepare(game)).thenReturn(new GameStartConfiguration(rules, "test-generator-v1"));
+		when(plays.insert(any())).thenAnswer(invocation -> saved(invocation.getArgument(0)));
+		GamePlayStartService extended = new GamePlayStartService(games, plays,
+				List.of(new ColorWordPlayStartHandler(), handler));
+		// when
+		GamePlayStartResult result = extended.start(user(UserRole.USER, UserStatus.ACTIVE), GAME_ID);
+		// then
+		assertThat(result.getRules()).isSameAs(rules);
+		assertThat(result.getPlay().getGeneratorVersion()).isEqualTo("test-generator-v1");
+		assertThat(result.getPlay().getGameId()).isEqualTo(GAME_ID);
+		verify(plays).insert(any());
+	}
+
+	@Test
+	@DisplayName("같은 게임을 지원하는 처리기가 중복되면 임의 선택하거나 저장하지 않는다")
+	void rejectsDuplicateHandlers() {
+		// given
+		when(games.findById(GAME_ID)).thenReturn(Optional.of(game("COLOR_WORD", "color-word-v1", true, RULES)));
+		GamePlayStartService duplicated = new GamePlayStartService(games, plays,
+				List.of(new ColorWordPlayStartHandler(), new ColorWordPlayStartHandler()));
+		// when / then
+		assertThatThrownBy(() -> duplicated.start(user(UserRole.USER, UserStatus.ACTIVE), GAME_ID))
+				.isInstanceOf(IllegalStateException.class).hasMessage("게임 시작 처리기가 중복 등록되었습니다.");
+		verifyNoInteractions(plays);
 	}
 
 	private static User user(UserRole role, UserStatus status) {

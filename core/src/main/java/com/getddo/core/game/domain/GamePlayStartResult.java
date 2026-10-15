@@ -10,9 +10,9 @@ public final class GamePlayStartResult {
 
 	private final GamePlay play;
 	private final String playToken;
-	private final ColorWordRules rules;
+	private final GameStartRules rules;
 
-	public GamePlayStartResult(GamePlay play, String playToken, ColorWordRules rules) {
+	public GamePlayStartResult(GamePlay play, String playToken, GameStartRules rules) {
 		this.play = Objects.requireNonNull(play, "play");
 		Objects.requireNonNull(play.getId(), "저장된 플레이 ID가 필요합니다.");
 		Objects.requireNonNull(play.getStartedAt(), "저장된 시작 시각이 필요합니다.");

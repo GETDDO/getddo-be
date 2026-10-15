@@ -33,6 +33,7 @@ import com.getddo.core.game.repository.GamePlayRepository;
 import com.getddo.db.common.util.UuidBinary;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -75,6 +76,24 @@ class GamePlayApiIntegrationTest {
 		jdbc.update("delete from game_plays where game_id = ?", UuidBinary.toBytes(GAME));
 		jdbc.update("delete from games where id = ?", UuidBinary.toBytes(GAME));
 		jdbc.update("delete from users where id in (?, ?)", UuidBinary.toBytes(USER), UuidBinary.toBytes(ADMIN));
+	}
+
+	@Test
+	@DisplayName("공통 시작 응답의 Swagger 문서에도 색깔 게임 공개 규칙 스키마가 유지된다")
+	void documentsGameSpecificRules() throws Exception {
+		// given / when
+		String body = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+		JsonNode schemas = json.readTree(body).path("components").path("schemas");
+		// then
+		assertThat(schemas.path("GamePlayStartResponse").path("properties").path("rules")
+				.path("$ref").stringValue()).isEqualTo("#/components/schemas/GameRulesResponse");
+		assertThat(schemas.path("GameRulesResponse").path("oneOf").get(0).path("$ref").stringValue())
+				.isEqualTo("#/components/schemas/ColorWordRulesResponse");
+		JsonNode properties = schemas.path("ColorWordRulesResponse").path("properties");
+		assertThat(properties.size()).isEqualTo(5);
+		assertThat(properties.has("initialLives")).isTrue();
+		assertThat(properties.has("internalNote")).isFalse();
 	}
 
 	@Test
