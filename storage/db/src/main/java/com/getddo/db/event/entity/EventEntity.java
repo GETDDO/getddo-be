@@ -61,6 +61,9 @@ public class EventEntity extends BaseUpdatableEntity {
 	@Column(name = "deleted_at")
 	private Instant deletedAt;
 
+	@Column(name = "canceled_at")
+	private Instant canceledAt;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "membership_rule", nullable = false)
 	private MembershipRule membershipRule;
@@ -144,6 +147,17 @@ public class EventEntity extends BaseUpdatableEntity {
 	}
 
 	public String getTitle() { return title; }
+	/** 최초 취소 시각은 덮어쓰지 않는다. 응모권 반환과 취소 자격은 호출 서비스에서 처리한다. */
+	public void markCanceled(Instant canceledAt) {
+		Objects.requireNonNull(canceledAt, "canceledAt");
+		if (status == EventStatus.CANCELED || this.canceledAt != null || deletedAt != null) {
+			throw new IllegalStateException("취소·삭제된 이벤트에 최초 취소를 적용할 수 없습니다.");
+		}
+		status = EventStatus.CANCELED;
+		this.canceledAt = canceledAt;
+	}
+
+	public Instant getCanceledAt() { return canceledAt; }
 	public String getDescription() { return description; }
 	public String getImageKey() { return imageKey; }
 	public EventType getEventType() { return eventType; }

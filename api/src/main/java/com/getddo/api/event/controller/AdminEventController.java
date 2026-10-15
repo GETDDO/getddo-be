@@ -24,6 +24,8 @@ import com.getddo.api.common.exception.CommonErrorCode;
 import com.getddo.api.common.response.ResponseEnvelope;
 import com.getddo.api.event.dto.request.AdminEventQueryRequest;
 import com.getddo.api.event.dto.request.EventWriteRequest;
+import com.getddo.api.event.dto.request.EventCancellationRequest;
+import com.getddo.api.event.dto.response.EventCancellationResponse;
 import com.getddo.api.event.dto.response.AdminEventResponse;
 import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.common.exception.BusinessException;
@@ -33,6 +35,7 @@ import com.getddo.core.event.service.EventQueryService;
 import com.getddo.core.event.service.EventRegistrationService;
 import com.getddo.core.event.service.EventModificationService;
 import com.getddo.core.event.service.EventDeletionService;
+import com.getddo.core.event.service.EventCancellationService;
 import com.getddo.core.user.domain.User;
 
 /** 관리자 이벤트 CRUD API. 입력 형식과 응답 변환을 맡고 권한·업무 규칙은 서비스에 위임한다. */
@@ -42,15 +45,17 @@ public class AdminEventController {
 	private final EventRegistrationService registrationService;
 	private final EventModificationService modificationService;
 	private final EventDeletionService deletionService;
+	private final EventCancellationService cancellationService;
 	private final EventQueryService queryService;
 	private final TimeProvider timeProvider;
 
 	public AdminEventController(EventRegistrationService registrationService, EventModificationService modificationService,
-			EventDeletionService deletionService, EventQueryService queryService,
+			EventDeletionService deletionService, EventCancellationService cancellationService, EventQueryService queryService,
 			TimeProvider timeProvider) {
 		this.registrationService = registrationService;
 		this.modificationService = modificationService;
 		this.deletionService = deletionService;
+		this.cancellationService = cancellationService;
 		this.queryService = queryService;
 		this.timeProvider = timeProvider;
 	}
@@ -78,6 +83,14 @@ public class AdminEventController {
 	public ResponseEnvelope<Void> delete(@CurrentUser User user, @PathVariable UUID eventId) {
 		deletionService.delete(eventId, user.getId());
 		return ResponseEnvelope.success(null);
+	}
+
+	/** AE08: 취소 사유와 이벤트 ID를 전달하고 취소·전체 반환의 완료 결과를 반환한다. */
+	@PostMapping("/{eventId}/cancel")
+	public ResponseEnvelope<EventCancellationResponse> cancel(@CurrentUser User user, @PathVariable UUID eventId,
+			@Valid @RequestBody EventCancellationRequest request) {
+		return ResponseEnvelope.success(EventCancellationResponse.from(
+				cancellationService.cancel(eventId, user.getId(), request.reason())));
 	}
 
 	/** AE01 관리자 검색. from/to는 양끝 날짜를 포함하는 KST 날짜 범위다. 모집 기간과 겹치면 포함한다. */
