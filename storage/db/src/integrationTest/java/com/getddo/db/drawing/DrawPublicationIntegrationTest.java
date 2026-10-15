@@ -266,6 +266,7 @@ class DrawPublicationIntegrationTest {
 		}
 	}
 
+	/** 실제 DB에서 최초 발표와 재시도가 확인·공개·알림을 각각 한 건만 남기는지 검증한다. */
 	@Test
 	@DisplayName("정상 최초 명단은 관리자 발표 요청 한 번으로 확인·상태·공개·알림을 함께 저장한다")
 	void adminPublishesInitialAndReplayDoesNotDuplicateAnything() {
@@ -289,6 +290,7 @@ class DrawPublicationIntegrationTest {
 				.satisfies(evidence -> assertThat(evidence.getRunId()).isEqualTo(snapshot.runId()));
 	}
 
+	/** 공개 근거 저장 실패가 신규 확인과 공개를 함께 롤백하며 재시도 가능한지 검증한다. */
 	@Test
 	@DisplayName("공개 근거 저장 실패 시 신규 확인·공개·알림은 남지 않고 상태도 확정 상태를 유지한다")
 	void adminPublicationRollsBackConfirmationAndPublicationTogether() {
@@ -306,6 +308,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(adminPublications.confirmBeforeInitial(snapshot.runId(), userId).getPublication()).isNotNull();
 	}
 
+	/** GD-196 상태 전환이 실패하면 같은 요청에서 저장한 공개와 확인도 롤백되는지 검증한다. */
 	@Test
 	@DisplayName("상태 변경 계약 실패도 같은 요청의 확인·공개·알림을 모두 롤백한다")
 	void statusConflictRollsBackNewPublication() {
@@ -324,6 +327,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(eventStatus()).isEqualTo("DRAW_CONFIRMED");
 	}
 
+	/** 취소 이벤트의 발표 요청이 새 확인·공개·알림을 남기지 않는지 검증한다. */
 	@Test
 	@DisplayName("취소 이벤트는 최초 발표 요청에서도 확인·공개·알림을 만들지 않는다")
 	void rejectsCanceledEventBeforeSavingAdminConfirmation() {
@@ -337,6 +341,7 @@ class DrawPublicationIntegrationTest {
 		assertThat(jobCount()).isZero();
 	}
 
+	/** 독립 요청의 실제 이벤트 잠금 경합 후 같은 공개 결과를 반환하는지 검증한다. */
 	@Test
 	@DisplayName("실제 이벤트 잠금에서 동시 발표 요청은 한 확인·한 공개·한 알림만 생성한다")
 	void concurrentAdminPublicationUsesSameCommittedResult() throws Exception {

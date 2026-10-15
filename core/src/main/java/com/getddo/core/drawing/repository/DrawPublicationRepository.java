@@ -52,7 +52,7 @@ public interface DrawPublicationRepository {
 	List<DrawPublication.Cancellation> findCancellations(UUID eventId);
 	/** 최초·재추첨 실행에 이미 저장된 관리자 확인 기록을 조회한다. */
 	Optional<DrawResultConfirmation> findConfirmation(UUID runId);
-	/** 기존 재추첨 결과의 관리자 확인자와 확인 시각을 저장한다. */
+	/** 최초·재추첨 결과의 관리자 확인자와 확인 시각을 저장한다. */
 	DrawResultConfirmation saveConfirmation(UUID runId, UUID actorId, Instant confirmedAt);
 	/** 공개 메타데이터와 포함 결과를 저장하고 재조회한 실제 공개 버전을 반환한다. */
 	DrawPublication savePublication(UUID eventId, UUID sourceRunId, int revision, String reason,

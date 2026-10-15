@@ -211,6 +211,7 @@ class UserDrawResultIntegrationTest {
 		assertThat(queries.myResult(user(), eventId).getPrize()).isNull();
 	}
 
+	/** 관리자의 최초 발표를 경계로 사용자 조회가 비공개에서 마스킹된 당첨 결과로 바뀌는지 검증한다. */
 	@Test
 	@org.junit.jupiter.api.DisplayName("실제 관리자 단일 발표 전에는 비공개이고 발표 후에만 본인 당첨 결과를 조회한다")
 	void adminSingleRequestRevealsPreviouslyHiddenResult() {

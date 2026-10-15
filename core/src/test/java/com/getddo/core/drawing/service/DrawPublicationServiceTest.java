@@ -238,6 +238,7 @@ class DrawPublicationServiceTest {
 				prizeId, 1, resultId, userId, null, null));
 	}
 
+	/** 최초 발표에 실제 발표자와 최초 실행 확인 근거가 함께 저장되는지 검증한다. */
 	@Test
 	@DisplayName("최초 정상 결과도 한 요청으로 확인·공개하고 실제 발표자·실행 근거를 저장한다")
 	void publishesReviewedInitialWithActorAndEvidence() {
@@ -256,6 +257,7 @@ class DrawPublicationServiceTest {
 		verify(notifications).register(response.getPublication());
 	}
 
+	/** 새 재추첨으로 검토 명단이 바뀌면 확인 기록을 만들기 전에 거절하는지 검증한다. */
 	@Test
 	@DisplayName("검토 후 새 재추첨이 생기면 옛 runId 발표를 저장 전에 거절한다")
 	void rejectsStaleReviewedRunBeforeSavingConfirmation() {
@@ -268,6 +270,7 @@ class DrawPublicationServiceTest {
 		verifyNoInteractions(eventStatuses, notifications);
 	}
 
+	/** 재추첨이 완료되지 않은 명단을 일부 공개하거나 확인 기록으로 남기지 않는지 검증한다. */
 	@Test
 	@DisplayName("최신 재추첨이 실패·진행 중이면 일부 명단을 먼저 발표하지 않는다")
 	void rejectsUnfinishedReplacementBeforeSavingConfirmation() {
@@ -281,6 +284,7 @@ class DrawPublicationServiceTest {
 		verifyNoInteractions(eventStatuses, notifications);
 	}
 
+	/** 같은 최초 발표를 재시도해도 원래 확인자와 공개 결과를 보존하는지 검증한다. */
 	@Test
 	@DisplayName("동일 발표 재시도는 최초 성공 버전과 확인자를 반환하고 저장·알림을 중복하지 않는다")
 	void replaysReviewedPublicationWithoutChangingPublisher() {
@@ -298,6 +302,7 @@ class DrawPublicationServiceTest {
 		verify(publications, never()).saveConfirmation(any(), any(), any());
 	}
 
+	/** 과거 실행 확인자와 현재 명단 발표자가 달라도 각각의 기록을 보존하는지 검증한다. */
 	@Test
 	@DisplayName("과거 확인자는 보존하고 공개 버전의 처리자에는 실제 발표자를 기록한다")
 	void preservesOldCheckButRecordsActualPublisher() {
