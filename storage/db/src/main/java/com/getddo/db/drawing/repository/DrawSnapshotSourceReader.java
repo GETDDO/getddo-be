@@ -36,7 +36,7 @@ public class DrawSnapshotSourceReader {
 	public List<UUID> findInitialDue(Instant cutoff, int limit) {
 		return jdbc.query("""
 			select e.id from events e
-			where e.deleted_at is null and e.status in ('OPEN', 'CLOSED') and e.ends_at <= ?
+			where e.deleted_at is null and e.status in ('SCHEDULED', 'OPEN', 'CLOSED') and e.ends_at <= ?
 			and not exists (select 1 from draw_runs r
 			 where r.event_id = e.id and r.draw_type = 'INITIAL' and r.run_number = 0)
 			order by e.ends_at, e.id limit ?

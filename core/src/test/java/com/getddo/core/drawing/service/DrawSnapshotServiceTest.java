@@ -130,10 +130,14 @@ class DrawSnapshotServiceTest {
 	}
 
 	/** 응모자가 없는 신규 실행만 NO_ENTRIES로 종료하는지 검증한다. */
-	@Test
-	@DisplayName("응모자가 없으면 후보 없이 NO_ENTRIES로 종료한다")
-	void terminatesWithoutCandidatesOnlyWhenThereAreNoEntries() {
+	@ParameterizedTest
+	@EnumSource(value = EventStatus.class, names = {"SCHEDULED", "OPEN", "CLOSED"})
+	@DisplayName("최초 추첨 허용 상태에서 응모자가 없으면 NO_ENTRIES로 종료한다")
+	void terminatesWithoutCandidatesOnlyWhenThereAreNoEntries(EventStatus initialStatus) {
 		// given
+		Event source = event(EventType.NO_TICKET, false, NOW.minusSeconds(300));
+		when(repository.lockEvent(eventId)).thenReturn(Optional.of(new Event(eventId, source.type(),
+				source.weightingEnabled(), source.endsAt(), initialStatus, false, source.membershipRule(), source.prizes())));
 		when(repository.findParticipants(eventId)).thenReturn(List.of());
 
 		// when
@@ -142,7 +146,7 @@ class DrawSnapshotServiceTest {
 		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
 		assertThat(snapshot.candidates()).isEmpty();
-		verify(eventStatuses).changeStatus(eventId, EventStatus.CLOSED, EventStatus.NO_ENTRANTS);
+		verify(eventStatuses).changeStatus(eventId, initialStatus, EventStatus.NO_ENTRANTS);
 	}
 
 	/** 제외 제공자 없이 모든 정상 응모를 후보로 저장하고 등급별 가중치를 유지하는지 검증한다. */
