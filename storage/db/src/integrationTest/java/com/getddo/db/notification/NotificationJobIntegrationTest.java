@@ -765,11 +765,12 @@ class NotificationJobIntegrationTest {
 	@SpringBootConfiguration
 	@EnableAutoConfiguration
 	@ComponentScan(basePackages = {"com.getddo.core.notification", "com.getddo.db.notification",
-			"com.getddo.core.audit", "com.getddo.db.audit.mapper"})
+			"com.getddo.db.audit.mapper"})
 	@EntityScan(basePackages = {"com.getddo.db.notification", "com.getddo.db.audit"})
 	@EnableJpaRepositories(basePackages = {"com.getddo.db.notification", "com.getddo.db.audit"})
 	@Import({JpaAuditingConfig.class, MySqlTestConfiguration.class,
-			com.getddo.db.audit.repository.AuditLogRepositoryImpl.class})
+			com.getddo.db.audit.repository.AuditLogRepositoryImpl.class,
+			com.getddo.core.audit.service.AuditLogService.class})
 	static class TestApplication {
 		/** 테스트가 선점과 재시도 경계 시각을 직접 제어할 수 있는 시계를 제공한다. */
 		@Bean
