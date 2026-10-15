@@ -76,6 +76,8 @@ class RedisRateLimitApiIntegrationTest {
 				.andExpect(status().isTooManyRequests())
 				.andExpect(jsonPath("$.code").value("COMMON-006"))
 				.andExpect(header().exists("Retry-After"));
+		// 같은 사용자의 다른 미션은 범위별 한도가 따로 세어져 사용자 전체 한도(20) 안이면 허용된다
+		mvc.perform(submit(user, UUID.randomUUID())).andExpect(status().isUnauthorized());
 		Set<String> keys = redis.keys(RedisRateLimiter.KEY_PREFIX + "*" + user + "*");
 		assertThat(keys).isNotEmpty();
 	}
