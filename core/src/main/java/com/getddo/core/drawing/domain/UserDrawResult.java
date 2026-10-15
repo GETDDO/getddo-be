@@ -6,7 +6,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import com.getddo.core.event.domain.RegisteredEvent;
 
@@ -59,7 +58,6 @@ public final class UserDrawResult {
 	}
 
 	@Getter
-	@RequiredArgsConstructor
 	public static final class MyResult {
 		private final UUID eventId;
 		private final MyDrawResultStatus result;
@@ -67,6 +65,20 @@ public final class UserDrawResult {
 		private final boolean published;
 		private final Integer revision;
 		private final Instant serverTime;
+
+		/** 당첨 결과에만 경품이 연결되도록 해 비공개 경품의 잘못된 전달을 막는다. */
+		public MyResult(UUID eventId, MyDrawResultStatus result, RegisteredEvent.Prize prize,
+				boolean published, Integer revision, Instant serverTime) {
+			this.eventId = Objects.requireNonNull(eventId, "eventId");
+			this.result = Objects.requireNonNull(result, "result");
+			if ((result == MyDrawResultStatus.WON) != (prize != null)) {
+				throw new IllegalArgumentException("only WON results require a prize");
+			}
+			this.prize = prize;
+			this.published = published;
+			this.revision = revision;
+			this.serverTime = Objects.requireNonNull(serverTime, "serverTime");
+		}
 	}
 
 	@Getter

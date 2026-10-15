@@ -105,17 +105,18 @@ class UserDrawResultControllerTest {
 	void enforcesHeadersRolesStatusAndUuid() throws Exception {
 		// given
 		// when / then
-		mvc.perform(get("/api/v1/events/{id}/results", eventId)).andExpect(status().isUnauthorized());
+		mvc.perform(get("/api/v1/events/{id}/results", eventId)).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("USER-003"));
 		mvc.perform(get("/api/v1/events/{id}/results", eventId).header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("USER-004"));
 		actor(UserRole.ADMIN, UserStatus.ACTIVE);
 		mvc.perform(get("/api/v1/events/{id}/results", eventId).header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
 				.andExpect(status().isOk());
 		mvc.perform(get("/api/v1/events/{id}/my-result", eventId).header("X-User-ID", actorId).header("X-User-Role", "ADMIN"))
-				.andExpect(status().isForbidden()).andExpect(jsonPath("$.data").value(nullValue()));
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("EVENT-010"))
+				.andExpect(jsonPath("$.data").value(nullValue()));
 		actor(UserRole.USER, UserStatus.INACTIVE);
 		mvc.perform(get("/api/v1/events/{id}/results", eventId).header("X-User-ID", actorId).header("X-User-Role", "USER"))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("EVENT-010"));
 		actor(UserRole.USER, UserStatus.ACTIVE);
 		mvc.perform(get("/api/v1/events/invalid/results").header("X-User-ID", actorId).header("X-User-Role", "USER"))
 				.andExpect(status().isBadRequest());

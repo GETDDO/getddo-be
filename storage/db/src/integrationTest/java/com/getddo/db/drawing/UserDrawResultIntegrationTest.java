@@ -3,6 +3,7 @@ package com.getddo.db.drawing;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,8 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 
 import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawConfirmation;
 import com.getddo.core.drawing.domain.DrawDisplayStatus;
 import com.getddo.core.drawing.domain.MyDrawResultStatus;
 import com.getddo.core.drawing.domain.UserDrawResult;
@@ -29,9 +32,13 @@ import com.getddo.db.support.UserDrawResultTestConfiguration;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 기존 공개 서비스로 조회 연동을 검증한다. GD-199의 새 수동 공개 흐름 검증은 별도로 남긴다. */
+/**
+ * 기존 공개 서비스로 조회 연동을 검증한다. GD-199의 새 수동 공개 흐름 검증은 별도로 남긴다.
+ * 조회 Bean을 추가한 전용 컨텍스트의 DB를 사용하며 클래스 종료 시 컨테이너와 시드 데이터를 함께 정리한다.
+ */
 @SpringBootTest(classes = {DrawSnapshotIntegrationTest.TestApplication.class, UserDrawResultTestConfiguration.class},
 		properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.properties.hibernate.jdbc.time_zone=UTC"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class UserDrawResultIntegrationTest {
 	private static final Instant NOW = Instant.parse("2026-10-15T00:00:00Z");
 	@Autowired private JdbcTemplate jdbc;
@@ -111,6 +118,37 @@ class UserDrawResultIntegrationTest {
 		assertThat(result.getPrizes().getFirst().getWinners()).isEmpty();
 		assertThat(result.getPrizes().getFirst().getUnfilledCount()).isEqualTo(2);
 		assertThat(queries.myResult(user(), eventId).getResult()).isEqualTo(MyDrawResultStatus.LOST);
+	}
+
+	@Test
+	@DisplayName("동일 공개 버전에서도 당첨자와 낙첨자는 각자의 결과만 받는다")
+	void isolatesOwnResultBetweenAcceptedEntrants() {
+		// given
+		enter();
+		UUID otherId = UUID.randomUUID();
+		UUID otherParticipant = UUID.randomUUID();
+		jdbc.update("""
+			insert into users (id, name, role, status, membership, created_at, updated_at)
+			values (?, '김민수', 'USER', 'ACTIVE', 'VIP', ?, ?)
+			""", toBytes(otherId), utc(NOW), utc(NOW));
+		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
+				toBytes(otherParticipant), toBytes(eventId), toBytes(otherId), utc(NOW.minusSeconds(301)));
+		jdbc.update("""
+			insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
+			values (?, ?, ?, ?, 0, 0, ?)
+			""", toBytes(UUID.randomUUID()), toBytes(eventId), toBytes(otherParticipant), toBytes(otherId), utc(NOW.minusSeconds(301)));
+		jdbc.update("update event_prizes set winner_count = 1 where id = ?", toBytes(prizeId));
+		DrawSnapshot snapshot = snapshots.prepareInitial(eventId);
+		DrawConfirmation confirmed = confirmations.confirm(snapshot.runId());
+		UUID winnerId = confirmed.getResults().getFirst().getSelection().getUserId();
+		publications.publishInitial(eventId).orElseThrow();
+		User other = new User(otherId, "김민수", UserRole.USER, UserStatus.ACTIVE, null, null, null, null, null, NOW, NOW);
+		// when / then
+		for (User actor : List.of(user(), other)) {
+			UserDrawResult.MyResult own = queries.myResult(actor, eventId);
+			assertThat(own.getResult()).isEqualTo(actor.getId().equals(winnerId) ? MyDrawResultStatus.WON : MyDrawResultStatus.LOST);
+			assertThat(own.getPrize() == null).isEqualTo(!actor.getId().equals(winnerId));
+		}
 	}
 
 	@Test

@@ -23,6 +23,7 @@ import com.getddo.core.drawing.domain.UserDrawResult;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
 import com.getddo.core.drawing.repository.UserDrawResultRepository;
 import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.exception.EventErrorCode;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.event.domain.EventView;
 import com.getddo.core.event.domain.MembershipRule;
@@ -132,11 +133,41 @@ class UserDrawResultServiceTest {
 	void enforcesRoleStatusAndMissingEvent() {
 		// given
 		// when / then
-		assertThatThrownBy(() -> service.myResult(user(UserRole.ADMIN, UserStatus.ACTIVE), eventId)).isInstanceOf(BusinessException.class);
-		assertThatThrownBy(() -> service.publicResults(user(UserRole.USER, UserStatus.INACTIVE), eventId)).isInstanceOf(BusinessException.class);
-		assertThatThrownBy(() -> service.publicResults(null, eventId)).isInstanceOf(BusinessException.class);
+		assertThatThrownBy(() -> service.myResult(user(UserRole.ADMIN, UserStatus.ACTIVE), eventId))
+				.isInstanceOfSatisfying(BusinessException.class, error ->
+						assertThat(error.getErrorCode()).isEqualTo(EventErrorCode.ACCESS_DENIED));
+		assertThatThrownBy(() -> service.publicResults(user(UserRole.USER, UserStatus.INACTIVE), eventId))
+				.isInstanceOfSatisfying(BusinessException.class, error ->
+						assertThat(error.getErrorCode()).isEqualTo(EventErrorCode.ACCESS_DENIED));
+		assertThatThrownBy(() -> service.publicResults(null, eventId))
+				.isInstanceOfSatisfying(BusinessException.class, error ->
+						assertThat(error.getErrorCode()).isEqualTo(EventErrorCode.USER_CONTEXT_REQUIRED));
 		when(events.findById(eventId)).thenReturn(Optional.empty());
-		assertThatThrownBy(() -> service.publicResults(user(UserRole.USER, UserStatus.ACTIVE), eventId)).isInstanceOf(BusinessException.class);
+		assertThatThrownBy(() -> service.publicResults(user(UserRole.USER, UserStatus.ACTIVE), eventId))
+				.isInstanceOfSatisfying(BusinessException.class, error ->
+						assertThat(error.getErrorCode()).isEqualTo(EventErrorCode.EVENT_NOT_FOUND));
+	}
+
+	@Test
+	@DisplayName("본인 결과 모델은 필수 값과 당첨·경품 조합을 검증한다")
+	void rejectsInvalidOwnResultModels() {
+		// given
+		RegisteredEvent.Prize prize = new RegisteredEvent.Prize(prizeId, 1, "경품", null, null, 1);
+		// when / then
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(null, MyDrawResultStatus.PENDING, null, false, null, NOW))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, null, null, false, null, NOW))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.PENDING, null, false, null, null))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, MyDrawResultStatus.WON, null, true, 1, NOW))
+				.isInstanceOf(IllegalArgumentException.class);
+		for (MyDrawResultStatus result : MyDrawResultStatus.values()) {
+			if (result != MyDrawResultStatus.WON) {
+				assertThatThrownBy(() -> new UserDrawResult.MyResult(eventId, result, prize, true, 1, NOW))
+						.isInstanceOf(IllegalArgumentException.class);
+			}
+		}
 	}
 
 	@ParameterizedTest
