@@ -2,7 +2,6 @@ package com.getddo.core.game.service;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
@@ -38,7 +37,7 @@ public class GameStatisticsService {
 		games.findById(gameId).orElseThrow(() -> new BusinessException(GameErrorCode.GAME_NOT_FOUND));
 		Instant now = time.now();
 		LocalDate date = time.businessDate(now);
-		Instant reset = date.plusDays(1).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+		Instant reset = time.toUtc(date.plusDays(1).atStartOfDay());
 		return new MyGameStatistics(gameId, statistics.find(user.getId(), gameId), date,
 				claims.findByDate(user.getId(), gameId, date).isPresent(), reset, now);
 	}
