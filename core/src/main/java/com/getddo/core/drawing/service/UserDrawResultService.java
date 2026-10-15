@@ -34,7 +34,6 @@ import com.getddo.core.user.domain.UserStatus;
  * 서로 다른 버전의 상태·명단·공개 시각이 한 응답에 섞이지 않게 한다.
  */
 @RequiredArgsConstructor
-@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class UserDrawResultService {
 	private final EventQueryRepository events;
 	private final DrawPublicationRepository publications;
@@ -51,6 +50,7 @@ public class UserDrawResultService {
 	 * @return 공개 여부·표시 상태와 공개된 경품별 마스킹 명단
 	 * @throws BusinessException 사용자 문맥·조회 권한이 없거나 이벤트를 조회할 수 없는 경우
 	 */
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public PublicResults publicResults(User user, UUID eventId) {
 		requireUser(user, false);
 		RegisteredEvent event = event(eventId);
@@ -79,6 +79,7 @@ public class UserDrawResultService {
 	 * @return 본인 결과와 실제 공개 여부·버전, 당첨한 경우의 경품
 	 * @throws BusinessException 일반 사용자 권한이 없거나 이벤트를 조회할 수 없는 경우
 	 */
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public MyResult myResult(User user, UUID eventId) {
 		requireUser(user, true);
 		RegisteredEvent event = event(eventId);
