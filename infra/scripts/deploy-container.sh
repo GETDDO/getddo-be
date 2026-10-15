@@ -18,6 +18,7 @@ old_image=''
 image=''
 marker="$root/deploy-in-progress"
 transaction_started=0
+cleanup_complete=0
 
 # Actions와 별개로 서버에서도 한 번에 한 배포만 허용한다.
 exec 9>"$root/deploy.lock"
@@ -27,6 +28,13 @@ if [[ -e $marker || -L $marker ]]; then
   echo "DEPLOY_INCOMPLETE: 이전 배포 기록을 확인하고 수동 복구하세요: $marker" >&2
   exit 1
 fi
+# 마커 삭제 후 디스크 반영이 실패한 경우에도 비공개 설정 디렉터리의 복구 기록으로 차단한다.
+for recovery_context in /etc/getddo/.deploy-env.*/context; do
+  if [[ -e $recovery_context || -L $recovery_context ]]; then
+    echo "DEPLOY_INCOMPLETE: 남은 복구 기록을 확인하세요: $recovery_context" >&2
+    exit 1
+  fi
+done
 
 clear_marker() {
   # 설정과 current 링크를 먼저 디스크에 반영한다. 복구 중 삭제한 env도 디렉터리 기준으로 동기화한다.
@@ -34,7 +42,8 @@ clear_marker() {
   sync -f "$root" || return 1
   rm -f -- "$marker/context" || return 1
   rmdir -- "$marker" || return 1
-  sync -f "$root"
+  sync -f "$root" || return 1
+  cleanup_complete=1
 }
 
 compose() {
@@ -78,7 +87,9 @@ rollback() {
   fi
   # 이미지보다 설정을 먼저 복원한다. 복원 실패 시 새 설정으로 이전 앱을 실행하지 않는다.
   if ((had_env)); then
-    if ! mv -f -- "$env_tmp/previous.env" "$app_env"; then
+    # 진행 기록 정리가 끝날 때까지 원본 백업은 보존하고 복사본을 원자적으로 복원한다.
+    if ! install -m 0600 "$env_tmp/previous.env" "$env_tmp/restore.env" ||
+       ! mv -f -- "$env_tmp/restore.env" "$app_env"; then
       echo 'ROLLBACK_FAILED: 이전 설정을 복원하지 못했습니다.' >&2
       return 1
     fi
@@ -113,13 +124,13 @@ finish() {
     fi
     ((status != 0)) || status=1
   fi
-  if ((transaction_started)) && [[ -e $marker || -L $marker ]]; then
+  if ((transaction_started && !cleanup_complete)); then
     # 복구·기록 정리가 끝나지 않으면 백업과 마커를 보존하고 다음 배포도 차단한다.
     echo "DEPLOY_INCOMPLETE: 진행 기록과 임시 설정을 보존했습니다: $marker $env_tmp" >&2
     ((status != 0)) || status=1
   elif [[ -n $env_tmp ]]; then
     # 비밀값이 있는 새 임시 파일·백업만 정리한다. 배포 S3·release.tar에는 넣지 않는다.
-    rm -f -- "$env_tmp/next.env" "$env_tmp/previous.env"
+    rm -f -- "$env_tmp/next.env" "$env_tmp/previous.env" "$env_tmp/restore.env" "$env_tmp/context"
     rmdir -- "$env_tmp"
   fi
   exit "$status"
@@ -169,9 +180,11 @@ if [[ -f $app_env ]]; then
 fi
 # 설정 교체 전에 비밀값 없는 진행 기록과 비공개 백업을 영속화한다.
 # 기록이 비어 있더라도 다음 배포는 차단한다. 내용은 배포·임시 설정 디렉터리 두 줄이다.
+# 복구 경로는 별도 디렉터리에도 보존한다. clear_marker의 어느 단계가 실패해도 이 기록은 남는다.
+printf '%s\n' "$release" "$env_tmp" > "$env_tmp/context"
 mkdir -m 0700 -- "$marker"
 transaction_started=1
-printf '%s\n' "$release" "$env_tmp" > "$marker/context"
+install -m 0600 "$env_tmp/context" "$marker/context"
 sync -f "$env_tmp"
 sync -f "$root"
 # 플래그를 먼저 설정해 rename 직후 중단돼도 EXIT에서 이전 상태를 복구한다.
