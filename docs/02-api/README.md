@@ -10,6 +10,8 @@ GD-52의 요청 헤더와 Controller 사용법은 [시연용 사용자 문맥과
 
 GD-55의 내부 Service 호출과 트랜잭션 규칙은 [감사 로그 기록 기능](audit-recording.md)에 정리합니다.
 
+GD-207의 관리자 감사 목록·상세 조회와 FE 연결은 [관리자 감사 조회 구현·연동](admin-audit-logs.md)에 정리합니다.
+
 GD-60의 수정 제한·경품 교체와 GD-70 알림 연결은 [이벤트·경품 수정](event-modification.md)에 정리합니다.
 
 GD-61의 논리 삭제·조회 제외와 연결 기능의 확인 사항은 [이벤트 삭제](event-deletion.md)에 정리합니다.
@@ -67,4 +69,3 @@ E08·E09의 공용 계약은 [SPEC 추첨 API](https://github.com/Uplus-GETDDO/g
 
 단위·MVC 검증과 기존 공개 서비스 기반 MySQL 검증은 GD-199의 최초 확인·수동 공개 서비스 합동 검증과 구분한다. GD-199가 준비되면 공개 전후 및 최초 공개 전 취소·재추첨 후 최종 명단을 실제 서비스로 함께 검증해야 한다.
 
-- [관리자 감사 조회 구현·연동](admin-audit-logs.md)
