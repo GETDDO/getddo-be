@@ -10,10 +10,10 @@ springdoc:
 
 getddo:
   images:
-    # 백엔드 업로드용 비공개 S3 버킷. 실제 값은 Parameter Store에서 환경변수로 주입한다.
+    # 백엔드가 업로드할 비공개 S3 버킷.
     bucket: ${GETDDO_IMAGES_BUCKET:}
 
-    # CloudFront 이미지 기본 주소. Parameter Store에서 주입하며 /images/로 끝나야 한다.
+    # CloudFront 이미지 기본 주소. 끝에 /images/가 포함된다.
     base-url: ${GETDDO_IMAGES_BASE_URL:}
 
   cors:
