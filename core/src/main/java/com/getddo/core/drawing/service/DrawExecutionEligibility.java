@@ -12,10 +12,10 @@ final class DrawExecutionEligibility {
 	private DrawExecutionEligibility() {
 	}
 
-	/** 삭제 여부와 마감 후 5분 경계를 확인하고, 최초는 OPEN/CLOSED·재추첨은 REDRAWING에서만 새 실행 시도를 허용한다. */
+	/** 최초 추첨은 저장 상태가 SCHEDULED로 남아 있어도 마감 후 5분부터 허용한다. 재추첨은 REDRAWING에서만 허용한다. */
 	static boolean isExecutable(DrawSnapshotSource.Event event, DrawType type, Instant now) {
 		boolean allowedStatus = type == DrawType.INITIAL
-		? event.status() == EventStatus.OPEN || event.status() == EventStatus.CLOSED
+		? event.status() == EventStatus.SCHEDULED || event.status() == EventStatus.OPEN || event.status() == EventStatus.CLOSED
 		: type == DrawType.REPLACEMENT && event.status() == EventStatus.REDRAWING;
 		return !event.deleted() && allowedStatus && !now.isBefore(event.endsAt().plusSeconds(300));
 	}
