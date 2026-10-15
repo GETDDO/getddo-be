@@ -27,8 +27,12 @@ import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
+import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.service.EventStatusChangeService;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.NOT_EXECUTABLE;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
 
 /** 선정 결과와 추첨 완료 상태를 같은 트랜잭션에 저장한다. */
 @Service
@@ -37,14 +41,16 @@ public class DrawConfirmationService {
 	private final DrawSnapshotRepository snapshots;
 	private final DrawingSelectionService selection;
 	private final TimeProvider time;
+	private final EventStatusChangeService eventStatuses;
 
-	/** 선정·영속성·시각 의존성을 주입하며 확정 업무의 트랜잭션은 confirm에서 관리한다. */
+	/** 선정·저장·시각·이벤트 상태 변경을 주입하며 트랜잭션은 confirm에서 관리한다. */
 	public DrawConfirmationService(DrawResultRepository repository, DrawSnapshotRepository snapshots,
-			DrawingSelectionService selection, TimeProvider time) {
+			DrawingSelectionService selection, TimeProvider time, EventStatusChangeService eventStatuses) {
 		this.repository = repository;
 		this.snapshots = snapshots;
 		this.selection = selection;
 		this.time = time;
+		this.eventStatuses = eventStatuses;
 	}
 
 	/**
@@ -117,7 +123,12 @@ public class DrawConfirmationService {
 		}
 		List<DrawSelection> selections = selectTargets(snapshot);
 		validateResults(snapshot, selections);
-		return repository.saveConfirmed(snapshot, selections, time.now());
+		DrawConfirmation confirmed = repository.saveConfirmed(snapshot, selections, time.now());
+		if (snapshot.drawType() == DrawType.INITIAL) {
+			// 확정 재요청은 위에서 저장 결과를 반환하므로 공개·재추첨 상태를 되돌리지 않는다.
+			eventStatuses.changeStatus(eventId, event.status(), EventStatus.DRAW_CONFIRMED);
+		}
+		return confirmed;
 	}
 
 	/** 확정된 스냅샷의 버전·중복 후보·가중치·경품 조건을 검증한다. 최신 원본으로 입력을 교체하지 않는다. */

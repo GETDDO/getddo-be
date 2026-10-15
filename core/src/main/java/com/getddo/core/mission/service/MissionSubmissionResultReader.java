@@ -43,7 +43,7 @@ public class MissionSubmissionResultReader {
 					.filter(found -> found.getMissionSubmissionId().equals(submission.getId()))
 					.orElseThrow(() -> new IllegalStateException("완료한 미션 제출에 보상 청구가 없다. submissionId=" + submission.getId()
 							+ ", userId=" + submission.getUserId() + ", missionId=" + submission.getMissionId()));
-			reward = receiptOf(grantService.findGrant(grantSource(claim))
+			reward = receiptOf(claim, grantService.findGrant(grantSource(claim))
 					.orElseThrow(() -> new IllegalStateException("미션 보상 청구에 응모권 지급 결과가 없다. claimId=" + claim.getId())));
 		}
 		return new MissionSubmissionResult(submission.getId(), submission.getMissionId(), submission.getCreatedAt(),
@@ -55,9 +55,9 @@ public class MissionSubmissionResultReader {
 		return new GrantSource(GrantSourceType.MISSION, claim.getId());
 	}
 
-	/** 응모권 서비스가 확정한 지급 결과를 응답용 보상으로 옮긴다. */
-	static MissionRewardReceipt receiptOf(GrantResult granted) {
-		return new MissionRewardReceipt(granted.getQuantity(), granted.getGrade(), granted.getGrantedAt(),
-				granted.getExpiresAt());
+	/** 보상 청구와 응모권 서비스가 확정한 지급 결과를 응답용 보상으로 옮긴다. */
+	static MissionRewardReceipt receiptOf(MissionRewardClaim claim, GrantResult granted) {
+		return new MissionRewardReceipt(claim.getId(), granted.getQuantity(), granted.getGrade(),
+				granted.getGrantedAt(), granted.getExpiresAt());
 	}
 }

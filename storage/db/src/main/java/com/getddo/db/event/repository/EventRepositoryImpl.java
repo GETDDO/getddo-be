@@ -3,6 +3,7 @@ package com.getddo.db.event.repository;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
@@ -16,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.RegisteredEvent;
+import com.getddo.core.event.domain.EventCancellationState;
 import com.getddo.core.event.exception.EventErrorCode;
 import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.repository.EventRepository;
@@ -78,17 +80,39 @@ public class EventRepositoryImpl implements EventRepository {
 		}).map(EventEntity::getStatus);
 	}
 
+	@Override
+	public Optional<EventCancellationState> findCancellationByIdForUpdate(UUID eventId) {
+		return findStatusByIdForUpdate(eventId)
+				.flatMap(ignored -> jpaRepository.findById(eventId)).map(mapper::toCancellationState);
+	}
+
+	@Override
+	public void markCanceled(UUID eventId, Instant canceledAt) {
+		EventEntity event = jpaRepository.findById(eventId)
+				.filter(saved -> saved.getDeletedAt() == null)
+				.orElseThrow(() -> new EventException(EventErrorCode.EVENT_NOT_FOUND));
+		requireWriteLock(event);
+		event.markCanceled(canceledAt);
+		jpaRepository.flush();
+	}
+
+	@Override
+	public List<UUID> findChargedEntryIds(UUID eventId) {
+		// 관리자 권한 조회 등으로 이미 만들어진 RR 스냅샷 대신 잠금 획득 전 확정된 응모까지 읽는다.
+		// 성공 응모는 이벤트 공유 잠금을 유지하므로 이벤트 쓰기 잠금 이후에는 새 성공 응모가 추가되지 않는다.
+		return jdbc.query("""
+				select id from event_entries where event_id = ? and status = 'ACCEPTED'
+				and deducted_ticket_count > 0 order by id for share
+				""", (row, index) -> UuidBinary.fromBytes(row.getBytes("id")), UuidBinary.toBytes(eventId));
+	}
+
 	/** 선행 상태 잠금 조회가 관리 중인 Entity를 재사용하며 상태와 공통 수정 시각만 저장한다. */
 	@Override
 	public void updateStatus(UUID eventId, EventStatus newStatus) {
 		EventEntity event = jpaRepository.findById(eventId)
 				.filter(saved -> saved.getDeletedAt() == null)
 				.orElseThrow(() -> new EventException(EventErrorCode.EVENT_NOT_FOUND));
-		LockModeType lockMode = entityManager.getLockMode(event);
-		if (lockMode != LockModeType.PESSIMISTIC_WRITE && lockMode != LockModeType.PESSIMISTIC_FORCE_INCREMENT) {
-			// 업무 오류가 아닌 저장소 호출 계약 위반이다. 추가 잠금 조회로 잘못된 호출 순서를 숨기지 않는다.
-			throw new IllegalStateException("상태 변경 전에 같은 트랜잭션에서 이벤트 쓰기 잠금을 확보해야 합니다.");
-		}
+		requireWriteLock(event);
 		event.changeStatus(newStatus);
 		jpaRepository.flush();
 	}
@@ -129,5 +153,12 @@ public class EventRepositoryImpl implements EventRepository {
 	private RegisteredEvent toDomain(EventEntity event) {
 		return mapper.toRegisteredEvent(event, event.getPrizes().stream()
 				.sorted(Comparator.comparingInt(EventPrizeEntity::getRank)).toList());
+	}
+
+	private void requireWriteLock(EventEntity event) {
+		LockModeType lockMode = entityManager.getLockMode(event);
+		if (lockMode != LockModeType.PESSIMISTIC_WRITE && lockMode != LockModeType.PESSIMISTIC_FORCE_INCREMENT) {
+			throw new IllegalStateException("상태 변경 전에 같은 트랜잭션에서 이벤트 쓰기 잠금을 확보해야 합니다.");
+		}
 	}
 }

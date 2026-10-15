@@ -66,13 +66,31 @@ import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.mysql.MySQLContainer;
-import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.*;
+import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.KEY_CONFLICT;
+import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.NOT_CANCELABLE;
+import static com.getddo.core.drawing.exception.AwardCancellationErrorCode.NOT_FOUND;
 import static com.getddo.core.drawing.exception.DrawingErrorCode.ADMIN_REQUIRED;
 import static com.getddo.db.common.util.UuidBinary.fromBytes;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /** 취소·등록·준비·GD-87 실제 실행을 연결한다. 응모·보상 출처만 SQL 테스트 데이터다. */
 @SpringBootTest(classes = DrawSnapshotIntegrationTest.TestApplication.class,
@@ -198,12 +216,15 @@ class AwardCancellationFlowIntegrationTest {
 	@Test @DisplayName("취소 flush 뒤 감사 실패도 취소·등록·이벤트 상태를 함께 롤백한다")
 	void rollsBackCancellationAndAuditFailure() {
 		// given
+		String statusBeforeCancellation = jdbc.queryForObject("select status from events where id = ?",
+				String.class, toBytes(fixture.eventId()));
+		assertThat(statusBeforeCancellation).isEqualTo("DRAW_CONFIRMED");
 		doThrow(new IllegalStateException("audit failure injection")).when(auditRecords).append(any());
 		// when / then
 		assertThatThrownBy(() -> service.cancel(actor, target(fixture).getId(), UUID.randomUUID(), "사유")).isInstanceOf(RuntimeException.class);
 		assertThat(runCount(fixture.eventId())).isEqualTo(1);
 		assertThat(cancellationCount(fixture.eventId())).isZero();
-		assertThat(jdbc.queryForObject("select status from events where id = ?", String.class, toBytes(fixture.eventId()))).isEqualTo("CLOSED");
+		assertThat(jdbc.queryForObject("select status from events where id = ?", String.class, toBytes(fixture.eventId()))).isEqualTo(statusBeforeCancellation);
 		verifyNoInteractions(selection);
 	}
 

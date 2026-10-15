@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.common.exception.BusinessException;
@@ -21,8 +22,12 @@ import com.getddo.core.drawing.domain.DrawType;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
+import com.getddo.core.event.service.EventStatusChangeService;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.NOT_EXECUTABLE;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_EVIDENCE;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
 
 /** 정상 접수된 응모의 실제 차감 수량을 확인하고 최초 추첨의 후보·가중치·조건을 고정해 저장한다. */
 @Service
@@ -30,11 +35,13 @@ public class DrawSnapshotService {
 	public static final String ALGORITHM_VERSION = "weighted-without-replacement-v1";
 	private final DrawSnapshotRepository repository;
 	private final TimeProvider time;
+	private final EventStatusChangeService eventStatuses;
 
-	/** 최초 실행 영속성 경계와 서버 기준 시각을 주입한다. */
-	public DrawSnapshotService(DrawSnapshotRepository repository, TimeProvider time) {
+	/** 최초 실행 저장소·서버 시각·같은 트랜잭션의 이벤트 상태 변경을 주입한다. */
+	public DrawSnapshotService(DrawSnapshotRepository repository, TimeProvider time, EventStatusChangeService eventStatuses) {
 		this.repository = repository;
 		this.time = time;
+		this.eventStatuses = eventStatuses;
 	}
 
 	/**
@@ -63,11 +70,13 @@ public class DrawSnapshotService {
 				|| now.isBefore(event.endsAt().plusSeconds(300))) {
 			throw new BusinessException(NOT_EXECUTABLE);
 		}
-		return repository.saveInitial(buildInput(event, null, now));
+		DrawSnapshot saved = repository.saveInitial(buildInput(event, null, now));
+		finishWithoutEntries(event, saved);
+		return saved;
 	}
 
 	/** 먼저 실행을 등록·커밋해 준비 롤백 뒤에도 실패 FK와 실행 ID가 보존되게 한다. */
-	@Transactional
+	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public UUID registerInitial(UUID eventId) {
 		DrawSnapshotSource.Event event = repository.lockEvent(eventId).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
 		if (event.deleted() || (event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
@@ -82,7 +91,22 @@ public class DrawSnapshotService {
 		DrawSnapshotSource.Event event = repository.lockEvent(existing.eventId()).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
 		if (existing.drawType() != DrawType.INITIAL
 				|| existing.status() != DrawRunStatus.PREPARING || existing.fixedAt() != null) throw new BusinessException(INVALID_RUN);
-		return repository.saveRegisteredInitial(buildInput(event, runId, time.now()));
+		DrawSnapshot saved = repository.saveRegisteredInitial(buildInput(event, runId, time.now()));
+		finishWithoutEntries(event, saved);
+		return saved;
+	}
+
+	/** 실행 행과 이벤트 종료 상태를 함께 저장해 중단 후 상태만 남는 것을 막는다. */
+	private void finishWithoutEntries(DrawSnapshotSource.Event event, DrawSnapshot saved) {
+		if (saved.status() == DrawRunStatus.NO_ENTRIES) {
+			eventStatuses.changeStatus(event.id(), event.status(), EventStatus.NO_ENTRANTS);
+		}
+	}
+
+	/** 등록된 실행은 기존 복구 워커가 처리하므로 최초 등록 누락만 조회한다. */
+	@Transactional(readOnly = true)
+	public List<UUID> findInitialDue() {
+		return repository.findInitialDue(time.now().minusSeconds(300), 20);
 	}
 
 	/** 최초 실행 가능 조건과 응모·차감 근거를 검증해 고정할 후보·규칙을 구성한다. 응모자가 없으면 NO_ENTRIES 입력으로 정상 종료를 표현한다. */

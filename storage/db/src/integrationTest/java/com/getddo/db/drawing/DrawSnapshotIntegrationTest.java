@@ -51,10 +51,14 @@ import com.getddo.db.support.MySqlTestConfiguration;
 import com.getddo.db.ticket.MutableClock;
 import com.getddo.db.ticket.LockWaitProbe;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_EVIDENCE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = DrawSnapshotIntegrationTest.TestApplication.class,
 		properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.properties.hibernate.jdbc.time_zone=UTC"})
@@ -550,11 +554,13 @@ class DrawSnapshotIntegrationTest {
 	@SpringBootConfiguration
 	@EnableAutoConfiguration
 	@ComponentScan(basePackages = {"com.getddo.core.drawing", "com.getddo.db.drawing", "com.getddo.core.audit",
+			"com.getddo.db.event.mapper", "com.getddo.db.event.repository",
 			"com.getddo.db.audit.mapper", "com.getddo.db.audit.repository",
 			"com.getddo.db.user.mapper", "com.getddo.db.user.repository", "com.getddo.core.notification.service", "com.getddo.db.notification.mapper", "com.getddo.db.notification.repository"})
-	@EntityScan(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification"})
-	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification"})
-	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
+	@EntityScan(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification", "com.getddo.db.event"})
+	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification", "com.getddo.db.event"})
+	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class,
+			com.getddo.core.event.service.EventStatusChangeService.class})
 	static class TestApplication {
 
 		/** 공개 저장소·공통 관리자 검사·시각 제공자를 실제 관리자 확인 Bean에 연결한다. */
