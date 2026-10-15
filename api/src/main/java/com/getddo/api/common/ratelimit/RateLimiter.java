@@ -27,6 +27,12 @@ public interface RateLimiter {
 	 */
 	record Decision(boolean allowed, long retryAfterSeconds) {
 
+		public Decision {
+			if (allowed ? retryAfterSeconds != 0 : retryAfterSeconds < 1) {
+				throw new IllegalArgumentException("허용은 재시도 시간이 0, 거절은 1초 이상이어야 한다.");
+			}
+		}
+
 		public static Decision allow() {
 			return new Decision(true, 0);
 		}

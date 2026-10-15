@@ -30,9 +30,8 @@ import com.getddo.core.common.exception.ErrorCode;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
 	/**
-	 * 업무 코드가 전달한 상태·코드·메시지를 그대로 응답 계약으로 사용한다.
-	 * <p>예외별로 Controller에 try-catch를 반복하지 않아도 된다.
-	 * 오류 메시지는 ErrorCode에 정의된 공개용 문구를 사용하므로 오류 정의 시 노출 범위를 확인한다.</p>
+	 * 요청 빈도 한도를 넘은 요청을 429로 응답한다. 다른 업무 오류와 달리 {@code Retry-After} 헤더에 다시 시도할 수 있을 때까지
+	 * 남은 초를 담는다. 더 구체적인 예외 타입이라 아래 {@link BusinessException} 처리기보다 먼저 선택된다.
 	 */
 	@ExceptionHandler(RateLimitExceededException.class)
 	public ResponseEntity<ResponseEnvelope<Void>> handleRateLimitExceeded(RateLimitExceededException exception) {
@@ -42,6 +41,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 				.body(ResponseEnvelope.fail(errorCode));
 	}
 
+	/**
+	 * 업무 코드가 전달한 상태·코드·메시지를 그대로 응답 계약으로 사용한다.
+	 * <p>예외별로 Controller에 try-catch를 반복하지 않아도 된다.
+	 * 오류 메시지는 ErrorCode에 정의된 공개용 문구를 사용하므로 오류 정의 시 노출 범위를 확인한다.</p>
+	 */
 	@ExceptionHandler(BusinessException.class)
 	public ResponseEntity<ResponseEnvelope<Void>> handleBusinessException(BusinessException exception) {
 		ErrorCode errorCode = exception.getErrorCode();

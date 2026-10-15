@@ -1,11 +1,15 @@
 package com.getddo.api.common.ratelimit;
 
+import java.nio.ByteBuffer;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -39,6 +43,13 @@ class RateLimitApiIntegrationTest {
 	private MockMvc mvc;
 	@Autowired
 	private CorsProperties corsProperties;
+	@Autowired
+	private JdbcTemplate jdbc;
+
+	private static byte[] bytes(UUID id) {
+		return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits())
+				.array();
+	}
 
 	private static MockHttpServletRequestBuilder submit(UUID user, UUID mission) {
 		return post("/api/v1/missions/{missionId}/submissions", mission)
@@ -100,6 +111,43 @@ class RateLimitApiIntegrationTest {
 							.contentType(MediaType.APPLICATION_JSON).content("{}"))
 					.andExpect(status().is4xxClientError())
 					.andExpect(status().is(org.hamcrest.Matchers.not(429)));
+		}
+	}
+
+	@Test
+	@DisplayName("등록된 정상 사용자의 요청도 한도를 넘으면 429이고, 거절된 요청은 제출 기록을 남기지 않는다")
+	void registeredUserIsLimitedAndRejectedRequestLeavesNoRows() throws Exception {
+		// given
+		UUID user = UUID.randomUUID();
+		UUID mission = UUID.randomUUID();
+		LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+		jdbc.update("""
+				insert into users (id, name, role, status, membership, updated_at, created_at)
+				values (?, 'rate-limit', 'USER', 'ACTIVE', 'vip', ?, ?)
+				""", bytes(user), now, now);
+		String body = "{\"answers\":[{\"questionId\":\"" + UUID.randomUUID() + "\",\"answerText\":\"x\"}]}";
+		try {
+			// when
+			// then
+			for (int i = 0; i < 2; i++) {
+				mvc.perform(post("/api/v1/missions/{missionId}/submissions", mission)
+								.header("X-User-ID", user.toString()).header("X-User-Role", "USER")
+								.header("Idempotency-Key", UUID.randomUUID())
+								.contentType(MediaType.APPLICATION_JSON).content(body))
+						.andExpect(status().isNotFound())
+						.andExpect(jsonPath("$.code").value("MISSION-003"));
+			}
+			mvc.perform(post("/api/v1/missions/{missionId}/submissions", mission)
+							.header("X-User-ID", user.toString()).header("X-User-Role", "USER")
+							.header("Idempotency-Key", UUID.randomUUID())
+							.contentType(MediaType.APPLICATION_JSON).content(body))
+					.andExpect(status().isTooManyRequests())
+					.andExpect(jsonPath("$.code").value("COMMON-006"))
+					.andExpect(header().exists("Retry-After"));
+			assertThat(jdbc.queryForObject("select count(*) from mission_submissions where user_id = ?", Long.class,
+					bytes(user))).isZero();
+		} finally {
+			jdbc.update("delete from users where id = ?", bytes(user));
 		}
 	}
 

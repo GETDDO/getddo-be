@@ -2,9 +2,12 @@ package com.getddo.api.common.ratelimit;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -14,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import com.getddo.core.common.time.TimeProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InMemoryRateLimiterTest {
 
@@ -83,17 +87,35 @@ class InMemoryRateLimiterTest {
 	}
 
 	@Test
-	@DisplayName("거절된 요청이 계속 와도 창이 끝나면 다시 허용한다")
+	@DisplayName("거절된 요청이 계속 와도 창은 첫 요청으로부터 정확히 창 길이만큼만 이어지고 그 순간 다시 허용한다")
 	void deniedRequestsDoNotExtendTheWindow() {
 		// given
-		for (int i = 0; i < 50; i++) {
-			limiter.tryAcquire("k", 1, MINUTE);
-			clock.advance(Duration.ofMillis(100));
+		Instant first = clock.instant();
+		limiter.tryAcquire("k", 1, MINUTE);
+		for (int i = 0; i < 40; i++) {
+			clock.advance(Duration.ofMillis(1_400));
+			assertThat(limiter.tryAcquire("k", 1, MINUTE).allowed()).isFalse();
 		}
 		// when
-		clock.advance(MINUTE);
+		clock.set(first.plus(MINUTE).minusMillis(1));
+		RateLimiter.Decision justBeforeEnd = limiter.tryAcquire("k", 1, MINUTE);
+		clock.set(first.plus(MINUTE));
+		RateLimiter.Decision atEnd = limiter.tryAcquire("k", 1, MINUTE);
 		// then
-		assertThat(limiter.tryAcquire("k", 1, MINUTE).allowed()).isTrue();
+		assertThat(justBeforeEnd.allowed()).isFalse();
+		assertThat(atEnd.allowed()).isTrue();
+	}
+
+	@Test
+	@DisplayName("허용과 거절의 재시도 시간 불변식을 지키지 않는 판정은 만들 수 없다")
+	void decisionRejectsInconsistentRetryAfter() {
+		// given
+		// when
+		// then
+		assertThatThrownBy(() -> new RateLimiter.Decision(true, 3)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new RateLimiter.Decision(false, 0)).isInstanceOf(IllegalArgumentException.class);
+		assertThat(RateLimiter.Decision.deny(0).retryAfterSeconds()).isEqualTo(1);
+		assertThat(RateLimiter.Decision.allow().retryAfterSeconds()).isZero();
 	}
 
 	@Test
@@ -106,9 +128,10 @@ class InMemoryRateLimiterTest {
 		CountDownLatch ready = new CountDownLatch(callers);
 		CountDownLatch go = new CountDownLatch(1);
 		AtomicInteger allowed = new AtomicInteger();
+		List<Future<?>> tasks = new ArrayList<>();
 		try {
 			for (int i = 0; i < callers; i++) {
-				executor.submit(() -> {
+				tasks.add(executor.submit(() -> {
 					ready.countDown();
 					try {
 						go.await(10, TimeUnit.SECONDS);
@@ -119,13 +142,17 @@ class InMemoryRateLimiterTest {
 					if (limiter.tryAcquire("shared", limit, MINUTE).allowed()) {
 						allowed.incrementAndGet();
 					}
-				});
+				}));
 			}
 			assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
 			// when
 			go.countDown();
 			executor.shutdown();
 			assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+			// 작업이 예외로 끝났다면 허용 개수가 우연히 맞아도 실패로 드러나도록 모든 작업의 정상 종료를 확인한다.
+			for (Future<?> task : tasks) {
+				task.get(1, TimeUnit.SECONDS);
+			}
 		} finally {
 			go.countDown();
 			executor.shutdownNow();

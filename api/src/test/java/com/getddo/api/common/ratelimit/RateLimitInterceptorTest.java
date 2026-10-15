@@ -163,6 +163,26 @@ class RateLimitInterceptorTest {
 	}
 
 	@Test
+	@DisplayName("경로 변수 속성이나 해당 키가 없으면 범위별 한도는 건너뛰고 사용자 전체 한도만 적용한다")
+	void ignoresMissingScopeAttributeOrKey() throws Exception {
+		// given
+		when(limiter.tryAcquire(anyString(), anyInt(), any())).thenReturn(RateLimiter.Decision.allow());
+		RateLimitInterceptor interceptor = new RateLimitInterceptor(limiter, properties(true));
+		MockHttpServletRequest withoutAttribute = new MockHttpServletRequest();
+		withoutAttribute.addHeader("X-User-ID", USER);
+		MockHttpServletRequest withoutKey = request(USER);
+		withoutKey.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE, Map.of("other", SCOPE));
+		// when
+		boolean first = pass(interceptor, withoutAttribute, "scoped");
+		boolean second = pass(interceptor, withoutKey, "scoped");
+		// then
+		assertThat(first).isTrue();
+		assertThat(second).isTrue();
+		verify(limiter, org.mockito.Mockito.times(2)).tryAcquire("rl:sample:" + USER, 5, MINUTE);
+		verify(limiter, never()).tryAcquire(org.mockito.ArgumentMatchers.contains(SCOPE), anyInt(), any());
+	}
+
+	@Test
 	@DisplayName("제한기가 실패하면 요청을 막지 않고 통과시킨다")
 	void failsOpenWhenLimiterBreaks() throws Exception {
 		// given

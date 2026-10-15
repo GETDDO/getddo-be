@@ -35,6 +35,10 @@ getddo:
       attendance:
         limit: 5
         window: 1m
+      # 게임 결과 제출(G04): 컨트롤러가 생기면 @RateLimited(policy = "game-result")만 붙이면 적용된다
+      game-result:
+        limit: 10
+        window: 1m
       # 미션 제출: 사용자 분당 20회, 같은 미션은 분당 5회(정답을 반복해서 찍는 시도를 막는다)
       mission-submission:
         limit: 20
