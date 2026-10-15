@@ -5,13 +5,14 @@ import lombok.RequiredArgsConstructor;
 
 import com.getddo.core.common.exception.ErrorCode;
 
-/** 게임 시작(G03)의 업무 오류. 사용자 헤더 오류는 기존 공통 계약을 사용한다. */
+/** 게임 조회·시작·결과·통계의 업무 오류. 사용자 헤더 오류는 기존 공통 계약을 사용한다. */
 @Getter
 @RequiredArgsConstructor
 public enum GameErrorCode implements ErrorCode {
 	USER_INACTIVE(403, "GAME-001", "비활성 사용자는 게임을 시작할 수 없습니다."),
 	GAME_NOT_FOUND(404, "GAME-002", "게임을 찾을 수 없습니다."),
 	GAME_NOT_AVAILABLE(409, "GAME-003", "지금 시작할 수 없는 게임입니다."),
+	GAME_DETAIL_NOT_AVAILABLE(409, "GAME-004", "상세 정보를 제공할 수 없는 게임입니다."),
 	PLAY_NOT_FOUND(404, "GAME-005", "플레이를 찾을 수 없습니다."),
 	RESULT_CONFLICT(409, "GAME-006", "이미 확정한 플레이의 입력을 변경할 수 없습니다."),
 	RESULT_ACCESS_DENIED(403, "GAME-007", "활성 일반 사용자만 게임 결과·통계를 이용할 수 있습니다."),
