@@ -20,7 +20,7 @@
 - [deploy-ssm.py](../../infra/scripts/deploy-ssm.py): 공개 스크립트·Compose·이미지만 배포 묶음으로 전달한다. 실제 설정값은 Actions로 가져오지 않는다.
 - [compose.deploy.yaml](../../compose.deploy.yaml): APP_ENV_FILE로 임시 파일을 사전 검증하고 실제 실행 시 /etc/getddo/app.env를 읽는다. raw 형식으로 달러 기호·따옴표를 보존한다.
 - [application.yaml](../../api/src/main/resources/application.yaml): 공통 설정과 환경변수 참조만 관리한다. 이미지 업로드 기능 자체를 추가한 것은 아니다.
-- [build.yml](../../.github/workflows/build.yml): PR에서 배포 스크립트 테스트와 기존 Java 빌드를 실행한다.
+- [build.yml](../../.github/workflows/build.yml): 기존 PR 제목 검사와 Java 빌드를 실행한다. 이번에 추가했던 배포 테스트 단계는 사용자 요청으로 제거했다.
 
 ## 등록할 설정
 
@@ -38,7 +38,7 @@ AWS 콘솔의 서울 리전 → Systems Manager → Parameter Store → 내 파�
 | GETDDO_IMAGES_BUCKET | String | 실제 비공개 이미지 버킷 이름 |
 | GETDDO_IMAGES_BASE_URL | String | /images/로 끝나는 HTTPS CloudFront 주소 |
 
-모든 값은 비어 있지 않은 한 줄이어야 한다. 새 변수를 도입하면 조회 목록·검증·테스트·문서를 함께 수정한다. 목록에 없는 기존 app.env 항목은 새 파일에 보존하지 않으므로 전환 전에 추가 설정의 유무를 확인한다.
+모든 값은 비어 있지 않은 한 줄이어야 한다. 새 변수를 도입하면 조회 목록·검증·문서를 함께 수정한다. 목록에 없는 기존 app.env 항목은 새 파일에 보존하지 않으므로 전환 전에 추가 설정의 유무를 확인한다.
 
 ## 서버 준비와 권한
 
@@ -86,8 +86,8 @@ sudo awk -F= '/^[A-Z_]+=/ {print $1}' /etc/getddo/app.env
 
 ## 검증 상태
 
-AWS CLI·Docker 응답을 대역으로 제공하는 로컬 테스트 34개와 Bash 문법 검사를 통과한 기록이 있다. 누락·타입 오류·환경변수 삽입·오류 로그 비밀값 노출·배포 실패·종료 신호·설정 복원 실패 시 백업 보존을 검사한다. 실제 AWS 조회와 컨테이너 실행을 대신하는 검증은 아니다.
+삭제 전 AWS CLI·Docker 응답을 대역으로 제공하는 로컬 테스트 34개가 통과한 기록이 있다. 이후 사용자 요청으로 이번에 추가한 테스트 파일 3개와 CI의 배포 테스트·Compose 설정 검증 단계를 제거했다. 현재 PR에는 해당 테스트가 포함되지 않는다. 실제 AWS 조회·컨테이너 실행 검증을 뜻하는 결과는 아니다.
 
 새 코드의 실제 서버 배포·설정 반영·롤백 검증은 아직 수행하지 않았다. 로컬 Docker Desktop WSL 연동이 없어 실제 Compose 검증과 Docker 기반 통합 검증에는 제약이 있다. 커밋·PR에는 실제 실행한 검증 결과를 별도로 기록한다.
 
-이번 브랜치에서 배포 테스트 34개, Bash 문법·YAML 파싱·문서 링크 검사를 통과했다. `./gradlew test build --no-daemon --max-workers=1 --no-parallel` 실행에서 일반 테스트 1,195개는 통과했으나 Docker 연결 불가로 API 통합 테스트 216개가 실패해 전체 빌드는 실패했다. GitHub CI에 배포 테스트와 가짜 설정을 사용하는 실제 Compose 설정 검증을 연결했으며 CI 결과는 PR에서 확인한다.
+이번 브랜치에서 배포 테스트 34개, Bash 문법·YAML 파싱·문서 링크 검사를 통과했다. `./gradlew test build --no-daemon --max-workers=1 --no-parallel` 실행에서 일반 테스트 1,195개는 통과했으나 Docker 연결 불가로 API 통합 테스트 216개가 실패해 전체 빌드는 실패했다. 기존 GitHub CI의 Java 테스트·빌드는 유지하며 CI 결과는 PR에서 확인한다.
