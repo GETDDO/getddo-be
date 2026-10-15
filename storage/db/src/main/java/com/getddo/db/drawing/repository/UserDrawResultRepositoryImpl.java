@@ -15,7 +15,10 @@ import com.getddo.core.drawing.repository.UserDrawResultRepository;
 import static com.getddo.db.common.util.UuidBinary.fromBytes;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
 
-/** 공개 버전에 포함된 결과를 읽는다. 이후 취소 상태로 공개 명단을 바꾸지 않는다. */
+/**
+ * 기존 응모·공개 연결 테이블에서 사용자 결과 조회에 필요한 값만 읽는다.
+ * 트랜잭션은 호출한 서비스에서 관리하며, 공개 명단은 지정한 공개 버전에 포함된 결과로 한정한다.
+ */
 @Repository
 @RequiredArgsConstructor
 public class UserDrawResultRepositoryImpl implements UserDrawResultRepository {
@@ -35,6 +38,11 @@ public class UserDrawResultRepositoryImpl implements UserDrawResultRepository {
 			""", Boolean.class, toBytes(eventId)));
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * 읽은 이름·전화번호는 행 변환 단계에서 바로 가려 원본을 서비스에 전달하지 않는다.
+	 * 공개 후 개별 취소가 기록돼도 이 버전의 명단이 바뀌지 않도록 현재 취소 상태로 거르지 않는다.
+	 */
 	@Override
 	public List<MaskedWinner> findWinners(UUID publicationId) {
 		return jdbc.query("""
@@ -50,6 +58,10 @@ public class UserDrawResultRepositoryImpl implements UserDrawResultRepository {
 				row.getString("name"), row.getString("phone_num")), toBytes(publicationId));
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * 공개 버전과 응모자의 사용자 식별자를 함께 제한해 다른 사용자의 당첨 경품이 섞이지 않게 한다.
+	 */
 	@Override
 	public Optional<UUID> findWonPrize(UUID publicationId, UUID userId) {
 		return jdbc.query("""

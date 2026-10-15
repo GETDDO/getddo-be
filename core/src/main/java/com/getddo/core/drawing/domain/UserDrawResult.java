@@ -13,6 +13,7 @@ import com.getddo.core.event.domain.RegisteredEvent;
 public final class UserDrawResult {
 	private UserDrawResult() { }
 
+	/** 실제 공개 여부와 사용자 표시 상태, 공개된 경품별 명단을 한 응답으로 묶는다. */
 	@Getter
 	public static final class PublicResults {
 		private final UUID eventId;
@@ -24,7 +25,15 @@ public final class UserDrawResult {
 		private final DrawDisplayStatus displayStatus;
 		private final List<PublishedPrize> prizes;
 
-		/** 미공개 데이터가 섞이지 않도록 공개 상태와 메타데이터를 함께 검증한다. */
+		/**
+		 * 미공개 명단이 응답에 섞이지 않도록 공개 상태·메타데이터·명단의 조합을 검증한다.
+		 * 취소된 이벤트에도 기존 공개 이력이 있을 수 있어 취소 상태와 공개 여부를 따로 유지한다.
+		 *
+		 * @param publishedAt 최초 공개 시각, 공개 전에는 null
+		 * @param revision 최신 공개 버전, 공개 전에는 null
+		 * @param updatedAt 최신 공개 버전 반영 시각, 공개 전에는 null
+		 * @param prizes 공개 전에는 빈 목록이며 생성 후 외부에서 변경할 수 없도록 복사하는 경품 목록
+		 */
 		public PublicResults(UUID eventId, boolean published, Instant publishedAt, Integer revision,
 				Instant updatedAt, Instant serverTime, DrawDisplayStatus displayStatus, List<PublishedPrize> prizes) {
 			List<PublishedPrize> copied = List.copyOf(prizes);
@@ -49,6 +58,7 @@ public final class UserDrawResult {
 		}
 	}
 
+	/** 경품 하나의 설정 인원과 해당 공개 버전의 실제 당첨자·미충원 수를 표현한다. */
 	@Getter
 	public static final class PublishedPrize {
 		private final UUID prizeId;
@@ -58,7 +68,10 @@ public final class UserDrawResult {
 		private final int unfilledCount;
 		private final List<MaskedWinner> winners;
 
-		/** 당첨자·미충원 수가 경품 설정과 어긋나지 않도록 검증한다. */
+		/**
+		 * 당첨자 수와 미충원 수의 합이 설정 인원과 일치하고 모든 당첨자가 이 경품에 속하는지 검증한다.
+		 * 명단을 복사해 생성 후 당첨자 목록만 바뀌면서 인원 정보가 어긋나는 것을 막는다.
+		 */
 		public PublishedPrize(UUID prizeId, int rank, String name, int winnerCount, int unfilledCount,
 				List<MaskedWinner> winners) {
 			List<MaskedWinner> copied = List.copyOf(winners);
@@ -78,6 +91,7 @@ public final class UserDrawResult {
 		}
 	}
 
+	/** 본인 결과와 실제 공개 버전을 함께 보관하며, 당첨한 경우에만 경품을 가진다. */
 	@Getter
 	public static final class MyResult {
 		private final UUID eventId;
@@ -87,7 +101,11 @@ public final class UserDrawResult {
 		private final Integer revision;
 		private final Instant serverTime;
 
-		/** 본인 결과와 공개 버전·경품의 조합이 응답 계약과 어긋나지 않도록 검증한다. */
+		/**
+		 * 본인 결과와 공개 버전·경품의 조합이 응답 계약과 어긋나지 않도록 검증한다.
+		 * WON·LOST는 공개된 경우에만, PENDING은 공개 전인 경우에만 허용한다.
+		 * NOT_ENTERED·CANCELED는 과거 공개 이력이 있을 수 있으므로 공개 여부를 별도로 보관한다.
+		 */
 		public MyResult(UUID eventId, MyDrawResultStatus result, RegisteredEvent.Prize prize,
 				boolean published, Integer revision, Instant serverTime) {
 			this.eventId = Objects.requireNonNull(eventId, "eventId");
@@ -109,13 +127,19 @@ public final class UserDrawResult {
 		}
 	}
 
+	/** 경품별 명단 조합에 필요한 연결 정보와 마스킹된 개인정보만 보관한다. */
 	@Getter
 	public static final class MaskedWinner {
 		private final UUID prizeId;
 		private final String maskedName;
 		private final String maskedPhoneNum;
 
-		/** 저장소에서 읽은 개인정보를 즉시 가려 원본을 조회 모델에 남기지 않는다. */
+		/**
+		 * 저장소에서 읽은 개인정보를 즉시 가려 원본 이름·전화번호를 조회 모델에 남기지 않는다.
+		 * 두 글자 이름은 첫 글자만, 세 글자 이상은 처음과 끝만 남기고 한 글자 이름은 전부 가린다.
+		 * 글자 수는 유니코드 코드 포인트로 계산해 한 글자를 이루는 서로게이트 쌍이 잘리지 않게 한다.
+		 * 전화번호는 끝 네 자리까지 남기며, 빈 이름과 null 전화번호에 별도 대체 문구를 넣지 않는다.
+		 */
 		public MaskedWinner(UUID prizeId, String name, String phoneNum) {
 			this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
 			Objects.requireNonNull(name, "name");
