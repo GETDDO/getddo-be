@@ -17,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.audit.service.AuditLogService;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
@@ -49,15 +50,17 @@ class EventModificationServiceTest {
 	private EventActorRepository actors;
 	private EventChangeNotificationService notifications;
 	private EventModificationService service;
+	private AuditLogService auditLogs;
 
 	@BeforeEach
 	void setUp() {
 		events = mock(EventRepository.class);
 		actors = mock(EventActorRepository.class);
 		notifications = mock(EventChangeNotificationService.class);
+		auditLogs = mock(AuditLogService.class);
 		when(actors.findById(ADMIN)).thenReturn(Optional.of(new EventActorRepository.Actor(true, true)));
 		when(events.findByIdForUpdate(EVENT)).thenReturn(Optional.of(saved(EventStatus.SCHEDULED, START, "기존")));
-		service = new EventModificationService(events, actors, notifications, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+		service = new EventModificationService(events, actors, notifications, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), auditLogs);
 	}
 
 	@Test
@@ -197,6 +200,7 @@ class EventModificationServiceTest {
 	private void assertError(EventErrorCode error, EventRegistration input) {
 		assertThatThrownBy(() -> service.modify(EVENT, input)).isInstanceOf(EventException.class)
 				.satisfies(exception -> assertThat(((EventException) exception).getErrorCode()).isEqualTo(error));
+		verifyNoInteractions(auditLogs);
 	}
 
 	private EventRegistration settings(Instant start, String title, UUID prizeId) {

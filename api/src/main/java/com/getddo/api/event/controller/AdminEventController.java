@@ -60,7 +60,7 @@ public class AdminEventController {
 		this.timeProvider = timeProvider;
 	}
 
-	/** 이벤트와 경품을 함께 등록하고 저장된 정보와 최초 발표 예정 시각을 반환한다. */
+	/** 이벤트와 경품을 함께 등록하고 저장된 정보와 자동 추첨 기준 시각을 반환한다. */
 	@PostMapping
 	public ResponseEntity<ResponseEnvelope<AdminEventResponse>> register(
 			@CurrentUser User user,
