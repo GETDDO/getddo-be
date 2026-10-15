@@ -240,7 +240,7 @@ class EntrySnapshotIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("최종 서비스 검사 이후 커밋 경계에서 마감을 넘겨도 정상 응모·차감이 확정되지 않는다")
+	@DisplayName("서비스 검사 후 커밋 직전 최종 검사에서 마감이면 응모·차감을 롤백한다")
 	void rejectsWhenDeadlinePassesBeforeCommit() {
 		// given
 		give(user, "GOLD", 1);
@@ -257,11 +257,47 @@ class EntrySnapshotIntegrationTest {
 		Throwable failure = catchThrowable(() -> entries.enter(command(user, entry, Map.of(TicketGrade.GOLD, 1L))));
 		// then
 		assertThat(count("select count(*) from event_entries where id = ? and status = 'ACCEPTED'", bytes(entry)))
-				.as("최종 검사 후 커밋 경계에서 마감된 요청의 ACCEPTED 잔존")
+				.as("커밋 직전 최종 검사에서 마감된 요청의 ACCEPTED 잔존")
 				.isZero();
 		assertError(failure, EntryErrorCode.EVENT_NOT_OPEN);
 		assertRejectedWithoutLinks(entry);
 		assertNoDeduction(entry);
+	}
+
+	@Test
+	@DisplayName("마감 전 최종 검사를 통과한 뒤 커밋이 지연된 응모는 승인된 예외에 따라 후보에 포함한다")
+	void includesCommitDelayedAfterFinalDeadlineCheck() {
+		// given
+		give(user, "GOLD", 1);
+		UUID entry = UUID.randomUUID();
+		doAnswer(invocation -> {
+			invocation.callRealMethod();
+			assertPendingDeduction(entry);
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void beforeCompletion() {
+					// beforeCommit의 최종 검사 뒤, 실제 DB 커밋 전의 지연을 시계로 재현한다.
+					clock.set(END.plusSeconds(1));
+				}
+			});
+			return null;
+		}).when(participants).addUsedTicketCount(any(UUID.class), anyLong());
+		// when
+		EntryReceipt receipt = entries.enter(command(user, entry, Map.of(TicketGrade.GOLD, 1L)));
+		// then
+		assertThat(receipt.isCreated()).isTrue();
+		assertThat(receipt.getAcceptedAt()).isBefore(END);
+		assertThat(clock.instant()).isEqualTo(END.plusSeconds(1));
+		assertThat(count("select count(*) from event_entries where id = ? and status = 'ACCEPTED'", bytes(entry))).isEqualTo(1);
+		assertThat(count("select count(*) from tickets where user_id = ? and status = 'SPENT'", bytes(user))).isEqualTo(1);
+		assertThat(count("select count(*) from ticket_histories where event_entry_id = ? and operation_type = 'USE'", bytes(entry)))
+				.isEqualTo(1);
+		DrawSnapshot snapshot = prepare();
+		assertThat(snapshot.candidates()).hasSize(1);
+		DrawSnapshot.Candidate candidate = snapshot.candidates().getFirst();
+		assertThat(candidate.ticketCount()).isEqualTo(1);
+		assertThat(candidate.weight()).isEqualTo(5);
+		assertThat(candidate.entryEvidence().entries()).extracting(DrawSnapshotSource.Entry::id).containsExactly(entry);
 	}
 
 	@Test

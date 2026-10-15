@@ -14,10 +14,12 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.service.DrawSnapshotService;
+import com.getddo.core.event.service.EventStatusChangeService;
 import com.getddo.db.common.config.JpaAuditingConfig;
 import com.getddo.db.drawing.mapper.DrawSnapshotMapper;
 import com.getddo.db.drawing.repository.DrawSnapshotRepositoryImpl;
 import com.getddo.db.drawing.repository.DrawSnapshotSourceReader;
+import com.getddo.db.event.repository.EventRepositoryImpl;
 import com.getddo.db.ticket.MutableClock;
 import com.getddo.db.ticket.TicketIntegrationTestApplication;
 
@@ -25,13 +27,14 @@ import com.getddo.db.ticket.TicketIntegrationTestApplication;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(basePackages = {"com.getddo.core.ticket", "com.getddo.db.ticket",
-		"com.getddo.core.entry", "com.getddo.db.entry"},
+		"com.getddo.core.entry", "com.getddo.db.entry", "com.getddo.db.event.mapper"},
 		excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE,
 				classes = TicketIntegrationTestApplication.class))
-@EntityScan(basePackages = {"com.getddo.db.ticket", "com.getddo.db.entry", "com.getddo.db.drawing.entity"})
-@EnableJpaRepositories(basePackages = {"com.getddo.db.ticket", "com.getddo.db.entry", "com.getddo.db.drawing.repository"})
+@EntityScan(basePackages = {"com.getddo.db.ticket", "com.getddo.db.entry", "com.getddo.db.drawing.entity", "com.getddo.db.event.entity"})
+@EnableJpaRepositories(basePackages = {"com.getddo.db.ticket", "com.getddo.db.entry", "com.getddo.db.drawing.repository", "com.getddo.db.event.repository"})
 @Import({JpaAuditingConfig.class, MySqlTestConfiguration.class, DrawSnapshotService.class,
-		DrawSnapshotRepositoryImpl.class, DrawSnapshotSourceReader.class, DrawSnapshotMapper.class})
+		DrawSnapshotRepositoryImpl.class, DrawSnapshotSourceReader.class, DrawSnapshotMapper.class,
+		EventStatusChangeService.class, EventRepositoryImpl.class})
 public class EntrySnapshotTestApplication {
 	public static final Instant INITIAL_TIME = Instant.parse("2026-09-15T03:00:00Z");
 
