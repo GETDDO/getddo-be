@@ -53,7 +53,7 @@ class CorsPropertiesTest {
 							result.andExpect(status().isOk())
 									.andExpect(header().string("Access-Control-Allow-Origin", origin))
 									.andExpect(header().doesNotExist("Access-Control-Allow-Credentials"))
-									.andExpect(header().doesNotExist("Access-Control-Expose-Headers"));
+									.andExpect(header().string("Access-Control-Expose-Headers", "Retry-After"));
 						}
 					}
 				});

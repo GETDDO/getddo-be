@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.getddo.api.common.context.CurrentUser;
+import com.getddo.api.common.ratelimit.RateLimited;
 import com.getddo.api.common.response.ResponseEnvelope;
 import com.getddo.api.entry.dto.request.EntryRequest;
 import com.getddo.api.entry.dto.response.EntryEligibilityResponse;
@@ -55,6 +56,7 @@ public class EntryController {
 	 * @param entryId 응모 ID. 요청 전에 클라이언트가 정한 UUID이며 같은 응모의 재시도는 같은 값을 쓴다
 	 * @return 새 응모면 201, 같은 키의 재요청이면 이미 접수한 결과와 200
 	 */
+	@RateLimited(policy = "entry", scopeVariable = "eventId")
 	@PostMapping("/entries")
 	public ResponseEntity<ResponseEnvelope<EntryReceiptResponse>> enter(
 			@CurrentUser User user,
