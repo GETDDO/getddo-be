@@ -10,8 +10,6 @@ GD-52의 요청 헤더와 Controller 사용법은 [시연용 사용자 문맥과
 
 GD-55의 내부 Service 호출과 트랜잭션 규칙은 [감사 로그 기록 기능](audit-recording.md)에 정리합니다.
 
-GD-207의 관리자 감사 목록·상세 조회와 FE 연결은 [관리자 감사 조회 구현·연동](admin-audit-logs.md)에 정리합니다.
-
 GD-60의 수정 제한·경품 교체와 GD-70 알림 연결은 [이벤트·경품 수정](event-modification.md)에 정리합니다.
 
 GD-61의 논리 삭제·조회 제외와 연결 기능의 확인 사항은 [이벤트 삭제](event-deletion.md)에 정리합니다.

@@ -25,7 +25,7 @@
 | [V008](../../storage/db/src/main/resources/db/migration/ticket/V008__create_ticket_tables.sql) | `tickets`, `ticket_histories` | T01~T02, AR04~AR05, AO03~AO05·AO08, 지급·차감·반환·만료. 응모권 한 장이 `tickets` 한 행이고 상태 변화는 `ticket_histories`에 추가로만 남긴다 |
 | [V009](../../storage/db/src/main/resources/db/migration/abuse/V009__create_abuse_tables.sql) | `abuse_cases` | AR01~AR07, 탐지 기록 |
 | [V010](../../storage/db/src/main/resources/db/migration/notification/V010__create_notification_tables.sql) | `notification_jobs`, `notifications` | N01~N03, AN01~AN05, 비동기 생성·모의 발송 |
-| [V011](../../storage/db/src/main/resources/db/migration/audit/V011__create_audit_tables.sql) | `audit_logs` | AU01~AU02 및 검토·공개 명단·정책·점수 변경 이력 |
+| [V011](../../storage/db/src/main/resources/db/migration/audit/V011__create_audit_tables.sql) | `audit_logs` | 내부 감사 기록 유지. AU01~AU02 공통 조회는 제외하며 업무별 기록 범위는 담당 계약을 따름 |
 | [V014](../../storage/db/src/main/resources/db/migration/notification/V014__add_notification_worker_indexes.sql) | 알림 생성·발송 대기 및 선점 만료 조회용 인덱스 | GD-68 비동기 알림 처리 기반. 신규 공개 API는 추가하지 않음 |
 | [V016](../../storage/db/src/main/resources/db/migration/drawing/V016__add_initial_draw_terminal_states.sql) | 최초 추첨의 응모자 없음·과거 전원 제외 상태와 입력 CHECK | GD-130 이후 새 전원 제외 실행은 생성하지 않으며 과거 조회는 유지. 공개 API는 추가하지 않음 |
 | [V017](../../storage/db/src/main/resources/db/migration/event/V017__add_event_list_index.sql) | `events`의 `(deleted_at, created_at, id)` 인덱스 | 사용자·관리자 공용 이벤트 목록 조회(삭제되지 않은 행, 최신순). 공개 API는 추가하지 않음 |
