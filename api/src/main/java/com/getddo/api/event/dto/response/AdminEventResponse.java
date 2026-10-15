@@ -21,7 +21,7 @@ public record AdminEventResponse(
 		Instant startsAt,
 		Instant endsAt,
 		EventStatus status,
-		Instant publicationScheduledAt,
+		Instant drawScheduledAt,
 		Instant serverTime,
 		String description,
 		Integer maxTicketsPerUser,
@@ -44,7 +44,7 @@ public record AdminEventResponse(
 			Instant canceledAt) {
 		return new AdminEventResponse(event.getId(), event.getTitle(), null, event.getEventType(), event.isWeightingEnabled(),
 				event.getMembershipRule(), event.getStartsAt(), event.getEndsAt(), event.getStatus(),
-				event.getPublicationScheduledAt(), serverTime,
+				event.getDrawScheduledAt(), serverTime,
 				event.getDescription(), event.getMaxTicketsPerUser(), event.getPrizes().stream().map(PrizeResponse::from).toList(),
 				event.getImageKey(), event.getCreatedAt(), event.getUpdatedAt(),
 				canceledAt, event.getPrizes().stream().map(PrizeImage::from).toList());

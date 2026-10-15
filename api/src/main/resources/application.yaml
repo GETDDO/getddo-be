@@ -9,6 +9,13 @@ springdoc:
     operations-sorter: alpha
 
 getddo:
+  images:
+    # 백엔드가 업로드할 비공개 S3 버킷.
+    bucket: ${GETDDO_IMAGES_BUCKET:}
+
+    # CloudFront 이미지 기본 주소. 끝에 /images/가 포함된다.
+    base-url: ${GETDDO_IMAGES_BASE_URL:}
+
   cors:
     # 실제 프론트 origin을 쉼표로 구분해 주입한다. 미설정 시 다른 origin은 허용하지 않는다.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}

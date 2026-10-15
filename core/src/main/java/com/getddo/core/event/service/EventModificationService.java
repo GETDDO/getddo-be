@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.audit.domain.AuditLogCommand;
+import com.getddo.core.audit.service.AuditLogService;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.RegisteredEvent;
@@ -31,6 +33,7 @@ public class EventModificationService {
 	private final EventActorRepository actors;
 	private final EventChangeNotificationService notifications;
 	private final TimeProvider timeProvider;
+	private final AuditLogService auditLogs;
 
 	/**
 	 * 이벤트 잠금을 얻은 뒤 현재 시각과 기존 시작 시각으로 수정 자격을 판단한다.
@@ -66,6 +69,8 @@ public class EventModificationService {
 			notifications.register(EventNotificationChange.scheduleChanged(UUID.randomUUID(), eventId,
 					updated.getTitle(), current.getStartsAt(), updated.getStartsAt(), now));
 		}
+		auditLogs.record(new AuditLogCommand(input.getActorId(), "EVENT_UPDATE", "EVENT", eventId,
+				null, EventAuditSnapshot.from(current), EventAuditSnapshot.from(updated), null));
 		return updated;
 	}
 
