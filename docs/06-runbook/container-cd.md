@@ -73,6 +73,8 @@ GitHub **Settings → Environments → production → Variables**에 다음 네 
 
 복구는 배포 직전 `app.env`와 이전 이미지·Compose를 대상으로 하며 DB 마이그레이션·데이터·Parameter Store의 원격 값을 되돌리지 않는다. 이전 앱과 호환되는 Flyway 변경을 준비해야 한다. 현재와 직전 성공 이미지·배포 폴더를 보존하고, 오래된 파일의 정리는 별도 운영 절차로 수행한다. 이 코드는 이미지나 배포 폴더를 자동 삭제하지 않는다.
 
+미완료된 `/opt/getddo/deploy-in-progress/` 기록이 있으면 다음 배포는 설정 조회·교체 전에 중단한다. 강제 종료 후의 기록 확인·수동 복구와 기록 제거 조건은 [Parameter Store 런북](parameter-store.md#실패-시-복구와-한계)을 따른다.
+
 수동 취소·통신 단절·대기 시간 초과는 원격 명령 중단을 보장하지 않는다. Actions 요약의 SSM Command ID로 최종 상태를 확인하고 서버의 현재 이미지·HTTP 응답을 확인한 뒤 재배포한다. 원격 앱 로그에는 비밀값이 섞일 수 있어 Actions로 자동 복사하지 않는다.
 
 ## 함께 준비한 파일과 검증 범위

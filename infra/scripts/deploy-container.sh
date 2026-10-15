@@ -16,10 +16,26 @@ had_env=0
 previous=''
 old_image=''
 image=''
+marker="$root/deploy-in-progress"
+transaction_started=0
 
 # Actions와 별개로 서버에서도 한 번에 한 배포만 허용한다.
 exec 9>"$root/deploy.lock"
 flock -n 9 || { echo '다른 배포가 실행 중입니다.' >&2; exit 1; }
+# 강제 종료는 EXIT trap을 실행하지 않는다. 남은 기록이 있으면 설정을 조회·교체하기 전에 멈춘다.
+if [[ -e $marker || -L $marker ]]; then
+  echo "DEPLOY_INCOMPLETE: 이전 배포 기록을 확인하고 수동 복구하세요: $marker" >&2
+  exit 1
+fi
+
+clear_marker() {
+  # 설정과 current 링크를 먼저 디스크에 반영한다. 복구 중 삭제한 env도 디렉터리 기준으로 동기화한다.
+  sync -f /etc/getddo || return 1
+  sync -f "$root" || return 1
+  rm -f -- "$marker/context" || return 1
+  rmdir -- "$marker" || return 1
+  sync -f "$root"
+}
 
 compose() {
   local limit=$1 directory=$2 selected_image=$3 selected_env=$4
@@ -92,12 +108,15 @@ finish() {
   trap - EXIT INT TERM
   # 설정 교체 이후의 오류·중단도 복구한다. 조회·검증 실패는 기존 앱을 건드리지 않는다.
   if ((env_changed && !committed)); then
-    rollback || true
+    if rollback; then
+      clear_marker || true
+    fi
     ((status != 0)) || status=1
   fi
-  if ((env_changed && !committed)); then
-    # 설정 복원 자체가 실패한 경우에는 진단·수동 복구에 필요한 비공개 백업을 남긴다.
-    echo "ROLLBACK_FAILED: 설정 백업을 보존했습니다: $env_tmp" >&2
+  if ((transaction_started)) && [[ -e $marker || -L $marker ]]; then
+    # 복구·기록 정리가 끝나지 않으면 백업과 마커를 보존하고 다음 배포도 차단한다.
+    echo "DEPLOY_INCOMPLETE: 진행 기록과 임시 설정을 보존했습니다: $marker $env_tmp" >&2
+    ((status != 0)) || status=1
   elif [[ -n $env_tmp ]]; then
     # 비밀값이 있는 새 임시 파일·백업만 정리한다. 배포 S3·release.tar에는 넣지 않는다.
     rm -f -- "$env_tmp/next.env" "$env_tmp/previous.env"
@@ -148,6 +167,13 @@ if [[ -f $app_env ]]; then
   install -m 0600 "$app_env" "$env_tmp/previous.env"
   had_env=1
 fi
+# 설정 교체 전에 비밀값 없는 진행 기록과 비공개 백업을 영속화한다.
+# 기록이 비어 있더라도 다음 배포는 차단한다. 내용은 배포·임시 설정 디렉터리 두 줄이다.
+mkdir -m 0700 -- "$marker"
+transaction_started=1
+printf '%s\n' "$release" "$env_tmp" > "$marker/context"
+sync -f "$env_tmp"
+sync -f "$root"
 # 플래그를 먼저 설정해 rename 직후 중단돼도 EXIT에서 이전 상태를 복구한다.
 env_changed=1
 mv -f -- "$env_tmp/next.env" "$app_env"
@@ -156,6 +182,7 @@ mv -f -- "$env_tmp/next.env" "$app_env"
 if compose 120 "$release" "$image" "$app_env" up -d --force-recreate --no-build --pull never app &&
    healthy "$release" "$image" && record_current "$release"; then
   committed=1
+  clear_marker
   echo "DEPLOY_OK: $source_sha $image"
 else
   exit 1
