@@ -13,7 +13,7 @@
 | `allowed-origins` | `CORS_ALLOWED_ORIGINS` 환경변수. 미설정·빈 값은 허용 origin 없음 |
 | `allowed-methods` | `GET`, `HEAD`, `POST`, `PUT`, `DELETE` |
 | `allowed-headers` | `Content-Type`, `X-User-ID`, `X-User-Role`, `X-User-Membership`, `Idempotency-Key` |
-| `exposed-headers` | 빈 목록 |
+| `exposed-headers` | `Retry-After` (429 응답의 재시도 시각을 프론트가 읽도록 노출) |
 | `allow-credentials` | `false` |
 
 정책은 `api/src/main/resources/application.yaml`에서 관리하고 origin만 환경별로 주입한다. `*`가 포함된 origin은 credentials 값에 관계없이 앱 시작 시 거절한다. 주소를 아직 모르면 비워 둔 채 실행하고, 정해진 뒤 환경변수를 설정하고 앱을 재시작한다. 주소 변경에 Java 코드 수정이나 재빌드는 필요하지 않다.
