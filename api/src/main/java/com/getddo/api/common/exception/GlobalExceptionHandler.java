@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.getddo.api.common.ratelimit.RateLimitExceededException;
 import com.getddo.api.common.response.ResponseEnvelope;
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.exception.ErrorCode;
@@ -33,6 +34,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	 * <p>예외별로 Controller에 try-catch를 반복하지 않아도 된다.
 	 * 오류 메시지는 ErrorCode에 정의된 공개용 문구를 사용하므로 오류 정의 시 노출 범위를 확인한다.</p>
 	 */
+	@ExceptionHandler(RateLimitExceededException.class)
+	public ResponseEntity<ResponseEnvelope<Void>> handleRateLimitExceeded(RateLimitExceededException exception) {
+		ErrorCode errorCode = exception.getErrorCode();
+		return ResponseEntity.status(errorCode.getStatus())
+				.header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+				.body(ResponseEnvelope.fail(errorCode));
+	}
+
 	@ExceptionHandler(BusinessException.class)
 	public ResponseEntity<ResponseEnvelope<Void>> handleBusinessException(BusinessException exception) {
 		ErrorCode errorCode = exception.getErrorCode();
