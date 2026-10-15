@@ -1,6 +1,17 @@
 spring:
   application:
     name: GETDDO-BE
+  data:
+    redis:
+      # 속도 제한 저장소가 redis일 때만 쓴다(getddo.rate-limit.store). 환경변수로 주입한다.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      # Redis가 느리거나 끊겨도 요청이 오래 붙잡히지 않게 짧게 둔다. 제한기 실패는 요청을 통과시킨다.
+      connect-timeout: 500ms
+      timeout: 300ms
 
 springdoc:
   packages-to-scan: com.getddo.api
@@ -32,6 +43,8 @@ getddo:
   # 사용자별 요청 빈도 제한(429). 한도는 운영 수치이므로 여기서 조정한다. 정책이 없으면 제한하지 않는다.
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
+    # memory: 서버 메모리(서버 한 대에서만 정확), redis: 서버 여러 대의 횟수를 합친다. redis는 REDIS_* 접속 정보가 필요하다.
+    store: ${RATE_LIMIT_STORE:memory}
     policies:
       # 응모: 사용자 분당 20회, 같은 이벤트는 분당 10회
       entry:

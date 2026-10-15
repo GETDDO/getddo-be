@@ -28,13 +28,30 @@
 ## 구현 구조
 
 - `@RateLimited(policy, scopeVariable)`를 Controller 메서드에 붙이면 `RateLimitInterceptor`가 `/api/**` 요청에서 확인한다.
-- 횟수는 `RateLimiter` 인터페이스가 센다. 기본 구현은 서버 메모리의 `InMemoryRateLimiter`이며 서버가 한 대인 동안 유효하다. 여러 대로 늘리거나 재시작해도 횟수를 유지해야 하면 Redis 구현을 같은 인터페이스의 빈으로 등록하면 우선 적용된다(`@ConditionalOnMissingBean`).
+- 횟수는 `RateLimiter` 인터페이스가 센다. `getddo.rate-limit.store`(환경변수 `RATE_LIMIT_STORE`)로 구현을 고른다. `memory`(기본)는 서버 메모리의 `InMemoryRateLimiter`이며 서버가 한 대인 동안만 정확하다. `redis`는 `RedisRateLimiter`이며 서버가 여러 대여도 같은 키의 횟수를 하나로 센다(GD-208).
 - 제한기가 실패하면(예: Redis 장애) 요청을 막지 않고 통과시키고 경고 로그를 남긴다. 제한 때문에 응모·출석이 모두 멈추는 것보다 낫다는 판단이다.
 - `Retry-After`는 CORS 노출 헤더(`getddo.cors.exposed-headers`)에 포함해 프론트 JavaScript가 읽을 수 있다.
 
+## Redis 사용 (서버 여러 대)
+
+`RATE_LIMIT_STORE=redis`로 켜고 접속 정보를 환경변수로 준다. 설정하지 않으면 메모리 구현으로 동작한다.
+
+| 환경변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `RATE_LIMIT_STORE` | `memory` | `memory` 또는 `redis` |
+| `REDIS_HOST` | `localhost` | Redis 주소 |
+| `REDIS_PORT` | `6379` | Redis 포트 |
+| `REDIS_PASSWORD` | 없음 | 비밀번호. 없으면 인증하지 않는다 |
+| `REDIS_SSL_ENABLED` | `false` | TLS 접속 여부 |
+
+- 횟수 증가와 만료 설정을 Lua 스크립트 하나로 실행해 서버 여러 대의 동시 요청도 정확히 센다. 키는 `getddo:rate-limit:{정책·사용자·범위}`이고 첫 요청에서 창 길이만큼 만료를 걸어 창이 끝나면 사라진다. 창은 Redis 서버 시계로 재므로 서버 사이의 시계 차이에 영향받지 않는다.
+- Redis 명령 제한 시간은 300ms, 연결 제한 시간은 500ms다(`spring.data.redis.timeout`·`connect-timeout`). Redis가 느리거나 끊겨도 요청이 오래 붙잡히지 않고, 제한기 실패로 처리되어 요청을 통과시킨다(경고 로그). 이 동안에는 제한이 풀린다.
+- `store=redis`인데 Redis 설정이 없으면(템플릿 빈 없음) 시작 단계에서 실패하지 않고 `localhost:6379`로 접속을 시도한다. 접속 정보를 빠뜨리면 모든 요청에서 경고 로그만 남고 제한이 풀리므로 배포 뒤 로그에서 `요청 빈도 제한기를 쓰지 못해`가 반복되는지 확인한다.
+- Redis 장애가 오래 가면 서버별로 메모리 구현으로 되돌리는 것은 자동이 아니다. `RATE_LIMIT_STORE=memory`로 바꿔 재배포하거나 `RATE_LIMIT_ENABLED=false`로 끈다.
+
 ## 한계
 
-- 메모리 구현은 서버를 재시작하면 횟수가 초기화되고 서버별로 따로 센다.
+- 메모리 구현은 서버를 재시작하면 횟수가 초기화되고 서버별로 따로 센다. 서버가 두 대 이상이면 `redis`를 쓴다.
 - 사용자 식별이 `X-User-ID` 헤더라 헤더를 바꾸면 우회할 수 있다. 시연용 사용자 문맥 정책과 같은 수준이며, 실제 인증이 생기면 인증된 사용자 기준으로 바꾼다.
 - 고정 창이라 창 경계에서 짧은 시간에 최대 한도의 두 배까지 허용될 수 있다.
 - 만료된 키 정리는 1024번째 호출마다 그 요청 스레드에서 전체 키를 훑는다. 키가 매우 많으면 그 요청이 느려질 수 있다. 서버 한 대 시연 규모에서는 문제가 없고, 커지면 키 수 상한이나 별도 정리 스레드를 둔다.
