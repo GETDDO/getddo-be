@@ -36,16 +36,20 @@
 | [V023](../../storage/db/src/main/resources/db/migration/ticket/V023__add_ticket_expiry_scan_index.sql) | `tickets`의 `(status, expires_at)` 인덱스 | GD-135 응모권 만료 워커가 만료 시각이 지난 사용 가능·반환됨 응모권을 찾는 조회(`FOR UPDATE SKIP LOCKED`). 공개 API는 추가하지 않음 |
 | [V025](../../storage/db/src/main/resources/db/migration/mission/V025__add_mission_submission_request_hash.sql) | `mission_submissions.request_hash` | GD-175 미션 제출(M03)의 같은 제출 ID 재전송 본문 비교. 처음 요청의 SHA-256을 보존한다. 이 컬럼을 기록하기 전의 제출은 빈 문자열이다. 공개 API는 추가하지 않음 |
 
-## 응모 API 현행 매핑 (GD-134)
+## 응모 API 현행 매핑 (GD-134, GD-145, GD-200)
 
-위 표는 교체 전 SQL의 기록이다. 아래는 현재 스키마에서 응모 API(E04·E07)가 실제로 읽고 쓰는 테이블이다.
+위 표는 교체 전 SQL의 기록이다. 아래는 현재 스키마에서 응모 API(E03·E04·E05·E06·E07)가 실제로 읽고 쓰는 테이블이다.
 
 | API | 경로 | 테이블 | 접근 |
 | --- | --- | --- | --- |
+| E03 응모 현황 | `GET /api/v1/events/{eventId}/statistics` | `events`, `event_participants` | 잠금 없이 읽기만 한다. 이벤트가 없거나 삭제됐으면 `ENTRY-004`. 응모자 수는 `count(*)`, 차감 합계는 `sum(used_ticket_count)`, 본인 수량은 요청 사용자의 응모자 행 값이다. 거절 이력은 응모자를 만들지 않아 제외되고, 응모권을 반환해도 누적 수량은 줄지 않으므로 합계도 줄지 않는다(`event_participants.event_id`의 UNIQUE 인덱스 사용). |
 | E04 응모 | `POST /api/v1/events/{eventId}/entries` | `events` | 응모 판단에 필요한 컬럼만 `FOR SHARE`로 읽는다(네이티브 SQL). 응모끼리 막지 않고 추첨의 `FOR UPDATE`는 진행 중 응모를 기다린다. |
 | E04 응모 | 같음 | `event_participants` | 사용자당 이벤트 한 행을 PK로 `FOR UPDATE` 잠그고(없으면 생성) 누적 차감 수량을 늘린다. |
-| E04 응모 | 같음 | `event_entries` | 접수된 응모만 저장한다. ID는 `Idempotency-Key` UUID이다. 같은 키로 사용자·이벤트·등급별 `tickets`가 같은 요청이 다시 오면 기존 영수증을 200으로 돌려주고, 하나라도 다르면 409 `ENTRY-009`로 거절한다(등급별 비교는 차감 서비스의 사용 이력 대조로 한다). |
+| E04 응모 | 같음 | `event_entries` | 접수된 응모는 `ACCEPTED`로 저장하고 등급별 요청 장수(`requested_*_count`)를 함께 남긴다. ID는 `Idempotency-Key` UUID이다. 같은 키로 사용자·이벤트·등급별 `tickets`가 같은 요청이 다시 오면 기존 영수증을 200으로 돌려주고, 하나라도 다르면 409 `ENTRY-009`로 거절한다(등급별 비교는 차감 서비스의 사용 이력 대조로 한다). |
 | E04 응모 | 같음 | `tickets`, `ticket_histories` | 응모 행 저장 뒤 차감 서비스가 응모권을 `SPENT`로 바꾸고 `USE` 이력을 남긴다. |
+| E04 응모 | 같음 | `event_entries` (거절 이력) | 업무 거절(`ENTRY-002·003·005·006·007·008`, `TICKET-006`)은 응모 트랜잭션이 롤백된 뒤 별도 트랜잭션에서 같은 응모 ID로 `REJECTED` 행을 남긴다. 응모자·차감 없이 `rejection_code`·`rejection_reason`과 등급별 요청 장수만 저장하고, 이벤트가 없거나 삭제된 경우·요청 형식 오류·키 충돌·속도 제한은 남기지 않는다. 같은 키의 재요청은 저장된 코드로 처음 4xx를 돌려주고, 요청 구성이 다르면 `ENTRY-009`다. |
+| E05 이벤트별 내 응모 이력 | `GET /api/v1/events/{eventId}/entries/me` | `events`, `event_entries` | 이벤트 존재를 확인(없으면 `ENTRY-004`)하고 사용자·이벤트 조건으로 접수·거절을 `created_at` 내림차순, 같으면 ID 내림차순으로 읽는다. 이벤트 제목은 `events`를 조인해 가져온다. |
+| E06 내 응모 이력 | `GET /api/v1/users/me/entries` | `events`, `event_entries` | `eventId`·`status`·`from`·`to`(`[from, to)`, `created_at` 기준) 조건으로 같은 순서로 읽는다. 인덱스는 `(user_id, created_at, id)`, `(user_id, event_id, created_at, id)`다. 오프셋이 int 범위를 넘으면 조회 없이 빈 목록과 전체 건수를 돌려준다. |
 | E07 자격 조회 | `GET /api/v1/events/{eventId}/eligibility` | `events`, `event_participants`, `tickets` | 잠금 없이 읽기만 한다. 사용 수량은 응모자 행, 보유 장수는 응모권 조회(T01의 등급별 보유)를 쓴다. |
 
 ## 미션 모델·저장소 현행 매핑 (GD-167)
@@ -76,7 +80,7 @@
 | --- | --- | --- | --- |
 | M04 내 제출 | `GET /api/v1/missions/{missionId}/submissions/me` | `missions` | 읽기만 한다. 없는 미션은 404 `MISSION-003`이다. |
 | M04 내 제출 | 같음 | `mission_submissions` | 요청 사용자의 제출만 최신순(`created_at` 내림차순, 같으면 ID 내림차순)으로 읽는다. `page`는 1부터, `size`는 1~100(기본 20)이다. 오답 제출도 `isCompleted=false`, `reward=null`인 정상 결과로 포함한다. 답변과 정답은 응답에 싣지 않는다. |
-| M04 내 제출 | 같음 | `mission_reward_claims`, `tickets`, `ticket_histories` | 완료한 제출에만 그 제출의 보상 청구를 찾아 응모권 지급 결과(`ticketCount`, `grade`, `grantedAt`, `expiresAt`)를 다시 읽는다. 제출 접수(M03)의 재전송 응답과 같은 규칙이다. 완료한 제출에 청구나 지급이 없으면 데이터가 어긋난 것이므로 숨기지 않고 오류로 처리한다. |
+| M04 내 제출 | 같음 | `mission_reward_claims`, `tickets`, `ticket_histories` | 완료한 제출에만 그 제출의 보상 청구를 찾아 응모권 지급 결과(`claimId`, `ticketCount`, `grade`, `grantedAt`, `expiresAt`)를 다시 읽는다. 제출 접수(M03)의 재전송 응답과 같은 규칙이다. 완료한 제출에 청구나 지급이 없으면 데이터가 어긋난 것이므로 숨기지 않고 오류로 처리한다. |
 
 ### 미션 제출 API 현행 매핑 (GD-175)
 
@@ -86,7 +90,7 @@
 | M03 제출 | 같음 | `missions`, 문항·선택지 테이블 | 읽기만 한다. 운영 기간은 서버가 제출을 받은 시각이 `[starts_at, ends_at)`이고 `ACTIVE`일 때만 인정한다. |
 | M03 제출 | 같음 | `quiz_answers`, `survey_answers` | 서버가 채점한 답변을 저장한다. 이미 정답으로 완료한 퀴즈 문항에 다시 보낸 답변은 채점·저장하지 않는다. |
 | M03 제출 | 같음 | `quiz_question_progress` | 이번 제출로 처음 맞힌 문항을 문항 ID 순서로 기록한다(퀴즈는 문항별 정답을 누적하며 모든 문항을 맞히면 완료). |
-| M03 제출 | 같음 | `mission_reward_claims` | 완료하면 사용자·미션당 한 번 청구한다. 이미 완료한 미션의 재제출은 기존 완료 결과를 돌려준다. |
+| M03 제출 | 같음 | `mission_reward_claims` | 완료하면 사용자·미션당 한 번 청구한다. 이미 완료한 미션의 재제출은 기존 완료 결과를 돌려준다. 응답의 `reward.claimId`는 이 청구의 ID이고, 새 제출·같은 키의 재전송·M04 조회가 같은 값을 돌려준다. |
 | M03 제출 | 같음 | `tickets`, `ticket_histories` | 보상 청구 저장 뒤 지급 서비스가 같은 트랜잭션에서 응모권을 지급한다(`GRANT` 이력, 사유는 미션 제목). |
 
 제출·답변·정답 진행·보상 청구·응모권 지급은 한 트랜잭션(`READ COMMITTED`)이다. 같은 사용자의 동시 완료는 제출 PK, `(user_id, quiz_question_id)`, `(user_id, mission_id)` 유일 제약이 직렬화하고, 늦은 요청은 새 트랜잭션에서 한 번 다시 처리해 먼저 확정된 결과를 본다.
@@ -97,7 +101,7 @@
 | --- | --- | --- |
 | D01 | V004 `chk_streak_days`는 현재 `consecutive_days BETWEEN 0 AND 31` | 실제 연속 일수 29~31일을 저장할 수 있도록 현재 원격 `dev`에 반영됨. 단계 설정 상한 28일과 구분 |
 | D02 | V006은 `max_tickets_per_user`의 양수 여부만 제한하고 별도 소진용 지정 필드는 없음 | `TICKET`·가중치 적용·상한 null 조합이 월말 소진용 상한 없는 이벤트다. 팀은 월말에만 운영하지만 등록 서비스는 이벤트 날짜가 월말인지 검사하지 않는다. 서비스가 일반 5장·미가중치 1장·미사용 0장 조합을 검증하고, 실제 응모에서는 유효 보유량을 검증한다. [공용 응모권 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/ticket.md)을 따른다 |
-| D03 | 취소에 따른 반환은 별도 반환 작업 테이블 없이 동기 처리한다. 옛 `ticket_refund_jobs`는 현재 스키마에 없다 | `TicketRefundService`가 호출자 트랜잭션에서 응모권을 `RETURNED`로 돌리고 `REFUND` 이력을 남긴다. 이벤트 취소 처리에서 이 서비스를 호출하는 연결은 이벤트 담당 영역이며 아직 없다. 연결할 때의 계약은 공용 명세(`02-domain/event.md`)를 따르며 구현 제안은 다음과 같다(제안): 이벤트 상태를 취소로 바꾸는 일과 대상 응모별 `TicketRefundService.refund` 호출을 한 트랜잭션에서 하고, 이벤트 행 잠금으로 진행 중인 응모와의 확정 순서를 보장하며, 반환이 실패하면 취소도 롤백하고, 재시도하면 기존 반환 이력을 재생한다. 연결 뒤에는 반환 실패 롤백과 취소 중 동시 응모의 확정 순서를 통합 테스트로 검증한다 |
+| D03 | 취소에 따른 반환은 별도 반환 작업 테이블 없이 동기 처리한다. 옛 `ticket_refund_jobs`는 현재 스키마에 없다 | GD-202의 `EventCancellationService`가 기존 `events.canceled_at` 매핑을 사용해 취소 상태·시각과 응모별 `TicketRefundService.refund` 호출을 같은 트랜잭션에서 처리한다. 이벤트 쓰기 잠금 뒤 성공·유상 응모를 최신 읽기로 조회하고 반환 실패 시 취소·알림·감사도 롤백한다. 완료된 취소의 재요청은 409로 거절한다. 저장·연동과 검증 경계는 [취소 구현](../02-api/event-cancellation.md)을 따른다 |
 | D04 | 현행 V006의 events에는 `deleted_at`이 있고 banners에는 `event_url`만 있으며 이벤트 FK·`deleted_at`은 없음 | GD-61은 이벤트만 논리 삭제한다. [공용 배너 수동 삭제 정책](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/03-decisions/021-manual-banner-deletion.md)에 따라 배너는 관리자가 별도 삭제하며, 연결된 배너가 있어도 이벤트 삭제를 제한하지 않는다. 알림 연동은 [이벤트 삭제 구현](../02-api/event-deletion.md)을 따른다 |
 | D05 | 검토 현재 상태는 `abuse_cases`, 공개 현재 상태는 `publications`, 게임 판정은 `game_plays`; 별도 검토/공개 변경/검증 결과 이력 테이블 없음 | `audit_logs.before_data/after_data` 등에 구조화된 이력을 저장하는 설계 또는 추가 스키마 검토. 현재 JSON 컬럼 존재만으로 이력 API가 구현되었다고 보지 않음 |
 | D06 | `current_awards`는 현재 당첨 배정이고 공개 revision별 스냅샷 테이블은 없음 | 재추첨 실행 중의 새 배정과 기존 공개 명단을 구분해야 함. `current_awards`를 그대로 공개 조회하지 않고 publication 상태·변경 이력과 일치시키는 설계 필요 |

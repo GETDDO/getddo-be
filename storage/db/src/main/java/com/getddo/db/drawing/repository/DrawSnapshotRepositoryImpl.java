@@ -1,5 +1,6 @@
 package com.getddo.db.drawing.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +36,11 @@ public class DrawSnapshotRepositoryImpl implements DrawSnapshotRepository {
 	private final EntityManager entityManager;
 
 	/** 서비스의 이벤트 선잠금 요청을 원본 조회에 위임해 입력 준비·확정의 잠금 순서를 유지한다. */
+	@Override
+	public List<UUID> findInitialDue(Instant cutoff, int limit) {
+		return source.findInitialDue(cutoff, limit);
+	}
+
 	@Override
 	public Optional<DrawSnapshotSource.Event> lockEvent(UUID eventId) {
 		return source.lockEvent(eventId);

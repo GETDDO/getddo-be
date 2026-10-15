@@ -35,6 +35,7 @@ import com.getddo.core.event.service.EventQueryService;
 import com.getddo.core.event.service.EventRegistrationService;
 import com.getddo.core.event.service.EventModificationService;
 import com.getddo.core.event.service.EventDeletionService;
+import com.getddo.core.event.service.EventCancellationService;
 import com.getddo.core.user.domain.User;
 import com.getddo.core.user.domain.UserRole;
 import com.getddo.core.user.domain.UserStatus;
@@ -79,7 +80,8 @@ class EventResponseContractTest {
 		when(users.findById(ACTOR_ID)).thenReturn(actor);
 		TimeProvider time = new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC));
 		mvc = MockMvcBuilders.standaloneSetup(new EventController(queries, time),
-				new AdminEventController(registrations, mock(EventModificationService.class), deletions, queries, time))
+				new AdminEventController(registrations, mock(EventModificationService.class), deletions,
+						mock(EventCancellationService.class), queries, time))
 				.setCustomArgumentResolvers(new CurrentUserArgumentResolver(users))
 				.setControllerAdvice(new GlobalExceptionHandler()).build();
 	}

@@ -67,9 +67,9 @@ class AwardCancellationIntegrationTest {
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, 0, ?)",
 				toBytes(participantId), toBytes(eventId), toBytes(actorId), utc(NOW.minusSeconds(301)));
 		jdbc.update("""
-			insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
-			values (?, ?, ?, 0, 0, ?)
-			""", toBytes(UUID.randomUUID()), toBytes(participantId), toBytes(actorId), utc(NOW.minusSeconds(301)));
+			insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
+			values (?, (select event_id from event_participants where id = ?), ?, ?, 0, 0, ?)
+			""", toBytes(UUID.randomUUID()), toBytes(participantId), toBytes(participantId), toBytes(actorId), utc(NOW.minusSeconds(301)));
 		DrawSnapshot snapshot = snapshots.prepareInitial(eventId);
 		runId = snapshot.runId();
 		winId = confirmation.confirm(runId).getResults().getFirst().getId();

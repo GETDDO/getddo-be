@@ -24,6 +24,8 @@ import com.getddo.core.user.domain.Membership;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,12 +41,16 @@ class EntryServiceTest {
 
 	@Mock
 	private EntryRecorder recorder;
+	@Mock
+	private EntryRejectionRecorder rejectionRecorder;
 
 	private EntryService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new EntryService(recorder);
+		service = new EntryService(recorder, rejectionRecorder);
+		// 기본은 이력을 남겼거나 남길 필요가 없는 경우다. 이미 결과가 있어 다시 처리해야 하는 경우는 테스트가 따로 지정한다.
+		lenient().when(rejectionRecorder.record(any(), any())).thenReturn(true);
 	}
 
 	private static EntryCommand command() {
@@ -132,6 +138,84 @@ class EntryServiceTest {
 	}
 
 	@Test
+	@DisplayName("업무 거절은 이력 기록기에 넘기고 원래 거절을 그대로 던진다")
+	void recordsBusinessRejectionAndRethrowsIt() {
+		// given
+		EntryCommand command = command();
+		EntryException rejection = new EntryException(EntryErrorCode.ALREADY_ENTERED);
+		when(recorder.record(command)).thenThrow(rejection);
+		// when
+		// then
+		assertThatThrownBy(() -> service.enter(command)).isSameAs(rejection);
+		verify(rejectionRecorder).record(command, rejection);
+		verify(recorder, times(1)).record(command);
+	}
+
+	@Test
+	@DisplayName("거절을 기록하려는데 같은 응모 ID의 결과가 이미 있으면 확정된 결과를 다시 처리해 돌려준다")
+	void reprocessesWhenResultAlreadyExistsAtRecording() {
+		// given
+		EntryCommand command = command();
+		EntryReceipt receipt = receipt();
+		EntryException rejection = new EntryException(EntryErrorCode.EVENT_NOT_OPEN);
+		when(recorder.record(command)).thenThrow(rejection).thenReturn(receipt);
+		when(rejectionRecorder.record(command, rejection)).thenReturn(false);
+		// when
+		EntryReceipt result = service.enter(command);
+		// then
+		assertThat(result).isSameAs(receipt);
+		verify(recorder, times(2)).record(command);
+	}
+
+	@Test
+	@DisplayName("이미 있던 거절 결과를 다시 처리하면 같은 거절을 던지고 한 번 더 기록하려 하지 않는다")
+	void reprocessedStoredRejectionIsThrownWithoutRecordingAgain() {
+		// given
+		EntryCommand command = command();
+		EntryException stored = new EntryException(EntryErrorCode.ALREADY_ENTERED);
+		when(recorder.record(command)).thenThrow(stored).thenThrow(new EntryException(EntryErrorCode.ALREADY_ENTERED));
+		when(rejectionRecorder.record(any(), any())).thenReturn(false);
+		// when
+		// then
+		assertThatThrownBy(() -> service.enter(command)).isInstanceOf(EntryException.class);
+		verify(recorder, times(2)).record(command);
+		verify(rejectionRecorder, times(1)).record(any(), any());
+	}
+
+	@Test
+	@DisplayName("거절 이력이 같은 응모 ID로 동시에 먼저 저장되면 그 결과를 다시 처리해 돌려준다")
+	void reprocessesWhenRejectionRaceLost() {
+		// given
+		EntryCommand command = command();
+		EntryReceipt receipt = receipt();
+		EntryException rejection = new EntryException(EntryErrorCode.TICKET_LIMIT_EXCEEDED);
+		when(recorder.record(command)).thenThrow(rejection).thenReturn(receipt);
+		org.mockito.Mockito.doThrow(new DataIntegrityViolationException("duplicate", duplicateKey()))
+				.when(rejectionRecorder).record(command, rejection);
+		// when
+		EntryReceipt result = service.enter(command);
+		// then
+		assertThat(result).isSameAs(receipt);
+		verify(recorder, times(2)).record(command);
+	}
+
+	@Test
+	@DisplayName("거절 이력 저장이 실패해도 사용자에게는 원래 거절을 던지고 저장 실패는 덧붙여 남긴다")
+	void keepsOriginalRejectionWhenRecordingFails() {
+		// given
+		EntryCommand command = command();
+		EntryException rejection = new EntryException(EntryErrorCode.EVENT_NOT_OPEN);
+		IllegalStateException recordingFailure = new IllegalStateException("db down");
+		when(recorder.record(command)).thenThrow(rejection);
+		org.mockito.Mockito.doThrow(recordingFailure).when(rejectionRecorder).record(command, rejection);
+		// when
+		// then
+		assertThatThrownBy(() -> service.enter(command)).isSameAs(rejection)
+				.hasSuppressedException(recordingFailure);
+		verify(recorder, times(1)).record(command);
+	}
+
+	@Test
 	@DisplayName("요청·사용자·이벤트·응모 ID가 없으면 처리하지 않고 요청 형식 오류다")
 	void rejectsMissingIdentifiers() {
 		// given
@@ -147,6 +231,6 @@ class EntryServiceTest {
 							e -> assertThat(e.getErrorCode()).isEqualTo(EntryErrorCode.INVALID_ENTRY_REQUEST));
 		}
 		verify(recorder, never()).record(org.mockito.ArgumentMatchers.any());
-		verifyNoInteractions(recorder);
+		verifyNoInteractions(recorder, rejectionRecorder);
 	}
 }

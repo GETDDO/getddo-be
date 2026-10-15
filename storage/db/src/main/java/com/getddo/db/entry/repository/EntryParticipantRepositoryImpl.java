@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import com.getddo.core.entry.domain.EntryParticipant;
+import com.getddo.core.entry.domain.EntryParticipationTotals;
 import com.getddo.core.entry.repository.EntryParticipantRepository;
 import com.getddo.db.entry.entity.EventParticipantEntity;
 import com.getddo.db.entry.mapper.EntryMapper;
@@ -43,6 +44,12 @@ public class EntryParticipantRepositoryImpl implements EntryParticipantRepositor
 	@Override
 	public EntryParticipant create(EntryParticipant participant) {
 		return mapper.toDomain(jpaRepository.saveAndFlush(mapper.toEntity(participant)));
+	}
+
+	@Override
+	public EntryParticipationTotals summarize(UUID eventId) {
+		Object[] row = jpaRepository.summarizeByEventId(eventId).getFirst();
+		return new EntryParticipationTotals(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
 	}
 
 	/** 이미 잠가 읽었거나 방금 저장한 영속성 컨텍스트의 Entity에 더하며, 커밋 때 UPDATE로 나간다. */

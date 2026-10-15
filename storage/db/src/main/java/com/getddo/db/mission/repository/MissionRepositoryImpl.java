@@ -26,6 +26,7 @@ import com.getddo.core.mission.domain.QuizQuestion;
 import com.getddo.core.mission.domain.SurveyOption;
 import com.getddo.core.mission.domain.SurveyQuestion;
 import com.getddo.core.mission.repository.MissionRepository;
+import com.getddo.db.common.pagination.PageOffsets;
 import com.getddo.db.mission.entity.MissionEntity;
 import com.getddo.db.mission.entity.MissionQuizQuestionEntity;
 import com.getddo.db.mission.entity.QuizQuestionOptionEntity;
@@ -88,9 +89,8 @@ public class MissionRepositoryImpl implements MissionRepository {
 	@Override
 	public PageResult<Mission> search(MissionSearch search, PageQuery page) {
 		// JPA는 오프셋을 int로 바꾸므로 범위를 넘는 페이지는 조회하지 않고 전체 건수만 확인한다.
-		boolean beyondIntOffset = page.offset() > Integer.MAX_VALUE;
-		PageRequest pageable = beyondIntOffset ? PageRequest.of(0, 1, NEWEST_FIRST)
-				: PageRequest.of(page.getPage() - 1, page.getSize(), NEWEST_FIRST);
+		boolean beyondIntOffset = PageOffsets.exceedsIntRange(page);
+		PageRequest pageable = PageOffsets.toPageRequest(page, NEWEST_FIRST);
 		Page<MissionEntity> found = missionJpaRepository.search(search.getMissionType(), search.getStatus(),
 				likePattern(search.getKeyword()), pageable);
 		List<Mission> items = beyondIntOffset ? List.of() : found.getContent().stream().map(mapper::toDomain).toList();

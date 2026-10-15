@@ -119,7 +119,7 @@ class EntryServiceIntegrationTest extends EntryIntegrationTestSupport {
 		// then
 		assertThatThrownBy(() -> entryService.enter(command(userId, event, entry, tickets(TicketGrade.BRONZE, 1))))
 				.satisfies(e -> assertEntryError(e, EntryErrorCode.BRONZE_REQUIRED));
-		assertThat(count("select count(*) from event_entries where id = ?", bytes(entry))).isZero();
+		assertThat(count("select count(*) from event_entries where id = ? and status = 'ACCEPTED'", bytes(entry))).isZero();
 		assertThat(count("select count(*) from event_participants where user_id = ?", bytes(userId))).isZero();
 		assertThat(spentTickets(userId)).isZero();
 	}
@@ -175,7 +175,7 @@ class EntryServiceIntegrationTest extends EntryIntegrationTestSupport {
 				tickets(TicketGrade.BRONZE, 2, TicketGrade.SILVER, 2))))
 				.isInstanceOfSatisfying(TicketException.class,
 						e -> assertThat(e.getErrorCode()).isEqualTo(TicketErrorCode.TICKET_INSUFFICIENT));
-		assertThat(count("select count(*) from event_entries where id = ?", bytes(entry))).isZero();
+		assertThat(count("select count(*) from event_entries where id = ? and status = 'ACCEPTED'", bytes(entry))).isZero();
 		assertThat(count("select count(*) from event_participants where user_id = ?", bytes(userId))).isZero();
 		assertThat(spentTickets(userId)).isZero();
 		assertThat(count("select count(*) from ticket_histories where operation_type = 'USE' "
@@ -306,7 +306,7 @@ class EntryServiceIntegrationTest extends EntryIntegrationTestSupport {
 				.satisfies(e -> assertEntryError(e, EntryErrorCode.EVENT_NOT_OPEN));
 		assertThat(count("select count(*) from event_participants where user_id = ? and event_id = ?",
 				bytes(userId), bytes(event))).isZero();
-		assertThat(count("select count(*) from event_entries where user_id = ?", bytes(userId))).isZero();
+		assertThat(count("select count(*) from event_entries where user_id = ? and status = 'ACCEPTED'", bytes(userId))).isZero();
 		assertThat(spentTickets(userId)).isZero();
 		assertThat(count("""
 				select count(*) from ticket_histories
@@ -363,6 +363,22 @@ class EntryServiceIntegrationTest extends EntryIntegrationTestSupport {
 				tickets(TicketGrade.BRONZE, 1))))
 				.satisfies(e -> assertEntryError(e, EntryErrorCode.ADMIN_ENTRY_FORBIDDEN));
 		assertThat(usedTicketCount(userId, vipEvent)).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("장수 합계가 long 범위를 넘는 요청도 요청 형식 오류이고 아무것도 남기지 않는다")
+	void overflowingTotalIsInvalidRequest() {
+		// given
+		giveTickets(userId, TicketGrade.GOLD, 1);
+		UUID event = weightedEvent(5);
+		UUID entry = UUID.randomUUID();
+		// when
+		// then
+		assertThatThrownBy(() -> entryService.enter(command(userId, event, entry, tickets(TicketGrade.BRONZE,
+				Long.MAX_VALUE, TicketGrade.SILVER, Long.MAX_VALUE, TicketGrade.GOLD, 3))))
+				.satisfies(e -> assertEntryError(e, EntryErrorCode.INVALID_ENTRY_REQUEST));
+		assertThat(count("select count(*) from event_entries where user_id = ?", bytes(userId))).isZero();
+		assertThat(spentTickets(userId)).isZero();
 	}
 
 	@Test

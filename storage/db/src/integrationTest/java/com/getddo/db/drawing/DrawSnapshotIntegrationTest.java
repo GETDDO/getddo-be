@@ -51,10 +51,14 @@ import com.getddo.db.support.MySqlTestConfiguration;
 import com.getddo.db.ticket.MutableClock;
 import com.getddo.db.ticket.LockWaitProbe;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_EVIDENCE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = DrawSnapshotIntegrationTest.TestApplication.class,
 		properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.properties.hibernate.jdbc.time_zone=UTC"})
@@ -165,9 +169,9 @@ class DrawSnapshotIntegrationTest {
 				byte[].class, firstEntry);
 		UUID additionalEntry = UUID.randomUUID();
 		jdbc.update("""
-			insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
-			values (?, ?, ?, 1, 1, ?)
-			""", bytes(additionalEntry), bytes(participant), bytes(userId), utc(NOW.minusSeconds(301)));
+			insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
+			values (?, (select event_id from event_participants where id = ?), ?, ?, 1, 1, ?)
+			""", bytes(additionalEntry), bytes(participant), bytes(participant), bytes(userId), utc(NOW.minusSeconds(301)));
 		// 응모별 UNIQUE로 거절할 수 없는 별도 이력·버전의 중복 사용을 재현한다.
 		jdbc.update("""
 			insert into ticket_histories (id, ticket_id, event_entry_id, operation_type, ticket_version, status, expires_at, reason, created_at)
@@ -455,6 +459,30 @@ class DrawSnapshotIntegrationTest {
 		}
 	}
 
+	/** 거절 이력(REJECTED)은 응모자·차감이 없으므로 같은 사용자의 거절 건이 있어도 후보의 응모 증거와 대상에 포함되지 않는다. */
+	@Test
+	@DisplayName("거절된 응모 이력은 스냅샷의 응모 증거에 들어가지 않고 거절만 있는 사용자는 후보가 아니다")
+	void ignoresRejectedEntries() {
+		UUID participant = addParticipant(0);
+		UUID rejectedOnly = UUID.randomUUID();
+		jdbc.update("""
+			insert into users (id, name, role, status, membership, created_at, updated_at)
+			values (?, '거절만', 'USER', 'ACTIVE', 'VIP', ?, ?)
+			""", bytes(rejectedOnly), utc(NOW), utc(NOW));
+		for (UUID owner : List.of(userId, rejectedOnly)) {
+			jdbc.update("""
+				insert into event_entries (id, event_id, participant_id, user_id, status, rejection_code, rejection_reason,
+				  requested_ticket_count, deducted_ticket_count, requested_gold_count, created_at)
+				values (?, ?, null, ?, 'REJECTED', 'ENTRY-007', '거절', 2, 0, 2, ?)
+				""", bytes(UUID.randomUUID()), bytes(eventId), bytes(owner), utc(NOW.minusSeconds(310)));
+		}
+		DrawSnapshot snapshot = service.prepareInitial(eventId);
+		assertThat(snapshot.candidates()).hasSize(1);
+		assertThat(snapshot.candidates().getFirst().participantId()).isEqualTo(participant);
+		assertThat(snapshot.candidates().getFirst().entryEvidence().entries()).hasSize(1);
+		assertThat(snapshot.candidates().getFirst().ticketCount()).isZero();
+	}
+
 	/** 지정한 사용량과 소유자로 마감 전 응모자·접수 행을 저장한다. */
 	private UUID addParticipant(int count) {
 		return addParticipant(count, userId);
@@ -466,9 +494,9 @@ class DrawSnapshotIntegrationTest {
 		jdbc.update("insert into event_participants (id, event_id, user_id, used_ticket_count, created_at) values (?, ?, ?, ?, ?)",
 				bytes(participant), bytes(eventId), bytes(owner), count, utc(NOW.minusSeconds(301)));
 		jdbc.update("""
-			insert into event_entries (id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
-			values (?, ?, ?, ?, ?, ?)
-			""", bytes(UUID.randomUUID()), bytes(participant), bytes(owner), count, count, utc(NOW.minusSeconds(301)));
+			insert into event_entries (id, event_id, participant_id, user_id, requested_ticket_count, deducted_ticket_count, created_at)
+			values (?, (select event_id from event_participants where id = ?), ?, ?, ?, ?, ?)
+			""", bytes(UUID.randomUUID()), bytes(participant), bytes(participant), bytes(owner), count, count, utc(NOW.minusSeconds(301)));
 		return participant;
 	}
 
@@ -526,11 +554,13 @@ class DrawSnapshotIntegrationTest {
 	@SpringBootConfiguration
 	@EnableAutoConfiguration
 	@ComponentScan(basePackages = {"com.getddo.core.drawing", "com.getddo.db.drawing", "com.getddo.core.audit",
+			"com.getddo.db.event.mapper", "com.getddo.db.event.repository",
 			"com.getddo.db.audit.mapper", "com.getddo.db.audit.repository",
 			"com.getddo.db.user.mapper", "com.getddo.db.user.repository", "com.getddo.core.notification.service", "com.getddo.db.notification.mapper", "com.getddo.db.notification.repository"})
-	@EntityScan(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification"})
-	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification"})
-	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class})
+	@EntityScan(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification", "com.getddo.db.event"})
+	@EnableJpaRepositories(basePackages = {"com.getddo.db.drawing", "com.getddo.db.audit", "com.getddo.db.user", "com.getddo.db.notification", "com.getddo.db.event"})
+	@Import({MySqlTestConfiguration.class, JpaAuditingConfig.class,
+			com.getddo.core.event.service.EventStatusChangeService.class})
 	static class TestApplication {
 
 		/** 공개 저장소·공통 관리자 검사·시각 제공자를 실제 관리자 확인 Bean에 연결한다. */

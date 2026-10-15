@@ -2,6 +2,7 @@ package com.getddo.core.entry.service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -107,8 +108,7 @@ public class EntryRecorder {
 		EntryParticipant participant = found.orElseGet(() -> participantRepository
 				.create(EntryParticipant.first(event.getId(), command.getUserId(), acceptedAt)));
 
-		entryRepository.save(Entry.accepted(command.getEntryId(), participant, Math.toIntExact(total),
-				acceptedAt));
+		entryRepository.save(Entry.accepted(command.getEntryId(), participant, tickets, acceptedAt));
 		if (total > 0) {
 			useTickets(event, command, tickets);
 			participantRepository.addUsedTicketCount(participant.getId(), total);
@@ -120,12 +120,24 @@ public class EntryRecorder {
 		return new EntryReceipt(command.getEntryId(), event.getId(), event.getTitle(), tickets, acceptedAt, true);
 	}
 
-	/** 같은 응모 ID로 이미 접수된 응모의 기존 결과를 돌려준다. 다른 사용자·이벤트·응모권 구성이면 거절한다. */
+	/**
+	 * 같은 응모 ID로 이미 처리된 요청의 기존 결과를 돌려준다. 접수된 응모는 기존 영수증을, 거절된 요청은 처음과 같은 오류를
+	 * 돌려준다. 다른 사용자·이벤트·응모권 구성이면 거절한다.
+	 */
 	private EntryReceipt replay(EntryCommand command, Map<TicketGrade, Long> tickets, Entry entry) {
-		long total = tickets.values().stream().mapToLong(Long::longValue).sum();
+		long total = checkedTotal(tickets);
 		if (!entry.getUserId().equals(command.getUserId()) || !entry.getEventId().equals(command.getEventId())
 				|| entry.getRequestedTicketCount() != total) {
 			throw new EntryException(EntryErrorCode.IDEMPOTENCY_CONFLICT);
+		}
+		if (entry.isRejected()) {
+			// 거절 건은 차감 이력이 없어 등급별 구성을 저장한 요청 장수와 직접 비교한다.
+			boolean sameGrades = Arrays.stream(TicketGrade.values()).allMatch(
+					grade -> tickets.getOrDefault(grade, 0L).equals(entry.getRequestedTicketsByGrade().get(grade)));
+			if (!sameGrades) {
+				throw new EntryException(EntryErrorCode.IDEMPOTENCY_CONFLICT);
+			}
+			throw EntryRejections.restore(entry.getRejectionCode());
 		}
 		EntryEvent event = eventReader.find(entry.getEventId())
 				.orElseThrow(() -> new EntryException(EntryErrorCode.EVENT_NOT_FOUND));
@@ -182,9 +194,35 @@ public class EntryRecorder {
 		return tickets;
 	}
 
+	/** 등급별 요청 장수의 합계를 구한다. {@code long} 범위를 넘는 합계는 요청 형식 오류다. */
+	private static long checkedTotal(Map<TicketGrade, Long> tickets) {
+		try {
+			long total = 0;
+			for (long count : tickets.values()) {
+				total = Math.addExact(total, count);
+			}
+			return total;
+		} catch (ArithmeticException overflow) {
+			throw new EntryException(EntryErrorCode.INVALID_ENTRY_REQUEST);
+		}
+	}
+
+	/**
+	 * 이벤트가 허용하는 요청 형식인지 확인한다. 기간·관리자·멤버십 거절은 {@link #requireValidRequest}보다 먼저 일어나므로,
+	 * 형식이 틀린 요청은 거절 이력으로 남기지 않도록 거절 이력 기록기도 이 검사를 한다.
+	 */
+	static boolean isValidRequest(EntryEvent event, Map<TicketGrade, Long> tickets) {
+		try {
+			requireValidRequest(event, tickets);
+			return true;
+		} catch (EntryException invalid) {
+			return false;
+		}
+	}
+
 	/** 이벤트 유형이 허용하는 요청인지 확인하고 요청 장수 합계를 돌려준다. */
 	private static long requireValidRequest(EntryEvent event, Map<TicketGrade, Long> tickets) {
-		long total = tickets.values().stream().mapToLong(Long::longValue).sum();
+		long total = checkedTotal(tickets);
 		boolean valid;
 		if (!event.usesTickets()) {
 			valid = total == 0;
