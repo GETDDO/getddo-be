@@ -4,6 +4,10 @@
 - 작성일: 2026-10-13 · 갱신일: 2026-10-14
 - 현재 단계: main CI 성공 → 동일 이미지 전달 → 서버 교체·상태 확인·실패 복구 코드를 연결했다. 실제 GitHub Actions와 AWS 배포는 미검증이며 서버·권한·설정 준비가 필요하다.
 
+## Parameter Store 설정 자동 반영
+
+GD-112 변경부터 서버가 배포 직전에 필수 설정 9개를 조회·검증하고, 실패 시 이전 이미지와 설정을 함께 복구한다. 기존 준비 과정과 변경 전후·등록·반영 절차는 [Parameter Store 런북](parameter-store.md)을 참고한다. 이 코드가 main에 반영돼 배포되기 전에는 기존 서버 동작이 바뀌지 않는다.
+
 ## 파일이 하는 일
 
 [build.yml](../../.github/workflows/build.yml)은 앱 빌드·테스트를, [image.yml](../../.github/workflows/image.yml)은 이미지 생성·보관을, [cd.yml](../../.github/workflows/cd.yml)은 서버 배포를 담당한다. **main 반영 → 테스트 성공 → 이미지 생성·보관 성공 → 서버 교체·응답 확인** 순서로 실행하며 실패 시 이전 이미지를 복구한다.

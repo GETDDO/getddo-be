@@ -35,6 +35,12 @@ jobs:
       - name: PR 제목 규칙 회귀 테스트
         run: python3 .github/tests/test_pr_title.py
 
+      # 실제 AWS 대신 테스트 대역으로 조회·비밀값 처리·실패 복구 경계를 검사한다.
+      - name: 배포 스크립트 회귀 테스트
+        run: |
+          bash -n infra/scripts/deploy-container.sh
+          python3 -m unittest discover -s .github/tests -p 'test_*.py' -v
+
       # build.gradle의 Java toolchain 버전과 일치시킨다.
       - name: Java 21 설정
         uses: actions/setup-java@v5
@@ -45,6 +51,21 @@ jobs:
 
       - name: MySQL 통합 테스트용 Docker 확인
         run: docker info
+
+      # 로컬의 Docker 연동 여부와 별개로 실제 Compose가 raw env 구성을 읽는지 확인한다.
+      # 테스트용 가짜 값만 사용하며 config 내용을 로그에 출력하지 않는다.
+      - name: 배포 Compose 설정 검증
+        env:
+          APP_IMAGE: getddo-be:config-check
+          APP_ENV_FILE: ${{ runner.temp }}/getddo-compose-check.env
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import os, pathlib, runpy
+          values = runpy.run_path('.github/tests/test_fetch_app_env.py')['VALUES']
+          pathlib.Path(os.environ['APP_ENV_FILE']).write_text(''.join(key + '=' + value + '\n' for key, value in values.items()))
+          PY
+          docker compose --env-file /dev/null --file compose.deploy.yaml config --quiet
 
       # build에 단위 테스트·MySQL 통합 테스트·패키징이 포함된다.
       - name: 빌드 및 테스트
