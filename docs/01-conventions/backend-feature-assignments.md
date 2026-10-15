@@ -13,7 +13,7 @@
 | B | 석종수 | [`Seok-Soo`](https://github.com/Seok-Soo) | 어뷰징 차단 기록·추첨 |
 | C | 전민규 | [`minggure`](https://github.com/minggure) | 백오피스·알림·게임 |
 | D | 윤태형 | [`YunTaeng`](https://github.com/YunTaeng) | 응모권·일회성 미션·출석·응모 |
-| E | 박지훈 | [`parkjihun5`](https://github.com/parkjihun5) | 기본 이벤트 CRUD |
+| E | 박지훈 | [`parkjihun5`](https://github.com/parkjihun5) | 기본 이벤트 CRUD·취소 |
 
 Git 작성자 이름이 계정명과 다르더라도 다음과 같이 같은 담당자로 식별한다.
 
