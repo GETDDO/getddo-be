@@ -16,6 +16,7 @@ import com.getddo.api.attendance.dto.response.AttendanceMonthResponse;
 import com.getddo.api.attendance.dto.response.AttendanceReceiptResponse;
 import com.getddo.api.attendance.dto.response.AttendanceTodayResponse;
 import com.getddo.api.common.context.CurrentUser;
+import com.getddo.api.common.ratelimit.RateLimited;
 import com.getddo.api.common.response.ResponseEnvelope;
 import com.getddo.core.attendance.domain.AttendanceReceipt;
 import com.getddo.core.attendance.service.AttendanceQueryService;
@@ -45,6 +46,7 @@ public class AttendanceController {
 	 * @param user 공통 MVC에서 확인한 등록 사용자
 	 * @return 새 출석이면 201, 같은 날 재요청이면 이미 확정된 결과와 200
 	 */
+	@RateLimited(policy = "attendance")
 	@PostMapping
 	public ResponseEntity<ResponseEnvelope<AttendanceReceiptResponse>> attend(
 			@CurrentUser(membershipRequired = false) User user) {

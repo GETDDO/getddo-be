@@ -182,7 +182,7 @@ class CorsConfigTest {
 					.andExpect(status().isOk())
 					.andExpect(header().string("Access-Control-Allow-Origin", ORIGIN))
 					.andExpect(header().doesNotExist("Access-Control-Allow-Credentials"))
-					.andExpect(header().doesNotExist("Access-Control-Expose-Headers"))
+					.andExpect(header().string("Access-Control-Expose-Headers", "Retry-After"))
 					.andExpect(jsonPath("$.data.id").value(USER_ID.toString()))
 					.andExpect(jsonPath("$.data.name").value("CORS 사용자"));
 			assertThat(lookups.get()).isEqualTo(1);

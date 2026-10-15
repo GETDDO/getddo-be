@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.getddo.api.common.ratelimit.RateLimitExceededException;
 import com.getddo.api.common.response.ResponseEnvelope;
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.exception.ErrorCode;
@@ -27,6 +28,18 @@ import com.getddo.core.common.exception.ErrorCode;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+	/**
+	 * 요청 빈도 한도를 넘은 요청을 429로 응답한다. 다른 업무 오류와 달리 {@code Retry-After} 헤더에 다시 시도할 수 있을 때까지
+	 * 남은 초를 담는다. 더 구체적인 예외 타입이라 아래 {@link BusinessException} 처리기보다 먼저 선택된다.
+	 */
+	@ExceptionHandler(RateLimitExceededException.class)
+	public ResponseEntity<ResponseEnvelope<Void>> handleRateLimitExceeded(RateLimitExceededException exception) {
+		ErrorCode errorCode = exception.getErrorCode();
+		return ResponseEntity.status(errorCode.getStatus())
+				.header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+				.body(ResponseEnvelope.fail(errorCode));
+	}
 
 	/**
 	 * 업무 코드가 전달한 상태·코드·메시지를 그대로 응답 계약으로 사용한다.
