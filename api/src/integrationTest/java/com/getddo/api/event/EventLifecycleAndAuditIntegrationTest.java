@@ -29,6 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.getddo.api.support.ApiIntegrationTest;
 import com.getddo.core.audit.repository.AuditLogRepository;
+import com.getddo.core.audit.domain.AuditLogCommand;
 import com.getddo.core.drawing.service.DrawSnapshotService;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventType;
@@ -87,7 +88,7 @@ class EventLifecycleAndAuditIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("시작·마감 정각과 중단 중 지난 모집을 복구하고 삭제·취소·추첨 상태는 유지하며 자동 추첨에 연결한다")
+	@DisplayName("시작·마감 정각과 서버 중단 중 지난 모집을 복구하고 삭제·취소·추첨 상태는 유지한다")
 	void advancesRecruitmentAndMakesOverdueEventVisibleToDrawing() {
 		// given
 		UUID startsNow = seed("SCHEDULED", 0, 3600);
@@ -99,7 +100,8 @@ class EventLifecycleAndAuditIntegrationTest {
 		UUID published = seed("PUBLISHED", -7200, -3600);
 		UUID deleted = seed("SCHEDULED", -7200, -3600);
 		jdbc.update("update events set deleted_at=? where id=?", utc(NOW), bytes(deleted));
-		assertThat(drawings.findInitialDue()).doesNotContain(missed);
+		// GD-86은 저장 상태가 늦게 반영돼도 마감 +5분부터 최초 추첨을 허용한다.
+		assertThat(drawings.findInitialDue()).contains(missed);
 		// when / then
 		assertThat(lifecycle.advanceDue(20)).isEqualTo(3);
 		assertThat(status(startsNow)).isEqualTo("OPEN");
@@ -153,17 +155,75 @@ class EventLifecycleAndAuditIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("상태 전환 감사 저장 실패는 상태도 롤백하며 다음 호출에서 다시 전환한다")
-	void lifecycleAuditFailureRollsBackStatus() {
+	@DisplayName("반복 감사 실패는 해당 이벤트만 롤백하고 같은 묶음·다음 묶음의 이벤트는 독립 커밋한다")
+	void auditFailureDoesNotBlockOtherEventsOrLaterPages() {
 		// given
-		UUID id = seed("SCHEDULED", 0, 3600);
-		failAfterAuditAppend();
+		UUID before = seed(new UUID(0, 101), "SCHEDULED", 0, 3600);
+		UUID failed = seed(new UUID(0, 102), "SCHEDULED", 0, 3600);
+		UUID after = seed(new UUID(0, 103), "SCHEDULED", 0, 3600);
+		UUID nextPage = seed(new UUID(0, 104), "SCHEDULED", 0, 3600);
+		doAnswer(invocation -> {
+			Object result = invocation.callRealMethod();
+			AuditLogCommand command = invocation.getArgument(0);
+			if (command.getTargetId().equals(failed)) { throw new IllegalStateException("이벤트별 감사 실패 주입"); }
+			return result;
+		}).when(audits).append(any());
 		// when / then
-		assertThatThrownBy(() -> lifecycle.advanceDue(20)).hasStackTraceContaining("감사 실패 주입");
-		assertThat(status(id)).isEqualTo("SCHEDULED");
-		assertThat(auditCount(id, "EVENT_STATUS_CHANGE")).isZero();
+		assertThat(lifecycle.advanceDue(3)).isEqualTo(2);
+		assertThat(status(before)).isEqualTo("OPEN");
+		assertThat(status(after)).isEqualTo("OPEN");
+		assertThat(auditCount(before, "EVENT_STATUS_CHANGE")).isEqualTo(1);
+		assertThat(auditCount(after, "EVENT_STATUS_CHANGE")).isEqualTo(1);
+		assertThat(status(failed)).isEqualTo("SCHEDULED");
+		assertThat(auditCount(failed, "EVENT_STATUS_CHANGE")).isZero();
+		assertThat(status(nextPage)).isEqualTo("SCHEDULED");
+		assertThat(lifecycle.advanceDue(1)).isEqualTo(1);
+		assertThat(status(nextPage)).isEqualTo("OPEN");
+		assertThat(auditCount(nextPage, "EVENT_STATUS_CHANGE")).isEqualTo(1);
+		assertThat(lifecycle.advanceDue(20)).isZero();
+		assertThat(status(failed)).isEqualTo("SCHEDULED");
+		assertThat(auditCount(failed, "EVENT_STATUS_CHANGE")).isZero();
 		reset(audits);
 		assertThat(lifecycle.advanceDue(20)).isEqualTo(1);
+		assertThat(status(failed)).isEqualTo("OPEN");
+		assertThat(auditCount(failed, "EVENT_STATUS_CHANGE")).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("두 상태 워커는 같은 due 후보를 읽어도 잠긴 이벤트를 건너뛰고 각 상태·감사를 한 번만 커밋한다")
+	void lifecycleWorkersSkipEachOthersLocksAndProcessOtherDueEvents() throws Exception {
+		// given
+		UUID first = seed(new UUID(0, 201), "SCHEDULED", 0, 3600);
+		UUID second = seed(new UUID(0, 202), "SCHEDULED", 0, 3600);
+		CountDownLatch held = new CountDownLatch(1);
+		CountDownLatch release = new CountDownLatch(1);
+		doAnswer(invocation -> {
+			AuditLogCommand command = invocation.getArgument(0);
+			if (command.getTargetId().equals(first)) {
+				held.countDown();
+				if (!release.await(20, TimeUnit.SECONDS)) { throw new IllegalStateException("워커 커밋 대기 실패"); }
+			}
+			return invocation.callRealMethod();
+		}).when(audits).append(any());
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Future<Integer> firstWorker = executor.submit(() -> lifecycle.advanceDue(2));
+			try {
+				assertThat(held.await(10, TimeUnit.SECONDS)).isTrue();
+				// when: A가 첫 이벤트의 상태를 flush한 뒤 아직 커밋하지 않은 동안 B도 같은 후보를 조회한다.
+				assertThat(executor.submit(() -> lifecycle.advanceDue(2)).get(5, TimeUnit.SECONDS)).isEqualTo(1);
+				assertThat(status(first)).isEqualTo("SCHEDULED");
+				assertThat(status(second)).isEqualTo("OPEN");
+				assertThat(auditCount(first, "EVENT_STATUS_CHANGE")).isZero();
+				assertThat(auditCount(second, "EVENT_STATUS_CHANGE")).isEqualTo(1);
+			} finally { release.countDown(); }
+			assertThat(firstWorker.get(20, TimeUnit.SECONDS)).isEqualTo(1);
+		}
+		// then
+		assertThat(status(first)).isEqualTo("OPEN");
+		assertThat(status(second)).isEqualTo("OPEN");
+		assertThat(auditCount(first, "EVENT_STATUS_CHANGE")).isEqualTo(1);
+		assertThat(auditCount(second, "EVENT_STATUS_CHANGE")).isEqualTo(1);
+		assertThat(lifecycle.advanceDue(20)).isZero();
 	}
 
 	@Test
@@ -233,7 +293,10 @@ class EventLifecycleAndAuditIntegrationTest {
 	}
 
 	private UUID seed(String status, long startsOffset, long endsOffset) {
-		UUID id = UUID.randomUUID();
+		return seed(UUID.randomUUID(), status, startsOffset, endsOffset);
+	}
+
+	private UUID seed(UUID id, String status, long startsOffset, long endsOffset) {
 		eventIds.add(id);
 		jdbc.update("""
 				insert into events(id,title,description,event_type,weighting_enabled,membership_rule,starts_at,ends_at,status,created_at,updated_at)

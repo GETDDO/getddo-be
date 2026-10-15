@@ -31,10 +31,10 @@ public interface EventRepository {
 	 */
 	void updateStatus(UUID eventId, EventStatus newStatus);
 
-	/** 시작·마감이 지난 미삭제 SCHEDULED/OPEN 이벤트만 최대 limit개 잠그며 다른 처리의 잠금은 건너뛴다. */
-	List<UUID> findLifecycleDueIdsForUpdate(Instant now, int limit);
+	/** 미삭제 SCHEDULED/OPEN의 기한이 지난 후보를 잠금 없이 최대 limit개 읽는다. afterId 뒤부터 ID 순으로 순환한다. */
+	List<UUID> findLifecycleDueIds(Instant now, UUID afterId, int limit);
 
-	/** 선점한 이벤트의 최신 상태와 일정을 JPA 쓰기 잠금 조회로 적재한다. 삭제 이벤트는 제외한다. */
+	/** 한 이벤트를 SKIP LOCKED로 선점한 뒤 최신 상태·일정을 JPA 쓰기 잠금 조회로 적재한다. 잠금 경합·삭제는 제외한다. */
 	Optional<EventLifecycleState> findLifecycleByIdForUpdate(UUID eventId);
 
 	/** 상태 변경 조회와 같은 최신 잠금 읽기로 취소에 필요한 정보를 반환한다. 삭제된 이벤트는 제외한다. */

@@ -200,6 +200,7 @@ class EventModificationServiceTest {
 	private void assertError(EventErrorCode error, EventRegistration input) {
 		assertThatThrownBy(() -> service.modify(EVENT, input)).isInstanceOf(EventException.class)
 				.satisfies(exception -> assertThat(((EventException) exception).getErrorCode()).isEqualTo(error));
+		verifyNoInteractions(auditLogs);
 	}
 
 	private EventRegistration settings(Instant start, String title, UUID prizeId) {
