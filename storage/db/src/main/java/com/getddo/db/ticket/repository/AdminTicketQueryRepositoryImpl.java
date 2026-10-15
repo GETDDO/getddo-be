@@ -1,0 +1,341 @@
+package com.getddo.db.ticket.repository;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
+import jakarta.persistence.Tuple;
+import lombok.RequiredArgsConstructor;
+import org.hibernate.query.NativeQuery;
+import org.springframework.stereotype.Repository;
+
+import com.getddo.core.common.pagination.PageQuery;
+import com.getddo.core.common.pagination.PageResult;
+import com.getddo.core.ticket.domain.AdminTicketHistoryFilter;
+import com.getddo.core.ticket.domain.AdminTicketHistoryView;
+import com.getddo.core.ticket.domain.GrantSourceType;
+import com.getddo.core.ticket.domain.TicketGrade;
+import com.getddo.core.ticket.domain.TicketGrantFilter;
+import com.getddo.core.ticket.domain.TicketGrantView;
+import com.getddo.core.ticket.domain.TicketInconsistencyView;
+import com.getddo.core.ticket.domain.TicketHistoryView;
+import com.getddo.core.ticket.domain.TicketOperationType;
+import com.getddo.core.ticket.domain.TicketRefundFilter;
+import com.getddo.core.ticket.domain.TicketRefundView;
+import com.getddo.core.ticket.domain.TicketStatus;
+import com.getddo.core.ticket.repository.AdminTicketQueryRepository;
+import com.getddo.db.common.util.UuidBinary;
+
+/**
+ * 관리자 화면용 응모권 조회 구현.
+ *
+ * <p>사용자 이름, 이벤트·미션 제목과 지급 근거(출석·미션·게임 청구)는 다른 도메인이 소유한 테이블이라 Entity를 만들지 않고
+ * 네이티브 SQL의 JOIN으로 읽는다. SQL 문장은 고정 조각만 이어 붙이고 값은 모두 파라미터로 바인딩한다.</p>
+ */
+@Repository
+@RequiredArgsConstructor
+public class AdminTicketQueryRepositoryImpl implements AdminTicketQueryRepository {
+
+	private static final String GRANT_SELECT = """
+			select h.id as history_id, h.ticket_id, t.user_id, u.name as user_name, t.grade,
+			       case when t.attendance_reward_claim_id is not null then 'ATTENDANCE'
+			            when t.mission_reward_claim_id is not null then 'MISSION'
+			            else 'GAME' end as source_type,
+			       coalesce(ac.attendance_id, mc.mission_submission_id, gc.game_play_id) as source_id,
+			       mc.mission_id, h.created_at as granted_at, h.expires_at
+			""";
+	private static final String GRANT_FROM = """
+			 from ticket_histories h
+			 join tickets t on t.id = h.ticket_id
+			 join users u on u.id = t.user_id
+			 left join attendance_reward_claims ac on ac.id = t.attendance_reward_claim_id
+			 left join mission_reward_claims mc on mc.id = t.mission_reward_claim_id
+			 left join game_reward_claims gc on gc.id = t.game_reward_claim_id
+			 where h.operation_type = 'GRANT'
+			""";
+	private static final String GRANT_ORDER = " order by h.created_at desc, h.id desc";
+
+	/** 반환 이력의 이벤트는 되돌린 원본 사용 이력의 응모에서 얻는다. 처리 이력에서는 사용 이력 자신의 응모와 둘 중 하나다. */
+	private static final String HISTORY_SELECT = """
+			select h.id, h.ticket_id, h.operation_type, t.grade, h.status, h.expires_at, h.reason, h.created_at,
+			       coalesce(ee.event_id, oee.event_id) as event_id, h.event_entry_id, mc.mission_id, gc.game_id,
+			       a.attendance_date, h.original_use_history_id, h.corrected_history_id,
+			       t.user_id, u.name as user_name, ev.title as event_title, ms.title as mission_title
+			""";
+	private static final String HISTORY_FROM = """
+			 from ticket_histories h
+			 join tickets t on t.id = h.ticket_id
+			 join users u on u.id = t.user_id
+			 left join mission_reward_claims mc on mc.id = t.mission_reward_claim_id
+			 left join missions ms on ms.id = mc.mission_id
+			 left join game_reward_claims gc on gc.id = t.game_reward_claim_id
+			 left join attendance_reward_claims ac on ac.id = t.attendance_reward_claim_id
+			 left join attendances a on a.id = ac.attendance_id
+			 left join event_entries ee on ee.id = h.event_entry_id
+			 left join ticket_histories oh on oh.id = h.original_use_history_id
+			 left join event_entries oee on oee.id = oh.event_entry_id
+			 left join events ev on ev.id = coalesce(ee.event_id, oee.event_id)
+			 where 1 = 1
+			""";
+	private static final String HISTORY_ORDER = " order by h.created_at desc, h.id desc";
+
+	private static final String REFUND_SELECT = """
+			select h.id, h.original_use_history_id as spend_history_id, h.ticket_id, t.grade,
+			       oee.event_id, ev.title as event_title, t.user_id, u.name as user_name,
+			       h.created_at as refunded_at, h.expires_at as target_expires_at
+			""";
+	private static final String REFUND_FROM = """
+			 from ticket_histories h
+			 join tickets t on t.id = h.ticket_id
+			 join users u on u.id = t.user_id
+			 join ticket_histories oh on oh.id = h.original_use_history_id
+			 join event_entries oee on oee.id = oh.event_entry_id
+			 join events ev on ev.id = oee.event_id
+			 where h.operation_type = 'REFUND'
+			""";
+	private static final String REFUND_ORDER = " order by h.created_at desc, h.id desc";
+
+	/** 현재 버전·상태가 마지막 이력의 버전·상태와 다르거나 이력이 하나도 없는 응모권. 마지막 이력은 (응모권, 버전) 유일 키로 찾는다. */
+	private static final String INCONSISTENCY_SELECT = """
+			select t.id as ticket_id, t.user_id, u.name as user_name, t.grade, t.version as ticket_version,
+			       coalesce(lh.ticket_version, 0) as latest_version, t.status as ticket_status,
+			       lh.status as latest_status
+			""";
+	private static final String INCONSISTENCY_FROM = """
+			 from tickets t
+			 join users u on u.id = t.user_id
+			 left join ticket_histories lh on lh.ticket_id = t.id and lh.ticket_version =
+			   (select max(x.ticket_version) from ticket_histories x where x.ticket_id = t.id)
+			 where (lh.id is null or lh.ticket_version <> t.version or lh.status <> t.status)
+			""";
+	private static final String INCONSISTENCY_ORDER = " order by t.updated_at desc, t.id desc";
+	/** 한 사용자의 어긋난 응모권을 쪽 나누기 없이 읽을 때의 상한 크기. */
+	private static final int ALL_OF_USER = Integer.MAX_VALUE;
+
+	private final EntityManager entityManager;
+
+	@Override
+	public PageResult<TicketGrantView> findGrants(TicketGrantFilter filter, PageQuery page) {
+		Map<String, Object> parameters = new HashMap<>();
+		StringBuilder where = new StringBuilder();
+		where(where, parameters, "t.user_id", "userId", filter.getUserId());
+		if (filter.getKeyword() != null) {
+			where.append(" and lower(u.name) like :keyword escape '!'");
+			parameters.put("keyword", "%" + escapeLike(filter.getKeyword().toLowerCase()) + "%");
+		}
+		where(where, parameters, "mc.mission_id", "missionId", filter.getMissionId());
+		if (filter.getSourceType() != null) {
+			where.append(sourceCondition(filter.getSourceType()));
+		}
+		if (filter.getGrade() != null) {
+			where.append(" and t.grade = :grade");
+			parameters.put("grade", filter.getGrade().name());
+		}
+		period(where, parameters, "h.created_at", filter.getFrom(), filter.getTo());
+		return page(GRANT_SELECT, GRANT_FROM + where, parameters, GRANT_ORDER, page,
+				query -> query.addScalar("history_id", UUID.class).addScalar("ticket_id", UUID.class)
+						.addScalar("user_id", UUID.class).addScalar("user_name", String.class)
+						.addScalar("grade", String.class).addScalar("source_type", String.class)
+						.addScalar("source_id", UUID.class).addScalar("mission_id", UUID.class)
+						.addScalar("granted_at", Instant.class).addScalar("expires_at", Instant.class),
+				AdminTicketQueryRepositoryImpl::toGrant);
+	}
+
+	@Override
+	public PageResult<AdminTicketHistoryView> findHistories(AdminTicketHistoryFilter filter, PageQuery page) {
+		Map<String, Object> parameters = new HashMap<>();
+		StringBuilder where = new StringBuilder();
+		where(where, parameters, "t.user_id", "userId", filter.getUserId());
+		where(where, parameters, "coalesce(ee.event_id, oee.event_id)", "eventId", filter.getEventId());
+		where(where, parameters, "mc.mission_id", "missionId", filter.getMissionId());
+		if (filter.getOperationType() != null) {
+			where.append(" and h.operation_type = :operationType");
+			parameters.put("operationType", filter.getOperationType().name());
+		}
+		period(where, parameters, "h.created_at", filter.getFrom(), filter.getTo());
+		return page(HISTORY_SELECT, HISTORY_FROM + where, parameters, HISTORY_ORDER, page,
+				query -> query.addScalar("id", UUID.class).addScalar("ticket_id", UUID.class)
+						.addScalar("operation_type", String.class).addScalar("grade", String.class)
+						.addScalar("status", String.class).addScalar("expires_at", Instant.class)
+						.addScalar("reason", String.class).addScalar("created_at", Instant.class)
+						.addScalar("event_id", UUID.class).addScalar("event_entry_id", UUID.class)
+						.addScalar("mission_id", UUID.class).addScalar("game_id", UUID.class)
+						.addScalar("attendance_date", LocalDate.class)
+						.addScalar("original_use_history_id", UUID.class)
+						.addScalar("corrected_history_id", UUID.class).addScalar("user_id", UUID.class)
+						.addScalar("user_name", String.class).addScalar("event_title", String.class)
+						.addScalar("mission_title", String.class),
+				AdminTicketQueryRepositoryImpl::toHistory);
+	}
+
+	@Override
+	public PageResult<TicketRefundView> findRefunds(TicketRefundFilter filter, PageQuery page) {
+		Map<String, Object> parameters = new HashMap<>();
+		StringBuilder where = new StringBuilder();
+		where(where, parameters, "oee.event_id", "eventId", filter.getEventId());
+		where(where, parameters, "t.user_id", "userId", filter.getUserId());
+		period(where, parameters, "h.created_at", filter.getFrom(), filter.getTo());
+		return page(REFUND_SELECT, REFUND_FROM + where, parameters, REFUND_ORDER, page,
+				query -> query.addScalar("id", UUID.class).addScalar("spend_history_id", UUID.class)
+						.addScalar("ticket_id", UUID.class).addScalar("grade", String.class)
+						.addScalar("event_id", UUID.class).addScalar("event_title", String.class)
+						.addScalar("user_id", UUID.class).addScalar("user_name", String.class)
+						.addScalar("refunded_at", Instant.class).addScalar("target_expires_at", Instant.class),
+				AdminTicketQueryRepositoryImpl::toRefund);
+	}
+
+	@Override
+	public boolean userExists(UUID userId) {
+		Query query = entityManager.createNativeQuery("select count(*) from users where id = :id");
+		query.setParameter("id", UuidBinary.toBytes(userId));
+		return ((Number) query.getSingleResult()).longValue() > 0;
+	}
+
+	@Override
+	public List<TicketInconsistencyView> findInconsistenciesOf(UUID userId) {
+		return findInconsistencies(userId, new PageQuery(1, ALL_OF_USER)).getItems();
+	}
+
+	@Override
+	public PageResult<TicketInconsistencyView> findInconsistencies(UUID userId, PageQuery page) {
+		Map<String, Object> parameters = new HashMap<>();
+		StringBuilder where = new StringBuilder();
+		where(where, parameters, "t.user_id", "userId", userId);
+		return page(INCONSISTENCY_SELECT, INCONSISTENCY_FROM + where, parameters, INCONSISTENCY_ORDER, page,
+				query -> query.addScalar("ticket_id", UUID.class).addScalar("user_id", UUID.class)
+						.addScalar("user_name", String.class).addScalar("grade", String.class)
+						.addScalar("ticket_version", Long.class).addScalar("latest_version", Long.class)
+						.addScalar("ticket_status", String.class).addScalar("latest_status", String.class),
+				AdminTicketQueryRepositoryImpl::toInconsistency);
+	}
+
+	/** 건수를 먼저 세고, 범위 안이면 한 페이지를 읽는다. 결과 컬럼은 Entity와 같은 Hibernate 타입으로 읽는다. */
+	private <T> PageResult<T> page(String select, String fromAndWhere, Map<String, Object> parameters, String order,
+			PageQuery page, Consumer<NativeQuery<Tuple>> scalars, Function<Tuple, T> mapper) {
+		Query count = entityManager.createNativeQuery("select count(*)" + fromAndWhere);
+		parameters.forEach(count::setParameter);
+		long total = ((Number) count.getSingleResult()).longValue();
+		if (total == 0 || page.offset() >= total) {
+			return new PageResult<>(List.of(), page.getPage(), page.getSize(), total);
+		}
+		@SuppressWarnings("unchecked")
+		NativeQuery<Tuple> query = entityManager.createNativeQuery(select + fromAndWhere + order, Tuple.class)
+				.unwrap(NativeQuery.class);
+		scalars.accept(query);
+		parameters.forEach(query::setParameter);
+		query.setFirstResult(Math.toIntExact(page.offset()));
+		query.setMaxResults(page.getSize());
+		List<T> items = query.getResultList().stream().map(mapper).toList();
+		return new PageResult<>(items, page.getPage(), page.getSize(), total);
+	}
+
+	private static void where(StringBuilder where, Map<String, Object> parameters, String column, String name,
+			UUID value) {
+		if (value != null) {
+			where.append(" and ").append(column).append(" = :").append(name);
+			parameters.put(name, UuidBinary.toBytes(value));
+		}
+	}
+
+	/** 기간 조건을 {@code [from, to)}로 이어 붙인다. */
+	private static void period(StringBuilder where, Map<String, Object> parameters, String column, Instant from,
+			Instant to) {
+		if (from != null) {
+			where.append(" and ").append(column).append(" >= :from");
+			parameters.put("from", from);
+		}
+		if (to != null) {
+			where.append(" and ").append(column).append(" < :to");
+			parameters.put("to", to);
+		}
+	}
+
+	private static String sourceCondition(GrantSourceType type) {
+		return switch (type) {
+			case ATTENDANCE -> " and t.attendance_reward_claim_id is not null";
+			case MISSION -> " and t.mission_reward_claim_id is not null";
+			case GAME -> " and t.game_reward_claim_id is not null";
+		};
+	}
+
+	/** LIKE의 와일드카드와 이스케이프 문자를 문자 그대로 검색하도록 이스케이프한다. */
+	private static String escapeLike(String keyword) {
+		StringBuilder escaped = new StringBuilder();
+		for (char c : keyword.toCharArray()) {
+			if (c == '%' || c == '_' || c == '!') {
+				escaped.append('!');
+			}
+			escaped.append(c);
+		}
+		return escaped.toString();
+	}
+
+	private static TicketGrantView toGrant(Tuple row) {
+		return new TicketGrantView(
+				row.get("history_id", UUID.class),
+				row.get("ticket_id", UUID.class),
+				row.get("user_id", UUID.class),
+				row.get("user_name", String.class),
+				TicketGrade.valueOf(row.get("grade", String.class)),
+				GrantSourceType.valueOf(row.get("source_type", String.class)),
+				row.get("source_id", UUID.class),
+				row.get("mission_id", UUID.class),
+				row.get("granted_at", Instant.class),
+				row.get("expires_at", Instant.class));
+	}
+
+	private static AdminTicketHistoryView toHistory(Tuple row) {
+		TicketHistoryView history = new TicketHistoryView(
+				row.get("id", UUID.class),
+				row.get("ticket_id", UUID.class),
+				TicketOperationType.valueOf(row.get("operation_type", String.class)),
+				TicketGrade.valueOf(row.get("grade", String.class)),
+				TicketStatus.valueOf(row.get("status", String.class)),
+				row.get("expires_at", Instant.class),
+				row.get("reason", String.class),
+				row.get("created_at", Instant.class),
+				row.get("event_id", UUID.class),
+				row.get("event_entry_id", UUID.class),
+				row.get("mission_id", UUID.class),
+				row.get("game_id", UUID.class),
+				row.get("attendance_date", LocalDate.class),
+				row.get("original_use_history_id", UUID.class),
+				row.get("corrected_history_id", UUID.class));
+		return new AdminTicketHistoryView(history, row.get("user_id", UUID.class), row.get("user_name", String.class),
+				row.get("event_title", String.class), row.get("mission_title", String.class));
+	}
+
+	private static TicketRefundView toRefund(Tuple row) {
+		return new TicketRefundView(
+				row.get("id", UUID.class),
+				row.get("spend_history_id", UUID.class),
+				row.get("ticket_id", UUID.class),
+				TicketGrade.valueOf(row.get("grade", String.class)),
+				row.get("event_id", UUID.class),
+				row.get("event_title", String.class),
+				row.get("user_id", UUID.class),
+				row.get("user_name", String.class),
+				row.get("refunded_at", Instant.class),
+				row.get("target_expires_at", Instant.class));
+	}
+
+	private static TicketInconsistencyView toInconsistency(Tuple row) {
+		String latestStatus = row.get("latest_status", String.class);
+		return new TicketInconsistencyView(
+				row.get("ticket_id", UUID.class),
+				row.get("user_id", UUID.class),
+				row.get("user_name", String.class),
+				TicketGrade.valueOf(row.get("grade", String.class)),
+				row.get("ticket_version", Long.class),
+				row.get("latest_version", Long.class),
+				TicketStatus.valueOf(row.get("ticket_status", String.class)),
+				latestStatus == null ? null : TicketStatus.valueOf(latestStatus));
+	}
+}

@@ -30,7 +30,11 @@ public enum TicketErrorCode implements ErrorCode {
 	/** 이미 차감된 응모에 사용자 또는 수량이 다른 차감을 요청한 경우. */
 	TICKET_USE_MISMATCH(409, "TICKET-008", "응모권 차감 내역이 요청과 일치하지 않습니다."),
 	/** 반환 대상 응모권의 현재 상태가 사용 직후 상태와 다른 경우. */
-	TICKET_REFUND_STATE_MISMATCH(409, "TICKET-009", "응모권 상태가 반환할 수 없는 상태입니다.");
+	TICKET_REFUND_STATE_MISMATCH(409, "TICKET-009", "응모권 상태가 반환할 수 없는 상태입니다."),
+	/** 관리자 응모권 조회를 활성 관리자가 아닌 사용자가 요청한 경우. */
+	TICKET_ADMIN_REQUIRED(403, "TICKET-010", "활성 관리자 권한이 필요합니다."),
+	/** 정합성을 확인할 사용자가 없는 경우. */
+	TICKET_USER_NOT_FOUND(404, "TICKET-011", "사용자를 찾을 수 없습니다.");
 
 	private final int status;
 	private final String code;
