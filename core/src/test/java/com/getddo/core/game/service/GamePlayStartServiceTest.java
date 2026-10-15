@@ -128,7 +128,16 @@ class GamePlayStartServiceTest {
 			when(games.findById(GAME_ID)).thenReturn(Optional.of(game("COLOR_WORD", "color-word-v1", true, invalid)));
 			assertThatThrownBy(() -> service.start(user(UserRole.USER, UserStatus.ACTIVE), GAME_ID))
 					.isInstanceOf(IllegalStateException.class)
-					.hasMessage("저장된 색깔 게임 규칙이 올바르지 않습니다.").hasNoCause();
+					.hasMessage("저장된 색깔 게임 규칙이 올바르지 않습니다.")
+					.satisfies(error -> {
+						assertThat(error.getCause()).isInstanceOf(IllegalStateException.class).hasNoCause();
+						assertThat(error.getCause().getMessage())
+								.matches("(?:java\\.lang\\.IllegalArgumentException|tools\\.jackson\\.[A-Za-z0-9_.$]+)");
+						assertThat(error.getCause().getStackTrace()).isNotEmpty();
+						java.io.StringWriter trace = new java.io.StringWriter();
+						error.printStackTrace(new java.io.PrintWriter(trace));
+						assertThat(trace.toString()).doesNotContain(invalid, "broken-private", "2999");
+					});
 		}
 		verifyNoInteractions(plays);
 	}

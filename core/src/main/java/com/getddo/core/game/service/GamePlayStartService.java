@@ -51,8 +51,10 @@ public class GamePlayStartService {
 		try {
 			rules = ColorWordRules.fromSnapshot(game.getRules());
 		} catch (JacksonException | IllegalArgumentException invalidConfiguration) {
-			// 저장된 설정 오류는 사용자 입력 오류로 바꾸거나 원본 JSON을 로그에 노출하지 않는다.
-			throw new IllegalStateException("저장된 색깔 게임 규칙이 올바르지 않습니다.");
+			// 예외 종류와 발생 위치만 보존하고 원본 메시지·JSON·원인 체인은 로그에 노출하지 않는다.
+			IllegalStateException safeCause = new IllegalStateException(invalidConfiguration.getClass().getName());
+			safeCause.setStackTrace(invalidConfiguration.getStackTrace());
+			throw new IllegalStateException("저장된 색깔 게임 규칙이 올바르지 않습니다.", safeCause);
 		}
 		GamePlayCredentials credentials = GamePlayCredentials.issue(random);
 		GamePlay saved = plays.insert(GamePlay.start(game, user.getId(), credentials.getPlayTokenHash(),
