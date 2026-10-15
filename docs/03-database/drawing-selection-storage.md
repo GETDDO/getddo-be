@@ -5,7 +5,7 @@
 - 기준: [통합 ERD](schema.dbml), [공용 추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md), [ADR-014](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/03-decisions/014-random-ticket-grades.md), [ADR-018](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/03-decisions/018-pre-issuance-abuse-blocking-and-no-draw-exclusion.md)
 - GD-84에서 추가한 두 정상 종료 상태는 이력 호환성을 위해 유지한다. GD-130 이후 새 실행은 응모자 없음 종료만 생성한다.
 
-이 문서는 백엔드 저장·트랜잭션 구현을 설명한다. 공용 정책은 링크한 스펙을 원본으로 사용한다. 과거 설명의 `ACCEPTED`, `weight = ticket_count`, `current_awards` 및 실행 행의 실패 횟수 집계는 현재 기준으로 사용하지 않는다.
+이 문서는 백엔드 저장·트랜잭션 구현을 설명한다. 공용 정책은 링크한 스펙을 원본으로 사용한다. 과거 설명의 `weight = ticket_count`, `current_awards` 및 실행 행의 실패 횟수 집계는 현재 기준으로 사용하지 않는다.
 
 ## 입력과 수량 검증
 
@@ -20,7 +20,7 @@
 
 ## 실행 식별과 잠금
 
-- 이벤트 행을 먼저 `FOR UPDATE`로 잠근다. 잠금 획득 후 서버 시각과 마감 후 5분, OPEN/CLOSED 상태, 논리 삭제 여부를 검증한다. 취소 등 그 밖의 상태에서 새 최초 실행을 만들지 않는다.
+- 이벤트 행을 먼저 `FOR UPDATE`로 잠근다. 잠금 획득 후 서버 시각과 마감 후 5분, SCHEDULED/OPEN/CLOSED 상태, 논리 삭제 여부를 검증한다. 취소 등 그 밖의 상태에서 새 최초 실행을 만들지 않는다.
 - `(event_id, run_number = 0)`과 `draw_type = INITIAL`로 같은 최초 실행을 식별한다. UUID는 최초 저장에서 한 번 발급하며 `draw_runs`의 이벤트별 차수 UNIQUE가 중복을 막는다. 별도 멱등 키 컬럼을 추가하지 않는다.
 - D 담당 응모 흐름도 기존 합의에 따라 이벤트부터 잠가야 한다. 이 작업에서 그 담당 코드를 대신 구현하거나 변경하지 않는다. 실제 응모·차감 서비스와의 경합 검증은 GD-131 범위다. 제외 확정 흐름과의 잠금 연계는 요구하지 않는다.
 
@@ -96,7 +96,7 @@ GD-85 테스트는 단위 검증과 실제 MySQL의 JPA 왕복·FK/UNIQUE·롤�
 
 - `DrawExecutionService.execute(UUID runId)`는 등록·커밋된 실행만 처리한다. 외부 트랜잭션 안에서는 호출을 거절한다. 취소·새 재추첨 생성·공개는 수행하지 않는다.
 - 관리자 시작은 `execute(runId, actorId)`로 실제 처리자를 전달한다. 이 호출도 운영자 대기를 우회하지 않는다.
-- 실행 가능 이벤트 상태는 최초 OPEN/CLOSED, 재추첨 REDRAWING이며 소유권 획득·입력 준비·확정에서 같은 검사 함수를 사용한다. GD-138은 취소·등록과 함께 REDRAWING 전이를 담당한다.
+- 실행 가능 이벤트 상태는 최초 SCHEDULED/OPEN/CLOSED, 재추첨 REDRAWING이며 소유권 획득·입력 준비·확정에서 같은 검사 함수를 사용한다. GD-138은 취소·등록과 함께 REDRAWING 전이를 담당한다.
 - `resume(runId, actorId)`는 활성 관리자 확인 후 실패한 동일 실행을 재개한다. 최초 HTTP 경로는 `resumeInitial`로 INITIAL만 허용한다. 실제 시도를 얻었을 때만 공용 감사 서비스로 `DRAW_EXECUTE` 또는 `DRAW_RESUME`을 기록한다. 진행 중·확정 재요청은 감사 기록을 중복 생성하지 않는다.
 - 이벤트 → 실행 잠금을 유지하며 시도 소유권, 입력 준비, 결과 확정, 실패 저장은 별도 서비스 Bean의 트랜잭션이다. 입력 확정 커밋 뒤 선정하므로 선정 실패에도 스냅샷을 보존한다. CONFIRMED는 저장 결과만 반환한다.
 - PREPARING은 입력 확정 전 상태이며 `attempt_id`가 있으면 준비 시도를 처리 중이다. READY/RUNNING의 고정 입력은 원본에서 재계산하지 않는다. 실패는 FAILED로 저장하되 입력·후보·기존 결과 이력을 수정하지 않는다.
@@ -130,3 +130,28 @@ GD-138 취소·등록·입력 준비·AD05/AD09는 실제 서비스로 연결·�
 - `GET /api/v1/admin/draws/{drawId}/failures`와 `/execution-audits`는 활성 관리자 전용 전체 이력 조회다. page 기본 1, size 기본 20·허용 1~100이며 시각·ID 최신순으로 페이징한다. 감사는 기존 `audit_logs`의 `DRAW_RUN` 근거를 읽고 원본 감사 데이터를 변경하지 않는다. 상세 요약과 전체 실패 이력을 중복 API로 제공하지 않는다.
 - 최초 재개 중 NO_ENTRIES가 되면 HTTP 200이다. 이미 정상 종료한 실행은 재개하지 않는다. ATTEMPT_LOST는 INTERRUPTED로 분류하며 기존 최대 3회 자동 재시도와 운영자 대기 규칙을 유지한다.
 - 공개 연결과 신규 V024 저장 근거는 [결과 공개 저장](draw-publication-storage.md), 등록·발송 장애 대조는 [공개 알림 복구](../06-runbook/draw-publication-delivery-plan.md)를 참고한다.
+
+## 2026-10-14 후속 공개 정책 — GD-199
+
+현재 자동 최초 추첨은 유지하고 최초 결과도 관리자 확인과 별도 수동 공개 요청을 요구한다. 스케줄러의 공개 호출·공개 재호출은 제외한다. 공개 전 사용자 조회는 발표 대기·비공개 결과를 유지하며 고정 공개 예정 시각·카운트다운은 제공하지 않는다. 확정·확인·실제 공개를 구분하고, 실제 공개 이후의 기존 알림 전달 재시도는 유지한다. 기존 코드의 확인 시 공개 연결 제거와 최초 INITIAL 확인·공개 API 보완은 GD-199에서 구현할 후속이다. 코드 적용 완료를 의미하지 않는다.
+
+## GD-145 PR #83 문서와의 연결
+
+GD-145 PR #83은 병합됐으며, 현재 구현에는 접수 ACCEPTED·거절 REJECTED 저장과 스냅샷의 ACCEPTED 필터가 반영되어 있다. 스냅샷은 ACCEPTED만 읽고 거절 이력을 후보·차감 집계에서 제외한다. 이는 정상 응모자를 관리자가 추첨 후보에서 제외하는 기능과 다르다.
+
+GD-131은 정상 접수·차감·원장의 원자적 롤백과, 업무 거절 뒤 별도 트랜잭션으로 남는 REJECTED 이력을 구분해 검증한다. 실패한 정상 응모·차감이 남지 않아야 한다는 조건이 거절 감사 이력까지 없어야 한다는 뜻은 아니다. 거절 기록에는 응모자·차감 연결이 없어야 하며 후보 수량·가중치에 포함되지 않아야 한다.
+
+<details>
+<summary>2026-10-13 로컬 GD-169 준비 기록 — 과거 기준, 현행 구현 설명 아님</summary>
+
+- 확인 기준: origin/dev 1417664, spec main 1a2cfbf. 로컬 dev 19f70a4는 사용자 지시로 보존했다. 앞선 본문의 저장·제외 흐름 설명은 이 로컬 브랜치의 과거 설계이며 GD-169 구현은 최신 원격 코드와 공용 스펙을 기준으로 한다.
+- 사용자 확정 계약은 [추첨 API](https://github.com/GETDDO/getddo-spec/blob/main/05-api/drawing.md)의 2026-10-13 GD-169 절을 따른다. API 정책을 여기에서 별도로 확정하지 않는다.
+- 실제 87·138·139·137 Service를 연결해 재추첨 고정 시각 기준 취소 여부·유지 명단 완전성, ATTEMPT_LOST 분류, 공통 모델 불변식, 저장/재조회 후보 순서, 실패·취소·공개 조회를 검증한다.
+- 관리자 권한 검증은 87까지 공통화한다. 자동 호출에는 관리자 요구를 새로 추가하지 않고 기존 서비스별 업무 오류·감사 처리자를 보존한다. @Transactional은 서비스에서 선언하고 var는 사용하지 않는다.
+- 실행별 공개 근거는 기존 취소·확인·공개 포함 결과의 연결을 조회한다. 기존 단일 공개 메타데이터를 덮어쓰거나 사유 문자열만으로 모든 이력을 대체하지 않는다.
+- 기존 NotificationJobService.register(NotificationJobRequest)는 원본 업무 트랜잭션에 참여하고, 작업 생성·발송 워커가 따로 처리하는 기반이다. publicationId를 포함한 기존 등록 입력과 발생 키 재사용 계약을 확인했다. 실제 추첨 생산자 연결·수신 대상/payload 매핑·누락 복구는 아직 구현하지 않았다.
+- 공개와 전달 근거를 같은 트랜잭션에 보존하는 기존 알림 작업 저장 기반을 우선 검토한다. 재전달 시 수신 대상·payload·발생 키를 고정하며 공개 버전 ID로 중복을 방지한다. 새 전달 테이블·컬럼은 이번 문서에서 확정하지 않는다.
+- 기존 이벤트 상태 변경 코드가 있으면 호출 계약을 확인해 연결하고 없으면 신규 기능을 만들지 않는다. 공동 이벤트·감사·알림 담당 코드는 독립 변경하지 않는다.
+- 내부 연결·복구 계획: [공개 알림 연결 계획](../06-runbook/draw-publication-delivery-plan.md). 실제 서비스 구현·API/MySQL 통합 검증과 전체 test/build는 GD-169의 후속 작업이다.
+
+</details>

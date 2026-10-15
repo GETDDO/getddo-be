@@ -87,6 +87,7 @@ class MissionSubmissionQueryServiceTest {
 		assertThat(completed.isCompleted()).isTrue();
 		assertThat(completed.isCreated()).isFalse();
 		assertThat(completed.getReceivedAt()).isEqualTo(NOW);
+		assertThat(completed.getReward().getClaimId()).isEqualTo(claim.getId());
 		assertThat(completed.getReward().getTicketCount()).isEqualTo(1);
 		assertThat(completed.getReward().getGrade()).isEqualTo(TicketGrade.SILVER);
 		assertThat(completed.getReward().getExpiresAt()).isEqualTo(EXPIRES_AT);

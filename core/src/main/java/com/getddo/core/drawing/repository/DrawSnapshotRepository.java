@@ -1,5 +1,6 @@
 package com.getddo.core.drawing.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -10,6 +11,8 @@ import com.getddo.core.drawing.domain.DrawSnapshotSource;
 /** 모든 조회·저장은 호출자의 같은 트랜잭션 안에서 수행한다. */
 public interface DrawSnapshotRepository {
 	/** 입력 준비와 실행 처리의 공통 선잠금 대상인 이벤트 원본을 읽는다. */
+	/** 최초 실행이 없는 마감 이벤트만 제한된 건수로 탐색한다. */
+	List<UUID> findInitialDue(Instant cutoff, int limit);
 	Optional<DrawSnapshotSource.Event> lockEvent(UUID eventId);
 	/** 이벤트의 최초 실행과 해당 실행에 저장된 조건·후보를 조회한다. */
 	Optional<DrawSnapshot> findInitial(UUID eventId);

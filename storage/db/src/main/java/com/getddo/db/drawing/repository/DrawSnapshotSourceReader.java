@@ -23,13 +23,25 @@ import com.getddo.core.ticket.domain.TicketGrade;
 import static com.getddo.db.common.util.UuidBinary.fromBytes;
 import static com.getddo.db.common.util.UuidBinary.toBytes;
 
-/** 다른 담당자의 원본 조회와 이벤트 선잠금 SQL을 유지한다. 추첨 테이블은 읽거나 쓰지 않는다. */
+/** 원본 이벤트·응모 조회와 이벤트 선잠금을 제공한다. */
 @Repository
 public class DrawSnapshotSourceReader {
 	private final JdbcTemplate jdbc;
 
 	public DrawSnapshotSourceReader(JdbcTemplate jdbc) {
 		this.jdbc = jdbc;
+	}
+
+	/** 실행 등록 여부만 확인하며 후보·경품 전체를 폴링에 적재하지 않는다. */
+	public List<UUID> findInitialDue(Instant cutoff, int limit) {
+		return jdbc.query("""
+			select e.id from events e
+			where e.deleted_at is null and e.status in ('SCHEDULED', 'OPEN', 'CLOSED') and e.ends_at <= ?
+			and not exists (select 1 from draw_runs r
+			 where r.event_id = e.id and r.draw_type = 'INITIAL' and r.run_number = 0)
+			order by e.ends_at, e.id limit ?
+			""", (row, index) -> fromBytes(row.getBytes("id")),
+			LocalDateTime.ofInstant(cutoff, ZoneOffset.UTC), limit);
 	}
 
 	/** 이벤트 행을 먼저 잠근 뒤 추첨에 필요한 이벤트 조건과 경품을 조회한다. */

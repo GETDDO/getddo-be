@@ -18,16 +18,38 @@ import org.mockito.InOrder;
 
 import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
-import com.getddo.core.drawing.domain.*;
+import com.getddo.core.drawing.domain.DrawCandidate;
+import com.getddo.core.drawing.domain.DrawConfirmation;
+import com.getddo.core.drawing.domain.DrawPrize;
+import com.getddo.core.drawing.domain.DrawResult;
+import com.getddo.core.drawing.domain.DrawRunStatus;
+import com.getddo.core.drawing.domain.DrawSelection;
+import com.getddo.core.drawing.domain.DrawSelectionResultType;
+import com.getddo.core.drawing.domain.DrawSnapshot;
+import com.getddo.core.drawing.domain.DrawSnapshotSource;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.service.EventStatusChangeService;
 import com.getddo.core.event.domain.EventType;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.NOT_EXECUTABLE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class DrawConfirmationServiceTest {
 	private static final Instant NOW = Instant.parse("2026-10-11T03:00:00Z");
@@ -36,8 +58,9 @@ class DrawConfirmationServiceTest {
 	private final DrawSnapshotRepository snapshots = mock(DrawSnapshotRepository.class);
 	private final DrawRandom random = mock(DrawRandom.class);
 	private final DrawingSelectionService selection = spy(new DrawingSelectionService(random));
+	private final EventStatusChangeService eventStatuses = mock(EventStatusChangeService.class);
 	private final DrawConfirmationService service = new DrawConfirmationService(repository, snapshots, selection,
-			new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+			new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), eventStatuses);
 	private DrawSnapshot snapshot;
 
 	/** 마감 후 실행 가능한 READY 스냅샷과 제어 가능한 난수를 준비한다. */
@@ -75,6 +98,7 @@ class DrawConfirmationServiceTest {
 		assertThat(confirmed.getResults().getFirst().getSelection().getSelectionOrder()).isEqualTo(1);
 		assertThat(confirmed.getResults().getLast().getSelection().getResultType()).isEqualTo(DrawSelectionResultType.UNFILLED);
 		verify(repository).saveConfirmed(eq(snapshot), anyList(), eq(NOW));
+		verify(eventStatuses).changeStatus(eventId, EventStatus.CLOSED, EventStatus.DRAW_CONFIRMED);
 		InOrder ordered = inOrder(repository, snapshots);
 		ordered.verify(repository).findEventId(runId);
 		ordered.verify(snapshots).lockEvent(eventId);
@@ -96,7 +120,7 @@ class DrawConfirmationServiceTest {
 		when(repository.findConfirmed(snapshot)).thenReturn(stored);
 		// when / then
 		assertThat(service.confirm(runId)).isSameAs(stored);
-		verifyNoInteractions(selection, random);
+		verifyNoInteractions(selection, random, eventStatuses);
 		verify(repository, never()).findCurrentAwards(any());
 		verify(repository, never()).saveConfirmed(any(), anyList(), any());
 	}
@@ -231,10 +255,10 @@ class DrawConfirmationServiceTest {
 		verify(repository, never()).saveConfirmed(any(), anyList(), any());
 	}
 
-	/** 정확한 5분 경계와 OPEN 이벤트의 경계 이후 실행을 고정 시각으로 검증한다. */
+	/** SCHEDULED를 포함한 최초 추첨 상태의 5분 경계 이후 실행을 고정 시각으로 검증한다. */
 	@ParameterizedTest
-	@CsvSource({"CLOSED,300000000000", "OPEN,300000000001"})
-	@DisplayName("정확히 5분 이후에는 CLOSED와 OPEN 이벤트 모두 확정할 수 있다")
+	@CsvSource({"SCHEDULED,300000000000", "CLOSED,300000000000", "OPEN,300000000001"})
+	@DisplayName("마감 5분 이후에는 SCHEDULED·OPEN·CLOSED 이벤트를 확정할 수 있다")
 	void confirmsAtAndAfterFiveMinutes(EventStatus status, long elapsedNanos) {
 		// given
 		when(snapshots.lockEvent(eventId)).thenReturn(Optional.of(new DrawSnapshotSource.Event(eventId,
@@ -247,6 +271,7 @@ class DrawConfirmationServiceTest {
 		// when / then
 		assertThat(service.confirm(runId).getRunId()).isEqualTo(runId);
 		verify(repository).saveConfirmed(eq(snapshot), anyList(), eq(NOW));
+		verify(eventStatuses).changeStatus(eventId, status, EventStatus.DRAW_CONFIRMED);
 	}
 
 	/** 검토 시간이 지났더라도 논리 삭제된 이벤트는 확정하지 않는지 검증한다. */

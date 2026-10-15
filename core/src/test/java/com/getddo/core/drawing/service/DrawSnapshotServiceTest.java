@@ -17,31 +17,53 @@ import com.getddo.core.common.exception.BusinessException;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawRunStatus;
 import com.getddo.core.drawing.domain.DrawSnapshot;
-import com.getddo.core.drawing.domain.DrawSnapshotSource.*;
+import com.getddo.core.drawing.domain.DrawSnapshotSource.Entry;
+import com.getddo.core.drawing.domain.DrawSnapshotSource.Event;
+import com.getddo.core.drawing.domain.DrawSnapshotSource.Participant;
+import com.getddo.core.drawing.domain.DrawSnapshotSource.Prize;
+import com.getddo.core.drawing.domain.DrawSnapshotSource.Use;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.service.EventStatusChangeService;
 import com.getddo.core.event.domain.EventType;
 import com.getddo.core.ticket.domain.TicketGrade;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
-import static org.assertj.core.api.Assertions.*;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_EVIDENCE;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.NOT_EXECUTABLE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class DrawSnapshotServiceTest {
 	private static final Instant NOW = Instant.parse("2026-10-09T03:00:00Z");
 	private final UUID eventId = UUID.randomUUID(), participantId = UUID.randomUUID(), userId = UUID.randomUUID();
 	private DrawSnapshotRepository repository;
 	private DrawSnapshotService service;
+	private EventStatusChangeService eventStatuses;
 
 	/** 서버 시각과 유효한 이벤트·응모 테스트 환경을 각 검증 전에 초기화한다. */
 	@BeforeEach
 	void setUp() {
 		repository = mock(DrawSnapshotRepository.class);
-		service = new DrawSnapshotService(repository, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+		eventStatuses = mock(EventStatusChangeService.class);
+		service = new DrawSnapshotService(repository, new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), eventStatuses);
 		when(repository.lockEvent(eventId)).thenReturn(Optional.of(event(EventType.TICKET, true, NOW.minusSeconds(300))));
 		when(repository.findInitial(eventId)).thenReturn(Optional.empty());
 		when(repository.saveInitial(any())).thenAnswer(call -> call.getArgument(0));
+	}
+
+	@Test
+	@DisplayName("폴링 조회는 현재 시각에서 5분을 뺀 경계와 최대 20건을 사용한다")
+	void queriesBoundedClosingBoundary() {
+		// given
+		when(repository.findInitialDue(NOW.minusSeconds(300), 20)).thenReturn(List.of(eventId));
+		// when / then
+		assertThat(service.findInitialDue()).containsExactly(eventId);
 	}
 
 	/** 추가 응모의 등급별 실제 차감량을 합산하고 원본 근거와 가중치를 보존하는지 검증한다. */
@@ -108,10 +130,14 @@ class DrawSnapshotServiceTest {
 	}
 
 	/** 응모자가 없는 신규 실행만 NO_ENTRIES로 종료하는지 검증한다. */
-	@Test
-	@DisplayName("응모자가 없으면 후보 없이 NO_ENTRIES로 종료한다")
-	void terminatesWithoutCandidatesOnlyWhenThereAreNoEntries() {
+	@ParameterizedTest
+	@EnumSource(value = EventStatus.class, names = {"SCHEDULED", "OPEN", "CLOSED"})
+	@DisplayName("최초 추첨 허용 상태에서 응모자가 없으면 NO_ENTRIES로 종료한다")
+	void terminatesWithoutCandidatesOnlyWhenThereAreNoEntries(EventStatus initialStatus) {
 		// given
+		Event source = event(EventType.NO_TICKET, false, NOW.minusSeconds(300));
+		when(repository.lockEvent(eventId)).thenReturn(Optional.of(new Event(eventId, source.type(),
+				source.weightingEnabled(), source.endsAt(), initialStatus, false, source.membershipRule(), source.prizes())));
 		when(repository.findParticipants(eventId)).thenReturn(List.of());
 
 		// when
@@ -120,6 +146,7 @@ class DrawSnapshotServiceTest {
 		// then
 		assertThat(snapshot.status()).isEqualTo(DrawRunStatus.NO_ENTRIES);
 		assertThat(snapshot.candidates()).isEmpty();
+		verify(eventStatuses).changeStatus(eventId, initialStatus, EventStatus.NO_ENTRANTS);
 	}
 
 	/** 제외 제공자 없이 모든 정상 응모를 후보로 저장하고 등급별 가중치를 유지하는지 검증한다. */

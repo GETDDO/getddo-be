@@ -20,6 +20,7 @@ import com.getddo.core.mission.exception.MissionErrorCode;
 import com.getddo.core.mission.exception.MissionException;
 import com.getddo.core.mission.service.MissionSubmissionQueryService;
 import com.getddo.core.mission.service.MissionSubmissionService;
+import com.getddo.db.ticket.TicketGrantSeeds;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,6 +61,10 @@ class MissionSubmissionQueryServiceIntegrationTest extends MissionIntegrationTes
 		assertThat(done.isCompleted()).isTrue();
 		assertThat(result.getItems()).extracting(MissionSubmissionResult::getSubmissionId)
 				.containsExactly(done.getSubmissionId(), wrong.getSubmissionId());
+		assertThat(result.getItems().get(0).getReward().getClaimId()).isEqualTo(done.getReward().getClaimId());
+		assertThat(result.getItems().get(0).getReward().getClaimId()).isEqualTo(TicketGrantSeeds.uuid(jdbc.queryForObject(
+				"select id from mission_reward_claims where mission_submission_id = ?", byte[].class,
+				TicketGrantSeeds.bytes(done.getSubmissionId()))));
 		assertThat(result.getItems().get(0).getReward().getTicketCount()).isEqualTo(1);
 		assertThat(result.getItems().get(0).getReward().getGrade()).isEqualTo(done.getReward().getGrade());
 		assertThat(result.getItems().get(0).getReward().getGrantedAt()).isEqualTo(done.getReward().getGrantedAt());

@@ -75,6 +75,7 @@ class MissionControllerTest {
 			Membership.VIP, null, null, null, null, null, null);
 	private static final UUID MISSION_ID = UUID.randomUUID();
 	private static final UUID SUBMISSION_ID = UUID.randomUUID();
+	private static final UUID CLAIM_ID = UUID.randomUUID();
 	private static final UUID QUESTION_ID = UUID.randomUUID();
 	private static final UUID OPTION_ID = UUID.randomUUID();
 	private static final Instant RECEIVED_AT = Instant.parse("2026-10-13T03:00:00Z");
@@ -114,7 +115,7 @@ class MissionControllerTest {
 	}
 
 	private static MissionSubmissionResult completed(boolean created) {
-		return new MissionSubmissionResult(SUBMISSION_ID, MISSION_ID, RECEIVED_AT, true, new MissionRewardReceipt(1,
+		return new MissionSubmissionResult(SUBMISSION_ID, MISSION_ID, RECEIVED_AT, true, new MissionRewardReceipt(CLAIM_ID, 1,
 				TicketGrade.SILVER, Instant.parse("2026-10-13T03:00:00Z"), Instant.parse("2026-10-31T15:00:00Z")), created);
 	}
 
@@ -133,6 +134,7 @@ class MissionControllerTest {
 				.andExpect(jsonPath("$.data.receivedAt").value("2026-10-13T03:00:00Z"))
 				.andExpect(jsonPath("$.data.createdAt").value("2026-10-13T03:00:00Z"))
 				.andExpect(jsonPath("$.data.isCompleted").value(true))
+				.andExpect(jsonPath("$.data.reward.claimId").value(CLAIM_ID.toString()))
 				.andExpect(jsonPath("$.data.reward.ticketCount").value(1))
 				.andExpect(jsonPath("$.data.reward.grade").value("SILVER"))
 				.andExpect(jsonPath("$.data.reward.grantedAt").value("2026-10-13T03:00:00Z"))
@@ -406,6 +408,7 @@ class MissionControllerTest {
 				.andExpect(jsonPath("$.data.items[0].isCompleted").value(true))
 				.andExpect(jsonPath("$.data.items[0].receivedAt").value("2026-10-13T03:00:00Z"))
 				.andExpect(jsonPath("$.data.items[0].createdAt").value("2026-10-13T03:00:00Z"))
+				.andExpect(jsonPath("$.data.items[0].reward.claimId").value(CLAIM_ID.toString()))
 				.andExpect(jsonPath("$.data.items[0].reward.ticketCount").value(1))
 				.andExpect(jsonPath("$.data.items[0].reward.grade").value("SILVER"))
 				.andExpect(jsonPath("$.data.items[1].submissionId").value(wrongId.toString()))

@@ -19,12 +19,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DrawExecutionEligibilityTest {
 	private static final Instant NOW = Instant.parse("2026-10-12T03:00:00Z");
 
-	/** 최초는 OPEN·CLOSED, 재추첨은 REDRAWING에서만 새 시도를 허용한다. */
+	/** 최초는 SCHEDULED·OPEN·CLOSED, 재추첨은 REDRAWING에서만 새 시도를 허용한다. */
 	@ParameterizedTest
-	@CsvSource({"SCHEDULED, false, false", "OPEN, true, false", "CLOSED, true, false",
+	@CsvSource({"SCHEDULED, true, false", "OPEN, true, false", "CLOSED, true, false",
 			"DRAW_CONFIRMED, false, false", "PUBLISHED, false, false", "CANCELED, false, false",
 			"REDRAWING, false, true", "NO_ENTRANTS, false, false", "NO_ELIGIBLE_ENTRANTS, false, false"})
-	@DisplayName("최초는 OPEN·CLOSED, 재추첨은 REDRAWING에서만 새 시도를 허용한다")
+	@DisplayName("최초는 SCHEDULED·OPEN·CLOSED, 재추첨은 REDRAWING에서만 새 시도를 허용한다")
 	void restrictsEventStatuses(EventStatus status, boolean initialAllowed, boolean replacementAllowed) {
 		// given
 		DrawSnapshotSource.Event event = event(status, false);
@@ -41,6 +41,8 @@ class DrawExecutionEligibilityTest {
 		// given
 		Instant now = NOW.plusSeconds(offsetSeconds);
 		// when / then
+		assertThat(DrawExecutionEligibility.isExecutable(event(EventStatus.SCHEDULED, false), DrawType.INITIAL, now))
+				.isEqualTo(expected);
 		assertThat(DrawExecutionEligibility.isExecutable(event(EventStatus.CLOSED, false), DrawType.INITIAL, now))
 				.isEqualTo(expected);
 		assertThat(DrawExecutionEligibility.isExecutable(event(EventStatus.REDRAWING, false), DrawType.REPLACEMENT, now))
@@ -52,6 +54,7 @@ class DrawExecutionEligibilityTest {
 	@DisplayName("허용 상태여도 삭제된 이벤트는 실행하지 않는다")
 	void rejectsDeletedEvents() {
 		// when / then
+		assertThat(DrawExecutionEligibility.isExecutable(event(EventStatus.SCHEDULED, true), DrawType.INITIAL, NOW)).isFalse();
 		assertThat(DrawExecutionEligibility.isExecutable(event(EventStatus.CLOSED, true), DrawType.INITIAL, NOW)).isFalse();
 		assertThat(DrawExecutionEligibility.isExecutable(event(EventStatus.REDRAWING, true), DrawType.REPLACEMENT, NOW)).isFalse();
 	}
