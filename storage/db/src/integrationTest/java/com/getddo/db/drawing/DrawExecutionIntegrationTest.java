@@ -43,6 +43,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.TransientDataAccessResourceException;
@@ -99,19 +100,23 @@ class DrawExecutionIntegrationTest {
 			""", toBytes(prizeId), toBytes(eventId), utc(NOW), utc(NOW));
 	}
 
-	@Test @DisplayName("마감 5분 경계와 취소·삭제·등록 여부를 조회에서 구분한다")
-	void pollsOnlyUnregisteredEligibleEvents() {
+	@ParameterizedTest
+	@EnumSource(value = EventStatus.class, names = {"SCHEDULED", "OPEN", "CLOSED"})
+	@DisplayName("마감 5분 경계와 취소·삭제·등록 여부를 조회에서 구분한다")
+	void pollsOnlyUnregisteredEligibleEvents(EventStatus initialStatus) {
 		// given
+		jdbc.update("update events set status = ? where id = ?", initialStatus.name(), toBytes(eventId));
 		jdbc.update("update events set ends_at = ? where id = ?", utc(NOW.minusSeconds(600)), toBytes(eventId));
 		clock.set(NOW.minusSeconds(300).minusNanos(1000));
 		// when / then
 		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
+		assertThatThrownBy(() -> snapshots.registerInitial(eventId)).isInstanceOf(BusinessException.class);
 		clock.set(NOW.minusSeconds(300));
 		assertThat(snapshots.findInitialDue()).contains(eventId);
 		jdbc.update("update events set status = 'CANCELED' where id = ?", toBytes(eventId));
 		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
 		assertThatThrownBy(() -> snapshots.registerInitial(eventId)).isInstanceOf(BusinessException.class);
-		jdbc.update("update events set status = 'OPEN', deleted_at = ? where id = ?", utc(NOW), toBytes(eventId));
+		jdbc.update("update events set status = ?, deleted_at = ? where id = ?", initialStatus.name(), utc(NOW), toBytes(eventId));
 		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
 		assertThatThrownBy(() -> snapshots.registerInitial(eventId)).isInstanceOf(BusinessException.class);
 		jdbc.update("update events set deleted_at = null where id = ?", toBytes(eventId));
@@ -120,9 +125,12 @@ class DrawExecutionIntegrationTest {
 		assertThat(control.findDue()).contains(runId);
 	}
 
-	@Test @DisplayName("동시 최초 등록은 하나의 실행을 만들고 등록 후 중단은 같은 실행으로 복구한다")
-	void concurrentRegistrationAndRecovery() throws Exception {
+	@ParameterizedTest
+	@EnumSource(value = EventStatus.class, names = {"SCHEDULED", "OPEN", "CLOSED"})
+	@DisplayName("동시 최초 등록은 하나의 실행을 만들고 등록 후 중단은 같은 실행으로 복구한다")
+	void concurrentRegistrationAndRecovery(EventStatus initialStatus) throws Exception {
 		// given
+		jdbc.update("update events set status = ? where id = ?", initialStatus.name(), toBytes(eventId));
 		participant(user("USER"));
 		CountDownLatch start = new CountDownLatch(1);
 		try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
@@ -151,9 +159,12 @@ class DrawExecutionIntegrationTest {
 		}
 	}
 
-	@Test @DisplayName("응모자 없음 종료는 이벤트와 함께 커밋되고 다시 선정하지 않는다")
-	void noEntriesTerminatesEventOnce() {
+	@ParameterizedTest
+	@EnumSource(value = EventStatus.class, names = {"SCHEDULED", "OPEN", "CLOSED"})
+	@DisplayName("응모자 없음 종료는 이벤트와 함께 커밋되고 다시 선정하지 않는다")
+	void noEntriesTerminatesEventOnce(EventStatus initialStatus) {
 		// given
+		jdbc.update("update events set status = ? where id = ?", initialStatus.name(), toBytes(eventId));
 		UUID runId = snapshots.registerInitial(eventId);
 		// when
 		assertThat(executions.execute(runId).getStatus()).isEqualTo(DrawRunStatus.NO_ENTRIES);
@@ -168,22 +179,24 @@ class DrawExecutionIntegrationTest {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"DRAW_CONFIRMED,true", "NO_ENTRANTS,false"})
+	@CsvSource({"CLOSED,DRAW_CONFIRMED,true", "CLOSED,NO_ENTRANTS,false",
+			"SCHEDULED,DRAW_CONFIRMED,true", "SCHEDULED,NO_ENTRANTS,false"})
 	@DisplayName("최초 확정·응모자 없음 상태 변경 실패는 저장을 롤백하고 운영자 대기를 남긴다")
-	void stateChangeFailureRollsBackInitialTermination(EventStatus terminalStatus, boolean hasEntrants) {
+	void stateChangeFailureRollsBackInitialTermination(EventStatus initialStatus, EventStatus terminalStatus, boolean hasEntrants) {
 		// given
+		jdbc.update("update events set status = ? where id = ?", initialStatus.name(), toBytes(eventId));
 		if (hasEntrants) participant(user("USER"));
 		UUID runId = snapshots.registerInitial(eventId);
 		new TransactionTemplate(manager).executeWithoutResult(status ->
 			doThrow(new IllegalStateException()).when(eventStatuses).changeStatus(eventId,
-					EventStatus.CLOSED, terminalStatus));
+					initialStatus, terminalStatus));
 		// when
 		assertThat(executions.execute(runId).getStatus()).isEqualTo(DrawRunStatus.FAILED);
 		// then
 		assertThat(countResults(runId)).isZero();
 		if (!hasEntrants) assertThat(runs.findById(runId).orElseThrow().getSnapshotFixedAt()).isNull();
 		assertThat(jdbc.queryForObject("select status from events where id = ?", String.class, toBytes(eventId)))
-				.isEqualTo("CLOSED");
+				.isEqualTo(initialStatus.name());
 		assertThat(runs.findById(runId).orElseThrow().getRetryAt()).isNull();
 		assertThat(snapshots.findInitialDue()).doesNotContain(eventId);
 		assertThat(control.findDue()).doesNotContain(runId);

@@ -66,8 +66,7 @@ public class DrawSnapshotService {
 			throw new BusinessException(INVALID_RUN);
 		}
 		Instant now = time.now();
-		if (event.deleted() || (event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
-				|| now.isBefore(event.endsAt().plusSeconds(300))) {
+		if (!DrawExecutionEligibility.isExecutable(event, DrawType.INITIAL, now)) {
 			throw new BusinessException(NOT_EXECUTABLE);
 		}
 		DrawSnapshot saved = repository.saveInitial(buildInput(event, null, now));
@@ -79,8 +78,7 @@ public class DrawSnapshotService {
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public UUID registerInitial(UUID eventId) {
 		DrawSnapshotSource.Event event = repository.lockEvent(eventId).orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
-		if (event.deleted() || (event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
-				|| time.now().isBefore(event.endsAt().plusSeconds(300))) throw new BusinessException(NOT_EXECUTABLE);
+		if (!DrawExecutionEligibility.isExecutable(event, DrawType.INITIAL, time.now())) throw new BusinessException(NOT_EXECUTABLE);
 		return repository.registerInitial(eventId).runId();
 	}
 
@@ -111,8 +109,7 @@ public class DrawSnapshotService {
 
 	/** 최초 실행 가능 조건과 응모·차감 근거를 검증해 고정할 후보·규칙을 구성한다. 응모자가 없으면 NO_ENTRIES 입력으로 정상 종료를 표현한다. */
 	private DrawSnapshot buildInput(DrawSnapshotSource.Event event, UUID runId, Instant now) {
-		if (event.deleted() || (event.status() != EventStatus.OPEN && event.status() != EventStatus.CLOSED)
-				|| now.isBefore(event.endsAt().plusSeconds(300))) throw new BusinessException(NOT_EXECUTABLE);
+		if (!DrawExecutionEligibility.isExecutable(event, DrawType.INITIAL, now)) throw new BusinessException(NOT_EXECUTABLE);
 		validatePrizes(event);
 		List<DrawSnapshotSource.Participant> participants = repository.findParticipants(event.id());
 		List<DrawSnapshot.Candidate> candidates = new ArrayList<>();
