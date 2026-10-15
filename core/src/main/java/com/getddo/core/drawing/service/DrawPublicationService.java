@@ -115,7 +115,10 @@ public class DrawPublicationService {
 		return new DrawPublicationConfirmation(eventId, trigger, saved);
 	}
 
-	/** 동일 발표 실행의 재시도는 최초 공개 버전과 기존 확인을 반환하고 이후 변경 명단은 공개하지 않는다. */
+	/**
+	 * 동일 발표 요청의 재시도 응답은 원래 성공한 최초 버전으로 고정한다. 최신 명단 조회가 아니다.
+	 * 이후 변경 명단은 조회 API로 읽고 이 요청에서는 공개·알림을 다시 수행하지 않는다.
+	 */
 	private DrawPublicationConfirmation replayInitial(DrawPublication first, UUID reviewedRunId) {
 		if (!first.getSourceDrawId().equals(reviewedRunId)) throw new BusinessException(
 				com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PHASE);
