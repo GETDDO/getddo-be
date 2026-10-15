@@ -27,6 +27,8 @@ import com.getddo.core.common.pagination.PageResult;
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.drawing.domain.DrawConfirmation;
 import com.getddo.core.drawing.domain.DrawPublication;
+import com.getddo.core.drawing.domain.DrawPublicationConfirmation;
+import com.getddo.core.drawing.domain.DrawResultConfirmation;
 import com.getddo.core.drawing.domain.DrawPublicationChange;
 import com.getddo.core.drawing.domain.DrawPublicationRun;
 import com.getddo.core.drawing.domain.DrawResult;
@@ -39,8 +41,10 @@ import com.getddo.core.drawing.repository.DrawPublicationRepository;
 import com.getddo.core.drawing.repository.DrawResultRepository;
 import com.getddo.core.drawing.repository.DrawSnapshotRepository;
 import com.getddo.core.event.domain.EventStatus;
+import com.getddo.core.event.service.EventStatusChangeService;
 
-import static com.getddo.core.drawing.exception.DrawingErrorCode.*;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.EVENT_NOT_FOUND;
+import static com.getddo.core.drawing.exception.DrawingErrorCode.INVALID_RUN;
 
 /** 최초 결과를 공개하거나 확인된 재추첨으로 명단을 갱신한다. 공개 버전과 알림 작업을 함께 저장한다. */
 @Service
@@ -51,6 +55,88 @@ public class DrawPublicationService {
 	private final DrawResultRepository results;
 	private final TimeProvider time;
 	private final DrawPublicationNotificationService notifications;
+	private final EventStatusChangeService eventStatuses;
+
+	/**
+	 * 관리자가 검토한 최신 실행을 기준으로 최초 명단을 최종 확인하고 공개한다.
+	 * 결과는 확정 후 불변이므로 새 취소·재추첨 실행이 생기면 이전 runId 요청을 거절한다.
+	 * 확인·공개·상태·알림 등록은 이벤트 잠금을 가진 하나의 업무 트랜잭션에 참여한다.
+	 */
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public DrawPublicationConfirmation publishReviewedInitial(UUID eventId, UUID reviewedRunId, UUID actorId) {
+		DrawSnapshotSource.Event event = snapshots.lockEvent(eventId)
+				.orElseThrow(() -> new BusinessException(EVENT_NOT_FOUND));
+		if (!canPublish(event)) throw new BusinessException(
+				com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PHASE);
+		Optional<DrawPublication> first = publications.findPrevious(eventId, 2);
+		if (first.isPresent()) return replayInitial(first.get(), reviewedRunId);
+		DrawSnapshot initial = snapshots.findInitial(eventId).orElseThrow(() -> new BusinessException(INVALID_RUN));
+		DrawSnapshot locked = results.lockSnapshot(initial.runId()).orElseThrow(() -> new BusinessException(INVALID_RUN));
+		if (!eventId.equals(locked.eventId()) || locked.status() != DrawRunStatus.CONFIRMED) notConfirmable();
+		results.validateRelations(locked);
+		DrawConfirmation original = results.findConfirmed(locked);
+		if (!locked.runId().equals(original.getRunId()) || !eventId.equals(original.getEventId())) invalid();
+		validateInitial(locked, original);
+		List<DrawPublicationRun> runs = publications.findReplacementRuns(eventId).stream()
+				.sorted(java.util.Comparator.comparingInt(DrawPublicationRun::getRunNumber)).toList();
+		UUID latestRunId = runs.isEmpty() ? locked.runId() : runs.getLast().getRunId();
+		if (!latestRunId.equals(reviewedRunId)) throw new BusinessException(
+				com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PHASE);
+		if (runs.stream().anyMatch(run -> run.getStatus() != DrawRunStatus.CONFIRMED)) notConfirmable();
+		Instant now = time.now();
+		if (original.getConfirmedAt().isAfter(now)) invalid();
+		DrawResultConfirmation initialCheck = check(locked.runId(), actorId, now, original.getConfirmedAt());
+		List<DrawPublicationRun> checkedRuns = new ArrayList<>();
+		for (DrawPublicationRun run : runs) {
+			if (!eventId.equals(run.getEventId()) || run.getConfirmedAt() == null
+					|| run.getConfirmedAt().isAfter(now)) invalid();
+			DrawResultConfirmation checked = check(run.getRunId(), actorId, now, run.getConfirmedAt());
+			checkedRuns.add(new DrawPublicationRun(run.getRunId(), run.getEventId(), run.getRunNumber(),
+					run.getStatus(), run.getConfirmedAt(), run.getResults(), checked));
+		}
+		DrawPublicationAssembler.Composition composed = DrawPublicationAssembler.compose(locked, original,
+				checkedRuns, publications.findCancellations(eventId), reviewedRunId, now);
+		if (!composed.isComplete()) notConfirmable();
+		List<DrawPublication.Entry> entries = composed.getEntries().stream().map(entry ->
+				entry.getRunId().equals(locked.runId()) ? new DrawPublication.Entry(entry.getResultId(),
+						locked.runId(), initialCheck.getId()) : entry).toList();
+		List<DrawPublication.Execution> evidence = new ArrayList<>();
+		evidence.add(new DrawPublication.Execution(locked.runId(), initialCheck.getId(), initialCheck.getConfirmedBy(),
+				initialCheck.getConfirmedAt(), List.of()));
+		evidence.addAll(composed.getExecutions());
+		DrawResultConfirmation trigger = reviewedRunId.equals(locked.runId()) ? initialCheck
+				: checkedRuns.getLast().getConfirmation();
+		// 기존 실행 확인은 보존하고 이번 최초 공개에는 실제 발표자·시각을 별도로 전달한다.
+		DrawPublication saved = publications.saveReviewedInitial(eventId, reviewedRunId, composed.getReason(),
+				actorId, entries, now);
+		publications.saveExecutionEvidence(saved.getId(), eventId, evidence);
+		eventStatuses.changeStatus(eventId, event.status(), EventStatus.PUBLISHED);
+		notifications.register(saved);
+		return new DrawPublicationConfirmation(eventId, trigger, saved);
+	}
+
+	/** 동일 발표 실행의 재시도는 최초 공개 버전과 기존 확인을 반환하고 이후 변경 명단은 공개하지 않는다. */
+	private DrawPublicationConfirmation replayInitial(DrawPublication first, UUID reviewedRunId) {
+		if (!first.getSourceDrawId().equals(reviewedRunId)) throw new BusinessException(
+				com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PHASE);
+		DrawResultConfirmation checked = publications.findConfirmation(reviewedRunId).orElseThrow(() ->
+				new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PHASE));
+		return new DrawPublicationConfirmation(first.getEventId(), checked, first);
+	}
+
+	/** 기존 확인은 덮어쓰지 않는다. 신규 확인 저장도 이후 공개 실패 시 함께 롤백된다. */
+	private DrawResultConfirmation check(UUID runId, UUID actorId, Instant now, Instant resultConfirmedAt) {
+		DrawResultConfirmation checked = publications.findConfirmation(runId)
+				.orElseGet(() -> publications.saveConfirmation(runId, actorId, now));
+		if (!runId.equals(checked.getRunId()) || checked.getConfirmedAt().isBefore(resultConfirmedAt)
+				|| checked.getConfirmedAt().isAfter(now)) invalid();
+		return checked;
+	}
+
+	/** 미확정·실패·정상 종료 실행은 관리자 발표로 확정 결과를 대신 만들 수 없다. */
+	private static void notConfirmable() {
+		throw new BusinessException(com.getddo.core.drawing.exception.DrawPublicationErrorCode.NOT_CONFIRMABLE);
+	}
 
 	/**
 	 * 마감 +5분 이후 저장된 최초 확정 결과만 공개한다. 승인·선정을 수행하지 않고 알림 작업 등록만 연결한다.

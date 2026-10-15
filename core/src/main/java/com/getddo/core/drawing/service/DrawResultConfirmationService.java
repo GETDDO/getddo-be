@@ -15,7 +15,9 @@ import com.getddo.core.drawing.domain.DrawPublicationRun;
 import com.getddo.core.drawing.domain.DrawResultConfirmation;
 import com.getddo.core.drawing.repository.DrawPublicationRepository;
 
-import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.*;
+import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.ADMIN_REQUIRED;
+import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.RUN_NOT_FOUND;
+import static com.getddo.core.drawing.exception.DrawPublicationErrorCode.INVALID_PHASE;
 
 /** 관리자의 재추첨 결과 확인을 기록하고, 공개 가능한 시점이면 명단에 반영한다. */
 @RequiredArgsConstructor
@@ -36,13 +38,13 @@ public class DrawResultConfirmationService {
 		return finish(run, actorId).getConfirmation();
 	}
 
-	/** 최초 공개 전에 확인한다. 공개 후 재요청은 이미 저장된 확인의 재시도만 허용한다. */
+	/** 최신 검토 실행의 최초 명단을 한 요청에서 최종 확인·공개한다. 별도 사전 확인은 요구하지 않는다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public DrawPublicationConfirmation confirmBeforeInitial(UUID runId, UUID actorId) {
-		DrawPublicationRun run = authorizeAndLock(runId, actorId);
-		if (repository.findLatest(run.getEventId()).isPresent() && run.getConfirmation() == null)
-		throw new BusinessException(INVALID_PHASE);
-		return finish(run, actorId);
+		admins.requireActiveAdmin(actorId, ADMIN_REQUIRED);
+		if (runId == null) throw new BusinessException(RUN_NOT_FOUND);
+		UUID eventId = repository.findEventId(runId).orElseThrow(() -> new BusinessException(RUN_NOT_FOUND));
+		return publications.publishReviewedInitial(eventId, runId, actorId);
 	}
 
 	/** AD06은 최초 공개가 존재할 때만 새 결과를 확인하고 최신 공개 버전을 반환한다. */
