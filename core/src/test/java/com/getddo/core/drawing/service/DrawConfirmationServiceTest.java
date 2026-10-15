@@ -255,10 +255,10 @@ class DrawConfirmationServiceTest {
 		verify(repository, never()).saveConfirmed(any(), anyList(), any());
 	}
 
-	/** 정확한 5분 경계와 OPEN 이벤트의 경계 이후 실행을 고정 시각으로 검증한다. */
+	/** SCHEDULED를 포함한 최초 추첨 상태의 5분 경계 이후 실행을 고정 시각으로 검증한다. */
 	@ParameterizedTest
-	@CsvSource({"CLOSED,300000000000", "OPEN,300000000001"})
-	@DisplayName("정확히 5분 이후에는 CLOSED와 OPEN 이벤트 모두 확정할 수 있다")
+	@CsvSource({"SCHEDULED,300000000000", "CLOSED,300000000000", "OPEN,300000000001"})
+	@DisplayName("마감 5분 이후에는 SCHEDULED·OPEN·CLOSED 이벤트를 확정할 수 있다")
 	void confirmsAtAndAfterFiveMinutes(EventStatus status, long elapsedNanos) {
 		// given
 		when(snapshots.lockEvent(eventId)).thenReturn(Optional.of(new DrawSnapshotSource.Event(eventId,
@@ -271,6 +271,7 @@ class DrawConfirmationServiceTest {
 		// when / then
 		assertThat(service.confirm(runId).getRunId()).isEqualTo(runId);
 		verify(repository).saveConfirmed(eq(snapshot), anyList(), eq(NOW));
+		verify(eventStatuses).changeStatus(eventId, status, EventStatus.DRAW_CONFIRMED);
 	}
 
 	/** 검토 시간이 지났더라도 논리 삭제된 이벤트는 확정하지 않는지 검증한다. */
