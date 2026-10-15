@@ -11,7 +11,11 @@ import com.getddo.core.common.exception.ErrorCode;
 public enum GameErrorCode implements ErrorCode {
 	USER_INACTIVE(403, "GAME-001", "비활성 사용자는 게임을 시작할 수 없습니다."),
 	GAME_NOT_FOUND(404, "GAME-002", "게임을 찾을 수 없습니다."),
-	GAME_NOT_AVAILABLE(409, "GAME-003", "지금 시작할 수 없는 게임입니다.");
+	GAME_NOT_AVAILABLE(409, "GAME-003", "지금 시작할 수 없는 게임입니다."),
+	PLAY_NOT_FOUND(404, "GAME-005", "플레이를 찾을 수 없습니다."),
+	RESULT_CONFLICT(409, "GAME-006", "이미 확정한 플레이의 입력을 변경할 수 없습니다."),
+	RESULT_ACCESS_DENIED(403, "GAME-007", "활성 일반 사용자만 게임 결과·통계를 이용할 수 있습니다."),
+	RESULT_TOO_LARGE(413, "GAME-008", "게임 결과 요청이 허용 크기를 초과했습니다.");
 
 	private final int status;
 	private final String code;
