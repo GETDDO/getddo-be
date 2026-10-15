@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,10 +45,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 실제 시작→종료→통계→청구→지급과 재시도・롤백・잠금 경합을 MySQL에서 확인한다. */
 @ApiIntegrationTest
+@TestPropertySource(properties = "getddo.rate-limit.enabled=true")
 class GameResultApiIntegrationTest {
 	private static final Instant NOW = Instant.parse("2026-10-15T14:59:59Z");
 	private final JsonMapper json = JsonMapper.builder().build();
@@ -251,6 +254,36 @@ class GameResultApiIntegrationTest {
 		jdbc.update("update users set status='ACTIVE',role='ADMIN' where id=?", bytes(user));
 		mvc.perform(get("/api/v1/games/{gameId}/statistics/me", game).header("X-User-ID", user).header("X-User-Role", "ADMIN"))
 				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("GAME-007"));
+	}
+
+	@Test
+	@DisplayName("결과 제출은 사용자별 1분 10회이며 초과 거절·시간 경과 후 재시도에도 통계와 보상을 중복 반영하지 않는다")
+	void limitsResultSubmissionsWithoutRepeatingEffects() throws Exception {
+		// given: 최초 완료와 같은 결과 재조회도 결과 제출 요청 한도에 포함한다.
+		JsonNode play = start();
+		String submitted = body(play, 5);
+		JsonNode original = result(submit(user, play, submitted).andExpect(status().isOk()));
+		for (int i = 1; i < 10; i++) {
+			assertThat(result(submit(user, play, submitted).andExpect(status().isOk()))).isEqualTo(original);
+		}
+		// when / then: 같은 사용자의 다른 게임 경로도 한도를 공유하며 조회·타인은 영향받지 않는다.
+		submit(user, play, submitted).andExpect(status().isTooManyRequests())
+				.andExpect(jsonPath("$.code").value("COMMON-006"))
+				.andExpect(jsonPath("$.data").isEmpty()).andExpect(header().string("Retry-After", "60"));
+		mvc.perform(put("/api/v1/games/{game}/plays/{play}/result", UUID.randomUUID(), play.path("playId").asString())
+				.header("X-User-ID", user).header("X-User-Role", "USER")
+				.contentType(MediaType.APPLICATION_JSON).content(submitted))
+				.andExpect(status().isTooManyRequests());
+		submit(other, play, submitted).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("GAME-005"));
+		statistics(user, game).andExpect(status().isOk()).andExpect(jsonPath("$.data.validPlayCount").value(1));
+		when(clock.instant()).thenReturn(NOW.plusSeconds(59));
+		submit(user, play, submitted).andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After", "1"));
+		when(clock.instant()).thenReturn(NOW.plusSeconds(60));
+		assertThat(result(submit(user, play, submitted).andExpect(status().isOk()))).isEqualTo(original);
+		assertThat(count("tickets")).isEqualTo(1);
+		assertThat(count("game_reward_claims")).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select valid_play_count from user_game_stats where user_id=? and game_id=?",
+				Long.class, bytes(user), bytes(game))).isEqualTo(1L);
 	}
 
 	private ResultActions statistics(UUID actor, UUID gameId) throws Exception {

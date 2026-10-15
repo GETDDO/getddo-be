@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.getddo.api.common.context.CurrentUser;
+import com.getddo.api.common.ratelimit.RateLimited;
 import com.getddo.api.common.response.ResponseEnvelope;
 import com.getddo.api.game.dto.request.GameResultRequest;
 import com.getddo.api.game.dto.response.GameResultResponse;
@@ -29,6 +30,7 @@ public class GameResultController {
 	private final GamePlayResultService service;
 
 	@PutMapping
+	@RateLimited(policy = "game-result")
 	public ResponseEntity<ResponseEnvelope<GameResultResponse>> submit(
 			@CurrentUser(membershipRequired = false) User user, @PathVariable UUID gameId,
 			@PathVariable UUID playId, @Valid @RequestBody GameResultRequest request) {
