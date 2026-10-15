@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -128,7 +129,7 @@ public class AdminTicketQueryRepositoryImpl implements AdminTicketQueryRepositor
 		where(where, parameters, "t.user_id", "userId", filter.getUserId());
 		if (filter.getKeyword() != null) {
 			where.append(" and lower(u.name) like :keyword escape '!'");
-			parameters.put("keyword", "%" + escapeLike(filter.getKeyword().toLowerCase()) + "%");
+			parameters.put("keyword", "%" + escapeLike(filter.getKeyword().toLowerCase(Locale.ROOT)) + "%");
 		}
 		where(where, parameters, "mc.mission_id", "missionId", filter.getMissionId());
 		if (filter.getSourceType() != null) {

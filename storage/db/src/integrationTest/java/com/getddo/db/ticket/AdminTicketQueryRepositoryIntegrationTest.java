@@ -203,4 +203,22 @@ class AdminTicketQueryRepositoryIntegrationTest extends TicketIntegrationTestSup
 		assertThat(grantsBefore).isEqualTo(1);
 		assertThat(grantsAfter).isEqualTo(1);
 	}
+
+	@Test
+	@DisplayName("서버 기본 로케일이 터키어여도 대문자 I가 포함된 영문 keyword로 이름을 찾는다")
+	void keywordIgnoresDefaultLocale() {
+		// given
+		renameUser(userId, "Hong Gil-Dong");
+		grantNewMissionClaim(userId, 1);
+		java.util.Locale original = java.util.Locale.getDefault();
+		java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+		try {
+			// when
+			PageResult<TicketGrantView> page = grants(filter(userId, "GIL", null, null, null, null, null), FIRST_PAGE);
+			// then
+			assertThat(page.getTotalElements()).isEqualTo(1);
+		} finally {
+			java.util.Locale.setDefault(original);
+		}
+	}
 }
