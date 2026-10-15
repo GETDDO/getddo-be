@@ -24,8 +24,20 @@ public final class UserDrawResult {
 		private final DrawDisplayStatus displayStatus;
 		private final List<PublishedPrize> prizes;
 
+		/** 미공개 데이터가 섞이지 않도록 공개 상태와 메타데이터를 함께 검증한다. */
 		public PublicResults(UUID eventId, boolean published, Instant publishedAt, Integer revision,
 				Instant updatedAt, Instant serverTime, DrawDisplayStatus displayStatus, List<PublishedPrize> prizes) {
+			List<PublishedPrize> copied = List.copyOf(prizes);
+			if (!published && (publishedAt != null || revision != null || updatedAt != null || !copied.isEmpty())) {
+				throw new IllegalArgumentException("unpublished results cannot include publication data");
+			}
+			if (published && (publishedAt == null || revision == null || revision < 1 || updatedAt == null)) {
+				throw new IllegalArgumentException("published results require publication metadata");
+			}
+			if ((published && displayStatus != DrawDisplayStatus.PUBLISHED && displayStatus != DrawDisplayStatus.CANCELED)
+					|| (!published && displayStatus == DrawDisplayStatus.PUBLISHED)) {
+				throw new IllegalArgumentException("display status does not match publication state");
+			}
 			this.eventId = Objects.requireNonNull(eventId, "eventId");
 			this.published = published;
 			this.publishedAt = publishedAt;
@@ -33,7 +45,7 @@ public final class UserDrawResult {
 			this.updatedAt = updatedAt;
 			this.serverTime = Objects.requireNonNull(serverTime, "serverTime");
 			this.displayStatus = Objects.requireNonNull(displayStatus, "displayStatus");
-			this.prizes = List.copyOf(prizes);
+			this.prizes = copied;
 		}
 	}
 
@@ -46,14 +58,23 @@ public final class UserDrawResult {
 		private final int unfilledCount;
 		private final List<MaskedWinner> winners;
 
+		/** 당첨자·미충원 수가 경품 설정과 어긋나지 않도록 검증한다. */
 		public PublishedPrize(UUID prizeId, int rank, String name, int winnerCount, int unfilledCount,
 				List<MaskedWinner> winners) {
+			List<MaskedWinner> copied = List.copyOf(winners);
+			if (rank < 1 || winnerCount < 1 || unfilledCount < 0 || unfilledCount > winnerCount
+					|| copied.size() != winnerCount - unfilledCount) {
+				throw new IllegalArgumentException("invalid published prize counts");
+			}
 			this.prizeId = Objects.requireNonNull(prizeId, "prizeId");
+			if (copied.stream().anyMatch(winner -> !prizeId.equals(winner.getPrizeId()))) {
+				throw new IllegalArgumentException("winner belongs to another prize");
+			}
 			this.rank = rank;
 			this.name = Objects.requireNonNull(name, "name");
 			this.winnerCount = winnerCount;
 			this.unfilledCount = unfilledCount;
-			this.winners = List.copyOf(winners);
+			this.winners = copied;
 		}
 	}
 

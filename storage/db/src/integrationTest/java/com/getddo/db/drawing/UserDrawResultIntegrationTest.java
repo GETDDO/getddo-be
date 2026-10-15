@@ -51,15 +51,17 @@ class UserDrawResultIntegrationTest {
 	private UUID userId;
 	private UUID prizeId;
 	private UUID participantId;
+	private String phoneNum;
 
 	@BeforeEach
 	void setUp() {
 		clock.set(NOW);
 		eventId = UUID.randomUUID(); userId = UUID.randomUUID(); prizeId = UUID.randomUUID(); participantId = UUID.randomUUID();
+		phoneNum = "010" + String.format("%08d", Math.floorMod(userId.hashCode(), 100000000));
 		jdbc.update("""
 			insert into users (id, name, phone_num, role, status, membership, created_at, updated_at)
 			values (?, '남궁민수', ?, 'USER', 'ACTIVE', 'VIP', ?, ?)
-			""", toBytes(userId), "010" + String.format("%08d", Math.floorMod(userId.hashCode(), 100000000)), utc(NOW), utc(NOW));
+			""", toBytes(userId), phoneNum, utc(NOW), utc(NOW));
 		jdbc.update("""
 			insert into events (id, title, description, event_type, weighting_enabled, starts_at, ends_at,
 			status, membership_rule, created_at, updated_at)
@@ -88,7 +90,7 @@ class UserDrawResultIntegrationTest {
 		assertThat(published.getRevision()).isEqualTo(1);
 		assertThat(published.getPrizes().getFirst().getUnfilledCount()).isEqualTo(1);
 		assertThat(published.getPrizes().getFirst().getWinners().getFirst().getMaskedName()).isEqualTo("남**수");
-		assertThat(published.getPrizes().getFirst().getWinners().getFirst().getMaskedPhoneNum()).hasSize(4);
+		assertThat(published.getPrizes().getFirst().getWinners().getFirst().getMaskedPhoneNum()).isEqualTo(phoneNum.substring(phoneNum.length() - 4));
 		assertThat(queries.myResult(user(), eventId).getResult()).isEqualTo(MyDrawResultStatus.WON);
 		assertThat(queries.myResult(user(), eventId).getPrize().getId()).isEqualTo(prizeId);
 		jdbc.update("update events set status = 'REDRAWING' where id = ?", toBytes(eventId));
@@ -175,6 +177,35 @@ class UserDrawResultIntegrationTest {
 		jdbc.update("update events set status = 'CANCELED', canceled_at = ? where id = ?", utc(NOW), toBytes(eventId));
 		// when / then
 		assertThat(queries.publicResults(user(), eventId).getDisplayStatus()).isEqualTo(DrawDisplayStatus.CANCELED);
+		assertThat(queries.myResult(user(), eventId).getResult()).isEqualTo(MyDrawResultStatus.CANCELED);
+		assertThat(queries.myResult(user(), eventId).getPrize()).isNull();
+	}
+
+	@Test
+	@DisplayName("공개 후 이벤트가 취소돼도 같은 공개 버전의 명단을 유지한다")
+	void keepsPublishedVersionAfterEventCancellation() {
+		// given
+		enter();
+		DrawSnapshot snapshot = snapshots.prepareInitial(eventId);
+		confirmations.confirm(snapshot.runId());
+		publications.publishInitial(eventId).orElseThrow();
+		UserDrawResult.PublicResults before = queries.publicResults(user(), eventId);
+		// when
+		jdbc.update("update events set status = 'CANCELED', canceled_at = ? where id = ?", utc(NOW), toBytes(eventId));
+		UserDrawResult.PublicResults after = queries.publicResults(user(), eventId);
+		// then
+		assertThat(after.getDisplayStatus()).isEqualTo(DrawDisplayStatus.CANCELED);
+		assertThat(after.isPublished()).isTrue();
+		assertThat(after.getRevision()).isEqualTo(before.getRevision());
+		assertThat(after.getPublishedAt()).isEqualTo(before.getPublishedAt());
+		assertThat(after.getUpdatedAt()).isEqualTo(before.getUpdatedAt());
+		assertThat(after.getPrizes()).hasSize(before.getPrizes().size());
+		assertThat(after.getPrizes().getFirst().getPrizeId()).isEqualTo(before.getPrizes().getFirst().getPrizeId());
+		assertThat(after.getPrizes().getFirst().getUnfilledCount()).isEqualTo(before.getPrizes().getFirst().getUnfilledCount());
+		assertThat(after.getPrizes().getFirst().getWinners()).extracting(UserDrawResult.MaskedWinner::getMaskedName)
+				.containsExactlyElementsOf(before.getPrizes().getFirst().getWinners().stream().map(UserDrawResult.MaskedWinner::getMaskedName).toList());
+		assertThat(after.getPrizes().getFirst().getWinners()).extracting(UserDrawResult.MaskedWinner::getMaskedPhoneNum)
+				.containsExactlyElementsOf(before.getPrizes().getFirst().getWinners().stream().map(UserDrawResult.MaskedWinner::getMaskedPhoneNum).toList());
 		assertThat(queries.myResult(user(), eventId).getResult()).isEqualTo(MyDrawResultStatus.CANCELED);
 		assertThat(queries.myResult(user(), eventId).getPrize()).isNull();
 	}

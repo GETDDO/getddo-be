@@ -190,6 +190,56 @@ class UserDrawResultServiceTest {
 				.isInstanceOf(IllegalArgumentException.class);
 	}
 
+	@Test
+	@DisplayName("공개 결과 모델은 비공개 데이터와 모순된 공개 메타데이터를 거절한다")
+	void rejectsInvalidPublicResultModels() {
+		// given
+		UserDrawResult.PublishedPrize prize = new UserDrawResult.PublishedPrize(prizeId, 1, "경품", 1, 1, List.of());
+		// when / then
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, false, NOW, null, null, NOW, DrawDisplayStatus.WAITING, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, false, null, 1, null, NOW, DrawDisplayStatus.WAITING, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, false, null, null, NOW, NOW, DrawDisplayStatus.WAITING, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, false, null, null, null, NOW, DrawDisplayStatus.WAITING, List.of(prize)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, true, null, 1, NOW, NOW, DrawDisplayStatus.PUBLISHED, List.of(prize)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, true, NOW, null, NOW, NOW, DrawDisplayStatus.PUBLISHED, List.of(prize)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, true, NOW, 1, null, NOW, DrawDisplayStatus.PUBLISHED, List.of(prize)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, true, NOW, 0, NOW, NOW, DrawDisplayStatus.PUBLISHED, List.of(prize)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, true, NOW, 1, NOW, NOW, DrawDisplayStatus.WAITING, List.of(prize)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, true, NOW, 1, NOW, NOW, DrawDisplayStatus.NO_ENTRANTS, List.of(prize)))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublicResults(eventId, false, null, null, null, NOW, DrawDisplayStatus.PUBLISHED, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	@DisplayName("공개 경품 모델은 인원 수량과 다른 경품의 당첨자를 거절한다")
+	void rejectsInvalidPublishedPrizeModels() {
+		// given
+		UserDrawResult.MaskedWinner other = new UserDrawResult.MaskedWinner(UUID.randomUUID(), "김민수", null);
+		// when / then
+		assertThatThrownBy(() -> new UserDrawResult.PublishedPrize(prizeId, 0, "경품", 1, 1, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublishedPrize(prizeId, 1, "경품", 0, 0, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublishedPrize(prizeId, 1, "경품", 1, -1, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublishedPrize(prizeId, 1, "경품", 1, 2, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublishedPrize(prizeId, 1, "경품", 2, 0, List.of()))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new UserDrawResult.PublishedPrize(prizeId, 1, "경품", 1, 0, List.of(other)))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
 	@ParameterizedTest
 	@CsvSource({"김수,김*", "김민수,김*수", "남궁민수,남**수", "김,*", "😀민수,😀*수", "😀,*", "'',''"})
 	@DisplayName("이름을 글자 수에 맞게 가리고 미등록 전화번호는 null로 유지한다")

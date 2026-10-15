@@ -46,6 +46,7 @@ class UserDrawResultControllerTest {
 	private final UUID eventId = UUID.randomUUID();
 	private final UUID actorId = UUID.randomUUID();
 	private final UUID prizeId = UUID.randomUUID();
+	private final UUID thirdPrizeId = UUID.randomUUID();
 	private final DrawPublicationRepository publications = mock(DrawPublicationRepository.class);
 	private final UserDrawResultRepository results = mock(UserDrawResultRepository.class);
 	private final UserRepository users = mock(UserRepository.class);
@@ -56,7 +57,8 @@ class UserDrawResultControllerTest {
 		EventQueryRepository events = mock(EventQueryRepository.class);
 		RegisteredEvent event = new RegisteredEvent(eventId, "이벤트", "설명", null, EventType.NO_TICKET, false,
 				null, MembershipRule.vip, NOW.minusSeconds(3600), NOW, EventStatus.DRAW_CONFIRMED, NOW, NOW,
-				List.of(new RegisteredEvent.Prize(prizeId, 1, "경품", null, null, 2)));
+				List.of(new RegisteredEvent.Prize(prizeId, 1, "경품", null, null, 2),
+						new RegisteredEvent.Prize(thirdPrizeId, 3, "3등 경품", null, null, 1)));
 		when(events.findById(eventId)).thenReturn(Optional.of(new EventView(event, EventStatus.DRAW_CONFIRMED, null)));
 		actor(UserRole.USER, UserStatus.ACTIVE);
 		mvc = MockMvcBuilders.standaloneSetup(new UserDrawResultController(new UserDrawResultService(events,
@@ -91,13 +93,35 @@ class UserDrawResultControllerTest {
 		when(results.findWinners(published.getId())).thenReturn(List.of(new UserDrawResult.MaskedWinner(prizeId, "김수", "01012345678")));
 		// when / then
 		mvc.perform(get("/api/v1/events/{id}/results", eventId).header("X-User-ID", actorId).header("X-User-Role", "USER"))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.data.prizes[0].winners[0].maskedName").value("김*"))
-				.andExpect(jsonPath("$.data.prizes[0].winners[0].maskedPhoneNum").value("5678"))
-				.andExpect(jsonPath("$.data.prizes[0].winners[0].userId").doesNotExist())
-				.andExpect(jsonPath("$.data.prizes[0].winners[0].prizeId").doesNotExist())
-				.andExpect(jsonPath("$.data.prizes[0].winners[0].email").doesNotExist())
-				.andExpect(jsonPath("$.data.prizes[0].winners[0].name").doesNotExist())
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.prizes[0].rank").value(3))
+				.andExpect(jsonPath("$.data.prizes[1].rank").value(1))
+				.andExpect(jsonPath("$.data.prizes[1].winners[0].maskedName").value("김*"))
+				.andExpect(jsonPath("$.data.prizes[1].winners[0].maskedPhoneNum").value("5678"))
+				.andExpect(jsonPath("$.data.prizes[1].winners[0].userId").doesNotExist())
+				.andExpect(jsonPath("$.data.prizes[1].winners[0].prizeId").doesNotExist())
+				.andExpect(jsonPath("$.data.prizes[1].winners[0].email").doesNotExist())
+				.andExpect(jsonPath("$.data.prizes[1].winners[0].name").doesNotExist())
 				.andExpect(jsonPath("$.data.reason").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("공개된 본인 당첨 응답은 경품과 공개 버전을 반환한다")
+	void returnsPublishedOwnPrize() throws Exception {
+		// given
+		DrawPublication published = new DrawPublication(UUID.randomUUID(), eventId, UUID.randomUUID(), 1,
+				DrawPublicationType.INITIAL, null, null, null, NOW, List.of());
+		when(publications.findLatest(eventId)).thenReturn(Optional.of(published));
+		when(results.hasEntered(eventId, actorId)).thenReturn(true);
+		when(results.findWonPrize(published.getId(), actorId)).thenReturn(Optional.of(prizeId));
+		// when / then
+		mvc.perform(get("/api/v1/events/{id}/my-result", eventId).header("X-User-ID", actorId).header("X-User-Role", "USER"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.result").value("WON"))
+				.andExpect(jsonPath("$.data.isPublished").value(true)).andExpect(jsonPath("$.data.revision").value(1))
+				.andExpect(jsonPath("$.data.prize.id").value(prizeId.toString()))
+				.andExpect(jsonPath("$.data.prize.rank").value(1)).andExpect(jsonPath("$.data.prize.name").value("경품"))
+				.andExpect(jsonPath("$.data.prize.winnerCount").value(2))
+				.andExpect(jsonPath("$.data.prize.description").value(nullValue()))
+				.andExpect(jsonPath("$.data.prize.imageUrl").value(nullValue()));
 	}
 
 	@Test
