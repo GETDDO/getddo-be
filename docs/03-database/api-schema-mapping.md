@@ -36,12 +36,13 @@
 | [V023](../../storage/db/src/main/resources/db/migration/ticket/V023__add_ticket_expiry_scan_index.sql) | `tickets`의 `(status, expires_at)` 인덱스 | GD-135 응모권 만료 워커가 만료 시각이 지난 사용 가능·반환됨 응모권을 찾는 조회(`FOR UPDATE SKIP LOCKED`). 공개 API는 추가하지 않음 |
 | [V025](../../storage/db/src/main/resources/db/migration/mission/V025__add_mission_submission_request_hash.sql) | `mission_submissions.request_hash` | GD-175 미션 제출(M03)의 같은 제출 ID 재전송 본문 비교. 처음 요청의 SHA-256을 보존한다. 이 컬럼을 기록하기 전의 제출은 빈 문자열이다. 공개 API는 추가하지 않음 |
 
-## 응모 API 현행 매핑 (GD-134, GD-145)
+## 응모 API 현행 매핑 (GD-134, GD-145, GD-200)
 
-위 표는 교체 전 SQL의 기록이다. 아래는 현재 스키마에서 응모 API(E04·E05·E06·E07)가 실제로 읽고 쓰는 테이블이다.
+위 표는 교체 전 SQL의 기록이다. 아래는 현재 스키마에서 응모 API(E03·E04·E05·E06·E07)가 실제로 읽고 쓰는 테이블이다.
 
 | API | 경로 | 테이블 | 접근 |
 | --- | --- | --- | --- |
+| E03 응모 현황 | `GET /api/v1/events/{eventId}/statistics` | `events`, `event_participants` | 잠금 없이 읽기만 한다. 이벤트가 없거나 삭제됐으면 `ENTRY-004`. 응모자 수는 `count(*)`, 차감 합계는 `sum(used_ticket_count)`, 본인 수량은 요청 사용자의 응모자 행 값이다. 거절 이력은 응모자를 만들지 않아 제외되고, 응모권을 반환해도 누적 수량은 줄지 않으므로 합계도 줄지 않는다(`event_participants.event_id`의 UNIQUE 인덱스 사용). |
 | E04 응모 | `POST /api/v1/events/{eventId}/entries` | `events` | 응모 판단에 필요한 컬럼만 `FOR SHARE`로 읽는다(네이티브 SQL). 응모끼리 막지 않고 추첨의 `FOR UPDATE`는 진행 중 응모를 기다린다. |
 | E04 응모 | 같음 | `event_participants` | 사용자당 이벤트 한 행을 PK로 `FOR UPDATE` 잠그고(없으면 생성) 누적 차감 수량을 늘린다. |
 | E04 응모 | 같음 | `event_entries` | 접수된 응모는 `ACCEPTED`로 저장하고 등급별 요청 장수(`requested_*_count`)를 함께 남긴다. ID는 `Idempotency-Key` UUID이다. 같은 키로 사용자·이벤트·등급별 `tickets`가 같은 요청이 다시 오면 기존 영수증을 200으로 돌려주고, 하나라도 다르면 409 `ENTRY-009`로 거절한다(등급별 비교는 차감 서비스의 사용 이력 대조로 한다). |
