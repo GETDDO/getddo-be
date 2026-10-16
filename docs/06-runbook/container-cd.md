@@ -1,12 +1,12 @@
 # 컨테이너 CD 실행 준비
 
-- 상태: 기존 준비 절차 사용자 검토 완료 · 2026-10-16 추가 검증 기록은 Codex 작성·검토 대기
-- 작성일: 2026-10-13 · 갱신일: 2026-10-16
-- 현재 단계: GitHub Actions·SSM을 통한 정상 서버 배포 3회 확인. 실패 주입에 의한 실서버 자동 롤백은 미검증. 정기 병합·버전 발행 코드는 dev에 반영됐다.
+- 상태: 사용자 검토 완료 · Codex 작성 · 2026-10-15 사용자 요청으로 상태 갱신
+- 작성일: 2026-10-13 · 갱신일: 2026-10-15
+- 현재 단계: main CI 성공 → 동일 이미지 전달 → 서버 교체·상태 확인·실패 복구 코드를 연결했다. 실제 GitHub Actions와 AWS 배포는 미검증이며 서버·권한·설정 준비가 필요하다.
 
 ## Parameter Store 설정 자동 반영
 
-GD-112의 기존 9개에 GD-111의 Redis 설정 4개를 추가해 서버가 배포 직전에 총 13개를 10개·3개로 나눠 조회·검증하고, 실패 시 이전 이미지와 설정을 함께 복구한다. 기존 준비 과정과 변경 전후·등록·반영 절차는 [Parameter Store 런북](parameter-store.md)을 참고한다. 이 코드가 main에 반영돼 배포되기 전에는 기존 서버 동작이 바뀌지 않는다.
+GD-112의 기존 9개에 GD-111의 Redis 설정 4개와 GD-208의 RATE_LIMIT_STORE를 추가해 서버가 배포 직전에 총 14개를 10개·4개로 나눠 조회·검증하고, 실패 시 이전 이미지와 설정을 함께 복구한다. 기존 준비 과정과 변경 전후·등록·반영 절차는 [Parameter Store 런북](parameter-store.md)을 참고한다. 이 코드가 main에 반영돼 배포되기 전에는 기존 서버 동작이 바뀌지 않는다.
 
 ## 파일이 하는 일
 
@@ -56,7 +56,7 @@ GitHub **Settings → Environments → production → Variables**에 다음 네 
 - **전용 S3:** 같은 계정·리전의 비공개 일반 버킷을 준비한다. 퍼블릭 접근 차단·ACL 비활성화·TLS만 허용을 적용하고, 코드에서는 AES256 암호화·버킷 소유 계정 확인·기존 키 덮어쓰기 금지를 지정한다. State 버킷과 분리하며 `tfstate`나 `terraform`을 포함하는 이름은 코드에서 거부한다. 키는 `releases/<커밋>/<CD 실행 ID>-<시도>/release.tar`다.
 - **서버 역할·네트워크:** SSM Agent가 Online이어야 한다. EC2 역할에는 SSM 연결 권한과 전용 버킷 `releases/*`의 `s3:GetObject`가 필요하며, EC2에서 SSM·S3와 비공개 RDS로 연결할 수 있어야 한다. root 프로필이나 고정 Access Key를 서버에 저장하지 않는다.
 - **서버 도구:** Linux x86_64, Docker Engine, Compose 2.30 이상, AWS CLI, Python 3.8 이상, Bash, curl, flock, timeout, tar, sha256sum을 준비한다. SSM은 root로 실행하며 `/opt/getddo`는 root만 쓸 수 있어야 한다. 기존 JAR 서비스가 8080 포트를 사용 중이면 자동 전환 전 별도로 확인한다.
-- **앱 설정:** [Parameter Store 런북](parameter-store.md)에 따라 Redis 설정을 포함한 필수 설정 13개를 등록하고 EC2 역할의 조회·복호화 권한을 준비한다. 배포 스크립트가 검증 후 `/etc/getddo/app.env`를 root 소유·권한 600으로 생성·교체한다. 수동 편집한 값은 다음 배포에서 덮어쓰므로 설정 변경은 Parameter Store에서 관리한다. raw 형식이므로 값에 바깥 따옴표를 붙이지 않는다. 로컬 DB를 가리키는 `local` 프로필을 사용하지 않는다.
+- **앱 설정:** [Parameter Store 런북](parameter-store.md)에 따라 Redis 설정을 포함한 필수 설정 14개를 등록하고 EC2 역할의 조회·복호화 권한을 준비한다. 배포 스크립트가 검증 후 `/etc/getddo/app.env`를 root 소유·권한 600으로 생성·교체한다. 수동 편집한 값은 다음 배포에서 덮어쓰므로 설정 변경은 Parameter Store에서 관리한다. 요청 빈도 제한의 저장소를 고르는 `RATE_LIMIT_STORE`(`redis` 또는 `memory`)도 같은 방식으로 등록한다([요청 빈도 제한](../02-api/rate-limit.md#redis-사용-서버-여러-대)). 배포 스크립트의 조회 목록에 포함돼 있어 등록하지 않으면 설정 누락으로 실패한다. raw 형식이므로 값에 바깥 따옴표를 붙이지 않는다. 로컬 DB를 가리키는 `local` 프로필을 사용하지 않는다.
 - **DB TLS:** `/etc/getddo/rds-truststore.p12`에 공개 RDS CA를 준비하고 JDBC URL에 `sslMode=VERIFY_IDENTITY`와 해당 truststore의 경로·형식 등을 지정한다. DB 호스트에는 인증서 이름과 일치하는 RDS 엔드포인트를 사용한다.
 
 이미지 보관·전송에는 S3 저장 공간과 요청 요금 등이 발생한다. 전용 버킷의 `releases/`에 만료 정책을 적용해 누적을 제한하고, 접근 로그·CloudTrail 데이터 이벤트·CloudWatch 메트릭으로 운영 상태를 확인하는 것을 권장한다. 이 설정은 코드에서 자동 생성하지 않는다. [S3 요금 기준](https://aws.amazon.com/s3/pricing/)과 [보안·운영 권고](https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html)를 따른다.
@@ -81,7 +81,7 @@ GitHub **Settings → Environments → production → Variables**에 다음 네 
 
 [compose.deploy.yaml](../../compose.deploy.yaml)은 서버에서 앱 컨테이너 하나를 실행하기 위한 설정 초안이다. 자동 배포에서 이 파일을 사용한다. Parameter Store 설정·조회 권한·DB 연결·인증서를 사전에 준비해야 한다. 로컬 개발에는 기존 `compose.yaml`을 사용한다.
 
-CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 성공은 원격 교체 스크립트가 상태 확인까지 성공하고 SSM 결과도 성공했을 때만 표시한다. 정상 서버 배포 이력은 아래에 기록하며, 실서버 롤백 검증과 구분한다.
+CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 성공은 원격 교체 스크립트가 상태 확인까지 성공하고 SSM 결과도 성공했을 때만 표시한다. 실제 서버 배포는 미검증이다.
 
 2026-10-14 로컬에서 전체 테스트·빌드를 캐시 없이 실행해 단위 테스트 898개와 MySQL 통합 테스트 808개가 모두 통과했다. Docker 이미지 빌드·저장·복원·이미지 ID/커밋 라벨 확인 및 별도 MySQL과 앱 컨테이너의 `/v3/api-docs` HTTP 200도 확인했다. 이는 로컬 검증이며 실제 GitHub Actions·OIDC·S3 전달·SSM·RDS 배포 성공을 뜻하지 않는다. 배포 회귀 테스트 코드는 이번 공유 대상에서 제외하며 CI에서도 해당 테스트를 실행하지 않는다.
 
@@ -91,23 +91,8 @@ CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 
 
 이미지 전달 방식 참고: [다른 실행의 아티팩트 다운로드](https://github.com/actions/download-artifact/tree/v5#download-artifacts-from-other-workflow-runs-or-repositories), [Docker 이미지 저장](https://docs.docker.com/reference/cli/docker/image/save/), [Docker 이미지 불러오기](https://docs.docker.com/reference/cli/docker/image/load/).
 
-## 2026-10-16 실제 배포 확인과 PR #115 연결
+## 서버 배포 성공과 버전 릴리스
 
-GitHub Actions의 다음 세 실행에서 SSM Command ID와 서버 교체·상태 확인 성공 메시지를 확인했다. 각 실행의 첫 번째 시도가 성공했으며 아래 커밋은 워크플로 실행 ref가 아니라 로그의 실제 SOURCE_SHA다.
+서버 교체·응답 검증이 성공한 뒤 별도 publish 작업이 실제 배포 SOURCE_SHA에 버전 태그와 GitHub Release를 생성한다. 첫 버전은 v0.1.0이며 이후 패치를 증가시키고 같은 커밋의 재실행은 재사용한다. 이미지 자체는 SHA로 식별한다. 정기·수동 main 배포 모두 적용하며 자세한 정책과 설정은 [정기 릴리스 런북](daily-release.md#배포-성공-후-버전-발행)을 참고한다.
 
-| 실행일(KST) | 실제 배포 커밋 | Container CD |
-| --- | --- | --- |
-| 2026-10-14 | bdfb8c76 | [정상 배포](https://github.com/Uplus-GETDDO/getddo-be/actions/runs/38534971196) |
-| 2026-10-15 | 72f2ccf6 | [정상 배포](https://github.com/Uplus-GETDDO/getddo-be/actions/runs/38672281738) |
-| 2026-10-16 | b3ee6e27 | [정상 배포](https://github.com/Uplus-GETDDO/getddo-be/actions/runs/38864188841) |
-
-최신 main의 deploy-container.sh·deploy-ssm.py와 현재 문서 브랜치의 해당 코드가 일치한다. 이 기록은 앱 이미지와 /v3/api-docs HTTP 응답 확인이며 DB·업무 API 전체 검증이나 실패 복구 성공 기록은 아니다. Actions는 원격 앱 로그를 복사하지 않으므로 실제 롤백은 SSM의 실패 명령 출력과 서버 이미지·설정 상태를 대조해 별도로 검증해야 한다.
-
-[PR #115](https://github.com/Uplus-GETDDO/getddo-be/pull/115)은 기존 서버 롤백 코드를 변경하지 않고, 정기 dev → main 병합과 배포 성공 후 태그·GitHub Release 발행을 추가한다. 2026-10-16 dev에 병합됐다. 현재 DAILY_RELEASE_ENABLED=false로 정기 실행은 비활성화돼 있다.
-
-- 서버 배포가 실패하면 버전을 발행하지 않는다.
-- 서버 배포 성공 후 publish 작업만 실패하면 서버 앱은 새 버전으로 유지한다. 배포 자체의 실패와 구분해 버전 발행을 재시도한다.
-- 태그·Release 재시도는 같은 배포 커밋을 기준으로 하며, 기존 태그를 이동·삭제하지 않는다.
-- 실서버 자동 롤백과 App 토큰을 사용한 정기 병합·후속 배포·실제 버전 발행은 이번 문서 확인에서 실행하지 않았다.
-
-자세한 흐름·실패 지점별 조치와 코드 근거는 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)에 정리했다.
+publish 작업 실패는 이미 성공한 서버 배포를 롤백하지 않는다. 이때 CD 전체는 실패로 표시되므로 서버 교체 실패와 버전 발행 실패를 작업별로 구분한다. 서버가 실행하는 SHA와 기존 태그·Release를 확인한 뒤 실패 작업을 재실행한다.

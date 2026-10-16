@@ -7,4 +7,5 @@
 - [추첨 공개 알림 연결·장애 확인](draw-publication-delivery-plan.md)
 
 - [컨테이너 CD](container-cd.md)
+- [매일 오전 8시 자동 릴리스](daily-release.md)
 - [Parameter Store 설정 조회·반영·복구](parameter-store.md)
