@@ -238,7 +238,7 @@ flowchart LR
 
 | 선택 | 정리할 내용 |
 | --- | --- |
-| Docker·Compose | 로컬·서버의 앱 실행 방식 통일 |
+| Docker·Compose | CI 이미지 재사용·YAML 실행 설정 관리. Docker 운영과 서버별 배포 관리 부담을 수용. [대안·트레이드오프 비교](https://github.com/Uplus-GETDDO/getddo-be/wiki/Docker-Compose-Choice) |
 | CloudFront·내부 ALB·보안 그룹 | HTTPS 진입, 요청 분산과 접근 경계 |
 | RDS·ElastiCache·S3 | 업무 데이터·요청 횟수·이미지의 저장 목적 분리 |
 | GitHub Actions·OIDC·SSM | CI 이미지 재사용, 임시 권한과 원격 배포 |
