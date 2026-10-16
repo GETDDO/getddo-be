@@ -4,29 +4,13 @@ GETDDO는 응모권을 모아 경품 이벤트에 참여하고 추첨 결과를 
 
 ### 목차
 
-1. [기술 스택](#기술-스택)
-2. [프로젝트 개요](#프로젝트-개요)
+1. [프로젝트 개요](#프로젝트-개요)
+2. [기술 스택](#기술-스택)
 3. [프로젝트 팀 구성 및 역할](#프로젝트-팀-구성-및-역할)
 4. [아키텍처와 패키지 구조](#아키텍처와-패키지-구조)
 5. [ERD](#erd)
 6. [프로젝트 수행 경과](#프로젝트-수행-경과)
 7. [실행 방법](#실행-방법)
-
-## 기술 스택
-
-| 구분 | 기술 |
-| --- | --- |
-| 언어 | ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white) |
-| 프레임워크 | ![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring MVC](https://img.shields.io/badge/Spring_MVC-6DB33F?style=for-the-badge&logo=spring&logoColor=white) |
-| 빌드 | ![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
-| 데이터베이스 | ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white) |
-| 캐시 · 도입 예정 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
-| 영속성·마이그레이션 | ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white) |
-| 객체 매핑 | ![MapStruct 1.6.3](https://img.shields.io/badge/MapStruct-1.6.3-455A64?style=for-the-badge) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge) |
-| API 문서 | ![springdoc-openapi 3.1.1](https://img.shields.io/badge/springdoc--openapi-3.1.1-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) ![Swagger UI](https://img.shields.io/badge/Swagger_UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
-| 테스트 | ![JUnit](https://img.shields.io/badge/JUnit-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Spring Boot Test](https://img.shields.io/badge/Spring_Boot_Test-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=for-the-badge) |
-| 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
-| CI | ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
 
 ## 프로젝트 개요
 
@@ -50,14 +34,28 @@ GETDDO는 응모권을 모아 경품 이벤트에 참여하고 추첨 결과를 
 ```mermaid
 flowchart LR
     Earn["출석·미션·게임으로 응모권 획득"] --> Browse["이벤트 조회"]
-    Browse --> Enter["이벤트 응모·응모권 사용"]
+    Browse --> Enter["이벤트 응모"]
     Enter --> Close["모집 마감"]
     Close --> Draw["마감 5분 후 자동 추첨"]
     Draw --> Review["관리자 확인·수동 공개"]
     Review --> Result["사용자 결과 확인·알림"]
 ```
 
-이 그림은 목표 서비스 흐름입니다. 기능별 구현·검증·연동 현황은 [프로젝트 수행 경과](#프로젝트-수행-경과)에 각 도메인 담당자가 작성합니다. 응모권 미사용 이벤트도 있으며, 모든 이벤트가 응모권을 차감하는 것은 아닙니다. 추첨 실행과 사용자에게 결과를 공개하는 시점은 분리합니다.
+## 기술 스택
+
+| 구분 | 기술 |
+| --- | --- |
+| 언어 | ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white) |
+| 프레임워크 | ![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring MVC](https://img.shields.io/badge/Spring_MVC-6DB33F?style=for-the-badge&logo=spring&logoColor=white) |
+| 빌드 | ![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
+| 데이터베이스 | ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white) |
+| 캐시 · 도입 예정 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
+| 영속성·마이그레이션 | ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white) |
+| 객체 매핑 | ![MapStruct 1.6.3](https://img.shields.io/badge/MapStruct-1.6.3-455A64?style=for-the-badge) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge) |
+| API 문서 | ![springdoc-openapi 3.1.1](https://img.shields.io/badge/springdoc--openapi-3.1.1-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) ![Swagger UI](https://img.shields.io/badge/Swagger_UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
+| 테스트 | ![JUnit](https://img.shields.io/badge/JUnit-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Spring Boot Test](https://img.shields.io/badge/Spring_Boot_Test-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=for-the-badge) |
+| 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
+| CI | ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
 
 ## 프로젝트 팀 구성 및 역할
 
@@ -70,8 +68,6 @@ flowchart LR
 | 전민규 | 백오피스·알림·게임 | 관리자 운영 기능, 배너·정책 관리, 알림 생성·발송·복구, 게임 검증·보상 자격 |
 | 윤태형 | 응모권·미션·출석·응모 | 응모권 지급·차감·반환·만료, 출석·미션 보상, 응모 접수·내역 |
 | 박지훈 | 이벤트·경품 관리·이벤트 취소 | 사용자·관리자 이벤트 조회, 이벤트·경품 CRUD, 시작·마감 전환, 취소 연동 |
-
-담당 영역은 구현 책임을 나타내며 완료 현황을 의미하지 않습니다. 상세 경계는 [백엔드 기능 담당자](docs/01-conventions/backend-feature-assignments.md)를 확인합니다.
 
 ## 아키텍처와 패키지 구조
 
@@ -98,7 +94,7 @@ flowchart LR
 
 ### 패키지 구조
 
-하나의 Spring Boot 애플리케이션으로 실행하는 멀티모듈 구조입니다. 아래는 주요 디렉터리와 기능 추가 시 패키지 배치 기준입니다. `<도메인>`에는 `user`, `event`, `ticket` 등 기능별 패키지 이름이 들어갑니다.
+`<도메인>`은 `user`, `event`, `ticket` 등 기능별 패키지를 뜻합니다.
 
 ```text
 getddo-be/
@@ -168,23 +164,13 @@ getddo-be/
 └── gradlew.bat                                  # Windows Gradle 실행
 ```
 
-### 기능 추가 시 패키지 배치
-
-새 기능의 HTTP DTO·Controller는 `api`, 업무 서비스·모델·Repository 계약은 `core`, Entity·저장 구현·Mapper는 `storage:db`의 같은 기능 패키지에 둡니다. 도메인 오류 코드는 `core/<도메인>/exception`에 배치하고 기존 공통 응답·페이지·시간 기능을 재사용합니다.
-
 ## ERD
-
-아래 이미지는 2026-10-16에 제공된 ERDCloud 내보내기 원본 PNG(8030×4692)입니다. 이미지를 누르면 원본 크기로 확인할 수 있습니다. 실제 적용 스키마는 전체 Flyway 적용 결과를 기준으로 확인합니다.
 
 [![GETDDO 전체 ERD — 2026-10-16](docs/assets/erd-2026-10-16.png)](docs/assets/erd-2026-10-16.png)
 
 [ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](docs/assets/erd-2026-10-16.png)
 
 ### 도메인별 ERD
-
-도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
-
-도메인별 Wiki의 이미지와 컬럼·관계 표를 2026-10-16 자료로 갱신했습니다. 아래 테이블 수는 전체 Flyway 적용 결과 기준입니다.
 
 | 도메인 | 테이블 수 | 내용 |
 | --- | ---: | --- |
@@ -202,36 +188,62 @@ getddo-be/
 
 ## 프로젝트 수행 경과
 
-각 도메인 담당자가 아래 항목을 펼쳐 직접 작성합니다. 구현 기능, 설계·기술 선택의 이유, 문제 해결 과정, 실제 테스트 결과와 남은 작업을 정리합니다. **코드 구현·배포·프론트 연동 상태를 구분**하고 검증 결과에는 실행일과 기준 커밋을 함께 적습니다.
-
-<!-- 아래 작성 틀을 담당자의 실제 수행 내용으로 교체한다. 다른 담당자의 구현·완료 상태를 대신 확정하지 않는다. -->
-
 <details>
 <summary>인프라·CI/CD</summary>
 
-<!-- 작성 담당: 이경주. 아래 주제에 실제 구성과 선택 이유를 작성합니다. -->
+<!-- 작성 담당: 이경주 -->
 
-#### 서비스·배포 흐름
+#### 요청·데이터 흐름
 
-| 구분 | 작성할 내용 |
-| --- | --- |
-| 사용자 요청·응답 | Vercel 화면 전달 → 브라우저의 API 호출 → CloudFront → ALB → EC2 → 응답 반환 |
-| 앱 실행·데이터 연결 | Docker Compose 앱 실행, RDS 연결, Redis 공유와 EC2 2대 확장 흐름 |
-| 이미지 조회 | 브라우저 → CloudFront 이미지 캐시 → 비공개 S3 |
-| CI | PR·main push → Gradle 빌드·테스트 → Docker 이미지 생성·보관 |
-| CD | 성공한 main CI 이미지 확인 → S3 전달 → SSM 실행 → 앱 교체·상태 확인 |
-| 설정 전달 | EC2 역할로 Parameter Store 조회 → 설정 검증 → app.env 주입 |
+```mermaid
+flowchart LR
+    Browser["브라우저"] -->|"API 요청"| CF["CloudFront"]
+    CF --> ALB["내부 ALB"] --> App["EC2 · Docker 앱"]
+    App --> RDS[("RDS · 업무 데이터")]
+    App --> Redis[("Redis · 요청 횟수")]
+    CF -->|"이미지 조회"| S3[("S3 · 이미지")]
+```
+
+#### CI · 빌드와 이미지 생성
+
+```mermaid
+flowchart LR
+    Source["PR / dev·main push"] --> Test["Gradle 빌드·테스트"]
+    Test --> Image["Docker 이미지 생성"]
+    Image -->|"main push"| Artifact["CI 이미지 보관"]
+```
+
+#### CD · 검증한 이미지 배포
+
+```mermaid
+flowchart LR
+    Success["main CI 성공"] --> Check["동일 이미지 확인"]
+    Check --> OIDC["OIDC · AWS 임시 권한"]
+    OIDC --> Upload["S3 배포 파일 업로드"]
+    Upload --> SSM["SSM 배포 요청"]
+```
+
+#### 서버 내부 · 설정 전달과 앱 교체
+
+```mermaid
+flowchart LR
+    Files["S3 다운로드·검증"] --> Env["Parameter Store 조회"]
+    Env --> Validate["설정·이미지 검증"] --> Replace["컨테이너 교체"]
+    Replace --> Health{"정상 응답?"}
+    Health -->|"성공"| Done["배포 확정"]
+    Health -->|"실패"| Recover["복구 처리"]
+```
 
 #### 설계·기술 선택과 사용 이유
 
-| 주제 | 정리할 선택과 이유 |
+| 선택 | 정리할 내용 |
 | --- | --- |
-| 실행 환경 | Docker·Compose로 로컬과 서버의 앱 실행 방식을 맞춘 이유 |
-| 컴퓨팅·네트워크 | EC2·VPC·보안 그룹, CloudFront VPC origin·내부 ALB의 역할과 접근 경계 |
-| 데이터·이미지 저장 | RDS·ElastiCache·S3의 용도, TLS·인증과 이미지 캐시를 나눈 이유 |
-| CI/CD | GitHub Actions·OIDC·S3·SSM 선택, CI 이미지 재사용과 서버 교체 흐름 |
-| 설정·권한 관리 | Parameter Store·SecureString·IAM 역할로 비밀값과 접근 권한을 관리하는 이유 |
-| 인프라 코드 관리 | Terraform과 IAM 정책 파일의 구성, 재구성과 변경 검토에 사용하는 방법 |
+| Docker·Compose | 로컬·서버의 앱 실행 방식 통일 |
+| CloudFront·내부 ALB·보안 그룹 | HTTPS 진입, 요청 분산과 접근 경계 |
+| RDS·ElastiCache·S3 | 업무 데이터·요청 횟수·이미지의 저장 목적 분리 |
+| GitHub Actions·OIDC·SSM | CI 이미지 재사용, 임시 권한과 원격 배포 |
+| Parameter Store·IAM | 비밀값 보관과 서버별 접근 권한 |
+| Terraform·IAM 정책 파일 | 리소스 정의와 변경 검토 방식 |
 
 배포 코드: [CI](.github/workflows/build.yml) · [이미지 생성](.github/workflows/image.yml) · [CD](.github/workflows/cd.yml) · [서버 배포](infra/scripts/deploy-container.sh)
 
@@ -242,33 +254,56 @@ getddo-be/
 
 <!-- 작성 담당: 이경주 -->
 
-#### 공통 기능·사용 흐름
+#### 요청·응답과 오류 처리
 
-각 도메인이 요청 처리·시간 계산·저장·감사 기록을 같은 방식으로 사용할 수 있도록 공통 기능을 제공합니다.
+```mermaid
+flowchart LR
+    Request["업무 요청"] --> Context["CORS · 사용자 문맥"]
+    Context --> Controller["Controller"] --> Service["업무 Service"]
+    Service -->|"성공"| Envelope["ResponseEnvelope"]
+    Service -->|"BusinessException"| Handler["GlobalExceptionHandler"]
+    Handler -->|"오류 응답"| Envelope
+```
 
-| 공통 기능 | 제공한 내용·사용 흐름 |
-| --- | --- |
-| 응답·예외 처리 | Controller는 `ResponseEnvelope.success(dto)`로 응답하고, 업무 오류는 `BusinessException`과 도메인 `ErrorCode`로 전달합니다. `GlobalExceptionHandler`가 HTTP 상태와 공통 오류 본문으로 변환합니다. |
-| 시연용 사용자 문맥 | Controller의 `@CurrentUser User`에 헤더 형식·DB 역할·멤버십을 대조한 사용자를 전달합니다. 같은 요청에서는 조회한 사용자를 재사용하며, 실제 로그인 인증과 구분합니다. |
-| 시간 처리 | `TimeProvider`로 UTC 현재 시각과 KST 업무 날짜·월을 계산합니다. 업무 코드와 JPA Auditing이 같은 `Clock`을 사용합니다. |
-| 공통 Entity | `BaseEntity`가 UUID v7·생성 시각을 제공하고, 수정 시각이 필요한 Entity는 `BaseUpdatableEntity`를 사용합니다. UUID는 `binary(16)`으로 저장합니다. |
-| 감사 기록 | 업무 Service가 `AuditLogCommand`에 처리자·대상·사유·선택한 변경 전후 값을 담아 `AuditLogService.record()`를 호출합니다. 기록은 업무 트랜잭션에 함께 참여합니다. |
-| CORS·API 문서 | 허용 origin·메서드·헤더를 설정으로 관리하고, `@CurrentUser`를 선언한 API에는 Swagger 사용자 헤더를 자동 표시합니다. |
-| MySQL 통합 테스트 기반 | `MySqlTestContainers`·`MySqlTestConfiguration`으로 MySQL 8.4 연결을 제공하고, `@ApiIntegrationTest`로 앱·MockMvc·테스트 프로필 설정을 재사용합니다. |
+- **응답·오류**: `ResponseEnvelope.success()`와 도메인 `ErrorCode`를 사용해 응답 형식을 통일합니다.
+- **시연용 사용자 문맥**: `@CurrentUser`로 헤더와 DB 역할·멤버십을 대조하고 같은 요청의 조회 결과를 재사용합니다.
+- **CORS·Swagger**: 허용 origin·메서드·헤더를 설정으로 관리하고, 사용자 문맥을 선언한 API의 Swagger 헤더를 자동 표시합니다.
+
+#### 시간·공통 Entity
+
+```mermaid
+flowchart LR
+    Clock["공통 Clock"] --> Time["TimeProvider"]
+    Time --> UTC["UTC 시각"]
+    Time --> KST["KST 업무 날짜·월"]
+    Clock --> Auditing["JPA Auditing · 마이크로초"]
+    Auditing --> Base["BaseEntity · UUID v7·생성 시각"]
+    Base --> Update["BaseUpdatableEntity · 수정 시각"]
+```
+
+#### 업무와 함께 저장하는 감사 기록
+
+```mermaid
+flowchart LR
+    subgraph Transaction["같은 업무 트랜잭션 · 함께 저장·롤백"]
+        Service["업무 변경"] --> Command["AuditLogCommand · 변경 전후 스냅샷"]
+        Command --> Audit["AuditLogService · MANDATORY"]
+        Audit --> Logs[("audit_logs")]
+    end
+```
 
 #### 설계·기술 선택과 사용 이유
 
 | 선택 | 사용한 이유 |
 | --- | --- |
-| 공통 오류 계약·전역 예외 처리 | 도메인별 오류 정의는 유지하면서 Controller마다 오류 응답과 예외 처리를 반복하지 않도록 했습니다. 표준 MVC 오류의 상태·헤더도 보존합니다. |
-| ArgumentResolver·OpenAPI 자동 설정 | 사용자 헤더 해석·DB 대조와 문서 설정을 각 Controller에서 반복하지 않도록 했습니다. |
-| 주입 가능한 Clock | UTC 저장·비교와 KST 업무일 계산 기준을 맞추고, 테스트에서는 고정 시계로 날짜 경계를 재현할 수 있게 했습니다. |
-| 공통 Entity·JPA Auditing | UUID·생성/수정 시각의 중복 구현을 줄이고, DB의 DATETIME(6)에 맞춰 감사 시각을 마이크로초로 맞췄습니다. |
-| 업무 트랜잭션에 참여하는 감사 기록 | `MANDATORY`로 업무와 감사 기록을 함께 저장·롤백합니다. 변경 전후 데이터는 중첩 컬렉션까지 복사해 기록 요청 후 원본이 바뀌어도 값이 유지됩니다. |
-| CORS 필터·환경별 설정 | 사전 요청을 업무 로직 전에 처리하고, 허용된 프론트에서 성공·오류 응답을 읽도록 정책을 한곳에서 관리합니다. |
-| Testcontainers·공유 테스트 설정 | H2 대체 DB 대신 실제 MySQL에서 동작을 확인하고 테스트마다 연결 설정을 반복하지 않도록 했습니다. |
+| 전역 예외 처리·ArgumentResolver | Controller의 오류 응답·사용자 헤더 처리 중복 제거 |
+| 주입 가능한 Clock | UTC·KST 계산 기준 통일, 고정 시계로 날짜 경계 재현 |
+| 공통 Entity·JPA Auditing | UUID·생성/수정 시각의 중복 구현 제거 |
+| MANDATORY·불변 감사 스냅샷 | 업무와 감사 기록을 함께 확정하고 변경 전후 값 보존 |
+| CORS 필터·OpenAPI 자동 설정 | 프론트 접근 정책과 사용자 헤더 문서화 통일 |
+| Testcontainers·공유 테스트 설정 | 실제 MySQL 8.4에서 검증하고 앱·DB 테스트 설정 재사용 |
 
-관련 코드: [API 공통 처리](api/src/main/java/com/getddo/api/common) · [공통 시간·예외](core/src/main/java/com/getddo/core/common) · [공통 Entity](storage/db/src/main/java/com/getddo/db/common) · [감사 기록](core/src/main/java/com/getddo/core/audit)
+관련 코드: [API 공통 처리](api/src/main/java/com/getddo/api/common) · [공통 시간·예외](core/src/main/java/com/getddo/core/common) · [공통 Entity](storage/db/src/main/java/com/getddo/db/common) · [감사 기록](core/src/main/java/com/getddo/core/audit) · [MySQL 테스트 설정](storage/db/src/testFixtures/java/com/getddo/db/support)
 
 </details>
 
