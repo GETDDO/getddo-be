@@ -224,8 +224,6 @@ flowchart LR
     Merge --> Main["main Build → Container CD"]
 ```
 
-현재 `DAILY_RELEASE_ENABLED=false`이며, 실제 자동 병합·후속 배포는 검증 전입니다. 수동 실행 기본값은 변경 없는 dry-run입니다.
-
 #### CD · 검증한 이미지 배포
 
 ```mermaid
@@ -266,7 +264,7 @@ flowchart LR
 | 복구·기록 정리 | 백업·진행 기록 보존, 다음 배포 차단 후 수동 확인 |
 | 태그·Release 발행 | 새 앱 유지, 서버를 롤백하지 않고 버전 발행 재시도 |
 
-정상 서버 배포는 3회 확인했습니다. 실서버 실패 주입·자동 롤백과 자동 병합·버전 발행은 아직 검증 전입니다. [배포 이력·실패 대응 상세](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)
+[배포 흐름·실패 대응 상세](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)
 
 #### 설계·기술 선택과 사용 이유
 
