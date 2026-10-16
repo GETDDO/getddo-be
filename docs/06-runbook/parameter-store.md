@@ -1,21 +1,44 @@
 # Parameter Store 설정 조회·배포·복구
 
-- 상태: 사용자 검토 완료 · Codex 작성 · 2026-10-15 사용자 요청으로 상태 갱신
+- 상태: 기존 내용 사용자 검토 완료 · Redis 추가 내용 검토 대기 · Codex 작성
 - 작성일: 2026-10-15
-- 관련 이슈: GD-112
+- 관련 이슈: GD-112, GD-111
 - 적용 범위: 서울 개발 환경의 API EC2 한 대. 여러 서버 순차 배포는 포함하지 않는다.
+
+## 2026-10-16 Redis 설정 추가
+
+사용자가 Redis 환경변수 이름을 선택해 4개를 추가 등록했다. 현재 로컬 조회 코드는 기존 9개와 Redis 4개를 합친 **13개**를 요구한다. 아래 과거 9개 등록·검증 기록은 당시 수행 결과이며 현재 개수와 구분한다.
+
+| 이름 | 설명 | 유형 | 값 |
+| --- | --- | --- | --- |
+| `/getddo/dev/app/SPRING_DATA_REDIS_HOST` | GETDDO 앱의 ElastiCache Redis 원본 연결 호스트 | String | `master.getddo-dev-redis.lkiced.apn2.cache.amazonaws.com` |
+| `/getddo/dev/app/SPRING_DATA_REDIS_PORT` | GETDDO 앱의 ElastiCache Redis 연결 포트 | String | `6379` |
+| `/getddo/dev/app/SPRING_DATA_REDIS_PASSWORD` | GETDDO 앱의 ElastiCache Redis 인증 비밀번호 | SecureString | Redis 생성·PONG 확인에 사용한 비밀번호. 값은 문서에 기록하지 않음 |
+| `/getddo/dev/app/SPRING_DATA_REDIS_SSL_ENABLED` | GETDDO 앱의 Redis TLS 암호화 연결 사용 여부 | String | `true` |
+
+기존과 동일하게 Standard 계층·text 데이터 형식을 사용하고, Redis 비밀번호는 `alias/aws/ssm`으로 암호화한다. 기존 운영자·EC2 정책은 이 경로를 포함하므로 IAM 추가 변경은 하지 않았다.
+
+- [fetch-app-env.py](../../infra/scripts/fetch-app-env.py)의 `KEYS`에 4개를 추가했다. `GetParameters`의 최대 10개 제한에 맞춰 10개·3개로 조회한 뒤 응답을 합쳐 검증한다. 두 번째 조회가 실패해도 일부 설정만 파일로 쓰지 않는다.
+- DB·Redis 비밀번호는 모두 SecureString이어야 한다. Redis는 ElastiCache DNS·6379·TLS true와 Terraform에 맞는 32~64자 영문·숫자 비밀번호를 검사한다. 잘못된 값은 출력하지 않고 앱 교체 전 중단한다.
+- [application.yaml](../../api/src/main/resources/application.yaml)의 `spring.data.redis`에 네 환경변수 참조를 추가했다. 로컬 기본값은 localhost·6379·빈 비밀번호·TLS false이며 배포 스크립트는 TLS true를 요구한다. 기존 이미지·CORS 설정은 유지한다.
+- Compose의 기존 `env_file`과 배포 묶음의 기존 조회 스크립트 경로를 그대로 사용하므로 Compose·Actions YAML을 추가 수정할 필요는 없다.
+- 현재 코드에는 Redis 클라이언트 의존성과 요청 제한 연동이 없다. 설정 전달 준비와 실제 기능 연동 완료를 구분한다.
+
+검증: 변경 전 코드에서 회귀 검증 실패를 재현한 뒤 수정 코드의 임시 대역 테스트 11개가 통과했다. 두 번의 조회·잘못된 응답·설정 누락/중복·타입·Redis 값·파일 권한·비밀값 출력 방지를 확인했다. 실제 AWS 설정 13개 복호화 조회·검증과 권한 600의 임시 env 생성도 통과했다. 실제 값은 출력하지 않았고 임시 파일을 정리했다. 이는 작업용 프로필로 수행한 로컬 검증이며 EC2 역할의 새 코드 실행이나 앱 연결 검증은 아니다. 새 코드의 서버 배포는 PR 병합 후 별도로 진행한다.
+
+YAML 파싱·Python 문법·배포 Bash 문법 검사도 통과했다. 최신 dev 기반 chore/GD-111 브랜치에서 `./gradlew test build --init-script gradle/test-limits.init.gradle --max-workers=1 --no-parallel`을 실행해 Java 일반 테스트 1,212개(API 337·core 825·storage 50)가 모두 통과했다. API 통합 테스트 224개는 Docker 환경을 찾지 못해 실패해 전체 빌드는 실패했다. 실패한 테스트는 삭제하거나 비활성화하지 않았다.
 
 ## 변경 전·후와 볼 파일
 
 | 항목 | 변경 전 | 변경 후 |
 | --- | --- | --- |
-| 설정 준비 | 서버의 app.env를 직접 편집 | 배포마다 Parameter Store의 필수 9개 조회·복호화 |
+| 설정 준비 | 서버의 app.env를 직접 편집 | 배포마다 Parameter Store의 필수 13개를 10개·3개로 조회·복호화 |
 | 설정 오류 | 조회·검증 단계 없음 | 누락·타입·형식 오류면 기존 앱과 설정을 유지하고 중단 |
 | 반영 | 수동 수정 후 컨테이너 재생성 | 임시 설정 사전 검증 후 app.env를 원자적으로 교체하고 강제 재생성 |
 | 배포 실패 | 이전 이미지·Compose 복구 | 이전 env를 복원한 뒤 이전 이미지·Compose로 앱 재생성 |
 | S3 이미지 설정 | YAML에 환경변수 참조가 이미 존재 | 기존 환경변수 참조와 이미지 설정 설명 유지 |
 
-- [fetch-app-env.py](../../infra/scripts/fetch-app-env.py): 이름이 고정된 9개를 AWS CLI로 조회·검증하고 새 파일을 권한 600으로 생성한다.
+- [fetch-app-env.py](../../infra/scripts/fetch-app-env.py): 이름이 고정된 13개를 AWS CLI로 나눠 조회·검증하고 새 파일을 권한 600으로 생성한다.
 - [deploy-container.sh](../../infra/scripts/deploy-container.sh): 배포 잠금, 설정 교체, 앱 상태 확인과 실패 복구를 담당한다.
 - [deploy-ssm.py](../../infra/scripts/deploy-ssm.py): 공개 스크립트·Compose·이미지만 배포 묶음으로 전달한다. 실제 설정값은 Actions로 가져오지 않는다.
 - [compose.deploy.yaml](../../compose.deploy.yaml): APP_ENV_FILE로 임시 파일을 사전 검증하고 실제 실행 시 /etc/getddo/app.env를 읽는다. raw 형식으로 달러 기호·따옴표를 보존한다.
@@ -37,8 +60,12 @@ AWS 콘솔의 서울 리전 → Systems Manager → Parameter Store → 내 파�
 | AWS_REGION | String | ap-northeast-2 |
 | GETDDO_IMAGES_BUCKET | String | 실제 비공개 이미지 버킷 이름 |
 | GETDDO_IMAGES_BASE_URL | String | /images/로 끝나는 HTTPS CloudFront 주소 |
+| SPRING_DATA_REDIS_HOST | String | 프로토콜·포트 없는 ElastiCache DNS |
+| SPRING_DATA_REDIS_PORT | String | 6379 |
+| SPRING_DATA_REDIS_PASSWORD | SecureString | Terraform과 동일한 32~64자 영문·숫자 비밀번호. 기본 alias/aws/ssm 사용 |
+| SPRING_DATA_REDIS_SSL_ENABLED | String | true |
 
-이미지 버킷·기본 주소 두 값은 인프라 담당 사용자가 현재 개발 환경에 등록하고 이 배포에 사용하기로 한 설정이다. 공용 이미지 업로드 API 계약이나 타 기능 담당자의 이미지 정책 확정을 의미하지 않는다. 현재 조회 스크립트에서는 9개 모두 필수이므로 이 두 값이 없으면 배포 전에 중단된다.
+이미지 버킷·기본 주소 두 값은 인프라 담당 사용자가 현재 개발 환경에 등록하고 이 배포에 사용하기로 한 설정이다. 공용 이미지 업로드 API 계약이나 타 기능 담당자의 이미지 정책 확정을 의미하지 않는다. 현재 조회 스크립트에서는 Redis 설정을 포함한 13개 모두 필수이므로 이 두 값이 없으면 배포 전에 중단된다.
 
 모든 값은 비어 있지 않은 한 줄이어야 한다. 새 변수를 도입하면 조회 목록·검증·문서를 함께 수정한다. 목록에 없는 기존 app.env 항목은 새 파일에 보존하지 않으므로 전환 전에 추가 설정의 유무를 확인한다.
 
