@@ -179,15 +179,17 @@ getddo-be/
 
 ## ERD
 
-> 기존 ERD 이미지는 2026-10-02 스냅샷입니다. 수정한 이미지는 추후 교체할 예정이며 이번 문서 작업에서는 보존합니다. 아래 도메인 표는 기존 이미지 안내이며 현재 DB 개수 집계가 아닙니다. 현재 스키마는 전체 Flyway 적용 결과를 기준으로 확인합니다.
+아래 이미지는 2026-10-16에 제공된 ERDCloud 전체 캡처입니다. 이미지를 누르면 원본 크기로 확인할 수 있습니다. 실제 적용 스키마는 전체 Flyway 적용 결과를 기준으로 확인합니다.
 
-[![GETDDO 전체 ERD](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
+[![GETDDO 전체 ERD — 2026-10-16](docs/assets/erd-2026-10-16.png)](docs/assets/erd-2026-10-16.png)
 
-[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
+[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](docs/assets/erd-2026-10-16.png)
 
 ### 도메인별 ERD
 
 도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
+
+도메인별 Wiki와 아래 테이블 수는 기존 2026-10-02 스냅샷 기준으로, 위 전체 ERD 캡처와 기준 시점이 다릅니다.
 
 | 도메인 | 테이블 수 | 내용 |
 | --- | ---: | --- |
@@ -220,7 +222,6 @@ getddo-be/
 - **설계·기술 선택과 사용 이유**: 작성 예정
 - **문제와 해결 과정**: 작성 예정
 - **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
 
 기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Architecture) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
 
@@ -237,7 +238,6 @@ getddo-be/
 - **설계·기술 선택과 사용 이유**: 작성 예정
 - **문제와 해결 과정**: 작성 예정
 - **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
 
 기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#user) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
 
@@ -277,12 +277,6 @@ getddo-be/
 - 등록·수정·삭제·취소 조건, 잠금 경합, 감사·저장 실패 롤백과 워커 상태 전환을 검증했습니다. 이번 README 재구성에서는 테스트를 재실행하지 않았습니다.
 - 집계·원본 자료: [Wiki 테스트 결과](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Tests).
 
-**배포·연동 현황과 남은 작업**
-
-- imageKey 저장과 별개로 S3 업로드·imageUrl 응답·프론트 이미지 표시를 연결해야 합니다.
-- 실제 배포 버전과 프론트 응답 계약을 맞추고 전체 등록·조회·수정·취소 흐름을 확인합니다.
-- 자동 추첨·수동 공개와 실제 공개 상태 반영은 추첨 기능과 연결하며, 모집 상태 전환과 구분합니다.
-
 상세 구현: [수정](docs/02-api/event-modification.md) · [삭제](docs/02-api/event-deletion.md) · [취소](docs/02-api/event-cancellation.md) · [모집 상태 전환·감사](docs/02-api/event-lifecycle-and-audit.md)
 
 </details>
@@ -292,15 +286,26 @@ getddo-be/
 
 <!-- 작성 담당: 윤태형 -->
 
-담당자 작성 예정입니다.
+**구현 기능·시연 흐름**
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
+```mermaid
+flowchart LR
+    Press["출석 버튼"] --> Day["KST 업무일 하루 한 번 인정"]
+    Day --> Daily["일일 보상 응모권 지급"]
+    Daily --> Streak["연속 7·14·28일 단계 보상"]
+```
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#attendance) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+같은 날 다시 눌러도 새로 기록하거나 지급하지 않고 확정된 결과를 돌려준다.
+
+**설계·기술 선택과 사용 이유**
+
+- 출석 기록·보상 청구·응모권 지급을 한 트랜잭션에서 확정해 "출석은 됐는데 보상이 빠지는" 일을 막고, 같은 날 동시 요청은 `(사용자, 출석일)` UNIQUE와 새 트랜잭션 1회 재처리로 처리한다.
+
+**문제와 해결 과정**
+
+- 같은 날 연타·동시 요청과 자정 경계에서의 이중 지급 위험을 UNIQUE 제약과 요청 시각 고정(한 번만 읽음)으로 막았다.
+
+자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#출석)
 
 </details>
 
@@ -309,15 +314,26 @@ getddo-be/
 
 <!-- 작성 담당: 윤태형 -->
 
-담당자 작성 예정입니다.
+**구현 기능·시연 흐름**
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
+```mermaid
+flowchart LR
+    List["미션 목록·상세"] --> Submit["퀴즈·설문 제출"]
+    Submit --> Grade["채점 (퀴즈는 문항별 정답 누적)"]
+    Grade --> Reward["완료 시 보상 청구 → 응모권 지급"]
+```
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#mission) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+이미 완료한 미션을 다시 제출해도 추가 보상은 없다.
+
+**설계·기술 선택과 사용 이유**
+
+- 제출 ID(`Idempotency-Key`)를 PK로 써서 별도 멱등 테이블 없이 동시 요청을 직렬화하고, 재전송이 같은 요청인지는 처음 요청의 SHA-256 해시로 판정한다. 지급이 실패하면 제출·답변·청구가 모두 롤백된다.
+
+**문제와 해결 과정**
+
+- 완료한 문항의 답변은 저장하지 않아 저장된 답변으로는 처음 요청을 복원할 수 없었다 → 처음 요청의 해시를 저장하도록 했다.
+
+자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#미션)
 
 </details>
 
@@ -326,15 +342,31 @@ getddo-be/
 
 <!-- 작성 담당: 윤태형 -->
 
-담당자 작성 예정입니다.
+**구현 기능·시연 흐름**
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
+```mermaid
+flowchart LR
+    Grant["지급<br/>출석·미션 보상"] --> Hold["보유 응모권"]
+    Hold --> Use["차감<br/>이벤트 응모"]
+    Use --> Refund["반환<br/>이벤트 취소"]
+    Hold --> Expire["만료<br/>워커"]
+```
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#ticket) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+응모권 한 장은 `tickets` 한 행이고, 상태가 바뀔 때마다 `ticket_histories`에 이력을 한 줄 추가한다.
+
+**설계·기술 선택과 사용 이유**
+
+- 후보는 잠그지 않고 읽고 PK로 한 장씩 잠가 격리 수준과 무관하게 같은 동작을 하고, 반환은 상태가 이상할 때만 반환 이력을 잠금 읽기해 교착을 피한다. 만료는 `SKIP LOCKED`로 서버 여러 대의 워커가 겹쳐도 중복 만료하지 않는다.
+
+**문제와 해결 과정**
+
+- 반환 이력을 항상 잠금 읽기로 보자 서로 다른 사용자의 동시 반환이 `REPEATABLE_READ`에서 교착했다. 교착 기록으로 원인을 확인하고 상태가 이상할 때만 확인하도록 좁혔다.
+
+**테스트 결과 (직접 측정)**
+
+- 반환 이력 잠금 읽기: 대안은 60회 중 60회 교착, 채택한 방식은 0회. 만료 워커 4대: `SKIP LOCKED` 약 3.5초, 일반 `FOR UPDATE` 20.9초. (로컬 단일 머신의 상대 비교)
+
+자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#응모권)
 
 </details>
 
@@ -343,15 +375,59 @@ getddo-be/
 
 <!-- 작성 담당: 윤태형 -->
 
-담당자 작성 예정입니다.
+**구현 기능·시연 흐름**
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
+```mermaid
+flowchart LR
+    Check["자격 확인"] --> Enter["응모 요청<br/>멱등 키"]
+    Enter --> Deduct["응모권 차감·접수"]
+    Deduct --> Close["마감 재확인<br/>커밋 직전"]
+    Close --> Receipt["영수증 또는 거절 이력"]
+```
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#entry) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+같은 키로 다시 보내면 최초 결과를 돌려주고, 업무 거절은 `REJECTED`로 남겨 같은 오류를 돌려준다.
+
+**설계·기술 선택과 사용 이유**
+
+- 이벤트 행은 `FOR SHARE`로 읽어 응모끼리 서로 막지 않고, 마감은 차감 뒤와 커밋 직전에 두 번 확인한다. 거절 이력은 롤백과 분리하려고 `REQUIRES_NEW`로 기록한다.
+
+**문제와 해결 과정**
+
+- 마감 직후 커밋된 응모가 추첨 후보가 될 수 있어 커밋 직전 확인을 추가했고, 남는 짧은 간격은 공용 명세의 예외로 승인했다.
+
+**테스트 결과 (직접 측정)**
+
+- 같은 이벤트에 64명이 동시 응모할 때 `FOR SHARE`(채택) 102건/초, `FOR UPDATE` 23건/초로 **약 4.4배** 차이. (로컬 단일 머신의 상대 비교)
+
+자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#이벤트-응모)
+
+</details>
+
+<details>
+<summary>요청 빈도 제한</summary>
+
+<!-- 작성 담당: 윤태형 -->
+
+**구현 기능·시연 흐름**
+
+```mermaid
+flowchart LR
+    Req["요청"] --> Count["사용자·범위별 횟수 확인"]
+    Count --> Ok["허용"]
+    Count --> Deny["429 + Retry-After"]
+```
+
+응모·출석·미션 제출·게임 결과 제출에 적용하며, 거절은 DB 작업보다 먼저 일어난다.
+
+**설계·기술 선택과 사용 이유**
+
+- 서버 메모리 구현은 서버가 한 대일 때만 정확해 `RateLimiter` 인터페이스 뒤에서 저장소를 고르게 했다. Redis 구현(PR #107, 리뷰 중)은 Lua 스크립트로 서버 여러 대의 횟수를 하나로 센다.
+
+**문제와 해결 과정**
+
+- 서버가 여러 대이면 한도가 서버마다 따로 적용되던 한계를 Redis 구현으로 해결하고 있다.
+
+자세한 표·시퀀스: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#요청-빈도-제한)
 
 </details>
 
@@ -360,15 +436,150 @@ getddo-be/
 
 <!-- 작성 담당: 석종수 -->
 
-담당자 작성 예정입니다.
+> 단일 발표 요청 설명은 별도 [PR #108](https://github.com/Uplus-GETDDO/getddo-be/pull/108), `feat/GD-199`의 `65889fc` 구현을 포함한다. 작성 시점에는 미병합이며 아래 테스트 결과도 각 기준 코드를 따른다. 공용 추첨 정책은 [getddo-spec](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md)을 원본으로 사용한다.
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
+**구현 기능·시연 흐름**
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#drawing) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+| 항목 | 내용 |
+| --- | --- |
+| 하는 일 | 마감 5분 후 유효 응모와 실제 차감 이력을 대조해 후보·가중치·조건을 고정하고 추첨한다. 관리자는 결과를 검토하고, 필요하면 개별 당첨을 취소해 빈 자리만 재추첨한 뒤 전체 명단을 공개한다. |
+| 관리자 API | 실행·후보 조회 `GET /admin/events/{eventId}/draws`, `GET /admin/draws/{drawId}`, `GET /admin/draws/{drawId}/participants` / 정합성 검사 `POST /admin/draws/{drawId}/checks` / 개별 취소 `POST /admin/wins/{winId}/cancellations` / 최초 발표 `POST /admin/draws/{runId}/result-confirmation` |
+| 사용자 API | `GET /events/{eventId}/results` 공개 명단, `GET /events/{eventId}/my-result` 본인 결과. API 경로의 공통 접두사는 `/api/v1`이다. |
+| 핵심 규칙 | 같은 실행의 확정 결과는 바뀌지 않는다. 이벤트 안에서 같은 사용자는 한 번만 당첨된다. 후보가 부족하면 상위 등수부터 배정하고 남은 자리는 미충원으로 기록한다. 자동 추첨 완료와 사용자 공개는 구분한다. |
+| 시연 흐름 | 마감 후 자동 추첨 → 후보·가중치·경품별 결과 조회 → 정합성 검사 → 필요 시 개별 당첨 취소·재추첨 → 발표 요청 → 공개 명단·본인 결과 확인 → 같은 요청 재전송으로 결과·공개 중복이 없는지 확인 |
+
+**자동 추첨과 결과 확정**
+
+아래는 주요 호출과 저장 경계를 나타낸 그림이다. 실행 소유권 관리 등 일부 중간 호출은 생략했다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant W as 자동 추첨 워커
+    participant S as DrawSnapshotService
+    participant E as DrawExecutionService
+    participant P as 입력 준비 서비스
+    participant C as DrawConfirmationService
+    participant A as DrawingSelectionService
+    participant DB as MySQL
+
+    W->>S: 마감 5분이 지난 이벤트의 최초 실행 등록
+    S->>DB: 이벤트 FOR UPDATE
+    S->>DB: 기존 최초 실행 조회 또는 PREPARING 등록
+    S-->>W: 등록 커밋 후 runId 반환
+
+    W->>E: execute(runId)
+    E->>E: 실행 소유권 확보
+    E->>P: 입력 준비
+    P->>DB: 이벤트·실행 잠금 후 응모·USE 이력 조회
+    P->>P: 실제 장수·등급·소유자·중복 검증
+
+    alt 응모자 없음
+        P->>DB: NO_ENTRIES와 이벤트 종료 상태 저장
+        P-->>E: 정상 종료
+    else 후보 있음
+        P->>DB: 후보·실행별 연결·조건 저장, READY 커밋
+        E->>C: 고정 입력으로 결과 확정
+        C->>DB: 이벤트·실행 잠금 및 기존 결과 확인
+        alt 이미 CONFIRMED
+            DB-->>C: 저장된 결과
+        else 미확정
+            C->>A: 후보·가중치·경품 자리 전달
+            A->>A: 상위 등수부터 선정하고 당첨 후보 제거
+            A-->>C: 당첨·미충원 결과
+            C->>C: 자리·인원·후보·선정 순서 검증
+            C->>DB: 결과·CONFIRMED·최초 이벤트 상태 함께 저장
+        end
+    end
+```
+
+**관리자 검토·재추첨과 최초 공개**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as 관리자
+    participant I as 조회·검증 서비스
+    participant R as 취소·재추첨 서비스
+    participant P as 결과 공개 서비스
+    participant DB as MySQL
+    participant U as 사용자
+
+    A->>I: 후보·가중치·조건·결과 조회
+    I->>DB: 저장된 스냅샷과 결과 조회
+    I-->>A: 검토 자료
+
+    opt 정합성 검사 요청
+        A->>I: POST /draws/{drawId}/checks
+        I->>DB: 항목별 검사 후 draw_checks 추가
+        I-->>A: 전체·항목별 통과 여부
+    end
+
+    opt 개별 당첨 취소
+        A->>R: 당첨 결과 ID·사유·멱등 키
+        R->>DB: 취소 이력과 연결 재추첨 실행 함께 등록
+        R->>R: 최초 후보·가중치로 빈 자리만 재추첨
+        R->>DB: 새 실행 결과 저장, 기존 결과 유지
+        R-->>A: 재추첨 결과
+    end
+
+    A->>P: 검토한 최신 runId로 발표 요청
+    P->>DB: 이벤트 잠금 후 최신 명단·확정 상태 검증
+    alt 검토 이후 명단 변경 또는 미확정 실행 존재
+        P-->>A: 발표 거절
+    else 공개 가능
+        P->>DB: 실행별 확인·전체 공개 명단·상태·알림 작업 함께 저장
+        P-->>A: 공개 결과
+    end
+
+    U->>P: 공개 명단·본인 결과 조회
+    P->>DB: 실제 공개 버전 조회
+    P-->>U: 마스킹한 명단·본인 당첨 여부
+```
+
+**설계·기술 선택과 사용 이유**
+
+- **가중치 비복원 추출**: 실제 차감한 응모권의 장수에 브론즈 1·실버 3·골드 5를 곱해 합산한다. 전체 가중치 범위에서 난수를 뽑고 누적 구간에 해당하는 후보를 선정한 뒤 제거한다. 같은 사용자가 다른 경품에서도 다시 당첨되는 것을 막는다. 가중치 미적용·응모권 미사용 이벤트는 후보별 가중치가 1이다.
+- **보안 난수와 범위 검증**: `SecureRandom`으로 난수를 생성하고 범위를 벗어나면 다시 뽑는다. 전체 가중치는 `BigInteger`로 합산해 후보별 가중치 합계가 `long` 범위를 넘는 경우를 처리한다.
+- **최초 후보와 실행별 명단 분리**: `draw_candidates`에는 최초 장수·가중치·응모 근거를 보존하고, `draw_run_candidates`로 각 실행에 포함된 후보를 연결한다. 재추첨마다 같은 상세 스냅샷을 복사하지 않으면서 당시 명단을 고정할 수 있다.
+- **경품별 자리로 인원 검증**: `draw_results`는 경품의 자리마다 당첨 또는 미충원 한 행을 저장한다. 후보가 있는 최초 추첨은 결과 행 수가 전체 자리 수와 같고, 당첨 인원은 `min(후보 수, 자리 수)`여야 한다. 자리 누락·중복 당첨·후보가 남았는데 미충원되는 결과를 저장 전에 거절한다.
+- **입력 준비와 결과 확정을 별도 트랜잭션으로 처리**: 실행 등록을 먼저 커밋하고 입력 준비·결과 확정을 나눈다. 선정이나 결과 저장이 실패해도 실행 ID와 이미 고정한 입력을 유지해 같은 실행을 재개할 수 있다.
+- **이벤트 → 실행 잠금과 DB 제약**: 같은 이벤트의 확정을 직렬화하고, 실행별 자리·후보·선정 순서 UNIQUE와 후보 연결 복합 FK를 함께 사용한다. 응모의 이벤트 공유 잠금과 추첨의 쓰기 잠금이 연계되어 진행 중인 응모 처리를 기다린 뒤 후보를 읽는다.
+- **확정 결과와 공개 명단 분리**: `draw_publications`와 `draw_publication_results`에 실제 공개 버전과 포함 결과를 보존한다. 유지 당첨자와 재추첨 당첨자를 한 명단으로 공개할 수 있고, 내부 변경이 사용자 명단에 바로 노출되지 않는다.
+
+**문제와 해결 과정**
+
+- **중복 요청으로 재선정될 위험** → 실행 ID와 상태를 기준으로 처리한다. `CONFIRMED`인 실행은 선정기를 다시 호출하지 않고 저장된 결과 ID·당첨 순서를 반환한다.
+- **서버 중단 후 실행이 남는 문제** → 소유권 토큰과 만료 시각으로 실행 주체를 구분한다. 실패 이력·자동 재시도·운영자 재개를 같은 실행에 연결하고, 이전 시도의 뒤늦은 결과 저장을 막는다.
+- **재추첨 결과를 기존 결과에 덮어쓰면 근거가 사라지는 문제** → 기존 결과는 유지하고 취소 이력과 새 실행을 추가한다. 취소 대상이 아닌 당첨자는 유지하며 최초 가중치로 빈 자리만 보충한다.
+- **관리자가 검토한 명단과 발표 시점의 명단이 달라지는 문제** → 최신 실행 ID를 검사해 이전 명단의 발표를 거절한다. 동일 발표 재시도는 기존 성공 버전을 반환해 확인 기록·공개 버전·알림 작업을 중복 생성하지 않는다.
+- **당첨자가 없는 재추첨은 공개 결과 연결만으로 확인 근거를 남길 수 없는 문제** → `draw_publication_executions`에 실행별 확인 근거를 별도로 저장한다. 모든 자리가 미충원이어도 해당 실행을 확인해 공개에 반영했다는 사실을 보존한다.
+- **실제 응모와 추첨 준비의 마감 경합** → 서비스 통합 테스트로 커밋 직전 마감 검사 결함을 재현하고, 응모 담당자의 수정과 공용 명세의 승인된 마감 판정 예외를 반영해 검증했다.
+
+**테스트 결과**
+
+공통 실행 명령은 다음과 같다.
+
+```bash
+flock /tmp/getddo-docker-tests.lock ./gradlew test build \
+  --init-script gradle/test-limits.init.gradle \
+  --max-workers=1 --no-parallel
+```
+
+| 검증 | 실행 기록일 | 기준 코드 | 결과 |
+| --- | --- | --- | --- |
+| 실제 응모·차감 → 후보 스냅샷 | 2026-10-15 | [GD-131 `569d5af`](https://github.com/Uplus-GETDDO/getddo-be/pull/90) | 관련 MySQL 검증 17개 성공. 해당 코드의 전체 테스트·빌드 2,052개 성공 |
+| 공개 명단·본인 결과 조회 | 2026-10-15 | [GD-140 `baf1fad`](https://github.com/Uplus-GETDDO/getddo-be/pull/93) | 관련 검증 26개 성공. 해당 코드의 전체 테스트·빌드 1,954개 성공 |
+| 단일 발표·취소·재추첨·사용자 조회 | 2026-10-15~16 | [GD-199 구현본, 최종 설명 보완 `65889fc`](https://github.com/Uplus-GETDDO/getddo-be/pull/108) | 관련 MySQL 검증 39개 성공. 전체 테스트·빌드 2,215개 성공, 최종 커밋 CI 성공 |
+
+- **알고리즘**: 제어 가능한 난수를 주입해 가중치 구간 경계, 상위 등수 우선 배정, 당첨 후보 제거, 후보 부족과 합계 범위 초과를 검증했다.
+- **저장·동시성**: 실제 MySQL에서 이벤트 잠금 대기, 동시 확정 요청의 동일 결과 반환, 결과·상태 저장 실패 롤백과 UNIQUE·FK 제약을 검증했다.
+- **정합성 검사**: 잘못된 장수·가중치, 중복 사용자·자리, 선정 순서 오류와 조기 미충원을 불일치로 판정하는지 검증했다.
+- **공개**: 동일 발표 재시도, 이전 명단·미확정 실행의 발표 거절, 공개 트랜잭션 롤백과 공개 전 비노출·공개 후 마스킹을 검증했다.
+
+각 전체 테스트 수는 서로 다른 기준 코드의 프로젝트 전체 집계이므로 합산하지 않는다. 위 결과는 기능·정합성 검증이며 이번 README 작성에서는 테스트를 재실행하지 않았다.
+
+상세 구현: [후보·결과 저장](docs/03-database/drawing-selection-storage.md) · [관리자 조회·검증](docs/02-api/admin-draw-inspection.md) · [공개 저장](docs/03-database/draw-publication-storage.md) · [실패 복구](docs/06-runbook/draw-execution-recovery.md)
 
 </details>
 
@@ -383,7 +594,6 @@ getddo-be/
 - **설계·기술 선택과 사용 이유**: 작성 예정
 - **문제와 해결 과정**: 작성 예정
 - **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
-- **배포·연동 현황과 남은 작업**: 작성 예정
 
 </details>
 
