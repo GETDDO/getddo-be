@@ -34,7 +34,7 @@
 
 ## Redis 사용 (서버 여러 대)
 
-`RATE_LIMIT_STORE=redis`로 켜고 접속 정보를 환경변수로 준다. 배포 서버는 Parameter Store에서 설정을 받으므로 `RATE_LIMIT_STORE`도 [Parameter Store 런북](../06-runbook/parameter-store.md)의 설정으로 등록하고 배포 스크립트의 조회 목록에 포함해야 앱에 전달된다. 설정하지 않으면 메모리 구현으로 동작한다.
+`RATE_LIMIT_STORE=redis`로 켜고 접속 정보를 환경변수로 준다. 배포 서버는 Parameter Store에서 설정을 받으므로 `RATE_LIMIT_STORE`도 [Parameter Store 런북](../06-runbook/parameter-store.md)에 따라 `/getddo/dev/app/RATE_LIMIT_STORE`로 등록해야 한다(배포 스크립트의 조회 목록에는 포함돼 있다). 등록하지 않으면 배포 스크립트가 설정 누락으로 실패한다. 설정하지 않으면 메모리 구현으로 동작한다.
 
 | 환경변수 | 기본값 | 설명 |
 | --- | --- | --- |
