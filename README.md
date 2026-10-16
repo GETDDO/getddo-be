@@ -436,14 +436,150 @@ flowchart LR
 
 <!-- 작성 담당: 석종수 -->
 
-담당자 작성 예정입니다.
+> 단일 발표 요청 설명은 별도 [PR #108](https://github.com/Uplus-GETDDO/getddo-be/pull/108), `feat/GD-199`의 `65889fc` 구현을 포함한다. 작성 시점에는 미병합이며 아래 테스트 결과도 각 기준 코드를 따른다. 공용 추첨 정책은 [getddo-spec](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md)을 원본으로 사용한다.
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
+**구현 기능·시연 흐름**
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#drawing) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+| 항목 | 내용 |
+| --- | --- |
+| 하는 일 | 마감 5분 후 유효 응모와 실제 차감 이력을 대조해 후보·가중치·조건을 고정하고 추첨한다. 관리자는 결과를 검토하고, 필요하면 개별 당첨을 취소해 빈 자리만 재추첨한 뒤 전체 명단을 공개한다. |
+| 관리자 API | 실행·후보 조회 `GET /admin/events/{eventId}/draws`, `GET /admin/draws/{drawId}`, `GET /admin/draws/{drawId}/participants` / 정합성 검사 `POST /admin/draws/{drawId}/checks` / 개별 취소 `POST /admin/wins/{winId}/cancellations` / 최초 발표 `POST /admin/draws/{runId}/result-confirmation` |
+| 사용자 API | `GET /events/{eventId}/results` 공개 명단, `GET /events/{eventId}/my-result` 본인 결과. API 경로의 공통 접두사는 `/api/v1`이다. |
+| 핵심 규칙 | 같은 실행의 확정 결과는 바뀌지 않는다. 이벤트 안에서 같은 사용자는 한 번만 당첨된다. 후보가 부족하면 상위 등수부터 배정하고 남은 자리는 미충원으로 기록한다. 자동 추첨 완료와 사용자 공개는 구분한다. |
+| 시연 흐름 | 마감 후 자동 추첨 → 후보·가중치·경품별 결과 조회 → 정합성 검사 → 필요 시 개별 당첨 취소·재추첨 → 발표 요청 → 공개 명단·본인 결과 확인 → 같은 요청 재전송으로 결과·공개 중복이 없는지 확인 |
+
+**자동 추첨과 결과 확정**
+
+아래는 주요 호출과 저장 경계를 나타낸 그림이다. 실행 소유권 관리 등 일부 중간 호출은 생략했다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant W as 자동 추첨 워커
+    participant S as DrawSnapshotService
+    participant E as DrawExecutionService
+    participant P as 입력 준비 서비스
+    participant C as DrawConfirmationService
+    participant A as DrawingSelectionService
+    participant DB as MySQL
+
+    W->>S: 마감 5분이 지난 이벤트의 최초 실행 등록
+    S->>DB: 이벤트 FOR UPDATE
+    S->>DB: 기존 최초 실행 조회 또는 PREPARING 등록
+    S-->>W: 등록 커밋 후 runId 반환
+
+    W->>E: execute(runId)
+    E->>E: 실행 소유권 확보
+    E->>P: 입력 준비
+    P->>DB: 이벤트·실행 잠금 후 응모·USE 이력 조회
+    P->>P: 실제 장수·등급·소유자·중복 검증
+
+    alt 응모자 없음
+        P->>DB: NO_ENTRIES와 이벤트 종료 상태 저장
+        P-->>E: 정상 종료
+    else 후보 있음
+        P->>DB: 후보·실행별 연결·조건 저장, READY 커밋
+        E->>C: 고정 입력으로 결과 확정
+        C->>DB: 이벤트·실행 잠금 및 기존 결과 확인
+        alt 이미 CONFIRMED
+            DB-->>C: 저장된 결과
+        else 미확정
+            C->>A: 후보·가중치·경품 자리 전달
+            A->>A: 상위 등수부터 선정하고 당첨 후보 제거
+            A-->>C: 당첨·미충원 결과
+            C->>C: 자리·인원·후보·선정 순서 검증
+            C->>DB: 결과·CONFIRMED·최초 이벤트 상태 함께 저장
+        end
+    end
+```
+
+**관리자 검토·재추첨과 최초 공개**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as 관리자
+    participant I as 조회·검증 서비스
+    participant R as 취소·재추첨 서비스
+    participant P as 결과 공개 서비스
+    participant DB as MySQL
+    participant U as 사용자
+
+    A->>I: 후보·가중치·조건·결과 조회
+    I->>DB: 저장된 스냅샷과 결과 조회
+    I-->>A: 검토 자료
+
+    opt 정합성 검사 요청
+        A->>I: POST /draws/{drawId}/checks
+        I->>DB: 항목별 검사 후 draw_checks 추가
+        I-->>A: 전체·항목별 통과 여부
+    end
+
+    opt 개별 당첨 취소
+        A->>R: 당첨 결과 ID·사유·멱등 키
+        R->>DB: 취소 이력과 연결 재추첨 실행 함께 등록
+        R->>R: 최초 후보·가중치로 빈 자리만 재추첨
+        R->>DB: 새 실행 결과 저장, 기존 결과 유지
+        R-->>A: 재추첨 결과
+    end
+
+    A->>P: 검토한 최신 runId로 발표 요청
+    P->>DB: 이벤트 잠금 후 최신 명단·확정 상태 검증
+    alt 검토 이후 명단 변경 또는 미확정 실행 존재
+        P-->>A: 발표 거절
+    else 공개 가능
+        P->>DB: 실행별 확인·전체 공개 명단·상태·알림 작업 함께 저장
+        P-->>A: 공개 결과
+    end
+
+    U->>P: 공개 명단·본인 결과 조회
+    P->>DB: 실제 공개 버전 조회
+    P-->>U: 마스킹한 명단·본인 당첨 여부
+```
+
+**설계·기술 선택과 사용 이유**
+
+- **가중치 비복원 추출**: 실제 차감한 응모권의 장수에 브론즈 1·실버 3·골드 5를 곱해 합산한다. 전체 가중치 범위에서 난수를 뽑고 누적 구간에 해당하는 후보를 선정한 뒤 제거한다. 같은 사용자가 다른 경품에서도 다시 당첨되는 것을 막는다. 가중치 미적용·응모권 미사용 이벤트는 후보별 가중치가 1이다.
+- **보안 난수와 범위 검증**: `SecureRandom`으로 난수를 생성하고 범위를 벗어나면 다시 뽑는다. 전체 가중치는 `BigInteger`로 합산해 후보별 가중치 합계가 `long` 범위를 넘는 경우를 처리한다.
+- **최초 후보와 실행별 명단 분리**: `draw_candidates`에는 최초 장수·가중치·응모 근거를 보존하고, `draw_run_candidates`로 각 실행에 포함된 후보를 연결한다. 재추첨마다 같은 상세 스냅샷을 복사하지 않으면서 당시 명단을 고정할 수 있다.
+- **경품별 자리로 인원 검증**: `draw_results`는 경품의 자리마다 당첨 또는 미충원 한 행을 저장한다. 후보가 있는 최초 추첨은 결과 행 수가 전체 자리 수와 같고, 당첨 인원은 `min(후보 수, 자리 수)`여야 한다. 자리 누락·중복 당첨·후보가 남았는데 미충원되는 결과를 저장 전에 거절한다.
+- **입력 준비와 결과 확정을 별도 트랜잭션으로 처리**: 실행 등록을 먼저 커밋하고 입력 준비·결과 확정을 나눈다. 선정이나 결과 저장이 실패해도 실행 ID와 이미 고정한 입력을 유지해 같은 실행을 재개할 수 있다.
+- **이벤트 → 실행 잠금과 DB 제약**: 같은 이벤트의 확정을 직렬화하고, 실행별 자리·후보·선정 순서 UNIQUE와 후보 연결 복합 FK를 함께 사용한다. 응모의 이벤트 공유 잠금과 추첨의 쓰기 잠금이 연계되어 진행 중인 응모 처리를 기다린 뒤 후보를 읽는다.
+- **확정 결과와 공개 명단 분리**: `draw_publications`와 `draw_publication_results`에 실제 공개 버전과 포함 결과를 보존한다. 유지 당첨자와 재추첨 당첨자를 한 명단으로 공개할 수 있고, 내부 변경이 사용자 명단에 바로 노출되지 않는다.
+
+**문제와 해결 과정**
+
+- **중복 요청으로 재선정될 위험** → 실행 ID와 상태를 기준으로 처리한다. `CONFIRMED`인 실행은 선정기를 다시 호출하지 않고 저장된 결과 ID·당첨 순서를 반환한다.
+- **서버 중단 후 실행이 남는 문제** → 소유권 토큰과 만료 시각으로 실행 주체를 구분한다. 실패 이력·자동 재시도·운영자 재개를 같은 실행에 연결하고, 이전 시도의 뒤늦은 결과 저장을 막는다.
+- **재추첨 결과를 기존 결과에 덮어쓰면 근거가 사라지는 문제** → 기존 결과는 유지하고 취소 이력과 새 실행을 추가한다. 취소 대상이 아닌 당첨자는 유지하며 최초 가중치로 빈 자리만 보충한다.
+- **관리자가 검토한 명단과 발표 시점의 명단이 달라지는 문제** → 최신 실행 ID를 검사해 이전 명단의 발표를 거절한다. 동일 발표 재시도는 기존 성공 버전을 반환해 확인 기록·공개 버전·알림 작업을 중복 생성하지 않는다.
+- **당첨자가 없는 재추첨은 공개 결과 연결만으로 확인 근거를 남길 수 없는 문제** → `draw_publication_executions`에 실행별 확인 근거를 별도로 저장한다. 모든 자리가 미충원이어도 해당 실행을 확인해 공개에 반영했다는 사실을 보존한다.
+- **실제 응모와 추첨 준비의 마감 경합** → 서비스 통합 테스트로 커밋 직전 마감 검사 결함을 재현하고, 응모 담당자의 수정과 공용 명세의 승인된 마감 판정 예외를 반영해 검증했다.
+
+**테스트 결과**
+
+공통 실행 명령은 다음과 같다.
+
+```bash
+flock /tmp/getddo-docker-tests.lock ./gradlew test build \
+  --init-script gradle/test-limits.init.gradle \
+  --max-workers=1 --no-parallel
+```
+
+| 검증 | 실행 기록일 | 기준 코드 | 결과 |
+| --- | --- | --- | --- |
+| 실제 응모·차감 → 후보 스냅샷 | 2026-10-15 | [GD-131 `569d5af`](https://github.com/Uplus-GETDDO/getddo-be/pull/90) | 관련 MySQL 검증 17개 성공. 해당 코드의 전체 테스트·빌드 2,052개 성공 |
+| 공개 명단·본인 결과 조회 | 2026-10-15 | [GD-140 `baf1fad`](https://github.com/Uplus-GETDDO/getddo-be/pull/93) | 관련 검증 26개 성공. 해당 코드의 전체 테스트·빌드 1,954개 성공 |
+| 단일 발표·취소·재추첨·사용자 조회 | 2026-10-15~16 | [GD-199 구현본, 최종 설명 보완 `65889fc`](https://github.com/Uplus-GETDDO/getddo-be/pull/108) | 관련 MySQL 검증 39개 성공. 전체 테스트·빌드 2,215개 성공, 최종 커밋 CI 성공 |
+
+- **알고리즘**: 제어 가능한 난수를 주입해 가중치 구간 경계, 상위 등수 우선 배정, 당첨 후보 제거, 후보 부족과 합계 범위 초과를 검증했다.
+- **저장·동시성**: 실제 MySQL에서 이벤트 잠금 대기, 동시 확정 요청의 동일 결과 반환, 결과·상태 저장 실패 롤백과 UNIQUE·FK 제약을 검증했다.
+- **정합성 검사**: 잘못된 장수·가중치, 중복 사용자·자리, 선정 순서 오류와 조기 미충원을 불일치로 판정하는지 검증했다.
+- **공개**: 동일 발표 재시도, 이전 명단·미확정 실행의 발표 거절, 공개 트랜잭션 롤백과 공개 전 비노출·공개 후 마스킹을 검증했다.
+
+각 전체 테스트 수는 서로 다른 기준 코드의 프로젝트 전체 집계이므로 합산하지 않는다. 위 결과는 기능·정합성 검증이며 이번 README 작성에서는 테스트를 재실행하지 않았다.
+
+상세 구현: [후보·결과 저장](docs/03-database/drawing-selection-storage.md) · [관리자 조회·검증](docs/02-api/admin-draw-inspection.md) · [공개 저장](docs/03-database/draw-publication-storage.md) · [실패 복구](docs/06-runbook/draw-execution-recovery.md)
 
 </details>
 
