@@ -91,9 +91,9 @@ flowchart LR
 
 ### 클라우드 설계도
 
-[![GETDDO AWS 클라우드 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.drawio)
+[![GETDDO Vercel·AWS 전체 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.drawio)
 
-[draw.io 원본](docs/assets/cloud-architecture.drawio). 이 그림은 인프라 설계 자료이며 실제 2대 EC2 운영·Redis 캐시·S3 이미지 연동 완료를 뜻하지 않습니다. 현재 요청 제한은 인메모리 구현이고, 실제 배포 검증 상태는 [배포 문서](docs/06-runbook/container-cd.md)를 확인합니다.
+[draw.io 원본](docs/assets/cloud-architecture.drawio). Vercel이 프론트 화면 파일을 전달하고, 브라우저가 CloudFront를 통해 API와 이미지를 요청하는 구성입니다. EC2 2대와 공유 RDS·Redis를 포함한 확장 설계이며, 실제 두 서버 운영과 앱 연동 완료를 뜻하지 않습니다. 실제 배포 검증 상태는 [배포 문서](docs/06-runbook/container-cd.md)를 확인합니다.
 
 ### 모듈 의존 관계
 
