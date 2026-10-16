@@ -149,7 +149,9 @@ getddo-be/
 │   ├── scripts/                                 # 서버 배포·설정 조회 스크립트
 │   │   ├── deploy-ssm.py                         # S3 파일 전달·SSM 배포 요청·결과 확인
 │   │   ├── deploy-container.sh                   # 설정·컨테이너 교체와 실패 복구
-│   │   └── fetch-app-env.py                      # Parameter Store 설정 조회·검증
+│   │   ├── fetch-app-env.py                      # Parameter Store 설정 조회·검증
+│   │   ├── daily-release.py                      # dev CI 확인·main 병합 (PR #115 반영 예정)
+│   │   └── publish-release.py                    # 배포 성공 버전 발행 (PR #115 반영 예정)
 │   ├── terraform/dev/                           # AWS 리소스 정의 (이 브랜치 반영 예정)
 │   └── iam/                                     # 운영자·서버 권한 정책 (이 브랜치 반영 예정)
 ├── docs/                                        # 백엔드 API·DB·결정·작업 기록
@@ -213,6 +215,19 @@ flowchart LR
     Image -->|"main push"| Artifact["CI 이미지 보관"]
 ```
 
+#### 정기 릴리스 · PR #115 추가 구성
+
+```mermaid
+flowchart LR
+    Schedule["매일 08:00 KST"] --> Gate{"최신 dev CI 성공?"}
+    Gate -->|"아니오"| Skip["병합 건너뜀"]
+    Gate -->|"예"| PR["dev → main PR 생성·재사용"]
+    PR --> Merge["GitHub App · merge commit"]
+    Merge --> Main["main Build → Container CD"]
+```
+
+현재 `DAILY_RELEASE_ENABLED=false`이며, 실제 자동 병합·후속 배포는 검증 전입니다. 수동 실행 기본값은 변경 없는 dry-run입니다.
+
 #### CD · 검증한 이미지 배포
 
 ```mermaid
@@ -234,6 +249,27 @@ flowchart LR
     Health -->|"실패"| Recover["복구 처리"]
 ```
 
+#### 배포 성공 후 버전 발행 · PR #115 추가 구성
+
+```mermaid
+flowchart LR
+    Deployed["서버 교체·SSM 성공"] --> Tag["배포 커밋에 버전 태그"]
+    Tag --> Release["GitHub Release 발행"]
+    Tag -->|"발행 실패"| Retry["서버 유지 · 발행 재시도"]
+```
+
+#### 실패 시 처리
+
+| 실패 위치 | 처리 |
+| --- | --- |
+| dev·main CI | 정기 병합 또는 서버 배포를 진행하지 않음 |
+| 설정 조회·이미지 검증 | 기존 앱·설정 유지 |
+| 앱 교체·기동 확인 | 이전 설정·이미지 복구 시도 |
+| 복구·기록 정리 | 백업·진행 기록 보존, 다음 배포 차단 후 수동 확인 |
+| 태그·Release 발행 | 새 앱 유지, 서버를 롤백하지 않고 버전 발행 재시도 |
+
+정상 서버 배포는 3회 확인했습니다. 실서버 실패 주입·자동 롤백과 PR #115의 자동 병합·버전 발행은 아직 검증 전입니다. [배포 이력·실패 대응 상세](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)
+
 #### 설계·기술 선택과 사용 이유
 
 | 선택 | 정리할 내용 |
@@ -241,11 +277,11 @@ flowchart LR
 | Docker·Compose | CI 이미지 재사용·YAML 실행 설정 관리. Docker 운영과 서버별 배포 관리 부담을 수용. [대안·트레이드오프 비교](https://github.com/Uplus-GETDDO/getddo-be/wiki/Docker-Compose-Choice) |
 | CloudFront·내부 ALB·보안 그룹 | HTTPS 진입, 요청 분산과 접근 경계 |
 | RDS·ElastiCache·S3 | 업무 데이터·요청 횟수·이미지의 저장 목적 분리 |
-| GitHub Actions·OIDC·SSM | CI 이미지 재사용, 임시 권한과 원격 배포 |
+| GitHub Actions·OIDC·SSM | 검증한 이미지 배포와 버전 발행을 분리합니다. 실패 단계별로 유지·복구·재시도를 구분합니다. [정기 릴리스·실패 대응](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery) |
 | Parameter Store·IAM | 비밀값 보관과 서버별 접근 권한 |
 | Terraform·IAM 정책 파일 | 리소스 정의와 변경 검토 방식 |
 
-배포 코드: [CI](.github/workflows/build.yml) · [이미지 생성](.github/workflows/image.yml) · [CD](.github/workflows/cd.yml) · [서버 배포](infra/scripts/deploy-container.sh)
+배포 코드: [CI](.github/workflows/build.yml) · [이미지 생성](.github/workflows/image.yml) · [CD](.github/workflows/cd.yml) · [서버 배포](infra/scripts/deploy-container.sh) · [정기 릴리스(PR #115)](https://github.com/Uplus-GETDDO/getddo-be/blob/8f0ac990ed8ddccc5441d40f8765eb9caa5a1742/.github/workflows/daily-release.yml)
 
 </details>
 

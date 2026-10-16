@@ -1,8 +1,8 @@
 # 컨테이너 CD 실행 준비
 
-- 상태: 사용자 검토 완료 · Codex 작성 · 2026-10-15 사용자 요청으로 상태 갱신
-- 작성일: 2026-10-13 · 갱신일: 2026-10-15
-- 현재 단계: main CI 성공 → 동일 이미지 전달 → 서버 교체·상태 확인·실패 복구 코드를 연결했다. 실제 GitHub Actions와 AWS 배포는 미검증이며 서버·권한·설정 준비가 필요하다.
+- 상태: 기존 준비 절차 사용자 검토 완료 · 2026-10-16 추가 검증 기록은 Codex 작성·검토 대기
+- 작성일: 2026-10-13 · 갱신일: 2026-10-16
+- 현재 단계: GitHub Actions·SSM을 통한 정상 서버 배포 3회 확인. 실패 주입에 의한 실서버 자동 롤백은 미검증. PR #115의 정기 병합·버전 발행은 추가 구성 단계다.
 
 ## Parameter Store 설정 자동 반영
 
@@ -81,7 +81,7 @@ GitHub **Settings → Environments → production → Variables**에 다음 네 
 
 [compose.deploy.yaml](../../compose.deploy.yaml)은 서버에서 앱 컨테이너 하나를 실행하기 위한 설정 초안이다. 자동 배포에서 이 파일을 사용한다. Parameter Store 설정·조회 권한·DB 연결·인증서를 사전에 준비해야 한다. 로컬 개발에는 기존 `compose.yaml`을 사용한다.
 
-CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 성공은 원격 교체 스크립트가 상태 확인까지 성공하고 SSM 결과도 성공했을 때만 표시한다. 실제 서버 배포는 미검증이다.
+CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 성공은 원격 교체 스크립트가 상태 확인까지 성공하고 SSM 결과도 성공했을 때만 표시한다. 정상 서버 배포 이력은 아래에 기록하며, 실서버 롤백 검증과 구분한다.
 
 2026-10-14 로컬에서 전체 테스트·빌드를 캐시 없이 실행해 단위 테스트 898개와 MySQL 통합 테스트 808개가 모두 통과했다. Docker 이미지 빌드·저장·복원·이미지 ID/커밋 라벨 확인 및 별도 MySQL과 앱 컨테이너의 `/v3/api-docs` HTTP 200도 확인했다. 이는 로컬 검증이며 실제 GitHub Actions·OIDC·S3 전달·SSM·RDS 배포 성공을 뜻하지 않는다. 배포 회귀 테스트 코드는 이번 공유 대상에서 제외하며 CI에서도 해당 테스트를 실행하지 않는다.
 
@@ -90,3 +90,24 @@ CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 
 워크플로 분리 참고: [GitHub 재사용 워크플로](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
 
 이미지 전달 방식 참고: [다른 실행의 아티팩트 다운로드](https://github.com/actions/download-artifact/tree/v5#download-artifacts-from-other-workflow-runs-or-repositories), [Docker 이미지 저장](https://docs.docker.com/reference/cli/docker/image/save/), [Docker 이미지 불러오기](https://docs.docker.com/reference/cli/docker/image/load/).
+
+## 2026-10-16 실제 배포 확인과 PR #115 연결
+
+GitHub Actions의 다음 세 실행에서 SSM Command ID와 서버 교체·상태 확인 성공 메시지를 확인했다. 각 실행의 첫 번째 시도가 성공했으며 아래 커밋은 워크플로 실행 ref가 아니라 로그의 실제 SOURCE_SHA다.
+
+| 실행일(KST) | 실제 배포 커밋 | Container CD |
+| --- | --- | --- |
+| 2026-10-14 | bdfb8c76 | [정상 배포](https://github.com/Uplus-GETDDO/getddo-be/actions/runs/38534971196) |
+| 2026-10-15 | 72f2ccf6 | [정상 배포](https://github.com/Uplus-GETDDO/getddo-be/actions/runs/38672281738) |
+| 2026-10-16 | b3ee6e27 | [정상 배포](https://github.com/Uplus-GETDDO/getddo-be/actions/runs/38864188841) |
+
+최신 main의 deploy-container.sh·deploy-ssm.py와 현재 문서 브랜치의 해당 코드가 일치한다. 이 기록은 앱 이미지와 /v3/api-docs HTTP 응답 확인이며 DB·업무 API 전체 검증이나 실패 복구 성공 기록은 아니다. Actions는 원격 앱 로그를 복사하지 않으므로 실제 롤백은 SSM의 실패 명령 출력과 서버 이미지·설정 상태를 대조해 별도로 검증해야 한다.
+
+[PR #115](https://github.com/Uplus-GETDDO/getddo-be/pull/115)은 기존 서버 롤백 코드를 변경하지 않고, 정기 dev → main 병합과 배포 성공 후 태그·GitHub Release 발행을 추가한다. 2026-10-16 조회에서 PR은 열려 있고 DAILY_RELEASE_ENABLED=false다.
+
+- 서버 배포가 실패하면 버전을 발행하지 않는다.
+- 서버 배포 성공 후 publish 작업만 실패하면 서버 앱은 새 버전으로 유지한다. 배포 자체의 실패와 구분해 버전 발행을 재시도한다.
+- 태그·Release 재시도는 같은 배포 커밋을 기준으로 하며, 기존 태그를 이동·삭제하지 않는다.
+- 실서버 자동 롤백과 App 토큰을 사용한 정기 병합·후속 배포·실제 버전 발행은 이번 문서 확인에서 실행하지 않았다.
+
+자세한 흐름·실패 지점별 조치와 코드 근거는 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)에 정리했다.
