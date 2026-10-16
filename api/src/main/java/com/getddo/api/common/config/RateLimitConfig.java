@@ -20,7 +20,7 @@ import com.getddo.core.common.time.TimeProvider;
  * 요청 빈도 제한을 MVC에 등록한다.
  *
  * <p>제한기는 {@code getddo.rate-limit.store}로 고른다. {@code memory}(기본)는 서버 메모리, {@code redis}는 서버 사이에
- * 횟수를 합치는 Redis 구현이다. 다른 {@link RateLimiter} 빈을 직접 등록하면 메모리 구현은 만들지 않는다.</p>
+ * 횟수를 합치는 Redis 구현이다. 다른 {@link RateLimiter} 빈을 직접 등록하면 기본 구현은 만들지 않는다.</p>
  */
 @Configuration
 @EnableConfigurationProperties(RateLimitProperties.class)
@@ -57,6 +57,7 @@ public class RateLimitConfig implements WebMvcConfigurer {
 	static class RedisRateLimiterConfig {
 
 		@Bean
+		@ConditionalOnMissingBean(RateLimiter.class)
 		RateLimiter redisRateLimiter(StringRedisTemplate redis) {
 			return new RedisRateLimiter(redis);
 		}

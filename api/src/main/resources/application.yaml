@@ -44,7 +44,7 @@ getddo:
   # 사용자별 요청 빈도 제한(429). 한도는 운영 수치이므로 여기서 조정한다. 정책이 없으면 제한하지 않는다.
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
-    # memory: 서버 메모리(서버 한 대에서만 정확), redis: 서버 여러 대의 횟수를 합친다. redis는 REDIS_* 접속 정보가 필요하다.
+    # memory: 서버 메모리(서버 한 대에서만 정확), redis: 서버 여러 대의 횟수를 합친다. redis는 SPRING_DATA_REDIS_* 접속 정보가 필요하다.
     store: ${RATE_LIMIT_STORE:memory}
     policies:
       # 응모: 사용자 분당 20회, 같은 이벤트는 분당 10회

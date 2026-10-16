@@ -47,6 +47,37 @@ class RateLimitConfigTest {
 	}
 
 	@Test
+	@DisplayName("store=redis여도 사용자 정의 제한기가 있으면 Redis 제한기를 중복 생성하지 않는다")
+	void redisStoreUsesCustomLimiter() {
+		// given
+		RateLimiter custom = mock(RateLimiter.class);
+		// when
+		runner.withPropertyValues("getddo.rate-limit.store=redis")
+				.withBean(RateLimiter.class, () -> custom)
+				.withBean(StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
+				.run(context -> {
+					// then
+					assertThat(context).hasNotFailed();
+					assertThat(context.getBeansOfType(RateLimiter.class).values()).singleElement().isSameAs(custom);
+				});
+	}
+
+	@Test
+	@DisplayName("사용자 정의 제한기가 있으면 store=redis에서도 Redis 템플릿을 요구하지 않는다")
+	void customLimiterDoesNotRequireRedisTemplate() {
+		// given
+		RateLimiter custom = mock(RateLimiter.class);
+		// when
+		runner.withPropertyValues("getddo.rate-limit.store=redis")
+				.withBean(RateLimiter.class, () -> custom)
+				.run(context -> {
+					// then
+					assertThat(context).hasNotFailed();
+					assertThat(context.getBeansOfType(RateLimiter.class).values()).singleElement().isSameAs(custom);
+				});
+	}
+
+	@Test
 	@DisplayName("store=redis인데 Redis 템플릿이 없으면 시작 단계에서 실패해 잘못된 설정을 바로 알린다")
 	void redisStoreWithoutRedisFailsAtStartup() {
 		runner.withPropertyValues("getddo.rate-limit.store=redis")
