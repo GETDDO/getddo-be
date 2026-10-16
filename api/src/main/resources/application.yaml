@@ -3,12 +3,13 @@ spring:
     name: GETDDO-BE
   data:
     redis:
-      # 속도 제한 저장소가 redis일 때만 쓴다(getddo.rate-limit.store). 환경변수로 주입한다.
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      # 요청 빈도 제한의 횟수 저장소(getddo.rate-limit.store=redis)가 쓰는 연결 설정이다. 환경변수로 주입한다.
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
       ssl:
-        enabled: ${REDIS_SSL_ENABLED:false}
+        # 로컬 기본값은 false이며, 배포 설정 검증에서는 true만 허용한다.
+        enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:false}
       # Redis가 느리거나 끊겨도 요청이 오래 붙잡히지 않게 짧게 둔다. 제한기 실패는 요청을 통과시킨다.
       connect-timeout: 500ms
       timeout: 300ms
