@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: CI가 검사한 배포 코드 가져오기
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
@@ -113,7 +113,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.container.outputs.source_sha }}
           persist-credentials: false
