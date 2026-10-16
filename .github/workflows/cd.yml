@@ -90,7 +90,8 @@ jobs:
       - name: 서버 앱 교체 및 상태 확인
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # 파일 전달 → SSM 교체 → HTTP 확인 → 실패 시 이전 이미지 복구.
+        # 파일 전달 → 서버에서 Parameter Store 조회 → 설정·앱 교체 → 상태 확인.
+        # 실패하면 이전 이미지와 설정을 함께 복구한다. 설정값을 Actions로 가져오지 않는다.
         # SSM의 최종 상태와 종료 코드까지 확인해야 성공으로 처리한다.
         run: python3 infra/scripts/deploy-ssm.py
 

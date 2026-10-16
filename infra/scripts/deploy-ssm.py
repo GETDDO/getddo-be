@@ -54,7 +54,8 @@ def verify_main(values):
 def bundle(source, artifact, destination):
     # .env·State·소스 전체 대신 배포에 필요한 공개 파일만 포함한다.
     files = {"compose.deploy.yaml": source / "compose.deploy.yaml",
-             "deploy-container.sh": source / "infra/scripts/deploy-container.sh"}
+             "deploy-container.sh": source / "infra/scripts/deploy-container.sh",
+             "fetch-app-env.py": source / "infra/scripts/fetch-app-env.py"}
     files.update({name: artifact / name for name in ("image.tar.gz", "image.tar.gz.sha256", "image-id.txt")})
     with tarfile.open(destination, "w") as archive:
         for name, path in files.items():
@@ -71,7 +72,7 @@ def bundle(source, artifact, destination):
 def parameters(values, key, checksum):
     release = "/opt/getddo/releases/" + values["GITHUB_RUN_ID"] + "-" + values["GITHUB_RUN_ATTEMPT"]
     quote = shlex.quote
-    # SSM은 root로 실행한다. 비밀값은 이 명령에 넣지 않고 EC2의 env 파일을 사용한다.
+    # SSM은 root로 실행한다. 명령에는 공개 리전만 전달하고 설정값은 서버 역할로 조회한다.
     commands = ["set -eu", "umask 077", "install -d -m 700 /opt/getddo/releases",
                 "mkdir -m 700 -- " + quote(release), "cd -- " + quote(release)]
     download = ["timeout", "600", "aws", "s3api", "get-object", "--bucket", values["DEPLOY_BUCKET"],
@@ -80,7 +81,7 @@ def parameters(values, key, checksum):
     commands.extend([" ".join(map(quote, download)) + " >/dev/null",
                      "printf '%s\\n' " + quote(checksum + "  release.tar") + " | sha256sum --check -",
                      "tar --extract --file release.tar --no-same-owner --no-same-permissions",
-                     "exec bash deploy-container.sh " + quote(values["SOURCE_SHA"])])
+                     "exec bash deploy-container.sh " + quote(values["SOURCE_SHA"]) + " " + quote(values["AWS_REGION"])])
     return {"commands": ["\n".join(commands)], "executionTimeout": ["1800"]}
 
 
