@@ -2,6 +2,16 @@ spring:
   application:
     name: GETDDO-BE
 
+  data:
+    redis:
+      # 연결 설정만 선언한다. Redis 클라이언트와 요청 제한 기능은 별도 구현이 필요하다.
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      ssl:
+        # 로컬 기본값은 false이며, 배포 설정 검증에서는 true만 허용한다.
+        enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:false}
+
 springdoc:
   packages-to-scan: com.getddo.api
   swagger-ui:
