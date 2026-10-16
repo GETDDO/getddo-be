@@ -179,15 +179,17 @@ getddo-be/
 
 ## ERD
 
-> 기존 ERD 이미지는 2026-10-02 스냅샷입니다. 수정한 이미지는 추후 교체할 예정이며 이번 문서 작업에서는 보존합니다. 아래 도메인 표는 기존 이미지 안내이며 현재 DB 개수 집계가 아닙니다. 현재 스키마는 전체 Flyway 적용 결과를 기준으로 확인합니다.
+아래 이미지는 2026-10-16에 제공된 ERDCloud 전체 캡처입니다. 이미지를 누르면 원본 크기로 확인할 수 있습니다. 실제 적용 스키마는 전체 Flyway 적용 결과를 기준으로 확인합니다.
 
-[![GETDDO 전체 ERD](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
+[![GETDDO 전체 ERD — 2026-10-16](docs/assets/erd-2026-10-16.png)](docs/assets/erd-2026-10-16.png)
 
-[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
+[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](docs/assets/erd-2026-10-16.png)
 
 ### 도메인별 ERD
 
 도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
+
+도메인별 Wiki와 아래 테이블 수는 기존 2026-10-02 스냅샷 기준으로, 위 전체 ERD 캡처와 기준 시점이 다릅니다.
 
 | 도메인 | 테이블 수 | 내용 |
 | --- | ---: | --- |
