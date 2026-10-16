@@ -3,13 +3,14 @@
 ## 목차
 
 1. [프로젝트 소개](#프로젝트-소개)
-2. [개발 방식](#개발-방식)
-3. [핵심 기능](#핵심-기능)
-4. [기술 스택](#기술-스택)
-5. [아키텍처](#아키텍처)
-6. [ERD](#erd)
-7. [패키지 구조](#패키지-구조)
-8. [실행 방법](#실행-방법)
+2. [ERD](#erd)
+3. [전체 아키텍처](#전체-아키텍처)
+4. [기능별 구현과 사용 이유](#기능별-구현과-사용-이유)
+5. [테스트 결과](#테스트-결과)
+6. [개발 방식](#개발-방식)
+7. [기술 스택](#기술-스택)
+8. [패키지 구조](#패키지-구조)
+9. [실행 방법](#실행-방법)
 
 ## 프로젝트 소개
 
@@ -17,34 +18,110 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 
 이 저장소는 GETDDO의 백엔드입니다. 보유 응모권과 이력의 정합성, 중복 요청 방지, 추첨 후보·조건·결과 보존을 중심으로 개발하고 있습니다. 가상 사용자와 더미 데이터로 시연하며, 외부 알림 발송은 모의 처리합니다.
 
-프로젝트의 목표와 범위는 [공용 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/README.md)을 기준으로 합니다.
+프로젝트의 목표와 범위는 [공용 요구사항](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/00-requirements/README.md)을 기준으로 합니다.
+
+멘토링 자료는 **소개 → ERD → 전체 아키텍처 → 기능별 설명·사용 이유 → 테스트 결과** 순서로 읽습니다. [Wiki 멘토링 안내](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring)에서 상세 설명과 코드·검증 근거를 확인할 수 있습니다.
+
+## ERD
+
+> 기존 ERD 이미지는 2026-10-02 스냅샷입니다. 수정한 이미지는 추후 교체할 예정이며 이번 문서 작업에서는 보존합니다. 아래 도메인 표는 기존 이미지 안내이며 현재 DB 개수 집계가 아닙니다. 현재 스키마는 전체 Flyway 적용 결과를 기준으로 확인합니다.
+
+[![GETDDO 전체 ERD](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
+
+[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](https://raw.githubusercontent.com/wiki/Uplus-GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
+
+### 도메인별 ERD
+
+도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
+
+| 도메인 | 테이블 수 | 내용 |
+| --- | ---: | --- |
+| [사용자](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-user) | 1 | 사용자 정보·역할·멤버십 |
+| [이벤트·응모](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-event) | 5 | 이벤트·경품·응모자·응모 요청·배너 |
+| [출석](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-attendance) | 5 | 일일·연속 출석과 보상 기록 |
+| [미션](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-mission) | 10 | 퀴즈·설문·제출·보상 기록 |
+| [게임](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-game) | 4 | 게임·플레이·통계·보상 기록 |
+| [보상 정책](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-reward) | 1 | 출석·미션·게임의 보상 정책 |
+| [응모권](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-ticket) | 2 | 응모권 한 장의 현재 상태와 처리 이력 |
+| [어뷰징 검토](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-abuse) | 1 | 의심 행위 탐지와 관리자 검토 |
+| [추첨·발표](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-drawing) | 6 | 추첨 실행·후보·결과·당첨·발표 |
+| [알림](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-notification) | 2 | 알림 생성 작업과 사용자 알림 |
+| [감사 로그](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-audit) | 1 | 변경 행위와 변경 전후 데이터 |
+
+## 전체 아키텍처
+
+단일 Spring Boot 애플리케이션으로 실행하는 멀티모듈 구조이며, 각 모듈 안을 기능별 패키지로 나눕니다.
+
+```mermaid
+flowchart LR
+    Client["사용자·관리자 프론트"] --> API["api: HTTP 요청·응답"]
+    API --> Core["core: 업무 규칙·Service·Repository 계약"]
+    API --> DB["storage:db: JPA·JDBC 구현"]
+    DB --> Core
+    DB --> MySQL[("MySQL 8.4")]
+    Worker["같은 앱의 예약 워커"] --> Core
+```
+
+api → core, api → storage:db, storage:db → core는 빌드 의존 방향입니다. 실제 업무 서비스는 Repository 인터페이스를 통해 주입된 저장 구현을 호출합니다. 모듈을 별도 서버로 배포하는 구조는 아닙니다.
+
+| 구분 | 역할·사용 이유 |
+| --- | --- |
+| api | HTTP DTO·형식 검증·공통 사용자 문맥·응답 변환을 업무 규칙과 분리 |
+| core | API와 워커가 업무 규칙·트랜잭션을 재사용. Spring Context/Transaction 의존성은 허용 |
+| storage:db | Entity·JPA/JDBC·잠금·쿼리·마이그레이션을 저장 책임에 모음 |
+
+이벤트 시작·마감과 응모권 만료는 각각 전용 스레드를 사용합니다. 알림·추첨은 DB 작업 상태·소유권 만료·재시도로 중복 처리와 장애 복구를 관리합니다. [Wiki 전체 아키텍처](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Architecture)에 호출 흐름·트랜잭션과 워커 경계를 설명했습니다.
+
+### 클라우드 설계도
+
+[![GETDDO AWS 클라우드 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.drawio)
+
+[draw.io 원본](docs/assets/cloud-architecture.drawio). 이 그림은 인프라 설계 자료이며 실제 2대 EC2 운영·Redis 캐시·S3 이미지 연동 완료를 뜻하지 않습니다. 현재 요청 제한은 인메모리 구현이고, 실제 배포 검증 상태는 [배포 문서](docs/06-runbook/container-cd.md)를 확인합니다.
+
+## 기능별 구현과 사용 이유
+
+| 기능 | 구현 방식·사용 이유 | 상세·테스트 근거 |
+| --- | --- | --- |
+| 사용자 문맥·관리자 사용자 조회 | DB 역할·멤버십 대조와 공통 사용자 문맥, 관리자 조회. 시연용 사용자 선택과 실제 인증을 구분 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#user) |
+| 이벤트·경품 CRUD·취소·상태 전환 | 이벤트·경품 원자적 CRUD, 취소·반환·감사 연결, 시작/마감 전환과 실패 격리 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#event) |
+| 출석·연속 출석·보상 | KST 출석·연속 단계·보상 청구·지급을 함께 확정해 중복 보상 방지 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#attendance) |
+| 퀴즈·설문 조회·제출 | 퀴즈 진행·설문·제출 해시·완료 청구로 재전송과 중복 보상 제어 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#mission) |
+| 게임 조회·시작·결과 검증 기반 | 조회·시작·규칙/토큰/seed 저장·검증기 기반. 결과 제출·보상 전체 연결은 후속 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#game) |
+| 응모권 지급·사용·반환·만료·운영 조회 | 한 장의 현재 상태와 이력을 분리하고 원본 연결·잠금으로 중복 사용/반환 방지 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#ticket) |
+| 응모 접수·거절 이력·현황 | 응모 PK 멱등·등급별 차감·마감 최종 검사·거절 이력으로 재전송과 경합 처리 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#entry) |
+| 자동 추첨·재추첨·공개 기록·결과 조회 | 후보 스냅샷·동일 실행·공개 버전 분리로 추첨 근거와 공개 명단 보존. 최초 수동 공개 연결은 후속 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#drawing) |
+| 알림 생성·모의 발송·읽음·복구 | 발생 키·사용자별 중복 방지, 생성/모의 발송 재시도와 읽음 분리 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#notification) |
+| 공통 응답·시간·감사·요청 제한 | 공통 응답·시간·감사와 429 요청 제한. 공통 감사 조회 API는 제외 | [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#common) |
+
+코드가 없는 후속 연결과 제외 범위는 [Wiki 구현 범위](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Features#remaining)에서 구분합니다. 공용 정책은 getddo-spec이 원본이며 이 문서에서 새로 확정하지 않습니다.
+
+## 테스트 결과
+
+2026-10-16 KST, dev `15f2d95c` 기준으로 전체 `test build`를 실행해 **BUILD SUCCESSFUL**을 확인했습니다.
+
+| 구분 | 실행 수 | 결과 |
+| --- | ---: | --- |
+| DB 없는 단위·MVC·설정 검증 | 1,195 | 실패·오류·건너뜀 0 |
+| Testcontainers MySQL 통합 검증 | 1,009 | 실패·오류·건너뜀 0 |
+| **합계** | **2,204** | **성공** |
+
+실제 잠금·중복 처리·마감 경계·롤백·공개 버전과 API 계약을 검증합니다. [Wiki 테스트 결과](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Tests)에 실행 명령·모듈/기능별 결과·원본 JSON/CSV를 정리했습니다. 같은 날 S3Mock에서 확인한 객체 입출력 17개는 이 집계와 별도입니다.
+
+이 결과는 로컬 기능 검증이며 부하 처리량·실제 AWS 배포·FE 전체 흐름·S3/CloudFront 연동 완료를 뜻하지 않습니다. 후속 작업의 원격 CI 상태와 실제 연동 검증은 별도로 확인합니다.
 
 ## 개발 방식
 
-프론트엔드와 백엔드는 별도 저장소에서 개발하고, 공용 요구사항·도메인 정책·협업 규칙은 [getddo-spec](https://github.com/GETDDO/getddo-spec)에서 관리합니다. 백엔드의 기능별 담당 영역과 공동 작업 경계는 [백엔드 기능 담당자](docs/01-conventions/backend-feature-assignments.md)를 따릅니다.
+프론트엔드와 백엔드는 별도 저장소에서 개발하고, 공용 요구사항·도메인 정책·협업 규칙은 [getddo-spec](https://github.com/Uplus-GETDDO/getddo-spec)에서 관리합니다. 백엔드의 기능별 담당 영역과 공동 작업 경계는 [백엔드 기능 담당자](docs/01-conventions/backend-feature-assignments.md)를 따릅니다.
 
 개발은 Jira 이슈 생성 → `dev` 기준 작업 브랜치 → 구현·테스트 → Pull Request → CI·코드 리뷰 → 병합 순서로 진행합니다. 상세 규칙은 다음 원본 문서를 확인합니다.
 
-- [브랜치 전략](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/branch.md)
-- [커밋 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/commit.md)
-- [개발 흐름](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/workflow.md)
-- [Pull Request 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)
+- [브랜치 전략](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/branch.md)
+- [커밋 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/commit.md)
+- [개발 흐름](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/workflow.md)
+- [Pull Request 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)
 - [백엔드 코드 스타일](docs/01-conventions/code-style.md)
 - [백엔드 문서와 작업 기록](docs/README.md)
 - [이 저장소의 PR 템플릿](.github/pull_request_template.md)
-
-## 핵심 기능
-
-아래는 개발 중인 서비스의 주요 기능 범위입니다. 세부 정책과 구현·제외 범위는 [기능 요구사항](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/functional-requirements.md), [도메인 규칙](https://github.com/GETDDO/getddo-spec/blob/main/02-domain/README.md), [구현 범위](https://github.com/GETDDO/getddo-spec/blob/main/00-requirements/scope.md)를 확인합니다.
-
-| 기능 | 내용 |
-| --- | --- |
-| 출석·미션·게임 | 일일·연속 출석, 퀴즈·설문, 게임 수행에 따른 응모권 보상 |
-| 응모권 관리 | 보유 응모권과 지급·차감·반환·정정·만료 이력 관리 |
-| 이벤트·응모 | 이벤트와 경품 조회, 응모 조건 검증, 응모 접수와 내 응모 내역 조회 |
-| 참여 검토·추첨 | 어뷰징 의심 건 검토, 추첨 후보·조건 보존, 가중치 추첨과 결과 발표 |
-| 백오피스 | 이벤트·경품·배너·보상 정책 운영, 사용자·응모·감사 로그 조회 |
-| 알림 | 이벤트와 처리 결과에 대한 사이트 내 알림, 읽음 상태 관리 |
 
 ## 기술 스택
 
@@ -61,38 +138,6 @@ GETDDO는 경품 이벤트를 소재로 한 **이벤트 응모 및 추첨 플랫
 | 테스트 | ![JUnit](https://img.shields.io/badge/JUnit-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Spring Boot Test](https://img.shields.io/badge/Spring_Boot_Test-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=for-the-badge) |
 | 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
 | CI | ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
-
-## 아키텍처
-
-### 클라우드 아키텍처
-
-[![GETDDO AWS 클라우드 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.png)
-
-[draw.io 원본](docs/assets/cloud-architecture.drawio)
-
-## ERD
-
-[![GETDDO 전체 ERD](https://raw.githubusercontent.com/wiki/GETDDO/getddo-be/assets/erd-2026-10-02/full.png)](https://raw.githubusercontent.com/wiki/GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
-
-[ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](https://raw.githubusercontent.com/wiki/GETDDO/getddo-be/assets/erd-2026-10-02/full.png)
-
-### 도메인별 ERD
-
-도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
-
-| 도메인 | 테이블 수 | 내용 |
-| --- | ---: | --- |
-| [사용자](https://github.com/GETDDO/getddo-be/wiki/ERD-user) | 1 | 사용자 정보·역할·멤버십 |
-| [이벤트·응모](https://github.com/GETDDO/getddo-be/wiki/ERD-event) | 5 | 이벤트·경품·응모자·응모 요청·배너 |
-| [출석](https://github.com/GETDDO/getddo-be/wiki/ERD-attendance) | 5 | 일일·연속 출석과 보상 기록 |
-| [미션](https://github.com/GETDDO/getddo-be/wiki/ERD-mission) | 10 | 퀴즈·설문·제출·보상 기록 |
-| [게임](https://github.com/GETDDO/getddo-be/wiki/ERD-game) | 4 | 게임·플레이·통계·보상 기록 |
-| [보상 정책](https://github.com/GETDDO/getddo-be/wiki/ERD-reward) | 1 | 출석·미션·게임의 보상 정책 |
-| [응모권](https://github.com/GETDDO/getddo-be/wiki/ERD-ticket) | 2 | 응모권 한 장의 현재 상태와 처리 이력 |
-| [어뷰징 검토](https://github.com/GETDDO/getddo-be/wiki/ERD-abuse) | 1 | 의심 행위 탐지와 관리자 검토 |
-| [추첨·발표](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-drawing) | 6 | 추첨 실행·후보·결과·당첨·발표 |
-| [알림](https://github.com/GETDDO/getddo-be/wiki/ERD-notification) | 2 | 알림 생성 작업과 사용자 알림 |
-| [감사 로그](https://github.com/GETDDO/getddo-be/wiki/ERD-audit) | 1 | 변경 행위와 변경 전후 데이터 |
 
 ## 패키지 구조
 
@@ -114,8 +159,7 @@ getddo-be/
 │       │   │   └── <도메인>/
 │       │   │       ├── controller/              # 요청을 받아 Service에 위임
 │       │   │       ├── dto/request/             # 요청 DTO와 입력 검증
-│       │   │       ├── dto/response/            # 응답 DTO
-│       │   │       └── mapper/                  # 도메인 객체 → 응답 DTO 변환
+│       │   │       └── dto/response/            # 응답 DTO·from(domain) 변환
 │       │   └── resources/                       # application.yaml 등 실행 설정
 │       ├── test/                                # DB 없는 API·설정 테스트
 │       └── integrationTest/                     # 앱 기동·API·DB 연동 테스트
@@ -228,4 +272,4 @@ API의 앱 기동·Swagger 테스트는 `api/src/integrationTest/java/com/getddo
 
 GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradlew build`를 실행합니다. 별도 DB 비밀값 설정은 필요하지 않습니다. 실패한 테스트 보고서는 `test-reports` 아티팩트에서 확인할 수 있습니다.
 
-`PR 제목 검사`는 [공용 PR 제목 규칙](https://github.com/GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)에 맞는지 별도로 확인합니다. PR 생성·수정·커밋 추가 시 실행하며, 제목·본문만 수정하면 Gradle 빌드는 실행하지 않습니다. 제목 오류로 병합을 막으려면 main/dev Ruleset의 필수 상태 검사에 `PR 제목 검사`를 등록합니다.
+`PR 제목 검사`는 [공용 PR 제목 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)에 맞는지 별도로 확인합니다. PR 생성·수정·커밋 추가 시 실행하며, 제목·본문만 수정하면 Gradle 빌드는 실행하지 않습니다. 제목 오류로 병합을 막으려면 main/dev Ruleset의 필수 상태 검사에 `PR 제목 검사`를 등록합니다.
