@@ -23,6 +23,8 @@ concurrency:
 jobs:
   container:
     name: main 자동 배포
+    outputs:
+      source_sha: ${{ steps.deployed.outputs.source_sha }}
     # CI 종료에는 실패·취소도 포함되므로 성공을 별도로 확인한다.
     # main push(병합 포함)로 실행된 같은 저장소의 CI만 후속 작업을 허용한다.
     if: >-
@@ -96,6 +98,28 @@ jobs:
         run: python3 infra/scripts/deploy-ssm.py
 
       - name: 검증 결과 표시
+        id: deployed
         run: |
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "main CI 통과 커밋: $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
           echo '서버 앱 교체와 정상 응답 확인 완료.' >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: 배포 성공 버전 발행
+    needs: container
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # AWS 배포 작업에는 쓰기 권한을 주지 않고 버전 발행 작업에만 부여한다.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.container.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: 버전 태그와 GitHub Release 생성
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ needs.container.outputs.source_sha }}
+        run: python3 infra/scripts/publish-release.py

@@ -21,7 +21,10 @@ concurrency:
 jobs:
   release:
     # 기본 브랜치 dev에 병합하고 App·main 보호 규칙을 준비한 뒤 true로 활성화한다.
-    if: vars.DAILY_RELEASE_ENABLED == 'true' && github.ref == 'refs/heads/dev'
+    if: >-
+      github.ref == 'refs/heads/dev' &&
+      (vars.DAILY_RELEASE_ENABLED == 'true' ||
+       (github.event_name == 'workflow_dispatch' && inputs.dry_run))
     runs-on: ubuntu-latest
     environment: daily-release
     timeout-minutes: 10

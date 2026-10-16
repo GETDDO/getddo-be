@@ -90,3 +90,9 @@ CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 
 워크플로 분리 참고: [GitHub 재사용 워크플로](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
 
 이미지 전달 방식 참고: [다른 실행의 아티팩트 다운로드](https://github.com/actions/download-artifact/tree/v5#download-artifacts-from-other-workflow-runs-or-repositories), [Docker 이미지 저장](https://docs.docker.com/reference/cli/docker/image/save/), [Docker 이미지 불러오기](https://docs.docker.com/reference/cli/docker/image/load/).
+
+## 서버 배포 성공과 버전 릴리스
+
+서버 교체·응답 검증이 성공한 뒤 별도 publish 작업이 실제 배포 SOURCE_SHA에 버전 태그와 GitHub Release를 생성한다. 첫 버전은 v0.1.0이며 이후 패치를 증가시키고 같은 커밋의 재실행은 재사용한다. 이미지 자체는 SHA로 식별한다. 정기·수동 main 배포 모두 적용하며 자세한 정책과 설정은 [정기 릴리스 런북](daily-release.md#배포-성공-후-버전-발행)을 참고한다.
+
+publish 작업 실패는 이미 성공한 서버 배포를 롤백하지 않는다. 이때 CD 전체는 실패로 표시되므로 서버 교체 실패와 버전 발행 실패를 작업별로 구분한다. 서버가 실행하는 SHA와 기존 태그·Release를 확인한 뒤 실패 작업을 재실행한다.

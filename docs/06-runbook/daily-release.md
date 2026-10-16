@@ -17,9 +17,28 @@
 
 PR CI·봇 리뷰 완료를 기다리는 흐름은 아니다. 사용자가 승인한 정기 릴리스는 검증된 dev를 리뷰 승인 없이 main에 반영하며, main의 새 병합 커밋은 다시 Build를 통과해야 배포된다. 새 필수 Parameter Store 값과 호환되는 DB 마이그레이션은 dev 병합 전에 준비해야 한다. API 병합 직전 최종 조회와 병합 사이의 main 변경을 원자적으로 잠그지는 못하므로 main의 Build와 CD는 계속 최종 배포 관문으로 유지한다.
 
+## 사용자 승인 범위와 병합 방식
+
+2026-10-16 사용자가 “매일 오전 8시에 dev ci 성공하면 main에 바로 합쳐지고 바로 배포”하는 방식을 요청하고, main PR의 자동 릴리스 예외를 안내받은 뒤 구현을 지시했다. 이 운영 지시는 **dev → main 정기 릴리스**에만 적용한다. 일반 기능 PR → dev는 공용 workflow.md의 리뷰·Squash and Merge 흐름을 유지한다.
+
+장기 브랜치 dev → main은 merge commit으로 조상을 보존한다. 여기까지 squash하면 이미 배포한 dev 커밋도 다음 비교에서 미반영으로 남아 변경 없는 재배포를 만들 수 있다. main PR의 리뷰 예외는 사용자 요청으로 적용한 저장소 운영 예외이며 공용 문서 전체의 정책을 변경하지 않는다.
+
+## 배포 성공 후 버전 발행
+
+Container CD의 서버 교체·응답 검증이 성공하면 별도 `publish` 작업에서 [publish-release.py](../../infra/scripts/publish-release.py)를 실행한다. main의 수동 병합 배포도 같은 방식으로 버전을 발행한다.
+
+- 첫 버전은 `v0.1.0`, 이후 가장 높은 정식 `v숫자.숫자.숫자` 태그·Release의 패치 번호를 1 올린다. 예: v0.1.9 → v0.1.10. 사람이 v0.2.0 또는 v1.0.0을 만들면 그 버전부터 패치를 증가시킨다.
+- 이미 배포한 **같은 커밋**에 정식 버전·Release가 있으면 재사용한다. 배포 재실행만으로 새 버전을 만들지 않는다.
+- 실제 서버에 배포한 SOURCE_SHA에 태그를 먼저 생성하고 GitHub Release를 발행한다. 컨테이너 이미지는 계속 SHA로 식별하며 태그가 그 커밋을 가리킨다.
+- Release 본문에 배포 커밋과 GitHub가 생성한 PR·변경 노트를 기록한다. 첫 릴리스에는 이전 정식 릴리스 이후라는 비교 기준이 없다.
+- 태그 생성 이후 Release 발행에 실패하면 태그를 유지하며 같은 커밋 재실행에서 같은 태그로 다시 발행한다. 기존 태그를 삭제·이동하거나 초안·사전 릴리스를 임의로 공개하지 않는다.
+- 동명 태그 선점은 API 오류로 중단하여 다른 커밋을 버전으로 발행하지 않는다. CD 전체 실행이 직렬화되어 자동 작업 사이의 버전 경쟁을 막는다.
+- Contents 쓰기 권한은 `publish` 작업의 GITHUB_TOKEN에만 부여한다. 서버 배포 작업에는 기존 읽기·OIDC 권한을 유지한다. App 키를 production 환경에 중복 등록할 필요가 없다.
+- 변경 없음 또는 서버 배포 실패 시 버전을 만들지 않는다. **서버 배포 성공 후 버전 발행만 실패하면 CD는 실패로 표시되지만 서버 앱은 이미 새 버전이다.** 자동 롤백하지 않으며 publish 작업을 재실행하거나 같은 SHA의 배포를 재실행한다. 해당 SHA의 CD 실행을 기록으로 확인한 뒤에만 수동 버전 발행을 진행한다.
+
 ## 한 번 필요한 GitHub 설정
 
-현재 GitHub 규칙 `protect-main-dev`는 main·dev에 리뷰 2개, 대화 해결, 삭제·강제 push 방지 등을 적용하고 있으며 예외 주체가 없다. 이 상태에서는 자동 병합을 할 수 없다. 일반 GITHUB_TOKEN으로 병합하면 후속 main push Build가 실행되지 않으므로 전용 App을 사용한다.
+기존 GitHub 규칙 `protect-main-dev`는 main·dev에 리뷰 2개, 대화 해결, 삭제·강제 push 방지 등을 함께 적용했다. 이 작업에서 `protect-dev`·`protect-main-base`·`protect-main-review`로 분리하고 App ID `5345517`에 main PR 리뷰 예외만 적용했다. dev의 리뷰 2개와 main의 삭제·강제 push 방지는 유지한다. 일반 GITHUB_TOKEN으로 병합하면 후속 main push Build가 실행되지 않으므로 전용 App을 사용한다.
 
 ### 전용 GitHub App
 
@@ -58,10 +77,10 @@ GitHub 규칙의 App 예외는 PR의 head=dev 조건까지 제한하지 못한�
 
 1. 기능 PR을 리뷰·CI 통과 후 dev에 병합한다. 예약 실행은 기본 브랜치에 파일이 있어야 시작한다.
 2. App 설치·환경 변수·Secret·보호 규칙 분리를 준비한다.
-3. `DAILY_RELEASE_ENABLED=true`로 설정한다.
-4. Actions → Daily Release → Run workflow → **dev**, `dry_run=true`로 실행한다. PR 생성·병합 없이 조회만 한다. 수동 실행은 기본값이 dry-run이다.
-5. 준비된 dev 변경이 있을 때 수동 실행의 dry_run을 false로 바꾸거나 다음 오전 8시 실행을 확인한다. dev 변경이 없으면 정상적으로 건너뛴다.
-6. `RELEASE_MERGED`에 기록된 main 커밋의 Build·Container CD와 서버 실행 이미지·HTTPS 응답을 확인한다. 예약 워크플로 성공 자체가 서버 배포 성공을 의미하지 않는다.
+3. `DAILY_RELEASE_ENABLED=false`를 유지한다.
+4. Actions → Daily Release → Run workflow → **dev**, `dry_run=true`로 실행한다. 수동 dry-run은 자동 실행이 꺼져 있어도 허용한다. PR 생성·병합 없이 조회만 한다. 수동 실행은 기본값이 dry-run이다.
+5. App 토큰 발급과 dry-run 성공을 확인한 뒤 `DAILY_RELEASE_ENABLED=true`로 바꾼다. 준비된 dev 변경이 있을 때 수동 실행의 dry_run을 false로 바꾸거나 다음 오전 8시 실행을 확인한다. dev 변경이 없으면 정상적으로 건너뛴다.
+6. `RELEASE_MERGED`에 기록된 main 커밋의 Build·Container CD와 서버 실행 이미지·HTTPS 응답, 버전 태그·GitHub Release가 같은 커밋을 가리키는지 확인한다. 예약 워크플로 성공 자체가 서버 배포 성공을 의미하지 않는다.
 
 `RELEASE_SKIPPED`는 변경 없음·CI 미완료·충돌·브랜치 변경 등에 따른 건너뛰기다. `RELEASE_FAILED`는 API·인증·보호 규칙 등의 점검이 필요한 실패이며 작업을 실패로 표시한다. GitHub Actions 알림 설정에서 이 저장소의 실패 실행을 구독한다. Slack·메일 전송이나 CloudWatch 알람은 이 작업에 추가하지 않는다.
 

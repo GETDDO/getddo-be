@@ -36,7 +36,9 @@ jobs:
         run: python3 .github/tests/test_pr_title.py
 
       - name: 정기 릴리스 조건 회귀 테스트
-        run: python3 .github/tests/test_daily_release.py
+        run: |
+          python3 .github/tests/test_daily_release.py
+          python3 .github/tests/test_publish_release.py
 
       # build.gradle의 Java toolchain 버전과 일치시킨다.
       - name: Java 21 설정
