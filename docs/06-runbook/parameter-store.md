@@ -81,7 +81,7 @@ EC2 역할은 해당 앱 경로의 `ssm:GetParameters`와 SecureString 복호화
 
 1. 파라미터 이름·유형·값을 확인하고 현재 app.env의 추가 항목이 없는지 확인한다.
 2. GD-112 변경을 dev PR로 검증·리뷰한 뒤 main에 반영한다. dev 병합만으로 서버 CD가 실행되지는 않는다.
-3. main Build 성공 후 기존 Container CD가 실행된다. 서버는 배포 잠금을 얻고 9개 값을 조회한다.
+3. main Build 성공 후 기존 Container CD가 실행된다. 서버는 배포 잠금을 얻고 필수 설정 13개를 10개·3개로 나눠 조회한다.
 4. root 전용 `/etc/getddo/.deploy-env.*/next.env`로 Compose를 검증하고 이미지 체크섬·ID·커밋을 검사한다.
 5. 기존 설정을 같은 비공개 임시 디렉터리에 백업하고 root 전용 진행 기록 `/opt/getddo/deploy-in-progress/`와 백업을 디스크에 반영한 뒤 새 설정으로 원자적 교체한다. 컨테이너는 같은 이미지여도 강제 재생성한다.
 6. `/v3/api-docs`의 HTTP 200과 실행 이미지 일치가 확인되면 current 링크를 갱신한다. 이는 업무 API·DB 기능 전체 검증은 아니다.

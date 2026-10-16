@@ -27,6 +27,7 @@ class ConfigurationError(ValueError):
 
 
 def fetch(region):
+    """필수 설정을 최대 10개씩 복호화 조회하고 응답을 검증용 문서로 합친다."""
     # CLI 출력은 메모리로만 받는다. 원격 명령·Actions·SSM 로그에 비밀값을 쓰지 않는다.
     # 별도 profile이나 Access Key를 전달하지 않아 서버의 기본 인증 체인을 사용한다.
     # GetParameters는 한 번에 최대 10개다. 13개를 10개·3개로 조회해 모두 성공한 뒤 검증한다.
@@ -54,6 +55,7 @@ def fetch(region):
 
 
 def validate(document, region):
+    """필수 이름·타입과 배포 설정 형식을 검사해 env에 기록할 값을 반환한다."""
     # 누락·중복·잘못된 타입은 기존 앱을 교체하기 전에 실패시킨다.
     if not isinstance(document, dict) or document.get("InvalidParameters"):
         raise ConfigurationError("필수 파라미터를 모두 조회하지 못했습니다.")
@@ -131,6 +133,7 @@ def write_env(output, values):
 
 
 def main():
+    """조회·검증 후 새 설정 파일을 생성하고 비밀값 없는 결과와 종료 코드를 반환한다."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--region", required=True, choices=["ap-northeast-2"])
     parser.add_argument("--output", required=True, type=Path, help="아직 존재하지 않는 임시 env 파일")
