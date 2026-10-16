@@ -9,9 +9,8 @@ GETDDO는 응모권을 모아 경품 이벤트에 참여하고 추첨 결과를 
 3. [프로젝트 팀 구성 및 역할](#프로젝트-팀-구성-및-역할)
 4. [아키텍처와 패키지 구조](#아키텍처와-패키지-구조)
 5. [ERD](#erd)
-6. [실행 방법](#실행-방법)
-7. [프로젝트 수행 경과](#프로젝트-수행-경과)
-8. [자체 평가 의견](#자체-평가-의견)
+6. [프로젝트 수행 경과](#프로젝트-수행-경과)
+7. [실행 방법](#실행-방법)
 
 ## 기술 스택
 
@@ -213,92 +212,6 @@ getddo-be/
 | [추첨·발표](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-drawing) | 6 | 추첨 실행·후보·결과·당첨·발표 |
 | [알림](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-notification) | 2 | 알림 생성 작업과 사용자 알림 |
 | [감사 로그](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD-audit) | 1 | 변경 행위와 변경 전후 데이터 |
-
-## 실행 방법
-
-Docker Compose 실행에는 Docker가 필요합니다. 터미널에서 애플리케이션이나 Gradle 작업을 실행하려면 JDK 21도 준비합니다. Gradle은 저장소의 Wrapper를 사용합니다.
-
-### Docker Compose
-
-저장소 루트에서 `.env.example`을 `.env`로 복사하고 `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`에 각각 로컬 비밀번호를 입력합니다. DB 이름과 일반 계정은 예시의 `getddo`를 사용합니다. `.env`는 Git과 Docker 빌드 컨텍스트에서 제외됩니다.
-
-```bash
-docker compose up --build -d
-```
-
-앱은 `http://localhost:8080`, MySQL 8.4는 `localhost:3306`에서 접근할 수 있습니다. Compose는 `local` Spring 프로필을 활성화하고, `application-local.yaml`에 정의된 MySQL JDBC 연결에 DB 환경변수를 전달합니다. MySQL 데이터는 Compose 볼륨에 유지됩니다. 종료할 때는 `docker compose down`을 사용합니다.
-
-앱 시작 시 Flyway가 `storage:db/src/main/resources/db/migration/<도메인>/`의 SQL을 버전 순서대로 적용합니다. 마이그레이션이 추가될 때마다 버전 번호와 개수가 바뀌어 PR끼리 이 문단에서 충돌하므로 여기에는 적지 않습니다. 현재 목록은 해당 디렉터리를, 각 버전이 추가한 테이블·인덱스와 API 대응은 [API·DB 대응](docs/03-database/api-schema-mapping.md)을 확인합니다. 초기 스키마(44개 테이블)는 가장 앞의 마이그레이션 묶음이 생성하며, 이벤트의 논리 삭제 시각, 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
-
-### 터미널
-
-JDK 21을 준비하고 저장소 루트에서 실행합니다. 앱을 터미널에서 실행하려면 앞의 `.env` 준비 후 `docker compose up -d db`로 개발용 MySQL만 시작합니다. `bootRun`은 `.env`를 자동으로 읽지 않으므로 같은 DB 접속 정보를 환경변수로 지정합니다.
-
-macOS / Linux / WSL:
-
-```bash
-export SPRING_PROFILES_ACTIVE=local
-export DB_HOST=localhost DB_PORT=3306
-export DB_NAME=getddo DB_USERNAME=getddo
-export DB_PASSWORD='<.env에 설정한 DB_PASSWORD 값>'
-./gradlew :api:bootRun
-```
-
-Windows PowerShell:
-
-```powershell
-$env:SPRING_PROFILES_ACTIVE = 'local'
-$env:DB_HOST = 'localhost'
-$env:DB_PORT = '3306'
-$env:DB_NAME = 'getddo'
-$env:DB_USERNAME = 'getddo'
-$env:DB_PASSWORD = '<.env에 설정한 DB_PASSWORD 값>'
-.\gradlew.bat :api:bootRun
-```
-
-DB 이름이나 계정을 바꿨다면 환경변수도 `.env`와 맞춥니다.
-
-### 테스트와 CI
-
-DB가 필요한 테스트는 Testcontainers가 실행하는 임시 MySQL 8.4를 사용합니다. 개발용 DB·`.env` 설정 없이 실행하며, 임의의 호스트 포트로 연결하고 테스트 종료 시 컨테이너를 정리합니다. H2는 사용하지 않습니다.
-
-공통 설정은 `storage/db/src/testFixtures/java/com/getddo/db/support`에 있습니다. `MySqlTestContainers`는 호출마다 새 컨테이너를 만들고, `MySqlTestConfiguration`은 `@ServiceConnection`으로 Spring의 JDBC·Flyway 연결을 자동 설정합니다. Spring 테스트는 `test` 프로필을 사용하며 컨테이너 시작·종료는 Spring이 관리합니다. 이 설정은 통합 테스트에서만 사용하고 운영 실행 JAR에는 포함하지 않습니다.
-
-API의 앱 기동·Swagger 테스트는 `api/src/integrationTest/java/com/getddo/api/support/ApiIntegrationTest.java`의 `@ApiIntegrationTest`를 사용해 동일한 Spring 컨텍스트와 MySQL 하나를 공유합니다. 공통 Entity 테스트는 테이블을 생성·삭제하는 별도 DB를 사용하고, 초기 SQL 테스트는 JUnit이 관리하는 별도 컨테이너의 빈 DB에서 실행합니다. 다른 모듈이나 서로 다른 Spring 컨텍스트까지 강제로 공유하지 않습니다.
-
-통합 테스트 전에 Docker Desktop의 Linux 컨테이너 엔진을 실행합니다. WSL에서는 Settings → Resources → WSL Integration에서 사용하는 배포판을 켜고, `docker version`에 Client와 Server가 모두 표시되는지 확인합니다. 첫 실행에는 MySQL 이미지 다운로드가 필요합니다.
-
-| 작업 | macOS / Linux / WSL | Windows PowerShell | Docker |
-| --- | --- | --- | --- |
-| DB 없는 테스트 | `./gradlew test` | `.\gradlew.bat test` | 불필요 |
-| MySQL 통합 테스트 | `./gradlew integrationTest` | `.\gradlew.bat integrationTest` | 필요 |
-| 초기 SQL·공통 Entity 검증 | `./gradlew :storage:db:integrationTest` | `.\gradlew.bat :storage:db:integrationTest` | 필요 |
-| 앱 기동·Swagger 검증 | `./gradlew :api:integrationTest` | `.\gradlew.bat :api:integrationTest` | 필요 |
-| 전체 빌드·테스트 | `./gradlew build` | `.\gradlew.bat build` | 필요 |
-| 실행 JAR 패키징 | `./gradlew :api:bootJar` | `.\gradlew.bat :api:bootJar` | 불필요 |
-
-초기 SQL 검증은 빈 MySQL에 Flyway 마이그레이션을 적용하고, 재실행 시 추가 적용이 없는지 확인합니다. Docker에 연결할 수 없으면 통합 테스트는 실패합니다.
-
-GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradlew build`를 실행합니다. 별도 DB 비밀값 설정은 필요하지 않습니다. 실패한 테스트 보고서는 `test-reports` 아티팩트에서 확인할 수 있습니다.
-
-`PR 제목 검사`는 [공용 PR 제목 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)에 맞는지 별도로 확인합니다. PR 생성·수정·커밋 추가 시 실행하며, 제목·본문만 수정하면 Gradle 빌드는 실행하지 않습니다. 제목 오류로 병합을 막으려면 main/dev Ruleset의 필수 상태 검사에 `PR 제목 검사`를 등록합니다.
-
-<details>
-<summary>기존 전체 테스트 실행 기록 (2026-10-16, dev 15f2d95c)</summary>
-
-2026-10-16 KST, dev `15f2d95c` 기준으로 전체 `test build`를 실행해 **BUILD SUCCESSFUL**을 확인했습니다.
-
-| 구분 | 실행 수 | 결과 |
-| --- | ---: | --- |
-| DB 없는 단위·MVC·설정 검증 | 1,195 | 실패·오류·건너뜀 0 |
-| Testcontainers MySQL 통합 검증 | 1,009 | 실패·오류·건너뜀 0 |
-| **합계** | **2,204** | **성공** |
-
-실제 잠금·중복 처리·마감 경계·롤백·공개 버전과 API 계약을 검증합니다. [Wiki 테스트 결과](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Tests)에 실행 명령·모듈/기능별 결과·원본 JSON/CSV를 정리했습니다. 같은 날 S3Mock에서 확인한 객체 입출력 17개는 이 집계와 별도입니다.
-
-이 결과는 로컬 기능 검증이며 부하 처리량·실제 AWS 배포·FE 전체 흐름·S3/CloudFront 연동 완료를 뜻하지 않습니다. 후속 작업의 원격 CI 상태와 실제 연동 검증은 별도로 확인합니다.
-
-</details>
 
 ## 프로젝트 수행 경과
 
@@ -533,54 +446,88 @@ GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradle
 
 </details>
 
-## 자체 평가 의견
+## 실행 방법
 
-> 아래는 확인된 구현·검증을 바탕으로 한 평가 초안입니다. 최종 발표 전 팀의 의견과 실제 종합 시연 결과를 반영합니다.
+Docker Compose 실행에는 Docker가 필요합니다. 터미널에서 애플리케이션이나 Gradle 작업을 실행하려면 JDK 21도 준비합니다. Gradle은 저장소의 Wrapper를 사용합니다.
 
-### 프로젝트 목표 대비 달성도
+### Docker Compose
 
-| 목표 | 현재 평가 근거 | 추가 확인 |
-| --- | --- | --- |
-| 참여형 이벤트 흐름 | 출석·미션 보상, 응모·차감, 이벤트 관리와 결과 조회의 기반 구현·테스트 | 게임·최초 공개·이미지 연동과 프론트 전체 시연 |
-| 응모·응모권의 일관성 | 중복·동시성·롤백·원본 이력 연결을 실제 MySQL에서 검증 | 운영 규모 데이터와 부하 상황 |
-| 추첨 신뢰성 | 후보·가중치·조건·결과·공개 버전을 저장하고 관련 회귀 테스트 수행 | 실제 관리자 확인·공개 흐름의 종합 검증 |
-| 운영·복구 | 알림·추첨 재시도, 이벤트별 실패 격리와 감사 기록 | 실제 배포 환경의 장애·복구 시나리오 |
+저장소 루트에서 `.env.example`을 `.env`로 복사하고 `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`에 각각 로컬 비밀번호를 입력합니다. DB 이름과 일반 계정은 예시의 `getddo`를 사용합니다. `.env`는 Git과 Docker 빌드 컨텍스트에서 제외됩니다.
 
-기능 테스트 성공만으로 전체 서비스가 완성됐다고 평가하지 않고, 남은 연동을 별도로 관리합니다.
+```bash
+docker compose up --build -d
+```
 
-### 설계·구현·협업에서 잘한 점
+앱은 `http://localhost:8080`, MySQL 8.4는 `localhost:3306`에서 접근할 수 있습니다. Compose는 `local` Spring 프로필을 활성화하고, `application-local.yaml`에 정의된 MySQL JDBC 연결에 DB 환경변수를 전달합니다. MySQL 데이터는 Compose 볼륨에 유지됩니다. 종료할 때는 `docker compose down`을 사용합니다.
 
-- 현재 상태와 처리 이력, 추첨 실행과 결과 공개를 분리해 데이터의 근거를 보존했습니다.
-- 멀티모듈의 의존 방향과 기능별 패키지·담당 경계를 두고 공통 응모권·알림·감사 서비스를 재사용했습니다.
-- 코드 리뷰에서 발견한 시간 경계·잠금·중복 검증 문제를 회귀 테스트와 함께 보완했습니다. MySQL을 사용해 실제 제약·트랜잭션 동작을 확인했습니다.
-- Jira 태스크, PR·CI, 공용 정책과 워크로그를 연결해 변경 이유와 검증 결과를 공유했습니다.
+앱 시작 시 Flyway가 `storage:db/src/main/resources/db/migration/<도메인>/`의 SQL을 버전 순서대로 적용합니다. 마이그레이션이 추가될 때마다 버전 번호와 개수가 바뀌어 PR끼리 이 문단에서 충돌하므로 여기에는 적지 않습니다. 현재 목록은 해당 디렉터리를, 각 버전이 추가한 테이블·인덱스와 API 대응은 [API·DB 대응](docs/03-database/api-schema-mapping.md)을 확인합니다. 초기 스키마(44개 테이블)는 가장 앞의 마이그레이션 묶음이 생성하며, 이벤트의 논리 삭제 시각, 출석 기준일·사용자별 하루 1회 UNIQUE와 외래 키는 각 테이블의 초기 생성 정의에 포함되어 있습니다. Docker Desktop을 WSL에서 사용하는 경우 WSL 연동을 활성화해야 합니다.
 
-### 개발 과정에서의 어려움과 아쉬운 점
+### 터미널
 
-- 정책·ERD 변경에 맞춰 API·코드·테스트·문서를 함께 정리해야 했고, 과거 상태값과 담당 경계가 남아 있으면 판단이 어려웠습니다.
-- 여러 기능이 같은 이벤트·응모권·알림을 다루면서 잠금 순서, 트랜잭션 범위와 실패 복구 계약을 조율해야 했습니다.
-- 기능별 테스트가 있어도 프론트·이미지·실제 배포까지 이어지는 검증은 별개였습니다. 로컬 검증과 서비스 완료 상태를 구분할 필요가 있습니다.
-- 테스트가 늘어나면서 실행 시간과 중복 검증의 관리가 필요해졌습니다. 핵심 동시성·롤백 검증을 보존하면서 정리할 범위를 검토합니다.
+JDK 21을 준비하고 저장소 루트에서 실행합니다. 앱을 터미널에서 실행하려면 앞의 `.env` 준비 후 `docker compose up -d db`로 개발용 MySQL만 시작합니다. `bootRun`은 `.env`를 자동으로 읽지 않으므로 같은 DB 접속 정보를 환경변수로 지정합니다.
 
-### 개선 방향과 향후 확장 계획
+macOS / Linux / WSL:
 
-| 우선순위 | 방향 |
-| --- | --- |
-| 현재 범위 마무리 | 이미지·게임·최초 공개·관리자 기능의 남은 연결을 확인하고 전체 시연 수행 |
-| 검증·운영 보완 | 실제 AWS 배포·권한·복구·부하를 확인하고 측정 결과에 따라 인덱스·워커·테스트 실행 비용 개선 |
-| 자료 정합성 | 최신 ERD 이미지 교체와 API·정책·구현 문서의 기준 일치 |
-| 향후 검토 | 실제 인증·외부 알림·분산 요청 제한 등은 별도 요구사항과 운영 규모를 정한 뒤 검토 |
+```bash
+export SPRING_PROFILES_ACTIVE=local
+export DB_HOST=localhost DB_PORT=3306
+export DB_NAME=getddo DB_USERNAME=getddo
+export DB_PASSWORD='<.env에 설정한 DB_PASSWORD 값>'
+./gradlew :api:bootRun
+```
 
-향후 검토 항목은 이번 구현 범위에 자동으로 추가하지 않습니다.
+Windows PowerShell:
 
-### 팀원별 배운 점
+```powershell
+$env:SPRING_PROFILES_ACTIVE = 'local'
+$env:DB_HOST = 'localhost'
+$env:DB_PORT = '3306'
+$env:DB_NAME = 'getddo'
+$env:DB_USERNAME = 'getddo'
+$env:DB_PASSWORD = '<.env에 설정한 DB_PASSWORD 값>'
+.\gradlew.bat :api:bootRun
+```
 
-개인의 경험은 각 팀원이 직접 확인해 작성합니다. 아래 질문은 발표 준비를 위한 작성 안내입니다.
+DB 이름이나 계정을 바꿨다면 환경변수도 `.env`와 맞춥니다.
 
-| 팀원 | 돌아볼 주제 | 배운 점 |
-| --- | --- | --- |
-| 이경주 | 공통 기반·실행 환경·CI/CD에서 가장 중요했던 선택 | 팀원 작성 예정 |
-| 석종수 | 후보·가중치·결과 보존과 재시도에서 배운 점 | 팀원 작성 예정 |
-| 전민규 | 비동기 알림·게임·운영 기능을 연결하며 배운 점 | 팀원 작성 예정 |
-| 윤태형 | 보상·응모권·응모의 중복·동시성·롤백을 다루며 배운 점 | 팀원 작성 예정 |
-| 박지훈 | 이벤트 생명주기와 다른 기능의 트랜잭션을 연결하며 배운 점 | 팀원 작성 예정 |
+### 테스트와 CI
+
+DB가 필요한 테스트는 Testcontainers가 실행하는 임시 MySQL 8.4를 사용합니다. 개발용 DB·`.env` 설정 없이 실행하며, 임의의 호스트 포트로 연결하고 테스트 종료 시 컨테이너를 정리합니다. H2는 사용하지 않습니다.
+
+공통 설정은 `storage/db/src/testFixtures/java/com/getddo/db/support`에 있습니다. `MySqlTestContainers`는 호출마다 새 컨테이너를 만들고, `MySqlTestConfiguration`은 `@ServiceConnection`으로 Spring의 JDBC·Flyway 연결을 자동 설정합니다. Spring 테스트는 `test` 프로필을 사용하며 컨테이너 시작·종료는 Spring이 관리합니다. 이 설정은 통합 테스트에서만 사용하고 운영 실행 JAR에는 포함하지 않습니다.
+
+API의 앱 기동·Swagger 테스트는 `api/src/integrationTest/java/com/getddo/api/support/ApiIntegrationTest.java`의 `@ApiIntegrationTest`를 사용해 동일한 Spring 컨텍스트와 MySQL 하나를 공유합니다. 공통 Entity 테스트는 테이블을 생성·삭제하는 별도 DB를 사용하고, 초기 SQL 테스트는 JUnit이 관리하는 별도 컨테이너의 빈 DB에서 실행합니다. 다른 모듈이나 서로 다른 Spring 컨텍스트까지 강제로 공유하지 않습니다.
+
+통합 테스트 전에 Docker Desktop의 Linux 컨테이너 엔진을 실행합니다. WSL에서는 Settings → Resources → WSL Integration에서 사용하는 배포판을 켜고, `docker version`에 Client와 Server가 모두 표시되는지 확인합니다. 첫 실행에는 MySQL 이미지 다운로드가 필요합니다.
+
+| 작업 | macOS / Linux / WSL | Windows PowerShell | Docker |
+| --- | --- | --- | --- |
+| DB 없는 테스트 | `./gradlew test` | `.\gradlew.bat test` | 불필요 |
+| MySQL 통합 테스트 | `./gradlew integrationTest` | `.\gradlew.bat integrationTest` | 필요 |
+| 초기 SQL·공통 Entity 검증 | `./gradlew :storage:db:integrationTest` | `.\gradlew.bat :storage:db:integrationTest` | 필요 |
+| 앱 기동·Swagger 검증 | `./gradlew :api:integrationTest` | `.\gradlew.bat :api:integrationTest` | 필요 |
+| 전체 빌드·테스트 | `./gradlew build` | `.\gradlew.bat build` | 필요 |
+| 실행 JAR 패키징 | `./gradlew :api:bootJar` | `.\gradlew.bat :api:bootJar` | 불필요 |
+
+초기 SQL 검증은 빈 MySQL에 Flyway 마이그레이션을 적용하고, 재실행 시 추가 적용이 없는지 확인합니다. Docker에 연결할 수 없으면 통합 테스트는 실패합니다.
+
+GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradlew build`를 실행합니다. 별도 DB 비밀값 설정은 필요하지 않습니다. 실패한 테스트 보고서는 `test-reports` 아티팩트에서 확인할 수 있습니다.
+
+`PR 제목 검사`는 [공용 PR 제목 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)에 맞는지 별도로 확인합니다. PR 생성·수정·커밋 추가 시 실행하며, 제목·본문만 수정하면 Gradle 빌드는 실행하지 않습니다. 제목 오류로 병합을 막으려면 main/dev Ruleset의 필수 상태 검사에 `PR 제목 검사`를 등록합니다.
+
+<details>
+<summary>기존 전체 테스트 실행 기록 (2026-10-16, dev 15f2d95c)</summary>
+
+2026-10-16 KST, dev `15f2d95c` 기준으로 전체 `test build`를 실행해 **BUILD SUCCESSFUL**을 확인했습니다.
+
+| 구분 | 실행 수 | 결과 |
+| --- | ---: | --- |
+| DB 없는 단위·MVC·설정 검증 | 1,195 | 실패·오류·건너뜀 0 |
+| Testcontainers MySQL 통합 검증 | 1,009 | 실패·오류·건너뜀 0 |
+| **합계** | **2,204** | **성공** |
+
+실제 잠금·중복 처리·마감 경계·롤백·공개 버전과 API 계약을 검증합니다. [Wiki 테스트 결과](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Tests)에 실행 명령·모듈/기능별 결과·원본 JSON/CSV를 정리했습니다. 같은 날 S3Mock에서 확인한 객체 입출력 17개는 이 집계와 별도입니다.
+
+이 결과는 로컬 기능 검증이며 부하 처리량·실제 AWS 배포·FE 전체 흐름·S3/CloudFront 연동 완료를 뜻하지 않습니다. 후속 작업의 원격 CI 상태와 실제 연동 검증은 별도로 확인합니다.
+
+</details>
