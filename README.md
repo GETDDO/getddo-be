@@ -575,8 +575,6 @@ flowchart LR
 
 <!-- 작성 담당: 석종수 -->
 
-> 단일 발표 요청은 [PR #108](https://github.com/Uplus-GETDDO/getddo-be/pull/108)의 `65889fc` 구현 기준이며, 작성 시점에는 미병합입니다. 공용 정책은 [getddo-spec의 추첨 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md)을 원본으로 사용합니다.
-
 #### 전체 추첨 흐름
 
 ```mermaid
@@ -721,15 +719,15 @@ flowchart LR
 
 #### 검증 결과
 
-| 검증 범위 | 실행 기록일·기준 코드 | 결과 |
+| 검증 범위 | 실행 기록일·관련 작업 | 결과 |
 | --- | --- | --- |
-| 실제 응모·차감과 후보 스냅샷 | 2026-10-15, GD-131 `569d5af` | 관련 MySQL 검증 17개 성공 |
-| 공개 명단·본인 결과·마스킹 | 2026-10-15, GD-140 `baf1fad` | 관련 검증 26개 성공 |
+| 실제 응모·차감과 후보 스냅샷 | 2026-10-15, GD-131 | 관련 MySQL 검증 17개 성공 |
+| 공개 명단·본인 결과·마스킹 | 2026-10-15, GD-140 | 관련 검증 26개 성공 |
 | 공개·취소·재추첨·사용자 조회 | 2026-10-15~16, GD-199 구현본 | 관련 MySQL 검증 39개 성공, 전체 테스트·빌드 2,215개 성공 |
 
 가중치 구간 경계, 후보 부족, 잘못된 수량·가중치·자리, 실제 잠금 경합, 동시 확정과 저장 실패 롤백을 검증했습니다. 전체 테스트 수는 프로젝트 전체 집계이며 이번 README 수정에서는 테스트를 재실행하지 않았습니다.
 
-[상세 시퀀스 다이어그램](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Drawing-Sequences) · [응모·스냅샷 검증 PR #90](https://github.com/Uplus-GETDDO/getddo-be/pull/90) · [사용자 조회 PR #93](https://github.com/Uplus-GETDDO/getddo-be/pull/93) · [단일 발표 PR #108](https://github.com/Uplus-GETDDO/getddo-be/pull/108)
+[상세 시퀀스 다이어그램](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Drawing-Sequences)
 
 </details>
 
