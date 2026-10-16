@@ -277,12 +277,6 @@ getddo-be/
 - 등록·수정·삭제·취소 조건, 잠금 경합, 감사·저장 실패 롤백과 워커 상태 전환을 검증했습니다. 이번 README 재구성에서는 테스트를 재실행하지 않았습니다.
 - 집계·원본 자료: [Wiki 테스트 결과](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Tests).
 
-**배포·연동 현황과 남은 작업**
-
-- imageKey 저장과 별개로 S3 업로드·imageUrl 응답·프론트 이미지 표시를 연결해야 합니다.
-- 실제 배포 버전과 프론트 응답 계약을 맞추고 전체 등록·조회·수정·취소 흐름을 확인합니다.
-- 자동 추첨·수동 공개와 실제 공개 상태 반영은 추첨 기능과 연결하며, 모집 상태 전환과 구분합니다.
-
 상세 구현: [수정](docs/02-api/event-modification.md) · [삭제](docs/02-api/event-deletion.md) · [취소](docs/02-api/event-cancellation.md) · [모집 상태 전환·감사](docs/02-api/event-lifecycle-and-audit.md)
 
 </details>
