@@ -75,37 +75,26 @@ flowchart LR
 
 ## 아키텍처와 패키지 구조
 
-### 전체 아키텍처
+### 시스템 아키텍처
 
-단일 Spring Boot 애플리케이션으로 실행하는 멀티모듈 구조이며, 각 모듈 안을 기능별 패키지로 나눕니다.
-
-```mermaid
-flowchart LR
-    Client["사용자·관리자 프론트"] --> API["api: HTTP 요청·응답"]
-    API --> Core["core: 업무 규칙·Service·Repository 계약"]
-    API --> DB["storage:db: JPA·JDBC 구현"]
-    DB --> Core
-    DB --> MySQL[("MySQL 8.4")]
-    Worker["같은 앱의 예약 워커"] --> Core
-```
-
-### 클라우드 설계도
-
-[![GETDDO Vercel·AWS 전체 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.drawio)
-
-[draw.io 원본](docs/assets/cloud-architecture.drawio). Vercel이 프론트 화면 파일을 전달하고, 브라우저가 CloudFront를 통해 API와 이미지를 요청하는 구성입니다. EC2 2대와 공유 RDS·Redis를 포함한 확장 설계이며, 실제 두 서버 운영과 앱 연동 완료를 뜻하지 않습니다. 실제 배포 검증 상태는 [배포 문서](docs/06-runbook/container-cd.md)를 확인합니다.
+[![GETDDO 시스템 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.drawio)
 
 ### 모듈 의존 관계
 
-api → core, api → storage:db, storage:db → core는 빌드 의존 방향입니다. 실제 업무 서비스는 Repository 인터페이스를 통해 주입된 저장 구현을 호출합니다. 모듈을 별도 서버로 배포하는 구조는 아닙니다.
+```mermaid
+flowchart LR
+    API["api"] --> Core["core"]
+    API --> DB["storage:db"]
+    DB --> Core
+```
 
-| 구분 | 역할·사용 이유 |
+`api`만 실행 가능한 Spring Boot JAR을 만들고, `core`와 `storage:db`는 라이브러리로 함께 실행합니다. `core`는 HTTP DTO와 JPA Entity에 의존하지 않고 Repository 인터페이스로 저장 기능을 사용합니다.
+
+| 모듈 | 역할·사용 이유 |
 | --- | --- |
-| api | HTTP DTO·형식 검증·공통 사용자 문맥·응답 변환을 업무 규칙과 분리 |
-| core | API와 워커가 업무 규칙·트랜잭션을 재사용. Spring Context/Transaction 의존성은 허용 |
-| storage:db | Entity·JPA/JDBC·잠금·쿼리·마이그레이션을 저장 책임에 모음 |
-
-이벤트 시작·마감과 응모권 만료는 각각 전용 스레드를 사용합니다. 알림·추첨은 DB 작업 상태·소유권 만료·재시도로 중복 처리와 장애 복구를 관리합니다. [Wiki 전체 아키텍처](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Architecture)에 호출 흐름·트랜잭션과 워커 경계를 설명했습니다.
+| api | HTTP 요청·입력 검증·사용자 문맥·응답 변환을 업무 규칙과 분리 |
+| core | 도메인 모델·업무 규칙·Service·트랜잭션과 Repository 계약을 관리 |
+| storage:db | JPA·JDBC 저장 구현, Entity·Mapper와 Flyway 마이그레이션을 관리 |
 
 ### 패키지 구조
 
@@ -159,10 +148,18 @@ getddo-be/
 │           └── testFixtures/                    # 공유 Testcontainers 설정
 ├── .github/                                     # GitHub 협업·자동화 설정
 │   ├── pull_request_template.md                 # PR 작성 양식
-│   └── workflows/                               # 빌드·테스트·PR 제목 검사
+│   └── workflows/                               # 빌드·테스트·이미지 생성·CD·PR 제목 검사
+├── infra/                                       # 인프라 정의·배포 자동화 (Gradle 모듈과 별도)
+│   ├── scripts/                                 # 서버 배포·설정 조회 스크립트
+│   │   ├── deploy-ssm.py                         # S3 파일 전달·SSM 배포 요청·결과 확인
+│   │   ├── deploy-container.sh                   # 설정·컨테이너 교체와 실패 복구
+│   │   └── fetch-app-env.py                      # Parameter Store 설정 조회·검증
+│   ├── terraform/dev/                           # AWS 리소스 정의 (이 브랜치 반영 예정)
+│   └── iam/                                     # 운영자·서버 권한 정책 (이 브랜치 반영 예정)
 ├── docs/                                        # 백엔드 API·DB·결정·작업 기록
 ├── gradle/wrapper/                              # Gradle 실행 버전 고정
 ├── compose.yaml                                 # 로컬 앱·MySQL 컨테이너 구성
+├── compose.deploy.yaml                          # 서버용 앱 컨테이너 구성
 ├── Dockerfile                                   # 애플리케이션 이미지 빌드
 ├── .env.example                                 # 로컬 환경변수 예시
 ├── build.gradle                                 # 모듈 공통 빌드·테스트 설정
@@ -174,8 +171,6 @@ getddo-be/
 ### 기능 추가 시 패키지 배치
 
 새 기능의 HTTP DTO·Controller는 `api`, 업무 서비스·모델·Repository 계약은 `core`, Entity·저장 구현·Mapper는 `storage:db`의 같은 기능 패키지에 둡니다. 도메인 오류 코드는 `core/<도메인>/exception`에 배치하고 기존 공통 응답·페이지·시간 기능을 재사용합니다.
-
-의존 방향은 `api → core`, `api → storage:db`, `storage:db → core`입니다. `api`만 실행 가능한 Spring Boot JAR을 만들고, 나머지 두 모듈은 라이브러리 JAR을 만듭니다. `core`는 API DTO나 JPA Entity에 의존하지 않습니다.
 
 ## ERD
 
@@ -212,18 +207,68 @@ getddo-be/
 <!-- 아래 작성 틀을 담당자의 실제 수행 내용으로 교체한다. 다른 담당자의 구현·완료 상태를 대신 확정하지 않는다. -->
 
 <details>
-<summary>인프라·공통 기반</summary>
+<summary>인프라·CI/CD</summary>
+
+<!-- 작성 담당: 이경주. 아래 주제에 실제 구성과 선택 이유를 작성합니다. -->
+
+#### 서비스·배포 흐름
+
+| 구분 | 작성할 내용 |
+| --- | --- |
+| 사용자 요청·응답 | Vercel 화면 전달 → 브라우저의 API 호출 → CloudFront → ALB → EC2 → 응답 반환 |
+| 앱 실행·데이터 연결 | Docker Compose 앱 실행, RDS 연결, Redis 공유와 EC2 2대 확장 흐름 |
+| 이미지 조회 | 브라우저 → CloudFront 이미지 캐시 → 비공개 S3 |
+| CI | PR·main push → Gradle 빌드·테스트 → Docker 이미지 생성·보관 |
+| CD | 성공한 main CI 이미지 확인 → S3 전달 → SSM 실행 → 앱 교체·상태 확인 |
+| 설정 전달 | EC2 역할로 Parameter Store 조회 → 설정 검증 → app.env 주입 |
+
+#### 설계·기술 선택과 사용 이유
+
+| 주제 | 정리할 선택과 이유 |
+| --- | --- |
+| 실행 환경 | Docker·Compose로 로컬과 서버의 앱 실행 방식을 맞춘 이유 |
+| 컴퓨팅·네트워크 | EC2·VPC·보안 그룹, CloudFront VPC origin·내부 ALB의 역할과 접근 경계 |
+| 데이터·이미지 저장 | RDS·ElastiCache·S3의 용도, TLS·인증과 이미지 캐시를 나눈 이유 |
+| CI/CD | GitHub Actions·OIDC·S3·SSM 선택, CI 이미지 재사용과 서버 교체 흐름 |
+| 설정·권한 관리 | Parameter Store·SecureString·IAM 역할로 비밀값과 접근 권한을 관리하는 이유 |
+| 인프라 코드 관리 | Terraform과 IAM 정책 파일의 구성, 재구성과 변경 검토에 사용하는 방법 |
+
+배포 코드: [CI](.github/workflows/build.yml) · [이미지 생성](.github/workflows/image.yml) · [CD](.github/workflows/cd.yml) · [서버 배포](infra/scripts/deploy-container.sh)
+
+</details>
+
+<details>
+<summary>공통 기반</summary>
 
 <!-- 작성 담당: 이경주 -->
 
-담당자 작성 예정입니다.
+#### 공통 기능·사용 흐름
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
+각 도메인이 요청 처리·시간 계산·저장·감사 기록을 같은 방식으로 사용할 수 있도록 공통 기능을 제공합니다.
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Architecture) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+| 공통 기능 | 제공한 내용·사용 흐름 |
+| --- | --- |
+| 응답·예외 처리 | Controller는 `ResponseEnvelope.success(dto)`로 응답하고, 업무 오류는 `BusinessException`과 도메인 `ErrorCode`로 전달합니다. `GlobalExceptionHandler`가 HTTP 상태와 공통 오류 본문으로 변환합니다. |
+| 시연용 사용자 문맥 | Controller의 `@CurrentUser User`에 헤더 형식·DB 역할·멤버십을 대조한 사용자를 전달합니다. 같은 요청에서는 조회한 사용자를 재사용하며, 실제 로그인 인증과 구분합니다. |
+| 시간 처리 | `TimeProvider`로 UTC 현재 시각과 KST 업무 날짜·월을 계산합니다. 업무 코드와 JPA Auditing이 같은 `Clock`을 사용합니다. |
+| 공통 Entity | `BaseEntity`가 UUID v7·생성 시각을 제공하고, 수정 시각이 필요한 Entity는 `BaseUpdatableEntity`를 사용합니다. UUID는 `binary(16)`으로 저장합니다. |
+| 감사 기록 | 업무 Service가 `AuditLogCommand`에 처리자·대상·사유·선택한 변경 전후 값을 담아 `AuditLogService.record()`를 호출합니다. 기록은 업무 트랜잭션에 함께 참여합니다. |
+| CORS·API 문서 | 허용 origin·메서드·헤더를 설정으로 관리하고, `@CurrentUser`를 선언한 API에는 Swagger 사용자 헤더를 자동 표시합니다. |
+| MySQL 통합 테스트 기반 | `MySqlTestContainers`·`MySqlTestConfiguration`으로 MySQL 8.4 연결을 제공하고, `@ApiIntegrationTest`로 앱·MockMvc·테스트 프로필 설정을 재사용합니다. |
+
+#### 설계·기술 선택과 사용 이유
+
+| 선택 | 사용한 이유 |
+| --- | --- |
+| 공통 오류 계약·전역 예외 처리 | 도메인별 오류 정의는 유지하면서 Controller마다 오류 응답과 예외 처리를 반복하지 않도록 했습니다. 표준 MVC 오류의 상태·헤더도 보존합니다. |
+| ArgumentResolver·OpenAPI 자동 설정 | 사용자 헤더 해석·DB 대조와 문서 설정을 각 Controller에서 반복하지 않도록 했습니다. |
+| 주입 가능한 Clock | UTC 저장·비교와 KST 업무일 계산 기준을 맞추고, 테스트에서는 고정 시계로 날짜 경계를 재현할 수 있게 했습니다. |
+| 공통 Entity·JPA Auditing | UUID·생성/수정 시각의 중복 구현을 줄이고, DB의 DATETIME(6)에 맞춰 감사 시각을 마이크로초로 맞췄습니다. |
+| 업무 트랜잭션에 참여하는 감사 기록 | `MANDATORY`로 업무와 감사 기록을 함께 저장·롤백합니다. 변경 전후 데이터는 중첩 컬렉션까지 복사해 기록 요청 후 원본이 바뀌어도 값이 유지됩니다. |
+| CORS 필터·환경별 설정 | 사전 요청을 업무 로직 전에 처리하고, 허용된 프론트에서 성공·오류 응답을 읽도록 정책을 한곳에서 관리합니다. |
+| Testcontainers·공유 테스트 설정 | H2 대체 DB 대신 실제 MySQL에서 동작을 확인하고 테스트마다 연결 설정을 반복하지 않도록 했습니다. |
+
+관련 코드: [API 공통 처리](api/src/main/java/com/getddo/api/common) · [공통 시간·예외](core/src/main/java/com/getddo/core/common) · [공통 Entity](storage/db/src/main/java/com/getddo/db/common) · [감사 기록](core/src/main/java/com/getddo/core/audit)
 
 </details>
 
