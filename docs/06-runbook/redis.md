@@ -44,9 +44,9 @@ YAML의 로컬 기본값은 localhost·6379·빈 비밀번호·TLS false다. 실
 
 ## 담당자 구현과 연결
 
-기준 dev에는 Redis 클라이언트 의존성과 RedisRateLimiter가 아직 없다. GD-208의 [PR #107](https://github.com/Uplus-GETDDO/getddo-be/pull/107)은 같은 spring.data.redis 블록을 REDIS_* 환경변수로 선언하고 RATE_LIMIT_STORE로 저장소를 선택한다. 병합 시 YAML 블록을 하나로 합치고 담당자의 연결·명령 시간 제한을 보존해야 한다. 이번 PR은 RATE_LIMIT_STORE를 새로 등록하거나 요청 제한 구현을 변경하지 않는다.
+GD-208의 [PR #107](https://github.com/Uplus-GETDDO/getddo-be/pull/107)이 Redis 클라이언트 의존성과 RedisRateLimiter를 추가하고, 같은 `spring.data.redis` 블록(`SPRING_DATA_REDIS_*`)을 그대로 쓰면서 연결·명령 시간 제한(500ms·300ms)만 더한다. 요청 제한 저장소는 `RATE_LIMIT_STORE`(`memory` 기본, `redis`)로 고른다. 이 설정의 Parameter Store 등록과 조회 목록 반영은 이 문서의 범위가 아니며, 등록 전에는 서버가 서버 메모리로 센다.
 
-설정 전달과 실제 Redis 사용을 구분한다. 담당자 코드 반영 후 저장소 선택·TLS·인증과 API 두 대의 횟수 공유를 검증한다. 장애 동작은 공용 [저장소 장애 정책](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/entry.md#요청-제한-저장소-장애)을 따른다.
+설정 전달과 실제 Redis 사용을 구분한다. 담당자 코드 반영 후 저장소 선택·TLS·인증과 API 두 대의 횟수 공유를 검증한다. 장애 동작은 [요청 빈도 제한](../02-api/rate-limit.md#redis-사용-서버-여러-대)을 따른다.
 
 ## 검증 범위
 
