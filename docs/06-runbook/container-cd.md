@@ -2,7 +2,7 @@
 
 - 상태: 기존 준비 절차 사용자 검토 완료 · 2026-10-16 추가 검증 기록은 Codex 작성·검토 대기
 - 작성일: 2026-10-13 · 갱신일: 2026-10-16
-- 현재 단계: GitHub Actions·SSM을 통한 정상 서버 배포 3회 확인. 실패 주입에 의한 실서버 자동 롤백은 미검증. PR #115의 정기 병합·버전 발행은 추가 구성 단계다.
+- 현재 단계: GitHub Actions·SSM을 통한 정상 서버 배포 3회 확인. 실패 주입에 의한 실서버 자동 롤백은 미검증. 정기 병합·버전 발행 코드는 dev에 반영됐다.
 
 ## Parameter Store 설정 자동 반영
 
@@ -103,7 +103,7 @@ GitHub Actions의 다음 세 실행에서 SSM Command ID와 서버 교체·상�
 
 최신 main의 deploy-container.sh·deploy-ssm.py와 현재 문서 브랜치의 해당 코드가 일치한다. 이 기록은 앱 이미지와 /v3/api-docs HTTP 응답 확인이며 DB·업무 API 전체 검증이나 실패 복구 성공 기록은 아니다. Actions는 원격 앱 로그를 복사하지 않으므로 실제 롤백은 SSM의 실패 명령 출력과 서버 이미지·설정 상태를 대조해 별도로 검증해야 한다.
 
-[PR #115](https://github.com/Uplus-GETDDO/getddo-be/pull/115)은 기존 서버 롤백 코드를 변경하지 않고, 정기 dev → main 병합과 배포 성공 후 태그·GitHub Release 발행을 추가한다. 2026-10-16 조회에서 PR은 열려 있고 DAILY_RELEASE_ENABLED=false다.
+[PR #115](https://github.com/Uplus-GETDDO/getddo-be/pull/115)은 기존 서버 롤백 코드를 변경하지 않고, 정기 dev → main 병합과 배포 성공 후 태그·GitHub Release 발행을 추가한다. 2026-10-16 dev에 병합됐다. 현재 DAILY_RELEASE_ENABLED=false로 정기 실행은 비활성화돼 있다.
 
 - 서버 배포가 실패하면 버전을 발행하지 않는다.
 - 서버 배포 성공 후 publish 작업만 실패하면 서버 앱은 새 버전으로 유지한다. 배포 자체의 실패와 구분해 버전 발행을 재시도한다.

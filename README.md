@@ -49,7 +49,7 @@ flowchart LR
 | 프레임워크 | ![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring MVC](https://img.shields.io/badge/Spring_MVC-6DB33F?style=for-the-badge&logo=spring&logoColor=white) |
 | 빌드 | ![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
 | 데이터베이스 | ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white) |
-| 캐시 · 도입 예정 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
+| 캐시 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
 | 영속성·마이그레이션 | ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white) |
 | 객체 매핑 | ![MapStruct 1.6.3](https://img.shields.io/badge/MapStruct-1.6.3-455A64?style=for-the-badge) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge) |
 | API 문서 | ![springdoc-openapi 3.1.1](https://img.shields.io/badge/springdoc--openapi-3.1.1-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) ![Swagger UI](https://img.shields.io/badge/Swagger_UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
@@ -146,14 +146,12 @@ getddo-be/
 │   ├── pull_request_template.md                 # PR 작성 양식
 │   └── workflows/                               # 빌드·테스트·이미지 생성·CD·PR 제목 검사
 ├── infra/                                       # 인프라 정의·배포 자동화 (Gradle 모듈과 별도)
-│   ├── scripts/                                 # 서버 배포·설정 조회 스크립트
-│   │   ├── deploy-ssm.py                         # S3 파일 전달·SSM 배포 요청·결과 확인
-│   │   ├── deploy-container.sh                   # 설정·컨테이너 교체와 실패 복구
-│   │   ├── fetch-app-env.py                      # Parameter Store 설정 조회·검증
-│   │   ├── daily-release.py                      # dev CI 확인·main 병합 (PR #115 반영 예정)
-│   │   └── publish-release.py                    # 배포 성공 버전 발행 (PR #115 반영 예정)
-│   ├── terraform/dev/                           # AWS 리소스 정의 (이 브랜치 반영 예정)
-│   └── iam/                                     # 운영자·서버 권한 정책 (이 브랜치 반영 예정)
+│   └── scripts/                                 # 서버 배포·설정 조회 스크립트
+│       ├── deploy-ssm.py                         # S3 파일 전달·SSM 배포 요청·결과 확인
+│       ├── deploy-container.sh                   # 설정·컨테이너 교체와 실패 복구
+│       ├── fetch-app-env.py                      # Parameter Store 설정 조회·검증
+│       ├── daily-release.py                      # dev CI 확인·main 병합
+│       └── publish-release.py                    # 배포 성공 버전 발행
 ├── docs/                                        # 백엔드 API·DB·결정·작업 기록
 ├── gradle/wrapper/                              # Gradle 실행 버전 고정
 ├── compose.yaml                                 # 로컬 앱·MySQL 컨테이너 구성
@@ -215,7 +213,7 @@ flowchart LR
     Image -->|"main push"| Artifact["CI 이미지 보관"]
 ```
 
-#### 정기 릴리스 · PR #115 추가 구성
+#### 정기 릴리스
 
 ```mermaid
 flowchart LR
@@ -249,7 +247,7 @@ flowchart LR
     Health -->|"실패"| Recover["복구 처리"]
 ```
 
-#### 배포 성공 후 버전 발행 · PR #115 추가 구성
+#### 배포 성공 후 버전 발행
 
 ```mermaid
 flowchart LR
@@ -268,7 +266,7 @@ flowchart LR
 | 복구·기록 정리 | 백업·진행 기록 보존, 다음 배포 차단 후 수동 확인 |
 | 태그·Release 발행 | 새 앱 유지, 서버를 롤백하지 않고 버전 발행 재시도 |
 
-정상 서버 배포는 3회 확인했습니다. 실서버 실패 주입·자동 롤백과 PR #115의 자동 병합·버전 발행은 아직 검증 전입니다. [배포 이력·실패 대응 상세](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)
+정상 서버 배포는 3회 확인했습니다. 실서버 실패 주입·자동 롤백과 자동 병합·버전 발행은 아직 검증 전입니다. [배포 이력·실패 대응 상세](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)
 
 #### 설계·기술 선택과 사용 이유
 
@@ -281,7 +279,7 @@ flowchart LR
 | Parameter Store·IAM | 비밀값 보관과 서버별 접근 권한 |
 | Terraform·IAM 정책 파일 | 리소스 정의와 변경 검토 방식 |
 
-배포 코드: [CI](.github/workflows/build.yml) · [이미지 생성](.github/workflows/image.yml) · [CD](.github/workflows/cd.yml) · [서버 배포](infra/scripts/deploy-container.sh) · [정기 릴리스(PR #115)](https://github.com/Uplus-GETDDO/getddo-be/blob/8f0ac990ed8ddccc5441d40f8765eb9caa5a1742/.github/workflows/daily-release.yml)
+배포 코드: [CI](.github/workflows/build.yml) · [이미지 생성](.github/workflows/image.yml) · [CD](.github/workflows/cd.yml) · [서버 배포](infra/scripts/deploy-container.sh) · [정기 릴리스](https://github.com/Uplus-GETDDO/getddo-be/blob/6daa51196d24cce298d2824cdeae0ef883fa4408/.github/workflows/daily-release.yml)
 
 </details>
 
