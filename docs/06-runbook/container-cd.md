@@ -1,19 +1,23 @@
 # 컨테이너 CD 실행 준비
 
-- 상태: 검토 대기 · Codex 작성 · 담당자 확인 전
-- 작성일: 2026-10-13 · 갱신일: 2026-10-14
+- 상태: 사용자 검토 완료 · Codex 작성 · 2026-10-15 사용자 요청으로 상태 갱신
+- 작성일: 2026-10-13 · 갱신일: 2026-10-15
 - 현재 단계: main CI 성공 → 동일 이미지 전달 → 서버 교체·상태 확인·실패 복구 코드를 연결했다. 실제 GitHub Actions와 AWS 배포는 미검증이며 서버·권한·설정 준비가 필요하다.
+
+## Parameter Store 설정 자동 반영
+
+GD-112 변경부터 서버가 배포 직전에 필수 설정 9개를 조회·검증하고, 실패 시 이전 이미지와 설정을 함께 복구한다. 기존 준비 과정과 변경 전후·등록·반영 절차는 [Parameter Store 런북](parameter-store.md)을 참고한다. 이 코드가 main에 반영돼 배포되기 전에는 기존 서버 동작이 바뀌지 않는다.
 
 ## 파일이 하는 일
 
-[build.yml](../../.github/workflows/build.yml)은 앱 빌드·테스트를, [image.yml](../../.github/workflows/image.yml)은 이미지 생성·보관을, [cd.yml](../../.github/workflows/cd.yml)은 서버 배포를 담당한다. **main 반영 → 테스트 성공 → 이미지 생성·보관 성공 → 서버 교체·응답 확인** 순서로 실행하며 실패 시 이전 이미지를 복구한다.
+[build.yml](../../.github/workflows/build.yml)은 앱 빌드·테스트를, [image.yml](../../.github/workflows/image.yml)은 이미지 생성·보관을, [cd.yml](../../.github/workflows/cd.yml)은 서버 배포를 담당한다. **main 반영 → 테스트 성공 → 이미지 생성·보관 성공 → 서버 교체·응답 확인** 순서로 실행하며 설정 교체 이후 실패 시 배포 직전 설정과 이전 이미지·Compose를 함께 복구한다.
 
 1. PR과 main/dev push에서 `Build` CI가 PR 제목 규칙 검사·앱 빌드·단위 테스트·MySQL 통합 테스트를 수행한다.
 2. 테스트가 성공하면 `needs: build`로 연결한 `image.yml`을 재사용 워크플로로 호출해 프로젝트 루트의 [Dockerfile](../../Dockerfile)로 이미지를 만든다. 이 파일은 `:api:bootJar`로 백엔드 실행 JAR를 만들어 Java 21로 실행하는 프로젝트용 구성이다. 이미지가 만들어지지 않으면 CI도 실패한다.
 3. main push일 때만 생성한 이미지를 압축 파일로 보관한다. 이미지 ID와 파일 체크섬도 함께 저장한다. PR/dev는 이미지 빌드 검증까지만 수행한다.
 4. 같은 저장소의 main push로 실행된 `Build` 전체가 성공한 경우 CD를 시작한다. main 병합도 push에 포함된다.
 5. CD는 그 CI의 실행 ID·커밋 SHA·재시도 번호를 지정해 파일을 받고, 체크섬·이미지 ID·커밋 라벨을 확인한다. 테스트나 이미지 빌드를 다시 수행하지 않는다.
-6. OIDC 임시 권한으로 배포 파일을 전용 S3 버킷에 올리고 SSM으로 서버에 명령을 보낸다. 서버는 같은 이미지를 불러와 교체하고 HTTP 응답을 확인한다. 교체나 응답 확인에 실패하면 이전 이미지와 Compose로 복구한다.
+6. OIDC 임시 권한으로 배포 파일을 전용 S3 버킷에 올리고 SSM으로 서버에 명령을 보낸다. 서버는 Parameter Store의 필수 설정을 조회·검증하고 같은 이미지를 불러와 설정과 앱을 교체한 뒤 HTTP 응답을 확인한다. 설정 교체 후 앱 교체나 응답 확인에 실패하면 배포 직전 app.env를 먼저 복원하고 이전 이미지·Compose로 앱을 재생성한다.
 7. SSM의 최종 상태와 종료 코드가 성공이어야 CD도 성공한다. 복구에 성공했더라도 새 배포는 실패로 표시한다.
 
 `image.yml`은 독립 push 트리거 없이 `workflow_call`로 호출한다. 호출한 `Build` 실행의 커밋·이벤트·실행 ID·재시도 번호를 사용하므로 기존 CD의 다운로드 기준을 유지한다. 이미지 작업까지 끝나야 `Build` 전체가 성공한다. CI 동시 실행 제한은 워크플로 전체에 적용해 테스트와 이미지 작업을 함께 취소한다.
@@ -51,29 +55,31 @@ GitHub **Settings → Environments → production → Variables**에 다음 네 
 - **Actions 역할:** 전용 버킷의 `releases/*`에 대한 `s3:PutObject`, 대상 EC2와 `AWS-RunShellScript`에 대한 `ssm:SendCommand`, 결과 확인용 `ssm:GetCommandInvocation` 권한이 필요하다. 권한과 역할은 이번 작업에서 생성하거나 연결하지 않았다.
 - **전용 S3:** 같은 계정·리전의 비공개 일반 버킷을 준비한다. 퍼블릭 접근 차단·ACL 비활성화·TLS만 허용을 적용하고, 코드에서는 AES256 암호화·버킷 소유 계정 확인·기존 키 덮어쓰기 금지를 지정한다. State 버킷과 분리하며 `tfstate`나 `terraform`을 포함하는 이름은 코드에서 거부한다. 키는 `releases/<커밋>/<CD 실행 ID>-<시도>/release.tar`다.
 - **서버 역할·네트워크:** SSM Agent가 Online이어야 한다. EC2 역할에는 SSM 연결 권한과 전용 버킷 `releases/*`의 `s3:GetObject`가 필요하며, EC2에서 SSM·S3와 비공개 RDS로 연결할 수 있어야 한다. root 프로필이나 고정 Access Key를 서버에 저장하지 않는다.
-- **서버 도구:** Linux x86_64, Docker Engine, Compose 2.30 이상, AWS CLI, Bash, curl, flock, timeout, tar, sha256sum을 준비한다. SSM은 root로 실행하며 `/opt/getddo`는 root만 쓸 수 있어야 한다. 기존 JAR 서비스가 8080 포트를 사용 중이면 자동 전환 전 별도로 확인한다.
-- **앱 설정:** `/etc/getddo/app.env`를 root 소유·권한 600으로 준비한다. DB URL·사용자·비밀번호, `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`, `SPRING_FLYWAY_ENABLED=true`, 필요한 `CORS_ALLOWED_ORIGINS`를 설정한다. raw 형식이므로 값에 바깥 따옴표를 붙이지 않는다. 로컬 DB를 가리키는 `local` 프로필을 사용하지 않는다.
+- **서버 도구:** Linux x86_64, Docker Engine, Compose 2.30 이상, AWS CLI, Python 3.8 이상, Bash, curl, flock, timeout, tar, sha256sum을 준비한다. SSM은 root로 실행하며 `/opt/getddo`는 root만 쓸 수 있어야 한다. 기존 JAR 서비스가 8080 포트를 사용 중이면 자동 전환 전 별도로 확인한다.
+- **앱 설정:** [Parameter Store 런북](parameter-store.md)에 따라 필수 설정 9개를 등록하고 EC2 역할의 조회·복호화 권한을 준비한다. 배포 스크립트가 검증 후 `/etc/getddo/app.env`를 root 소유·권한 600으로 생성·교체한다. 수동 편집한 값은 다음 배포에서 덮어쓰므로 설정 변경은 Parameter Store에서 관리한다. raw 형식이므로 값에 바깥 따옴표를 붙이지 않는다. 로컬 DB를 가리키는 `local` 프로필을 사용하지 않는다.
 - **DB TLS:** `/etc/getddo/rds-truststore.p12`에 공개 RDS CA를 준비하고 JDBC URL에 `sslMode=VERIFY_IDENTITY`와 해당 truststore의 경로·형식 등을 지정한다. DB 호스트에는 인증서 이름과 일치하는 RDS 엔드포인트를 사용한다.
 
 이미지 보관·전송에는 S3 저장 공간과 요청 요금 등이 발생한다. 전용 버킷의 `releases/`에 만료 정책을 적용해 누적을 제한하고, 접근 로그·CloudTrail 데이터 이벤트·CloudWatch 메트릭으로 운영 상태를 확인하는 것을 권장한다. 이 설정은 코드에서 자동 생성하지 않는다. [S3 요금 기준](https://aws.amazon.com/s3/pricing/)과 [보안·운영 권고](https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html)를 따른다.
 
 ## 서버 교체와 실패 복구
 
-[deploy-ssm.py](../../infra/scripts/deploy-ssm.py)는 이미지 파일·체크섬·이미지 ID·Compose·교체 스크립트만 묶어서 전달한다. `.env`, State, DB 비밀번호와 인증 파일은 포함하지 않는다. 서버는 전달 파일의 체크섬을 검증한 뒤 [deploy-container.sh](../../infra/scripts/deploy-container.sh)를 실행한다.
+[deploy-ssm.py](../../infra/scripts/deploy-ssm.py)는 이미지 파일·체크섬·이미지 ID·Compose·교체 스크립트·설정 조회 스크립트만 묶어서 전달한다. `.env`, State, DB 비밀번호와 인증 파일은 포함하지 않는다. 서버는 전달 파일의 체크섬을 검증한 뒤 [deploy-container.sh](../../infra/scripts/deploy-container.sh)를 실행한다.
 
 서버에서도 `flock`으로 동시 교체를 막는다. 교체 전에는 마지막 성공 배포의 Compose와 이미지, 새 파일의 체크섬·이미지 ID·커밋 라벨·Compose 설정을 검사한다. 이 단계의 실패는 기존 앱을 교체하지 않는다. 실행 이미지는 로컬 이미지 ID로 고정하고 외부 다운로드 없이 앱 컨테이너 하나를 교체한다. 이때 짧은 중단이 있다.
 
 요청한 이미지가 실제로 실행 중인지와 `http://127.0.0.1:8080/v3/api-docs`의 HTTP 200 응답을 함께 확인한다. 이는 앱의 HTTP 기동 확인이며 DB·업무 기능의 종합 점검은 아니다. 정상 응답을 확인한 배포만 `/opt/getddo/current` 링크에 기록한다. 각 배포의 파일과 이미지 ID는 `/opt/getddo/releases/`에 보관한다.
 
-교체·응답 확인 실패 시 이전 배포의 Compose와 이미지로 되돌린 뒤 다시 상태를 확인한다. 복구 실패는 `ROLLBACK_FAILED`로 알리며 첫 배포 실패는 복구 대상이 없어 실패한 앱을 중지한다. 복구 기록이 없는 기존 `getddo` 프로젝트 컨테이너는 자동으로 덮어쓰지 않는다.
+설정 교체 후 앱 교체·응답 확인에 실패하면 배포 직전 `app.env`를 복원한 뒤 이전 배포의 Compose와 이미지로 앱을 재생성하고 다시 상태를 확인한다. 복구 실패는 `ROLLBACK_FAILED`로 알리며 첫 배포 실패는 실패한 앱을 중지하고 기존 설정 파일 상태를 복원한다. 복구 기록이 없는 기존 `getddo` 프로젝트 컨테이너는 자동으로 덮어쓰지 않는다.
 
-이미지 복구는 DB 마이그레이션·데이터·`app.env` 변경을 되돌리지 않는다. 이전 앱과 호환되는 Flyway 변경을 준비해야 한다. 현재와 직전 성공 이미지·배포 폴더를 보존하고, 오래된 파일의 정리는 별도 운영 절차로 수행한다. 이 코드는 이미지나 배포 폴더를 자동 삭제하지 않는다.
+복구는 배포 직전 `app.env`와 이전 이미지·Compose를 대상으로 하며 DB 마이그레이션·데이터·Parameter Store의 원격 값을 되돌리지 않는다. 이전 앱과 호환되는 Flyway 변경을 준비해야 한다. 현재와 직전 성공 이미지·배포 폴더를 보존하고, 오래된 파일의 정리는 별도 운영 절차로 수행한다. 이 코드는 이미지나 배포 폴더를 자동 삭제하지 않는다.
+
+미완료된 `/opt/getddo/deploy-in-progress/` 기록이 있으면 다음 배포는 설정 조회·교체 전에 중단한다. 강제 종료 후의 기록 확인·수동 복구와 기록 제거 조건은 [Parameter Store 런북](parameter-store.md#실패-시-복구와-한계)을 따른다.
 
 수동 취소·통신 단절·대기 시간 초과는 원격 명령 중단을 보장하지 않는다. Actions 요약의 SSM Command ID로 최종 상태를 확인하고 서버의 현재 이미지·HTTP 응답을 확인한 뒤 재배포한다. 원격 앱 로그에는 비밀값이 섞일 수 있어 Actions로 자동 복사하지 않는다.
 
 ## 함께 준비한 파일과 검증 범위
 
-[compose.deploy.yaml](../../compose.deploy.yaml)은 서버에서 앱 컨테이너 하나를 실행하기 위한 설정 초안이다. 자동 배포에서 이 파일을 사용한다. 서버 환경변수·DB 연결·인증서를 사전에 준비해야 한다. 로컬 개발에는 기존 `compose.yaml`을 사용한다.
+[compose.deploy.yaml](../../compose.deploy.yaml)은 서버에서 앱 컨테이너 하나를 실행하기 위한 설정 초안이다. 자동 배포에서 이 파일을 사용한다. Parameter Store 설정·조회 권한·DB 연결·인증서를 사전에 준비해야 한다. 로컬 개발에는 기존 `compose.yaml`을 사용한다.
 
 CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 성공은 원격 교체 스크립트가 상태 확인까지 성공하고 SSM 결과도 성공했을 때만 표시한다. 실제 서버 배포는 미검증이다.
 
