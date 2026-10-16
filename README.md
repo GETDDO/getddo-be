@@ -594,94 +594,19 @@ flowchart LR
 | 핵심 규칙 | 같은 실행의 확정 결과는 바뀌지 않는다. 이벤트 안에서 같은 사용자는 한 번만 당첨된다. 후보가 부족하면 상위 등수부터 배정하고 남은 자리는 미충원으로 기록한다. 자동 추첨 완료와 사용자 공개는 구분한다. |
 | 시연 흐름 | 마감 후 자동 추첨 → 후보·가중치·경품별 결과 조회 → 정합성 검사 → 필요 시 개별 당첨 취소·재추첨 → 발표 요청 → 공개 명단·본인 결과 확인 → 같은 요청 재전송으로 결과·공개 중복이 없는지 확인 |
 
-**자동 추첨과 결과 확정**
-
-아래는 주요 호출과 저장 경계를 나타낸 그림이다. 실행 소유권 관리 등 일부 중간 호출은 생략했다.
-
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant W as 자동 추첨 워커
-    participant S as DrawSnapshotService
-    participant E as DrawExecutionService
-    participant P as 입력 준비 서비스
-    participant C as DrawConfirmationService
-    participant A as DrawingSelectionService
-    participant DB as MySQL
-
-    W->>S: 마감 5분이 지난 이벤트의 최초 실행 등록
-    S->>DB: 이벤트 FOR UPDATE
-    S->>DB: 기존 최초 실행 조회 또는 PREPARING 등록
-    S-->>W: 등록 커밋 후 runId 반환
-
-    W->>E: execute(runId)
-    E->>E: 실행 소유권 확보
-    E->>P: 입력 준비
-    P->>DB: 이벤트·실행 잠금 후 응모·USE 이력 조회
-    P->>P: 실제 장수·등급·소유자·중복 검증
-
-    alt 응모자 없음
-        P->>DB: NO_ENTRIES와 이벤트 종료 상태 저장
-        P-->>E: 정상 종료
-    else 후보 있음
-        P->>DB: 후보·실행별 연결·조건 저장, READY 커밋
-        E->>C: 고정 입력으로 결과 확정
-        C->>DB: 이벤트·실행 잠금 및 기존 결과 확인
-        alt 이미 CONFIRMED
-            DB-->>C: 저장된 결과
-        else 미확정
-            C->>A: 후보·가중치·경품 자리 전달
-            A->>A: 상위 등수부터 선정하고 당첨 후보 제거
-            A-->>C: 당첨·미충원 결과
-            C->>C: 자리·인원·후보·선정 순서 검증
-            C->>DB: 결과·CONFIRMED·최초 이벤트 상태 함께 저장
-        end
-    end
+flowchart LR
+    Close["응모 마감"] --> Prepare["5분 후 후보·조건 고정"]
+    Prepare --> Draw["가중치 추첨·결과 확정"]
+    Draw --> Review["관리자 검토"]
+    Review --> Publish["수동 발표"]
+    Publish --> Result["공개 명단·본인 결과"]
+    Review -->|필요 시| Redraw["개별 취소·빈 자리 재추첨"]
+    Redraw --> Review
+    Prepare -->|응모자 없음| Empty["정상 종료"]
 ```
 
-**관리자 검토·재추첨과 최초 공개**
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant A as 관리자
-    participant I as 조회·검증 서비스
-    participant R as 취소·재추첨 서비스
-    participant P as 결과 공개 서비스
-    participant DB as MySQL
-    participant U as 사용자
-
-    A->>I: 후보·가중치·조건·결과 조회
-    I->>DB: 저장된 스냅샷과 결과 조회
-    I-->>A: 검토 자료
-
-    opt 정합성 검사 요청
-        A->>I: POST /draws/{drawId}/checks
-        I->>DB: 항목별 검사 후 draw_checks 추가
-        I-->>A: 전체·항목별 통과 여부
-    end
-
-    opt 개별 당첨 취소
-        A->>R: 당첨 결과 ID·사유·멱등 키
-        R->>DB: 취소 이력과 연결 재추첨 실행 함께 등록
-        R->>R: 최초 후보·가중치로 빈 자리만 재추첨
-        R->>DB: 새 실행 결과 저장, 기존 결과 유지
-        R-->>A: 재추첨 결과
-    end
-
-    A->>P: 검토한 최신 runId로 발표 요청
-    P->>DB: 이벤트 잠금 후 최신 명단·확정 상태 검증
-    alt 검토 이후 명단 변경 또는 미확정 실행 존재
-        P-->>A: 발표 거절
-    else 공개 가능
-        P->>DB: 실행별 확인·전체 공개 명단·상태·알림 작업 함께 저장
-        P-->>A: 공개 결과
-    end
-
-    U->>P: 공개 명단·본인 결과 조회
-    P->>DB: 실제 공개 버전 조회
-    P-->>U: 마스킹한 명단·본인 당첨 여부
-```
+상세 호출·트랜잭션 흐름: [추첨·결과 공개 시퀀스 다이어그램 (Wiki)](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Drawing-Sequences)
 
 **설계·기술 선택과 사용 이유**
 
