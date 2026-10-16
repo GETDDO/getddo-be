@@ -43,6 +43,23 @@ class TakkoRunPlayStartHandlerTest {
 		}
 	}
 
+	@Test
+	@DisplayName("저장 규칙 JSON 오류는 서버 오류로 변환하며 원문 값을 예외 원인에 남기지 않는다")
+	void hidesInvalidStoredJson() {
+		// given
+		String snapshot = "{\"private-marker\": not-json}";
+		// when / then
+		assertThatThrownBy(() -> handler.prepare(game(TakkoRunRules.GAME_CODE, TakkoRunRules.RULE_VERSION, snapshot)))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessage("저장된 타꼬런 규칙이 올바르지 않습니다.")
+				.satisfies(error -> {
+					assertThat(error.getCause()).isInstanceOf(IllegalStateException.class);
+					assertThat(error.getCause().getMessage()).doesNotContain("private-marker", "not-json");
+					assertThat(error.getCause().getCause()).isNull();
+					assertThat(error.getCause().getStackTrace()).isNotEmpty();
+				});
+	}
+
 	private static Game game(String code, String version, String rules) {
 		return new Game(UUID.randomUUID(), code, "타꼬런", null, rules, version, true);
 	}

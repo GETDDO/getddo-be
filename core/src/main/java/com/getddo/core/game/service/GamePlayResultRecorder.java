@@ -89,8 +89,11 @@ public class GamePlayResultRecorder {
 	}
 
 	private static long minimumRewardScore(GamePlay play) {
-		return TakkoRunRules.RULE_VERSION.equals(play.getRuleVersion())
-				? TakkoRunRules.MINIMUM_REWARD_SCORE : 50;
+		return switch (play.getRuleVersion()) {
+			case ColorWordRules.RULE_VERSION -> ColorWordRules.MINIMUM_REWARD_SCORE;
+			case TakkoRunRules.RULE_VERSION -> TakkoRunRules.MINIMUM_REWARD_SCORE;
+			default -> throw new IllegalStateException("지원하는 게임의 보상 규칙이 필요합니다.");
+		};
 	}
 
 	private GrantResult claimAndGrant(GamePlay completed) {
@@ -99,8 +102,11 @@ public class GamePlayResultRecorder {
 		if (claims.findByDate(completed.getUserId(), completed.getGameId(), date).isPresent()) return null;
 		GameRewardClaim claim = claims.insert(GameRewardClaim.of(completed,
 				claims.requirePolicy(completed.getGameId(), completed.getCompletedAt()), date));
-		String reason = TakkoRunRules.RULE_VERSION.equals(completed.getRuleVersion())
-				? "타꼬런 일일 보상" : "글자색깔 맞추기 일일 보상";
+		String reason = switch (completed.getRuleVersion()) {
+			case ColorWordRules.RULE_VERSION -> "글자색깔 맞추기 일일 보상";
+			case TakkoRunRules.RULE_VERSION -> "타꼬런 일일 보상";
+			default -> throw new IllegalStateException("지원하는 게임의 보상 규칙이 필요합니다.");
+		};
 		return grants.grant(new GrantCommand(completed.getUserId(), source(claim), 1, reason));
 	}
 

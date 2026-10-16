@@ -37,10 +37,9 @@
 - 통합: 실제 MySQL의 G02/G03/G04/G05·형식·권한·저득점·일일 보상·재시도를 검사한다. 보상용 입력은 테스트 실행 중 제한된seed/점프 전략으로 준비한다. 이를 독립적인 FE/Java 교차 검증으로 설명하지 않는다.
 - 과거 .events는 기존 작업 폴더의 보존 자료이며 새120Hz 테스트에서 읽지 않는다. 이번 기능 커밋에는 포함하지 않는다. 새 FE/Java 공통 입력·점수 대조는 별도 후속이다.
 
-사용자 실행 명령:
+사용자 실행 명령(저장소 루트에서 실행):
 
 ```bash
-cd /tmp/getddo-takkorun-gd158
 ./gradlew :core:test --tests '*TakkoRun*' --tests '*GamePlayResultRecorderTest'
 ./gradlew :api:test --tests '*GameResultRequestTest' --tests '*TakkoRunResultRequestTest' --tests '*TakkoRunResponseTest' --tests '*GamePlayControllerTest'
 ./gradlew :api:integrationTest --tests '*TakkoRunApiIntegrationTest' --tests '*GameResultApiIntegrationTest' --tests '*GamePlayApiIntegrationTest'
@@ -48,3 +47,9 @@ cd /tmp/getddo-takkorun-gd158
 ```
 
 DB 통합 테스트에는 기존 Testcontainers/MySQL·Docker 환경이 필요하다. 로컬 단위 테스트 통과와 PR의 CI·실제 FE 연결·운영 검증은 구분한다.
+
+## PR #113 리뷰 반영 — 2026-10-17
+
+색깔 게임의 최소 보상 점수를 규칙 상수로 참조하고 보상 기준·사유를 지원 버전별로 명시했다. 저장 규칙의 오류 변환은 TakkoRunRules.fromStoredSnapshot으로 모아 시작·결과가 같은 처리를 사용한다. 원문 JSON을 예외 원인에 남기지 않는 기존 방식을 유지하고 회귀 테스트를 추가했다. 검증 명령은 저장소 루트 기준으로 수정했으며 gradle/test-limits.init.gradle은 기존 추적 파일이다.
+
+기존 head d694f10c의 CI 빌드·테스트·이미지 빌드는 성공했다. 이번 리뷰 수정 후 로컬 테스트·컴파일·빌드는 실행하지 않았으며 새 커밋의 CI 결과를 별도로 확인한다.

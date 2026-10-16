@@ -1,7 +1,6 @@
 package com.getddo.core.game.service;
 
 import org.springframework.stereotype.Component;
-import tools.jackson.core.JacksonException;
 
 import com.getddo.core.game.domain.Game;
 import com.getddo.core.game.domain.GameStartConfiguration;
@@ -19,13 +18,7 @@ public class TakkoRunPlayStartHandler implements GamePlayStartHandler {
 
 	@Override
 	public GameStartConfiguration prepare(Game game) {
-		try {
-			return new GameStartConfiguration(TakkoRunRules.fromSnapshot(game.getRules()),
-					TakkoRunRules.GENERATOR_VERSION);
-		} catch (JacksonException | IllegalArgumentException invalidConfiguration) {
-			IllegalStateException safeCause = new IllegalStateException(invalidConfiguration.getClass().getName());
-			safeCause.setStackTrace(invalidConfiguration.getStackTrace());
-			throw new IllegalStateException("저장된 타꼬런 규칙이 올바르지 않습니다.", safeCause);
-		}
+		return new GameStartConfiguration(TakkoRunRules.fromStoredSnapshot(game.getRules()),
+				TakkoRunRules.GENERATOR_VERSION);
 	}
 }

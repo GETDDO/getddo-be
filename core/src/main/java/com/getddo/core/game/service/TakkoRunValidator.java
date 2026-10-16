@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
-import tools.jackson.core.JacksonException;
 
 import com.getddo.core.game.domain.GamePlay;
 import com.getddo.core.game.domain.TakkoRunAction;
@@ -25,7 +24,7 @@ public class TakkoRunValidator {
 				|| play.getGenerationSeed() < 1 || play.getGenerationSeed() > 0xffff_ffffL) {
 			throw new IllegalStateException("지원하는 타꼬런의 시작 스냅샷이 필요합니다.");
 		}
-		TakkoRunRules rules = rules(play);
+		TakkoRunRules rules = TakkoRunRules.fromStoredSnapshot(play.getRulesSnapshot());
 		int endTick = submission.getEndTick();
 		List<TakkoRunInput> inputs = submission.getInputs();
 		if (endTick < 0 || endTick >= rules.getMaxTicks() || inputs.isEmpty()
@@ -50,15 +49,5 @@ public class TakkoRunValidator {
 			}
 		}
 		return endTick == rules.getMaxTicks() - 1 ? replay.getScore() : null;
-	}
-
-	private static TakkoRunRules rules(GamePlay play) {
-		try {
-			return TakkoRunRules.fromSnapshot(play.getRulesSnapshot());
-		} catch (JacksonException | IllegalArgumentException invalidConfiguration) {
-			IllegalStateException safeCause = new IllegalStateException(invalidConfiguration.getClass().getName());
-			safeCause.setStackTrace(invalidConfiguration.getStackTrace());
-			throw new IllegalStateException("저장된 타꼬런 규칙이 올바르지 않습니다.", safeCause);
-		}
 	}
 }

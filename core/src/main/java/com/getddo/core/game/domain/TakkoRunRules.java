@@ -3,6 +3,7 @@ package com.getddo.core.game.domain;
 import java.util.Objects;
 
 import lombok.Getter;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
@@ -44,6 +45,17 @@ public final class TakkoRunRules implements GameStartRules {
 			throw new IllegalArgumentException("타꼬런 규칙은 JSON 객체여야 합니다.");
 		}
 		return new TakkoRunRules(integer(rules, "minimumRewardScore"), integer(rules, "maxTicks"));
+	}
+
+	/** 저장 설정 오류의 원문 JSON을 예외 원인에 남기지 않고 시작·결과에서 같은 오류로 변환한다. */
+	public static TakkoRunRules fromStoredSnapshot(String snapshot) {
+		try {
+			return fromSnapshot(snapshot);
+		} catch (JacksonException | IllegalArgumentException invalidConfiguration) {
+			IllegalStateException safeCause = new IllegalStateException(invalidConfiguration.getClass().getName());
+			safeCause.setStackTrace(invalidConfiguration.getStackTrace());
+			throw new IllegalStateException("저장된 타꼬런 규칙이 올바르지 않습니다.", safeCause);
+		}
 	}
 
 	private static int integer(JsonNode rules, String name) {
