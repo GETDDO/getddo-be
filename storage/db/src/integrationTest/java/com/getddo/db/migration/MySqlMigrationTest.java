@@ -70,6 +70,10 @@ class MySqlMigrationTest {
 		assertNullableDeletedAtColumn("events");
 		assertThat(indexColumns("events", "idx_events_list", 1))
 				.containsExactly("deleted_at", "created_at", "id");
+		assertThat(indexColumns("events", "idx_events_lifecycle_start", 1))
+				.containsExactly("status", "deleted_at", "starts_at", "id");
+		assertThat(indexColumns("events", "idx_events_lifecycle_end", 1))
+				.containsExactly("status", "deleted_at", "ends_at", "id");
 		assertIndexExists("notification_jobs", "ix_notification_job_pending");
 		assertIndexExists("notification_jobs", "ix_notification_job_lease");
 		assertIndexExists("notifications", "ix_notification_delivery_retry");

@@ -9,6 +9,7 @@ import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.domain.EventCancellationState;
+import com.getddo.core.event.domain.EventLifecycleState;
 
 public interface EventRepository {
 	RegisteredEvent create(EventRegistration registration, EventStatus initialStatus);
@@ -29,6 +30,12 @@ public interface EventRepository {
 	 * 쓰기 잠금 없는 호출은 영속성 구현의 계약 위반으로 거절한다.
 	 */
 	void updateStatus(UUID eventId, EventStatus newStatus);
+
+	/** 미삭제 SCHEDULED/OPEN의 기한이 지난 후보를 잠금 없이 최대 limit개 읽는다. afterId 뒤부터 ID 순으로 순환한다. */
+	List<UUID> findLifecycleDueIds(Instant now, UUID afterId, int limit);
+
+	/** 한 이벤트를 SKIP LOCKED로 선점한 뒤 최신 상태·일정을 JPA 쓰기 잠금 조회로 적재한다. 잠금 경합·삭제는 제외한다. */
+	Optional<EventLifecycleState> findLifecycleByIdForUpdate(UUID eventId);
 
 	/** 상태 변경 조회와 같은 최신 잠금 읽기로 취소에 필요한 정보를 반환한다. 삭제된 이벤트는 제외한다. */
 	Optional<EventCancellationState> findCancellationByIdForUpdate(UUID eventId);

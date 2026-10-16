@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,6 +18,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import com.getddo.core.common.time.TimeProvider;
+import com.getddo.core.audit.service.AuditLogService;
+import com.getddo.core.audit.domain.AuditLogCommand;
+import org.mockito.ArgumentCaptor;
+import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.EventType;
@@ -40,23 +45,57 @@ class EventRegistrationServiceTest {
 	private EventRepository events;
 	private EventActorRepository actors;
 	private EventRegistrationService service;
+	private AuditLogService auditLogs;
 
 	@BeforeEach
 	void setUp() {
 		events = mock(EventRepository.class);
 		actors = mock(EventActorRepository.class);
+		auditLogs = mock(AuditLogService.class);
+		when(events.create(any(), any())).thenAnswer(invocation -> {
+			EventRegistration input = invocation.getArgument(0);
+			return new RegisteredEvent(UUID.randomUUID(), input.getTitle(), input.getDescription(), input.getImageKey(),
+					input.getEventType(), input.isWeightingEnabled(), input.getMaxTicketsPerUser(), input.getMembershipRule(),
+					input.getStartsAt(), input.getEndsAt(), invocation.getArgument(1), NOW, NOW,
+					input.getPrizes().stream().map(prize -> new RegisteredEvent.Prize(UUID.randomUUID(), prize.getRank(),
+							prize.getName(), prize.getDescription(), prize.getImageKey(), prize.getWinnerCount())).toList());
+		});
 		when(actors.findById(ADMIN_ID)).thenReturn(Optional.of(new EventActorRepository.Actor(true, true)));
 		service = new EventRegistrationService(events, actors,
-				new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)));
+				new TimeProvider(Clock.fixed(NOW, ZoneOffset.UTC)), auditLogs);
 	}
 
 	@Test
+	@DisplayName("정상 등록은 저장된 이벤트·경품과 요청 관리자를 생성 감사 명령에 담는다")
 	void validRegistrationPassesScheduledEventAndAllPrizesToRepository() {
+		// given
 		EventRegistration registration = validRegistration();
-
-		service.register(registration);
-
+		// when
+		RegisteredEvent saved = service.register(registration);
+		// then
 		verify(events).create(registration, EventStatus.SCHEDULED);
+		ArgumentCaptor<AuditLogCommand> commandCaptor = ArgumentCaptor.forClass(AuditLogCommand.class);
+		verify(auditLogs).record(commandCaptor.capture());
+		AuditLogCommand command = commandCaptor.getValue();
+		assertThat(command.getActorId()).isEqualTo(ADMIN_ID);
+		assertThat(command.getAction()).isEqualTo("EVENT_CREATE");
+		assertThat(command.getTargetType()).isEqualTo("EVENT");
+		assertThat(command.getTargetId()).isEqualTo(saved.getId());
+		assertThat(command.getBeforeData()).isNull();
+		assertThat(command.getAfterData())
+				.containsEntry("title", "가을 이벤트").containsEntry("description", "경품 응모")
+				.containsEntry("eventType", "TICKET").containsEntry("weightingEnabled", true)
+				.containsEntry("maxTicketsPerUser", 5).containsEntry("membershipRule", "vip")
+				.containsEntry("startsAt", NOW.plusSeconds(3600).toString())
+				.containsEntry("endsAt", NOW.plusSeconds(7200).toString())
+				.containsEntry("status", "SCHEDULED").containsEntry("imageKey", null);
+		List<?> prizes = (List<?>) command.getAfterData().get("prizes");
+		assertThat(prizes).hasSize(2);
+		Map<?, ?> prize = (Map<?, ?>) prizes.getFirst();
+		assertThat(prize.get("id")).isEqualTo(saved.getPrizes().getFirst().getId().toString());
+		assertThat(prize.get("rank")).isEqualTo(1);
+		assertThat(prize.get("name")).isEqualTo("경품 A");
+		assertThat(prize.get("winnerCount")).isEqualTo(1);
 	}
 
 	@Test

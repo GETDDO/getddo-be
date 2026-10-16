@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.getddo.core.common.time.TimeProvider;
 import com.getddo.core.entry.domain.Entry;
@@ -45,6 +47,7 @@ import com.getddo.core.ticket.service.TicketUseService;
  *   <li>이벤트 행을 공유 잠금으로 잠그고 멤버십·기간·요청 형태·1회/누적 상한을 검증한다.</li>
  *   <li>응모자를 PK로 잠가(처음이면 새로 저장) 같은 사용자의 동시 응모를 직렬화한다.</li>
  *   <li>응모 행을 저장·반영한 뒤 응모권을 차감한다. 응모 행 저장이 실패하면 차감을 호출하지 않는다.</li>
+ *   <li>차감 뒤 마감을 다시 확인하고, 트랜잭션이 커밋되기 직전에도 한 번 더 확인한다. 마감을 넘기면 {@code ENTRY-005}로 롤백한다.</li>
  * </ol>
  * <p>잠금 순서는 이벤트(공유) → 응모자 → 응모권으로 고정해 교착을 피한다.</p>
  */
@@ -117,7 +120,28 @@ public class EntryRecorder {
 		if (!event.isOpenAt(timeProvider.now())) {
 			throw new EntryException(EntryErrorCode.EVENT_NOT_OPEN);
 		}
+		requireOpenAgainBeforeCommit(event);
 		return new EntryReceipt(command.getEntryId(), event.getId(), event.getTitle(), tickets, acceptedAt, true);
+	}
+
+	/**
+	 * 트랜잭션이 커밋되기 직전에 마감을 한 번 더 확인한다. 메서드 안의 마지막 확인과 실제 커밋 사이에 마감 시각을 넘으면
+	 * {@code ENTRY-005}로 롤백해 마감 뒤에 확정된 응모가 생기지 않게 한다. 추첨 준비는 진행 중인 응모의 커밋을 기다렸다가
+	 * 그 응모를 후보에 넣으므로, 이 확인이 없으면 마감 직후에 커밋된 응모가 후보가 될 수 있다. 이 확인과 DB가 커밋을 확정하는
+	 * 순간 사이의 아주 짧은 간격은 남는다.
+	 */
+	private void requireOpenAgainBeforeCommit(EntryEvent event) {
+		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+			return;
+		}
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void beforeCommit(boolean readOnly) {
+				if (!event.isOpenAt(timeProvider.now())) {
+					throw new EntryException(EntryErrorCode.EVENT_NOT_OPEN);
+				}
+			}
+		});
 	}
 
 	/**

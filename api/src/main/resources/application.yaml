@@ -2,6 +2,16 @@ spring:
   application:
     name: GETDDO-BE
 
+  data:
+    redis:
+      # 연결 설정만 선언한다. Redis 클라이언트와 요청 제한 기능은 별도 구현이 필요하다.
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      ssl:
+        # 로컬 기본값은 false이며, 배포 설정 검증에서는 true만 허용한다.
+        enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:false}
+
 springdoc:
   packages-to-scan: com.getddo.api
   swagger-ui:
@@ -9,6 +19,13 @@ springdoc:
     operations-sorter: alpha
 
 getddo:
+  images:
+    # 백엔드가 업로드할 비공개 S3 버킷.
+    bucket: ${GETDDO_IMAGES_BUCKET:}
+
+    # CloudFront 이미지 기본 주소. 끝에 /images/가 포함된다.
+    base-url: ${GETDDO_IMAGES_BASE_URL:}
+
   cors:
     # 실제 프론트 origin을 쉼표로 구분해 주입한다. 미설정 시 다른 origin은 허용하지 않는다.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
@@ -17,6 +34,30 @@ getddo:
     # 프론트 → 서버 요청 헤더. 헤더 값의 유효성은 기존 사용자 문맥 처리에서 검사한다.
     allowed-headers: [Content-Type, X-User-ID, X-User-Role, X-User-Membership, Idempotency-Key]
     # 서버 → 프론트 응답에서 JavaScript가 추가로 읽을 헤더. JSON 본문 필드와는 별개다.
-    exposed-headers: []
+    # 프론트가 429의 Retry-After를 읽을 수 있게 노출한다.
+    exposed-headers: [Retry-After]
     # 현재 쿠키를 사용하지 않는다. X-User-* 헤더 전달을 위해 true로 바꿀 필요는 없다.
     allow-credentials: false
+
+  # 사용자별 요청 빈도 제한(429). 한도는 운영 수치이므로 여기서 조정한다. 정책이 없으면 제한하지 않는다.
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    policies:
+      # 응모: 사용자 분당 20회, 같은 이벤트는 분당 10회
+      entry:
+        limit: 20
+        scoped-limit: 10
+        window: 1m
+      # 출석: 하루 한 번인 기능이라 분당 5회면 연타·재시도에 충분하다
+      attendance:
+        limit: 5
+        window: 1m
+      # 게임 결과 제출(G04): 컨트롤러가 생기면 @RateLimited(policy = "game-result")만 붙이면 적용된다
+      game-result:
+        limit: 10
+        window: 1m
+      # 미션 제출: 사용자 분당 20회, 같은 미션은 분당 5회(정답을 반복해서 찍는 시도를 막는다)
+      mission-submission:
+        limit: 20
+        scoped-limit: 5
+        window: 1m

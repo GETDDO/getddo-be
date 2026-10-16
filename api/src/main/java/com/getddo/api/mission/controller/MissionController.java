@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.getddo.api.common.context.CurrentUser;
+import com.getddo.api.common.ratelimit.RateLimited;
 import com.getddo.api.common.response.ResponseEnvelope;
 import com.getddo.api.mission.dto.request.MissionSubmissionRequest;
 import com.getddo.api.mission.dto.response.MissionDetailResponse;
@@ -122,6 +123,7 @@ public class MissionController {
 	 * @param submissionId 제출 ID. 요청 전에 클라이언트가 정한 UUID이며 같은 제출의 재시도는 같은 값을 쓴다
 	 * @return 새로 접수한 제출이면 201, 같은 키의 재요청이나 이미 완료한 미션의 재제출이면 기존 결과와 200
 	 */
+	@RateLimited(policy = "mission-submission", scopeVariable = "missionId")
 	@PostMapping("/{missionId}/submissions")
 	public ResponseEntity<ResponseEnvelope<MissionSubmissionResponse>> submit(
 			@CurrentUser(membershipRequired = false) User user,

@@ -1,6 +1,8 @@
 package com.getddo.db.event.repository;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.List;
@@ -18,6 +20,7 @@ import com.getddo.core.event.domain.EventRegistration;
 import com.getddo.core.event.domain.EventStatus;
 import com.getddo.core.event.domain.RegisteredEvent;
 import com.getddo.core.event.domain.EventCancellationState;
+import com.getddo.core.event.domain.EventLifecycleState;
 import com.getddo.core.event.exception.EventErrorCode;
 import com.getddo.core.event.exception.EventException;
 import com.getddo.core.event.repository.EventRepository;
@@ -28,6 +31,15 @@ import com.getddo.db.common.util.UuidBinary;
 
 @Repository
 public class EventRepositoryImpl implements EventRepository {
+	// 두 상태의 시간 범위를 각각 인덱스로 읽고, due ID만 정렬한다. 상태는 상호 배타적이므로 중복 제거가 필요 없다.
+	static final String LIFECYCLE_DUE_SQL = """
+			select id from (
+			  select id from events where status = 'SCHEDULED' and deleted_at is null and starts_at <= ?
+			  union all
+			  select id from events where status = 'OPEN' and deleted_at is null and ends_at <= ?
+			) due
+			order by case when ? is null or id > ? then 0 else 1 end, id limit ?
+			""";
 	private final EventJpaRepository jpaRepository;
 	private final EventEntityMapper mapper;
 	private final EntityManager entityManager;
@@ -84,6 +96,24 @@ public class EventRepositoryImpl implements EventRepository {
 	public Optional<EventCancellationState> findCancellationByIdForUpdate(UUID eventId) {
 		return findStatusByIdForUpdate(eventId)
 				.flatMap(ignored -> jpaRepository.findById(eventId)).map(mapper::toCancellationState);
+	}
+
+	@Override
+	public List<UUID> findLifecycleDueIds(Instant now, UUID afterId, int limit) {
+		LocalDateTime cutoff = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
+		byte[] cursor = afterId == null ? null : UuidBinary.toBytes(afterId);
+		return jdbc.query(LIFECYCLE_DUE_SQL, (row, index) -> UuidBinary.fromBytes(row.getBytes("id")),
+				cutoff, cutoff, cursor, cursor, limit);
+	}
+
+	@Override
+	public Optional<EventLifecycleState> findLifecycleByIdForUpdate(UUID eventId) {
+		if (jdbc.query("select id from events where id = ? and deleted_at is null for update skip locked",
+				(row, index) -> row.getBytes("id"), UuidBinary.toBytes(eventId)).isEmpty()) {
+			return Optional.empty();
+		}
+		return findStatusByIdForUpdate(eventId)
+				.flatMap(ignored -> jpaRepository.findById(eventId)).map(mapper::toLifecycleState);
 	}
 
 	@Override

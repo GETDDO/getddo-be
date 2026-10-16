@@ -35,6 +35,7 @@
 | [V022](../../storage/db/src/main/resources/db/migration/drawing/V022__add_award_cancellation_request_key.sql) | `award_cancellations.request_key`와 UNIQUE | GD-138 개별 당첨 취소 요청의 멱등 키. 과거 이력은 NULL |
 | [V023](../../storage/db/src/main/resources/db/migration/ticket/V023__add_ticket_expiry_scan_index.sql) | `tickets`의 `(status, expires_at)` 인덱스 | GD-135 응모권 만료 워커가 만료 시각이 지난 사용 가능·반환됨 응모권을 찾는 조회(`FOR UPDATE SKIP LOCKED`). 공개 API는 추가하지 않음 |
 | [V025](../../storage/db/src/main/resources/db/migration/mission/V025__add_mission_submission_request_hash.sql) | `mission_submissions.request_hash` | GD-175 미션 제출(M03)의 같은 제출 ID 재전송 본문 비교. 처음 요청의 SHA-256을 보존한다. 이 컬럼을 기록하기 전의 제출은 빈 문자열이다. 공개 API는 추가하지 않음 |
+| [V027](../../storage/db/src/main/resources/db/migration/event/V027__add_event_lifecycle_due_indexes.sql) | `events`의 상태·삭제 여부·시작/마감 기한 인덱스 두 개 | GD-203 모집 상태 전환의 상태별 due 후보 조회. 새 테이블·컬럼·공개 API는 추가하지 않음 |
 
 ## 응모 API 현행 매핑 (GD-134, GD-145, GD-200)
 
@@ -94,6 +95,10 @@
 | M03 제출 | 같음 | `tickets`, `ticket_histories` | 보상 청구 저장 뒤 지급 서비스가 같은 트랜잭션에서 응모권을 지급한다(`GRANT` 이력, 사유는 미션 제목). |
 
 제출·답변·정답 진행·보상 청구·응모권 지급은 한 트랜잭션(`READ COMMITTED`)이다. 같은 사용자의 동시 완료는 제출 PK, `(user_id, quiz_question_id)`, `(user_id, mission_id)` 유일 제약이 직렬화하고, 늦은 요청은 새 트랜잭션에서 한 번 다시 처리해 먼저 확정된 결과를 본다.
+
+### 이벤트 모집 상태와 감사 저장 (GD-203)
+
+DB 컬럼 추가 없이 기존 `events.status`·`updated_at`과 `audit_logs`를 사용한다. V027은 상태·삭제 여부·시작/마감 기한별 인덱스 두 개를 추가한다. 후보는 잠금 없이 상태별 시간 범위를 조회하고 마지막 ID 뒤부터 순환한다. 개별 이벤트는 JDBC `FOR UPDATE SKIP LOCKED`로 선점한 뒤 최신 JPA 잠금 조회로 상태를 반영한다. 상태·감사는 이벤트 한 건씩 독립 트랜잭션이며 개별 실패 후에도 다음 후보를 처리한다. 등록·수정의 감사 JSON에는 저장된 경품 ID와 설정을 기록하며, 해당 업무 저장과 감사는 함께 커밋한다. 시각 응답 변경·잠금·실패 복구는 [이벤트 구현 문서](../02-api/event-lifecycle-and-audit.md)를 따른다.
 
 ## 확인된 차이와 구현 검토 항목
 

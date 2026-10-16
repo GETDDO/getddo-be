@@ -87,7 +87,7 @@ class EventResponseContractTest {
 	}
 
 	@Test
-	@DisplayName("사용자 목록·상세는 공개 상태와 발표 시각을 반환하고 관리 필드를 숨긴다")
+	@DisplayName("사용자 목록·상세는 공개 상태를 반환하고 발표 예정 시각·관리 필드를 숨긴다")
 	void publicResponsesPreserveTheirContract() throws Exception {
 		// given
 		EventView view = new EventView(event(EventStatus.REDRAWING), EventStatus.PUBLISHED, null);
@@ -98,7 +98,8 @@ class EventResponseContractTest {
 		mvc.perform(get("/api/v1/events").header("X-User-ID", ACTOR_ID).header("X-User-Role", "ADMIN"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items[0].status").value("PUBLISHED"))
-				.andExpect(jsonPath("$.data.items[0].publicationScheduledAt").value("2026-10-03T09:05:00Z"))
+				.andExpect(jsonPath("$.data.items[0].publicationScheduledAt").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.items[0].drawScheduledAt").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.items[0].serverTime").value(NOW.toString()))
 				.andExpect(jsonPath("$.data.items[0].imageUrl").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[0].imageKey").doesNotExist())
@@ -111,7 +112,8 @@ class EventResponseContractTest {
 				.andExpect(jsonPath("$.data.status").value("PUBLISHED"))
 				.andExpect(jsonPath("$.data.startsAt").value(STARTS_AT.toString()))
 				.andExpect(jsonPath("$.data.endsAt").value(ENDS_AT.toString()))
-				.andExpect(jsonPath("$.data.publicationScheduledAt").value("2026-10-03T09:05:00Z"))
+				.andExpect(jsonPath("$.data.publicationScheduledAt").doesNotHaveJsonPath())
+				.andExpect(jsonPath("$.data.drawScheduledAt").doesNotHaveJsonPath())
 				.andExpect(jsonPath("$.data.serverTime").value(NOW.toString()))
 				.andExpect(jsonPath("$.data.description").value("이벤트 설명"))
 				.andExpect(jsonPath("$.data.maxTicketsPerUser").value(nullValue()))
@@ -147,7 +149,8 @@ class EventResponseContractTest {
 					.andExpect(jsonPath(root + ".suspendedFromStatus").doesNotHaveJsonPath())
 					.andExpect(jsonPath(root + ".suspendedAt").doesNotHaveJsonPath())
 					.andExpect(jsonPath(root + ".canceledAt").value(nullValue()))
-					.andExpect(jsonPath(root + ".publicationScheduledAt").value("2026-10-03T09:05:00Z"))
+					.andExpect(jsonPath(root + ".publicationScheduledAt").doesNotHaveJsonPath())
+					.andExpect(jsonPath(root + ".drawScheduledAt").value("2026-10-03T09:05:00Z"))
 					.andExpect(jsonPath(root + ".prizes[0].winnerCount").value(3))
 					.andExpect(jsonPath(root + ".prizeImages[0].prizeId").value(PRIZE_ID.toString()))
 					.andExpect(jsonPath(root + ".prizeImages[0].imageKey").value("prizes/image.png"));

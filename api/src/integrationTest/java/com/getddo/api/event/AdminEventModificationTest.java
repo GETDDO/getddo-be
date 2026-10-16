@@ -64,6 +64,7 @@ class AdminEventModificationTest {
 	void cleanUp() {
 		// 동시 요청은 서로 다른 트랜잭션에서 커밋하므로 이 테스트가 만든 행만 FK 순서로 정리한다.
 		for (UUID fixture : fixtureEvents) {
+			jdbc.update("delete from audit_logs where target_type='EVENT' and target_id=?", bytes(fixture));
 			jdbc.update("delete from notifications where event_id=?", bytes(fixture));
 			jdbc.update("update notification_jobs set source_job_id=null where event_id=?", bytes(fixture));
 			jdbc.update("delete from notification_jobs where event_id=?", bytes(fixture));

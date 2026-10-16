@@ -10,7 +10,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** 저장된 color-word-v1 스냅샷에서 해당 플레이의 공개 규칙만 읽는다. */
 @Getter
-public final class ColorWordRules {
+public final class ColorWordRules implements GameStartRules {
 
 	public static final String GAME_CODE = "COLOR_WORD";
 	public static final String RULE_VERSION = "color-word-v1";
