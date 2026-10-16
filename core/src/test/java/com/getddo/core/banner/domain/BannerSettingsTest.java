@@ -57,4 +57,23 @@ class BannerSettingsTest {
 				.isInstanceOfSatisfying(BusinessException.class,
 						error -> assertThat(error.getErrorCode()).isEqualTo(BannerErrorCode.INVALID_SETTINGS));
 	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {".", "..", "../outside.png", "./one.png", "banners/../one.png",
+			"banners/./one.png", "banners/.", "banners/..", "  ../outside.png  "})
+	@DisplayName("공개 이미지 기준 경로를 바꾸는 점 세그먼트는 등록·수정 전에 거절한다")
+	void rejectsDotSegments(String key) {
+		// given / when / then
+		assertThatThrownBy(() -> new BannerSettings(EVENT, key, 1))
+				.isInstanceOfSatisfying(BusinessException.class,
+						error -> assertThat(error.getErrorCode()).isEqualTo(BannerErrorCode.INVALID_SETTINGS));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"banners/one.png", "banners/.hidden.png", "banners/one..png", "banners/.../one.png"})
+	@DisplayName("이름에 점이 있어도 경로 전체가 점 세그먼트가 아니면 허용한다")
+	void preservesDottedFileNames(String key) {
+		// given / when / then
+		assertThat(new BannerSettings(EVENT, key, 1).getImageKey()).isEqualTo(key);
+	}
 }

@@ -1,5 +1,6 @@
 package com.getddo.core.banner.domain;
 
+import java.util.Arrays;
 import java.util.UUID;
 
 import lombok.EqualsAndHashCode;
@@ -19,7 +20,9 @@ public final class BannerSettings {
 	public BannerSettings(UUID eventId, String imageKey, int displayOrder) {
 		String normalized = imageKey == null ? null : imageKey.strip();
 		if (eventId == null || normalized == null || normalized.isBlank() || normalized.length() > 500
-				|| displayOrder < 1 || displayOrder > 5) {
+				|| displayOrder < 1 || displayOrder > 5
+				|| Arrays.stream(normalized.split("/", -1))
+						.anyMatch(segment -> segment.equals(".") || segment.equals(".."))) {
 			throw new BusinessException(BannerErrorCode.INVALID_SETTINGS);
 		}
 		this.eventId = eventId;

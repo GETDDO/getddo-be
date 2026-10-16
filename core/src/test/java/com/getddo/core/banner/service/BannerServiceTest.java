@@ -171,12 +171,39 @@ class BannerServiceTest {
 	}
 
 	@Test
-	@DisplayName("빈 목록과 같은 순서 요청은 불필요한 감사 행을 만들지 않는다")
+	@DisplayName("빈 목록은 불필요한 감사 행을 만들지 않는다")
 	void emptyAndUnchangedReorder() {
 		// given
 		when(repository.findAll()).thenReturn(List.of());
 		// when / then
 		assertThat(service.reorder(ADMIN, List.of())).isEmpty();
+		verifyNoInteractions(audit);
+	}
+
+	@Test
+	@DisplayName("이전 배너의 ID 순서가 같아도4번을1번으로 정리하면 감사 기록을 남긴다")
+	void recordsCompactionWithUnchangedIds() {
+		// given: 이전 URL 행은 이벤트 미연결이며 순서에 빈자리가 있을 수 있다.
+		Banner legacy = new Banner(A, null, "banner/key.png", 4, NOW, NOW);
+		Banner compacted = new Banner(A, null, "banner/key.png", 1, NOW, NOW);
+		when(repository.findAll()).thenReturn(List.of(legacy), List.of(compacted));
+		// when
+		assertThat(service.reorder(ADMIN, List.of(A))).extracting(Banner::getDisplayOrder).containsExactly(1);
+		// then
+		ArgumentCaptor<AuditLogCommand> saved = ArgumentCaptor.forClass(AuditLogCommand.class);
+		verify(audit).record(saved.capture());
+		assertThat(saved.getValue().getAction()).isEqualTo("BANNER_REORDER");
+	}
+
+	@Test
+	@DisplayName("이미 연속인 비어 있지 않은 목록의 동일 순서는 감사 기록을 추가하지 않는다")
+	void skipsUnchangedNonEmptyOrder() {
+		// given
+		when(repository.findAll()).thenReturn(List.of(banner(A, 1), banner(B, 2)));
+		// when
+		service.reorder(ADMIN, List.of(A, B));
+		// then
+		verify(repository).reorder(List.of(A, B), NOW);
 		verifyNoInteractions(audit);
 	}
 

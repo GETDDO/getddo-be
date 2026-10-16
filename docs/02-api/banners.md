@@ -26,8 +26,9 @@ Controller는 기존 사용자 문맥·검증·봉투를 사용한다. Service�
 
 이번에는 테스트·빌드·컴파일을 실행하지 않았다. 정적 문법 검사와 diff 검사는 실행 검증을 대신하지 않는다.
 
+저장소 루트에서 실행한다.
+
 ```bash
-cd /tmp/getddo-banner-implementation
 ./gradlew :core:test --tests 'com.getddo.core.banner.*' :api:test --tests 'com.getddo.api.banner.*'
 ./gradlew :api:integrationTest --tests 'com.getddo.api.banner.BannerApiIntegrationTest' :storage:db:integrationTest --tests 'com.getddo.db.banner.BannerMigrationIntegrationTest' --tests 'com.getddo.db.migration.MySqlMigrationTest'
 ./gradlew test build --init-script gradle/test-limits.init.gradle --max-workers=1 --no-parallel
@@ -50,3 +51,9 @@ MySQL 통합 테스트에는 Docker가 필요하다. 마이그레이션 버전 �
 사용자가 통합 테스트를 제외한 `test build` 성공을 보고했다. 보존된 XML은 단위 core855/api331/DB50 총1,236개, API 통합228개, DB 통합794개가 각각 실패·오류·건너뜀0이었다. 배너 API12개·V027→V028 이전1개·MySqlMigrationTest5개도 포함돼 있다. 이 집계는 작업 폴더에 남은 결과 파일을 읽은 것이며, 이번 통합 제외 명령이 모든 통합 테스트를 다시 실행했다는 의미가 아니다.
 
 이 로컬 검증의 기반 dev는15f2d95c다. 게시 시 최신 dev의 게임 결과·배포 변경을 병합하며, 병합 후 전체 테스트는 재실행하지 않고 새 PR CI에서 확인한다. 실제 FE·이미지 업로드·운영 DB 적용은 미확인이다.
+
+## PR #110 리뷰 반영 — 2026-10-17
+
+등록·수정 시 공개 이미지 기준 경로 밖으로 이동시키는 `.`·`..` 세그먼트를 거절하고 정상 파일명의 점은 허용한다. 같은 ID 목록이라도 이전 순서4번을1번으로 정리하는 등 실제 저장 순서가 바뀌면 전후 감사 기록을 남긴다. 변경 없는 비어 있지 않은 목록은 감사 기록을 추가하지 않는다. 두 동작의 회귀 테스트를 추가했다.
+
+개인 작업 경로를 검증 명령에서 제거하고 ADR에 기존 사용자 검증과 PR 상태를 반영했다. 기존 head28e4ed05의 CI 빌드·테스트·이미지 빌드는 성공했다. 이번 리뷰 수정 후 로컬 테스트·컴파일·빌드는 실행하지 않았으며 새 커밋의 CI는 별도 확인한다. 이벤트→카탈로그 잠금 순서 개선은 사용자 결정대로 후속 검토로 남긴다.

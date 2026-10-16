@@ -104,8 +104,10 @@ public class BannerService {
 		if (!before.isEmpty()) images.requireConfigured();
 		banners.reorder(order, time.now());
 		List<Banner> after = banners.findAll();
-		// 빈 목록에는 기록할 배너 ID가 없으며, 동일 순서도 실제 변경이 없어 기록하지 않는다.
-		if (!ids(before).equals(order)) record(actor, "BANNER_REORDER", order.getFirst(), before, after);
+		// 같은 ID 순서라도 이전 데이터의 빈 순서를 정리했다면 실제 전후 값을 기록한다.
+		if (!before.isEmpty() && !snapshot(before).equals(snapshot(after))) {
+			record(actor, "BANNER_REORDER", order.getFirst(), before, after);
+		}
 		return after;
 	}
 
