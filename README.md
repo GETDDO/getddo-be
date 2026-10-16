@@ -440,7 +440,7 @@ flowchart LR
 
 - 연타나 자정 직후 요청에서 보상이 두 번 나갈 수 있었습니다. DB 중복 방지를 마지막 방어선으로 두고, 충돌하면 한 번만 다시 처리해 먼저 확정된 결과를 돌려줍니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#출석)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#출석)
 
 </details>
 
@@ -469,7 +469,7 @@ flowchart LR
 
 - 이미 맞힌 문항의 답은 저장하지 않아서, 재전송 내용을 저장된 답과 비교할 수 없었습니다. 처음 요청의 해시를 저장하도록 했습니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#미션)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#미션)
 
 </details>
 
@@ -502,11 +502,9 @@ flowchart LR
 
 **테스트 결과 (직접 측정)**
 
-- 반환 이력 읽기: 대안은 60회 중 60회 교착, 채택한 방식은 0회.
-- 만료 워커 4대: 약 3.5초 (대안은 20.9초).
-- 내 노트북에서 한 상대 비교입니다.
+- 반환 이력 읽기: 대안은 60회 중 60회 교착, 채택한 방식은 0회입니다. 만료 워커 4대는 약 3.5초(대안 20.9초)입니다. 노트북 한 대에서 잰 상대 비교입니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#응모권)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#응모권)
 
 </details>
 
@@ -538,10 +536,9 @@ flowchart LR
 
 **테스트 결과 (직접 측정)**
 
-- 같은 이벤트에 64명이 동시 응모: 공유 잠금 102건/초, 쓰기 잠금 23건/초 (약 4.4배).
-- 내 노트북에서 한 상대 비교입니다.
+- 같은 이벤트에 64명이 동시에 응모하면 공유 잠금은 102건/초, 쓰기 잠금은 23건/초로 약 4.4배 차이가 납니다. 노트북 한 대에서 잰 상대 비교입니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#이벤트-응모)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#이벤트-응모)
 
 </details>
 
@@ -563,13 +560,13 @@ flowchart LR
 
 **설계·기술 선택과 사용 이유**
 
-- 서버 메모리로만 세면 서버가 여러 대일 때 한도가 서버마다 따로 적용됩니다. 그래서 횟수 저장소를 바꿀 수 있게 만들었고, Redis 구현(PR #107, 10/16 병합)은 서버 여러 대의 횟수를 한곳에서 셉니다.
+- 서버 메모리로만 세면 서버가 여러 대일 때 한도가 서버마다 따로 적용됩니다. 그래서 횟수 저장소를 바꿀 수 있게 만들었고, Redis 구현(PR #107, 병합 대기)은 서버 여러 대의 횟수를 한곳에서 셉니다.
 
 **문제와 해결 과정**
 
-- 서버가 여러 대일 때 한도가 서버마다 따로 적용되는 한계를 Redis 구현으로 해결했습니다. 실제 서버에서 쓰려면 배포 설정 반영이 필요하고, 두 대 환경 실측은 아직 하지 않았습니다.
+- 서버가 여러 대일 때 한도가 서버마다 따로 적용되는 한계를 Redis 구현으로 해결하고 있습니다.
 
-자세한 표·시퀀스: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#요청-빈도-제한)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#요청-빈도-제한)
 
 </details>
 
