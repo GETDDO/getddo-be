@@ -254,56 +254,78 @@ flowchart LR
 
 <!-- 작성 담당: 이경주 -->
 
-#### 요청·응답과 오류 처리
+#### 공통 JSON 응답
 
-```mermaid
-flowchart LR
-    Request["업무 요청"] --> Context["CORS · 사용자 문맥"]
-    Context --> Controller["Controller"] --> Service["업무 Service"]
-    Service -->|"성공"| Envelope["ResponseEnvelope"]
-    Service -->|"BusinessException"| Handler["GlobalExceptionHandler"]
-    Handler -->|"오류 응답"| Envelope
+성공·실패 모두 `success`, `code`, `message`, `data`로 응답합니다. `data`에는 API별 응답 DTO를 담습니다.
+
+```java
+public record ResponseEnvelope<T>(boolean success, String code, String message, T data) {}
 ```
 
-- **응답·오류**: `ResponseEnvelope.success()`와 도메인 `ErrorCode`를 사용해 응답 형식을 통일합니다.
-- **시연용 사용자 문맥**: `@CurrentUser`로 헤더와 DB 역할·멤버십을 대조하고 같은 요청의 조회 결과를 재사용합니다.
-- **CORS·Swagger**: 허용 origin·메서드·헤더를 설정으로 관리하고, 사용자 문맥을 선언한 API의 Swagger 헤더를 자동 표시합니다.
+**성공 응답 · 내 정보 조회 예시**
 
-#### 시간·공통 Entity
-
-```mermaid
-flowchart LR
-    Clock["공통 Clock"] --> Time["TimeProvider"]
-    Time --> UTC["UTC 시각"]
-    Time --> KST["KST 업무 날짜·월"]
-    Clock --> Auditing["JPA Auditing · 마이크로초"]
-    Auditing --> Base["BaseEntity · UUID v7·생성 시각"]
-    Base --> Update["BaseUpdatableEntity · 수정 시각"]
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "성공했습니다.",
+  "data": {
+    "id": "019a0000-0000-7000-8000-000000000001",
+    "name": "시연 사용자",
+    "role": "USER",
+    "status": "ACTIVE",
+    "membership": "vip",
+    "phoneNum": null,
+    "email": null
+  }
+}
 ```
 
-#### 업무와 함께 저장하는 감사 기록
+**실패 응답 · 미등록 사용자, HTTP 401**
 
-```mermaid
-flowchart LR
-    subgraph Transaction["같은 업무 트랜잭션 · 함께 저장·롤백"]
-        Service["업무 변경"] --> Command["AuditLogCommand · 변경 전후 스냅샷"]
-        Command --> Audit["AuditLogService · MANDATORY"]
-        Audit --> Logs[("audit_logs")]
-    end
+```json
+{
+  "success": false,
+  "code": "USER-002",
+  "message": "사용자를 확인할 수 없습니다.",
+  "data": null
+}
 ```
 
-#### 설계·기술 선택과 사용 이유
+데이터 없는 성공 응답은 `ResponseEnvelope.success(null)`을 사용합니다. 오류의 HTTP 상태는 응답 본문과 별도로 지정합니다.
 
-| 선택 | 사용한 이유 |
+#### 공통 예외 처리
+
+각 도메인은 `ErrorCode`를 구현해 상태·코드·메시지를 정의하고, 업무 오류를 `BusinessException`으로 전달합니다.
+
+```java
+throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+```
+
+`GlobalExceptionHandler`가 정의된 HTTP 상태와 `ResponseEnvelope.fail()` 응답으로 변환합니다. Controller마다 try-catch를 반복하지 않으며, 예외 원문·스택 트레이스는 응답에 넣지 않습니다.
+
+#### 사용자 문맥과 Controller 재사용
+
+```java
+@GetMapping("/me")
+public ResponseEnvelope<UserProfileResponse> getProfile(@CurrentUser User user) {
+    return ResponseEnvelope.success(UserProfileResponse.from(userService.getProfile(user)));
+}
+```
+
+`@CurrentUser`가 시연용 헤더의 형식과 DB 역할·멤버십을 대조해 사용자를 전달합니다. 같은 요청의 사용자 조회 결과를 재사용하고, 필요한 헤더는 Swagger에 자동 표시합니다.
+
+#### 그 밖의 공통 기능
+
+| 공통화한 기능 | 사용 방법·이유 |
 | --- | --- |
-| 전역 예외 처리·ArgumentResolver | Controller의 오류 응답·사용자 헤더 처리 중복 제거 |
-| 주입 가능한 Clock | UTC·KST 계산 기준 통일, 고정 시계로 날짜 경계 재현 |
-| 공통 Entity·JPA Auditing | UUID·생성/수정 시각의 중복 구현 제거 |
-| MANDATORY·불변 감사 스냅샷 | 업무와 감사 기록을 함께 확정하고 변경 전후 값 보존 |
-| CORS 필터·OpenAPI 자동 설정 | 프론트 접근 정책과 사용자 헤더 문서화 통일 |
-| Testcontainers·공유 테스트 설정 | 실제 MySQL 8.4에서 검증하고 앱·DB 테스트 설정 재사용 |
+| 시간 처리 | 주입받은 `TimeProvider`의 `now()`·`businessDate()`·`businessMonth()`로 UTC 시각과 KST 업무일을 계산합니다. 고정 `Clock`으로 날짜 경계 테스트도 재사용합니다. |
+| Entity 식별자·감사 시각 | `BaseEntity`를 상속해 UUID v7·생성 시각을 사용하고, 수정 시각이 필요하면 `BaseUpdatableEntity`를 상속합니다. UUID는 `binary(16)`, JPA Auditing 시각은 마이크로초로 맞춥니다. |
+| 업무 감사 기록 | 업무 트랜잭션 안에서 `AuditLogService.record(command)`를 호출합니다. `MANDATORY`로 업무와 함께 저장·롤백하고, `AuditLogCommand`는 변경 전후 데이터를 불변 스냅샷으로 보관합니다. |
+| CORS 설정 | 허용 origin·메서드·헤더를 환경 설정으로 관리합니다. 공통 필터가 사전 요청과 실제 요청의 CORS 헤더를 처리합니다. |
+| MySQL 테스트 기반 | `MySqlTestConfiguration`과 `@ApiIntegrationTest`로 MySQL 8.4 컨테이너·앱·MockMvc 설정을 재사용합니다. |
 
-관련 코드: [API 공통 처리](api/src/main/java/com/getddo/api/common) · [공통 시간·예외](core/src/main/java/com/getddo/core/common) · [공통 Entity](storage/db/src/main/java/com/getddo/db/common) · [감사 기록](core/src/main/java/com/getddo/core/audit) · [MySQL 테스트 설정](storage/db/src/testFixtures/java/com/getddo/db/support)
+관련 코드: [응답 형식](api/src/main/java/com/getddo/api/common/response/ResponseEnvelope.java) · [전역 예외 처리](api/src/main/java/com/getddo/api/common/exception/GlobalExceptionHandler.java) · [사용자 문맥](api/src/main/java/com/getddo/api/common/context/CurrentUserArgumentResolver.java) · [시간 처리](core/src/main/java/com/getddo/core/common/time/TimeProvider.java) · [공통 Entity](storage/db/src/main/java/com/getddo/db/common/entity) · [감사 기록](core/src/main/java/com/getddo/core/audit) · [MySQL 테스트 설정](storage/db/src/testFixtures/java/com/getddo/db/support)
 
 </details>
 
