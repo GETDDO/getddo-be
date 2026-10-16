@@ -5,3 +5,5 @@
 - [이벤트 모집 상태 워커 확인](event-lifecycle-worker.md)
 - [개별 당첨 취소·재추첨 확인과 복구](award-cancellation-recovery.md)
 - [추첨 공개 알림 연결·장애 확인](draw-publication-delivery-plan.md)
+
+- [배너 이전·공개 이미지 설정 확인](banner-migration.md)
