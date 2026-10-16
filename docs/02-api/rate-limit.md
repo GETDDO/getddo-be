@@ -1,7 +1,7 @@
 # 요청 빈도 제한 (429)
 
 - 상태: 검토 대기 · 담당 윤태형(GD-146) · 수치는 확정 전 추천값
-- 적용 대상: 응모(E04), 출석(AT02), 미션 제출(M03). 게임 결과 제출(G04)은 정책 `game-result`(분당 10회)를 미리 정의했고, 게임 API 컨트롤러가 생기면 `@RateLimited(policy = "game-result")`만 붙이면 적용된다. 현재 G04 컨트롤러가 없어 아직 적용 대상이 없다.
+- 적용 대상: 응모(E04), 출석(AT02), 미션 제출(M03), 게임 결과 제출(G04). G04는 정책 `game-result`(분당 10회)로 `GameResultController`에 `@RateLimited(policy = "game-result")`가 붙어 있다.
 
 ## 동작
 
@@ -21,7 +21,7 @@
 | `entry` | E04 응모 | 사용자 20회 | 같은 이벤트 10회 |
 | `attendance` | AT02 출석 | 사용자 5회 | 없음 |
 | `mission-submission` | M03 미션 제출 | 사용자 20회 | 같은 미션 5회 |
-| `game-result` | G04 게임 결과 제출 | 사용자 10회 | 없음 (컨트롤러 도입 때 어노테이션을 붙임) |
+| `game-result` | G04 게임 결과 제출 | 사용자 10회 | 없음 |
 
 수치는 추천값이며 운영에서 조정한다. 시연 중 버튼 연타나 자동 테스트가 한도에 걸리면 값을 올리거나 `RATE_LIMIT_ENABLED=false`로 끈다.
 
@@ -34,15 +34,15 @@
 
 ## Redis 사용 (서버 여러 대)
 
-`RATE_LIMIT_STORE=redis`로 켜고 접속 정보를 환경변수로 준다. 설정하지 않으면 메모리 구현으로 동작한다.
+`RATE_LIMIT_STORE=redis`로 켜고 접속 정보를 환경변수로 준다. 배포 서버는 Parameter Store에서 설정을 받으므로 `RATE_LIMIT_STORE`도 [Parameter Store 런북](../06-runbook/parameter-store.md)에 따라 `/getddo/dev/app/RATE_LIMIT_STORE`로 등록해야 한다(배포 스크립트의 조회 목록에는 포함돼 있다). 등록하지 않으면 배포 스크립트가 설정 누락으로 실패한다. 설정하지 않으면 메모리 구현으로 동작한다.
 
 | 환경변수 | 기본값 | 설명 |
 | --- | --- | --- |
 | `RATE_LIMIT_STORE` | `memory` | `memory` 또는 `redis` |
-| `REDIS_HOST` | `localhost` | Redis 주소 |
-| `REDIS_PORT` | `6379` | Redis 포트 |
-| `REDIS_PASSWORD` | 없음 | 비밀번호. 없으면 인증하지 않는다 |
-| `REDIS_SSL_ENABLED` | `false` | TLS 접속 여부. 비밀번호를 쓰고 Redis가 같은 호스트·사설망 밖에 있으면 `true`로 켠다. 꺼 두면 비밀번호가 암호화되지 않은 연결로 전송된다 |
+| `SPRING_DATA_REDIS_HOST` | `localhost` | Redis 주소 |
+| `SPRING_DATA_REDIS_PORT` | `6379` | Redis 포트 |
+| `SPRING_DATA_REDIS_PASSWORD` | 없음 | 비밀번호. 없으면 인증하지 않는다 |
+| `SPRING_DATA_REDIS_SSL_ENABLED` | `false` | TLS 접속 여부. 비밀번호를 쓰고 Redis가 같은 호스트·사설망 밖에 있으면 `true`로 켠다. 꺼 두면 비밀번호가 암호화되지 않은 연결로 전송된다 |
 
 - 횟수 증가와 만료 설정을 Lua 스크립트 하나로 실행해 서버 여러 대의 동시 요청도 정확히 센다. 키는 `getddo:rate-limit:{정책·사용자·범위}`이고 첫 요청에서 창 길이만큼 만료를 걸어 창이 끝나면 사라진다. 창은 Redis 서버 시계로 재므로 서버 사이의 시계 차이에 영향받지 않는다.
 - Redis 구현은 한도를 넘은 요청도 `INCR`로 횟수를 올린다(판정은 올린 뒤 값과 한도를 비교). 거절 요청이 많아도 키는 창이 끝나면 사라지고 값은 64비트라 쌓여서 문제가 되지 않으며, 허용·거절 판정과 `Retry-After`는 메모리 구현과 같다.
