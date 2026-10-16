@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -120,18 +121,16 @@ def validate(document, region):
 
 
 def write_env(output, values):
-    # 검증이 끝난 후 새 파일만 생성한다. 기존 파일·심볼릭 링크를 덮어쓰지 않는다.
+    """완성된 600 파일만 새 경로에 게시하고 실패 시 작업용 파일만 정리한다."""
     # 서버에서는 root가 실행하므로 root 소유 600이며 파일 내용은 source로 실행하지 않는다.
-    descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            for key in KEYS:
-                stream.write(key + "=" + values[key] + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-    except BaseException:
-        Path(output).unlink(missing_ok=True)
-        raise
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=Path(output).parent,
+                                     prefix=".app-env.") as stream:
+        for key in KEYS:
+            stream.write(key + "=" + values[key] + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+        # 같은 파일시스템에서 기존 파일·링크를 덮어쓰지 않고 완성된 내용만 게시한다.
+        os.link(stream.name, output)
 
 
 def main():

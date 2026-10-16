@@ -3,7 +3,7 @@
 - 상태: 검토 대기 · Codex 작성 · 담당자 확인 전
 - 기준일: 2026-10-16
 - 관련 이슈: GD-111, GD-112, GD-208
-- 범위: API 한 대의 Redis 설정 조회·전달 준비. Redis 인프라 Terraform·IAM과 요청 제한 구현 코드는 이번 PR에 포함하지 않는다.
+- 범위: API 한 대의 Redis 설정 조회·전달과 GD-208 요청 제한 구현의 연결. Redis 인프라 Terraform·IAM 변경과 API 두 대의 운영 검증은 포함하지 않는다.
 
 ## 현재 확인한 상태
 
@@ -22,10 +22,10 @@
 
 | 파일 | 변경 전 | 변경 후 |
 | --- | --- | --- |
-| [fetch-app-env.py](../../infra/scripts/fetch-app-env.py) | 기존 설정 9개를 한 번 조회 | Redis 4개를 포함한 13개를 10개·3개로 조회하고 합쳐 검증 |
-| 같은 파일의 validate | DB 비밀번호 타입과 기존 설정 검사 | Redis 비밀번호도 SecureString 요구. ElastiCache DNS·6379·TLS true·비밀번호 형식 검사 추가 |
+| [fetch-app-env.py](../../infra/scripts/fetch-app-env.py) | 기존 설정 9개를 한 번 조회 | Redis 연결 설정 4개와 RATE_LIMIT_STORE를 포함한 14개를 10개·4개로 조회하고 합쳐 검증 |
+| 같은 파일의 validate | DB 비밀번호 타입과 기존 설정 검사 | Redis 비밀번호도 SecureString 요구. ElastiCache DNS·6379·TLS true·비밀번호 형식과 memory/redis 저장소 선택 검사 |
 | [application.yaml](../../api/src/main/resources/application.yaml) | Redis 설정 없음 | spring.data.redis에 호스트·포트·비밀번호·TLS 환경변수 참조 추가 |
-| [Parameter Store 안내](parameter-store.md#2026-10-16-redis-설정-추가) | 기존 9개 등록·조회 절차 | Redis 4개의 이름·설명·타입·등록 값과 검증 결과 추가 |
+| [Parameter Store 안내](parameter-store.md#2026-10-16-redis-설정-추가) | 기존 9개 등록·조회 절차 | Redis 연결 설정 4개와 RATE_LIMIT_STORE의 이름·타입·등록 값 안내 |
 
 Compose는 기존 env_file을 통해 추가 설정도 전달하고 Actions는 기존 배포 묶음에 수정된 조회 스크립트를 포함한다. 새 Secret이나 별도 Compose·Actions 변경은 필요하지 않다. 설정 교체·실패 복구는 [기존 CD 흐름](container-cd.md)을 유지한다.
 
@@ -39,12 +39,13 @@ Compose는 기존 env_file을 통해 추가 설정도 전달하고 Actions는 �
 | SPRING_DATA_REDIS_PORT | String | 6379 |
 | SPRING_DATA_REDIS_PASSWORD | SecureString | Redis AUTH 비밀번호, alias/aws/ssm으로 암호화 |
 | SPRING_DATA_REDIS_SSL_ENABLED | String | true |
+| RATE_LIMIT_STORE | String | memory 또는 redis. 현재 Redis 사용 배포는 redis |
 
-YAML의 로컬 기본값은 localhost·6379·빈 비밀번호·TLS false다. 실제 배포 스크립트는 등록된 네 설정을 모두 요구하고 TLS false를 거부한다. 조회나 검증이 실패하면 기존 app.env와 앱을 교체하지 않는다. 성공해도 커밋·push·main 배포 전에는 실행 중인 앱에 새 설정이 반영되지 않는다.
+YAML의 로컬 기본값은 localhost·6379·빈 비밀번호·TLS false다. 실제 배포 스크립트는 Redis 연결 설정 네 개와 RATE_LIMIT_STORE를 모두 요구하고 TLS false를 거부한다. 조회나 검증이 실패하면 기존 app.env와 앱을 교체하지 않는다. 성공해도 커밋·push·main 배포 전에는 실행 중인 앱에 새 설정이 반영되지 않는다.
 
 ## 담당자 구현과 연결
 
-GD-208의 [PR #107](https://github.com/Uplus-GETDDO/getddo-be/pull/107)이 Redis 클라이언트 의존성과 RedisRateLimiter를 추가하고, 같은 `spring.data.redis` 블록(`SPRING_DATA_REDIS_*`)을 그대로 쓰면서 연결·명령 시간 제한(500ms·300ms)만 더한다. 요청 제한 저장소는 `RATE_LIMIT_STORE`(`memory` 기본, `redis`)로 고른다. 이 설정의 Parameter Store 등록과 조회 목록 반영은 이 문서의 범위가 아니며, 등록 전에는 서버가 서버 메모리로 센다.
+GD-208의 [PR #107](https://github.com/Uplus-GETDDO/getddo-be/pull/107)이 Redis 클라이언트 의존성과 RedisRateLimiter를 추가하고, 같은 `spring.data.redis` 블록(`SPRING_DATA_REDIS_*`)을 그대로 쓰면서 연결·명령 시간 제한(500ms·300ms)만 더한다. 요청 제한 저장소는 `RATE_LIMIT_STORE`(`memory` 기본, `redis`)로 고른다. 이 설정도 Parameter Store 조회 목록에 포함된다. 누락되거나 memory/redis 이외의 값이면 배포 전에 중단한다. 앱 자체의 기본값 memory와 배포 스크립트의 필수 설정 조건을 구분한다.
 
 설정 전달과 실제 Redis 사용을 구분한다. 담당자 코드 반영 후 저장소 선택·TLS·인증과 API 두 대의 횟수 공유를 검증한다. 장애 동작은 [요청 빈도 제한](../02-api/rate-limit.md#redis-사용-서버-여러-대)을 따른다.
 
