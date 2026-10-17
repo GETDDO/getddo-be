@@ -1,0 +1,67 @@
+name: Daily Release
+
+on:
+  schedule:
+    # UTC 23:00 = 다음 날 한국 시간 08:00. GitHub 예약 실행은 지연될 수 있다.
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'CI 확인만 실행하고 PR 생성·병합하지 않음'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # 기본 브랜치 dev에 병합하고 App·main 보호 규칙을 준비한 뒤 true로 활성화한다.
+    if: >-
+      github.ref == 'refs/heads/dev' &&
+      (vars.DAILY_RELEASE_ENABLED == 'true' ||
+       (github.event_name == 'workflow_dispatch' && inputs.dry_run))
+    runs-on: ubuntu-latest
+    environment: daily-release
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: 자동 릴리스 설정 확인
+        env:
+          APP_ID: ${{ vars.DAILY_RELEASE_APP_ID }}
+          APP_KEY: ${{ secrets.DAILY_RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$APP_ID" || -z "$APP_KEY" ]]; then
+            echo '::error::Daily Release App ID와 private key Secret을 등록하세요.'
+            exit 1
+          fi
+
+      # 일반 GITHUB_TOKEN의 병합은 main push Build를 시작하지 않으므로 전용 App을 쓴다.
+      - name: 릴리스 전용 App 토큰 발급
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          app-id: ${{ vars.DAILY_RELEASE_APP_ID }}
+          private-key: ${{ secrets.DAILY_RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-actions: read
+          permission-workflows: write
+
+      - name: 최신 dev CI 확인 및 main 병합
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          if [[ "$RELEASE_DRY_RUN" == 'true' ]]; then
+            python3 infra/scripts/daily-release.py --dry-run
+          else
+            python3 infra/scripts/daily-release.py
+          fi
