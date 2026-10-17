@@ -89,7 +89,7 @@ class AdminAttendancePolicyControllerTest {
 	void returnsDailyPolicies() throws Exception {
 		// given
 		when(service.findDailyPolicies(any(), eq(new PageQuery(1, 20)))).thenReturn(new PageResult<>(
-				List.of(daily(3, null), daily(1, Instant.parse("2026-10-17T15:00:00Z"))), 1, 20, 2));
+				List.of(daily(3, null), daily(1, Instant.parse("2026-10-18T15:00:00Z"))), 1, 20, 2));
 		// when
 		// then
 		mvc.perform(asAdmin(get(DAILY)))
@@ -100,7 +100,7 @@ class AdminAttendancePolicyControllerTest {
 				.andExpect(jsonPath("$.data.items[0].effectiveUntil").hasJsonPath())
 				.andExpect(jsonPath("$.data.items[0].effectiveUntil").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[0].createdBy").value(ADMIN_ID.toString()))
-				.andExpect(jsonPath("$.data.items[1].effectiveUntil").value("2026-10-17T15:00:00Z"));
+				.andExpect(jsonPath("$.data.items[1].effectiveUntil").value("2026-10-18T15:00:00Z"));
 	}
 
 	@Test
