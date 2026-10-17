@@ -144,9 +144,11 @@ class AdminMissionControllerTest {
 	@DisplayName("AM01은 잘못된 기간·크기·유형을 400으로 거절하고 서비스를 부르지 않는다")
 	void rejectsInvalidListParameters() throws Exception {
 		mvc.perform(asAdmin(get(URL).param("from", "2026-11-01T00:00:00Z").param("to", "2026-10-01T00:00:00Z")))
-				.andExpect(status().isBadRequest());
-		mvc.perform(asAdmin(get(URL).param("size", "101"))).andExpect(status().isBadRequest());
-		mvc.perform(asAdmin(get(URL).param("missionType", "UNKNOWN"))).andExpect(status().isBadRequest());
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
+		mvc.perform(asAdmin(get(URL).param("size", "101")))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
+		mvc.perform(asAdmin(get(URL).param("missionType", "UNKNOWN")))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-005"));
 		verifyNoInteractions(service);
 	}
 
@@ -238,12 +240,13 @@ class AdminMissionControllerTest {
 	@Test
 	@DisplayName("AM03은 필수값 누락·빈 문항·200자 초과 제목을 400으로 거절한다")
 	void rejectsInvalidBody() throws Exception {
-		mvc.perform(json(post(URL), "{}")).andExpect(status().isBadRequest());
+		mvc.perform(json(post(URL), "{}"))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
 		mvc.perform(json(post(URL), "{\"title\":\"t\",\"description\":\"d\",\"missionType\":\"QUIZ\","
 				+ "\"startsAt\":\"2026-10-20T00:00:00Z\",\"endsAt\":\"2026-10-27T00:00:00Z\",\"questions\":[]}"))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
 		mvc.perform(json(post(URL), quizBody("").replace("가을 퀴즈", "가".repeat(201))))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
 		verifyNoInteractions(service);
 	}
 

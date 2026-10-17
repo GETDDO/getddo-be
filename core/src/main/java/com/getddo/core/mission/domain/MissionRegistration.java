@@ -20,6 +20,10 @@ public final class MissionRegistration {
 	private final List<QuizQuestion> quizQuestions;
 	private final List<SurveyQuestion> surveyQuestions;
 
+	/**
+	 * @throws com.getddo.core.mission.exception.MissionException 제목이 비었거나 200자를 넘을 때, 설명이 비었을 때,
+	 *         종료 시각이 시작 시각 뒤가 아닐 때, 이미지 경로가 500자를 넘을 때
+	 */
 	public MissionRegistration(String title, String description, MissionType missionType, Instant startsAt,
 			Instant endsAt, String imageKey, List<QuizQuestion> quizQuestions, List<SurveyQuestion> surveyQuestions) {
 		this.title = Objects.requireNonNull(title, "title");
@@ -28,6 +32,11 @@ public final class MissionRegistration {
 		this.startsAt = Objects.requireNonNull(startsAt, "startsAt");
 		this.endsAt = Objects.requireNonNull(endsAt, "endsAt");
 		this.imageKey = imageKey;
+		// 보상 정책을 저장하기 전에 걸러 내도록 미션 자체의 규칙을 여기서 먼저 확인한다.
+		MissionRules.definition(MissionRules.hasText(title) && title.length() <= Mission.MAX_TITLE_LENGTH);
+		MissionRules.definition(MissionRules.hasText(description));
+		MissionRules.definition(endsAt.isAfter(startsAt));
+		MissionRules.definition(imageKey == null || imageKey.length() <= Mission.MAX_IMAGE_KEY_LENGTH);
 		this.quizQuestions = List.copyOf(quizQuestions);
 		this.surveyQuestions = List.copyOf(surveyQuestions);
 	}

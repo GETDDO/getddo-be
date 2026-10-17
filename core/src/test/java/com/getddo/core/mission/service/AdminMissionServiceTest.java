@@ -184,16 +184,22 @@ class AdminMissionServiceTest {
 	}
 
 	@Test
-	@DisplayName("종료 시각이 시작 시각 뒤가 아니면 MISSION-001이다")
-	void rejectsInvalidPeriod() {
-		// given
-		when(rewardPolicies.createFixedPolicy(any(), any())).thenReturn(UUID.randomUUID());
-		MissionRegistration registration = new MissionRegistration("퀴즈", "설명", MissionType.QUIZ, ENDS_AT, STARTS_AT,
-				null, List.of(choice(1, QuizOption.of("가", 1, true), QuizOption.of("나", 2, false))), List.of());
-		// when
-		// then
-		assertThatThrownBy(() -> service().register(ADMIN, registration))
+	@DisplayName("제목·설명·기간·이미지 경로가 규칙에 어긋나면 등록 정보를 만들 수 없다(MISSION-001), 보상 정책을 저장하기 전에 거른다")
+	void rejectsInvalidRegistrationBeforeAnyWrite() {
+		List<QuizQuestion> questions = List.of(choice(1, QuizOption.of("가", 1, true), QuizOption.of("나", 2, false)));
+		assertThatThrownBy(() -> new MissionRegistration("퀴즈", "설명", MissionType.QUIZ, ENDS_AT, STARTS_AT, null,
+				questions, List.of())).satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
+		assertThatThrownBy(() -> new MissionRegistration("퀴즈", "설명", MissionType.QUIZ, STARTS_AT, STARTS_AT, null,
+				questions, List.of())).satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
+		assertThatThrownBy(() -> new MissionRegistration(" ", "설명", MissionType.QUIZ, STARTS_AT, ENDS_AT, null,
+				questions, List.of())).satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
+		assertThatThrownBy(() -> new MissionRegistration("가".repeat(201), "설명", MissionType.QUIZ, STARTS_AT, ENDS_AT,
+				null, questions, List.of())).satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
+		assertThatThrownBy(() -> new MissionRegistration("퀴즈", "", MissionType.QUIZ, STARTS_AT, ENDS_AT, null,
+				questions, List.of())).satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
+		assertThatThrownBy(() -> new MissionRegistration("퀴즈", "설명", MissionType.QUIZ, STARTS_AT, ENDS_AT,
+				"k".repeat(501), questions, List.of()))
 				.satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
-		verify(missionRepository, never()).insert(any());
+		verifyNoInteractions(rewardPolicies, missionRepository);
 	}
 }
