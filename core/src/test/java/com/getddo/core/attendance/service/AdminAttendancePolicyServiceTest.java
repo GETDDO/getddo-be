@@ -245,6 +245,9 @@ class AdminAttendancePolicyServiceTest {
 			assertThatThrownBy(() -> service(NOW).createStreakPolicy(ADMIN, milestones))
 					.satisfies(e -> assertError(e, AttendanceErrorCode.INVALID_POLICY));
 		}
+		assertThatThrownBy(() -> service(NOW).createStreakPolicy(ADMIN,
+				java.util.Arrays.asList(new MilestoneDraft(7, 1), null)))
+				.satisfies(e -> assertError(e, AttendanceErrorCode.INVALID_POLICY));
 		assertThatThrownBy(() -> service(NOW).createStreakPolicy(ADMIN, null))
 				.satisfies(e -> assertError(e, AttendanceErrorCode.INVALID_POLICY));
 		verifyNoInteractions(repository, auditLogs);

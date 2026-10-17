@@ -32,6 +32,7 @@ import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.service.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -96,7 +97,8 @@ class AdminAttendancePolicyControllerTest {
 				.andExpect(jsonPath("$.data.totalElements").value(2))
 				.andExpect(jsonPath("$.data.items[0].rewardTicketCount").value(3))
 				.andExpect(jsonPath("$.data.items[0].effectiveFrom").value("2026-10-17T15:00:00Z"))
-				.andExpect(jsonPath("$.data.items[0].effectiveUntil").doesNotExist())
+				.andExpect(jsonPath("$.data.items[0].effectiveUntil").hasJsonPath())
+				.andExpect(jsonPath("$.data.items[0].effectiveUntil").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[0].createdBy").value(ADMIN_ID.toString()))
 				.andExpect(jsonPath("$.data.items[1].effectiveUntil").value("2026-10-17T15:00:00Z"));
 	}

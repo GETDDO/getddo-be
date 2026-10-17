@@ -135,6 +135,9 @@ public class AdminAttendancePolicyService {
 		}
 		int previousDays = 0;
 		for (MilestoneDraft milestone : milestones) {
+			if (milestone == null) {
+				throw new AttendanceException(AttendanceErrorCode.INVALID_POLICY);
+			}
 			boolean inRange = milestone.getMilestoneDays() >= MIN_MILESTONE_DAYS
 					&& milestone.getMilestoneDays() <= MAX_MILESTONE_DAYS;
 			boolean ascending = milestone.getMilestoneDays() > previousDays;
