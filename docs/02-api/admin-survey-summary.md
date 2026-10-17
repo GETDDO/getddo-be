@@ -15,15 +15,29 @@
 | `from` | KST 시작 날짜(포함), `YYYY-MM-DD`. 필수 |
 | `to` | KST 끝 날짜(포함), `YYYY-MM-DD`. 필수. 시작 날짜와 같거나 이후이고 양끝을 포함해 최대 31일 |
 
-응답:
+응답은 공통 성공 봉투(`success`, `data`) 안에 담긴다. 예시는 `from=2026-10-11&to=2026-10-17` 요청이다.
 
 ```json
 {
-  "dailyResponses": [{ "date": "2026-10-11", "count": 0 }],
-  "questions": [
-    { "questionId": "…", "questionText": "…",
-      "options": [{ "optionId": "…", "optionText": "…", "count": 0 }] }
-  ]
+  "success": true,
+  "data": {
+    "dailyResponses": [
+      { "date": "2026-10-11", "count": 0 },
+      { "date": "2026-10-12", "count": 4 },
+      { "date": "2026-10-13", "count": 0 },
+      { "date": "2026-10-14", "count": 2 },
+      { "date": "2026-10-15", "count": 0 },
+      { "date": "2026-10-16", "count": 1 },
+      { "date": "2026-10-17", "count": 0 }
+    ],
+    "questions": [
+      { "questionId": "…", "questionText": "…",
+        "options": [
+          { "optionId": "…", "optionText": "…", "count": 5 },
+          { "optionId": "…", "optionText": "…", "count": 2 }
+        ] }
+    ]
+  }
 }
 ```
 
@@ -50,5 +64,5 @@
 
 ## 검증
 
-- 단위: `SurveySummaryServiceTest`(권한, 기간 검증, 0건 날짜·선택지 채우기, 자유 서술 제외, 퀴즈·없는 미션), `AdminSurveySummaryControllerTest`(응답 구조, 기간 오류, 오류 코드).
-- 작업 중 로컬 MySQL로 두 명이 제출한 설문의 날짜별 수(KST 날짜), 선택지별 수, 기간 밖 0건을 한 번 확인했고 그 테스트는 저장소에 남기지 않았다. 통합 테스트는 포함하지 않았다.
+- 단위: `SurveySummaryServiceTest`(권한, 기간 검증, 0건 날짜·선택지 채우기, 자유 서술 제외, 퀴즈·없는 미션), `AdminSurveySummaryControllerTest`(응답 구조, 누락·형식 오류 코드, 오류 코드 매핑).
+- 실제 MySQL: `SurveySummaryIntegrationTest`(KST 자정 직전·직후 제출이 서로 다른 날짜로 집계됨, 기간 밖 제출 제외, 미완료 제출의 답변 제외, 선택지별 건수, 다른 설문과 섞이지 않음, 퀴즈·없는 미션 거절).
