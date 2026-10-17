@@ -2,7 +2,17 @@
 
 - 상태: 검토 대기 — 구현 설명, 담당자 확인 전
 
-사용자가 확정한 BE 수신 방식과 JPG·PNG, **5MB = 5,000,000바이트 이하** 기준을 구현한다. 공용 spec과 DB 스키마는 변경하지 않는다.
+## 적용 범위와 공용 명세의 관계
+
+이 문서는 GD-227 이벤트·경품 이미지 업로드의 **백엔드 기능 계약과 구현 설명**이다. 프로젝트 전체의 공용 이미지 정책이나 FE·BE 공용 API 명세의 확정·반영 완료를 뜻하지 않는다. 공용 spec과 DB 스키마는 이번 작업에서 변경하지 않는다.
+
+BE가 파일을 받는 방식과 JPG·PNG, **5MB = 5,000,000바이트 이하** 제한은 사용자가 이번 이벤트·경품 업로드에 대해 확정한 기준이다. 이 기준을 배너·미션 등 다른 기능의 공용 이미지 정책으로 확대하지 않는다. S3·CloudFront는 기존 인프라 설정을 재사용하는 구현이며, 이 문서에서 저장소 선택을 새로운 공용 정책으로 확정하지 않는다.
+
+공용 [공통 API 계약](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/05-api/common.md)과 [이벤트 API](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/05-api/event.md)에는 아직 이번 업로드 엔드포인트·오류 계약이 등록되지 않았다. 공용 [미결정 사항](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/00-requirements/pending-decisions.md)의 이미지 제한 항목도 그대로다. 아래 내용은 현재 BE 동작을 설명하며, 다음 항목의 공용 명세 반영은 별도 확인 대상이다.
+
+- 이벤트·경품 담당과 FE 연동 담당: 업로드 경로, `imageKey`·`imageUrl`의 의미, JPG·PNG/5MB 적용 범위와 오류 응답을 검토한다.
+- `413 HTTP-413`은 HTTP multipart 파서의 크기 초과, `400 EVENT-018`은 서비스의 파일 검증 오류라는 이번 BE 구현의 구분이다. 프로젝트 전체 오류 정책을 변경하는 것은 아니다.
+- 미사용 업로드 객체와 기존 이미지 객체의 보관·삭제 책임·시점은 인프라 및 관련 기능 담당 영역의 합의 대상이다. 이 문서만으로 정리 책임이 확정됐다고 보지 않는다. 자동 정리와 기존 이미지 삭제는 이번 구현 범위에서 계속 제외한다.
 
 ## 호출 순서
 
@@ -81,9 +91,11 @@ curl -X POST 'http://localhost:8080/api/v1/admin/events/images?target=EVENT' \
   --init-script gradle/test-limits.init.gradle --max-workers=1 --no-parallel
 ```
 
-2026-10-17 KST에 위 대상 검증과 `:storage:s3:test`의 총 27개 테스트가 통과했다. 작은 PNG·JPG를 BE API로 전송해 201 응답을 받고, 반환 URL의 GET 200·Content-Type·원본 바이트 일치를 확인했다. 5,000,000바이트는 업로드되고 5,000,001바이트는 HTTP 413으로 거절됐다.
+초기 구현 `3c25fd9e` 기준으로 2026-10-17 KST에 위 대상 검증과 `:storage:s3:test`의 총 27개 테스트가 통과했다. 작은 PNG·JPG를 BE API로 전송해 201 응답을 받고, 반환 URL의 GET 200·Content-Type·원본 바이트 일치를 확인했다. 5,000,000바이트는 업로드되고 5,000,001바이트는 HTTP 413으로 거절됐다.
 
 같은 날 18:38 KST에 `test build --offline --no-daemon --init-script gradle/test-limits.init.gradle --max-workers=1 --no-parallel`도 17분 8초로 성공했다. JUnit 보고서 합계 2,423개(일반 1,371 / 통합 1,052), 실패·오류·건너뜀은 0개다. 새로 추가한 테스트는 10개다.
+
+리뷰 반영 후에는 테스트 데이터 정리·이미지 생성 확인·권한별 오류 코드와 null 입력 검증을 보강했다. 20:44 KST에 변경 대상 8개(서비스 5 / HTTP·MySQL·S3Mock 3)가 통과했고, 20:52 KST에 같은 전체 명령도 7분 18초로 성공했다. 보고서 합계는 2,424개(일반 1,372 / 통합 1,052), 실패·오류·건너뜀은 0개다. null 입력 테스트 메서드 1개를 추가했으며, 변경되지 않은 검증은 Gradle의 UP-TO-DATE 결과를 재사용했다.
 
 S3Mock 성공은 실제 AWS IAM·버킷 정책·CloudFront 배포 검증을 대신하지 않는다. 배포 환경에서는 같은 API로 업로드한 실제 키를 CloudFront URL에서 확인해야 한다.
 

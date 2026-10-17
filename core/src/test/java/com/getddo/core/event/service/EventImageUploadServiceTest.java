@@ -84,14 +84,37 @@ class EventImageUploadServiceTest {
 		// given
 		byte[] png = image("png");
 		// when / then
-		for (Optional<EventActorRepository.Actor> actor : java.util.List.of(
-				Optional.<EventActorRepository.Actor>empty(), Optional.of(new EventActorRepository.Actor(false, true)),
-				Optional.of(new EventActorRepository.Actor(true, false)))) {
-			when(actors.findById(admin)).thenReturn(actor);
-			assertThatThrownBy(() -> service.upload(admin, EventImageTarget.EVENT, "a.png", "image/png", png))
-					.isInstanceOf(EventException.class);
-		}
+		assertActorRejected(Optional.empty(), EventErrorCode.USER_CONTEXT_REQUIRED, png);
+		assertActorRejected(Optional.of(new EventActorRepository.Actor(false, true)), EventErrorCode.ADMIN_REQUIRED, png);
+		assertActorRejected(Optional.of(new EventActorRepository.Actor(true, false)), EventErrorCode.ADMIN_REQUIRED, png);
 		verifyNoInteractions(storage);
+	}
+
+	@Test
+	@DisplayName("요청자 누락은 조회 전에 401로, 이미지 대상 누락은 저장 전에 400으로 거절한다")
+	void rejectsNullActorAndTargetBeforeStorage() throws Exception {
+		// given
+		byte[] png = image("png");
+		// when / then
+		assertThatThrownBy(() -> service.upload(null, EventImageTarget.EVENT, "a.png", "image/png", png))
+				.isInstanceOfSatisfying(EventException.class, exception -> {
+					assertThat(exception.getErrorCode()).isEqualTo(EventErrorCode.USER_CONTEXT_REQUIRED);
+					assertThat(exception.getErrorCode().getStatus()).isEqualTo(401);
+				});
+		verifyNoInteractions(actors, storage);
+		assertThatThrownBy(() -> service.upload(admin, null, "a.png", "image/png", png))
+				.isInstanceOfSatisfying(EventException.class, exception -> {
+					assertThat(exception.getErrorCode()).isEqualTo(EventErrorCode.INVALID_IMAGE);
+					assertThat(exception.getErrorCode().getStatus()).isEqualTo(400);
+				});
+		verifyNoInteractions(storage);
+	}
+
+	private void assertActorRejected(Optional<EventActorRepository.Actor> actor, EventErrorCode expected, byte[] png) {
+		when(actors.findById(admin)).thenReturn(actor);
+		assertThatThrownBy(() -> service.upload(admin, EventImageTarget.EVENT, "a.png", "image/png", png))
+				.isInstanceOfSatisfying(EventException.class,
+						exception -> assertThat(exception.getErrorCode()).isEqualTo(expected));
 	}
 
 	private void rejects(String name, String type, byte[] data) {

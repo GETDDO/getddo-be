@@ -8,12 +8,15 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +64,8 @@ class EventImageUploadIntegrationTest {
 	@LocalServerPort private int port;
 	@Autowired private JdbcTemplate jdbc;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+	private final List<UUID> createdUserIds = new ArrayList<>();
+	private final List<UUID> createdEventIds = new ArrayList<>();
 	private UUID admin;
 
 	@DynamicPropertySource
@@ -71,10 +76,22 @@ class EventImageUploadIntegrationTest {
 
 	@BeforeEach
 	void setUp() {
-		admin = UUID.randomUUID();
-		jdbc.update("insert into users(id,name,role,status,created_at,updated_at) values(?,?,'ADMIN','ACTIVE',?,?)",
-				UuidBinary.toBytes(admin), "이미지 테스트", java.sql.Timestamp.valueOf("2026-10-17 00:00:00"),
-				java.sql.Timestamp.valueOf("2026-10-17 00:00:00"));
+		admin = insertUser("ADMIN", null);
+	}
+
+	@AfterEach
+	void cleanUp() {
+		// HTTP 요청의 서비스 트랜잭션은 테스트와 별개다. 이 테스트가 만든 행만 FK 순서대로 삭제한다.
+		for (UUID userId : createdUserIds) {
+			jdbc.update("delete from audit_logs where actor_id = ?", UuidBinary.toBytes(userId));
+		}
+		for (UUID eventId : createdEventIds) {
+			jdbc.update("delete from event_prizes where event_id = ?", UuidBinary.toBytes(eventId));
+			jdbc.update("delete from events where id = ?", UuidBinary.toBytes(eventId));
+		}
+		for (UUID userId : createdUserIds) {
+			jdbc.update("delete from users where id = ?", UuidBinary.toBytes(userId));
+		}
 	}
 
 	@Test
@@ -97,6 +114,7 @@ class EventImageUploadIntegrationTest {
 				json.getBytes(StandardCharsets.UTF_8));
 		assertThat(registered.statusCode()).as(body(registered)).isEqualTo(201);
 		String id = JsonPath.read(body(registered), "$.data.id");
+		createdEventIds.add(UUID.fromString(id));
 		for (String path : new String[]{"/api/v1/events/" + id, "/api/v1/admin/events/" + id}) {
 			HttpResponse<byte[]> detail = send("GET", path, admin, "ADMIN", null, null);
 			assertThat(detail.statusCode()).as(body(detail)).isEqualTo(200);
@@ -106,8 +124,8 @@ class EventImageUploadIntegrationTest {
 		for (String path : new String[]{"/api/v1/events", "/api/v1/admin/events"}) {
 			HttpResponse<byte[]> list = send("GET", path, admin, "ADMIN", null, null);
 			assertThat(list.statusCode()).as(body(list)).isEqualTo(200);
-			assertThat((java.util.List<String>) JsonPath.read(body(list), "$.data.items[*].imageUrl"))
-					.contains(endpoint() + "/" + BUCKET + "/images/" + eventKey);
+			List<String> imageUrls = JsonPath.read(body(list), "$.data.items[*].imageUrl");
+			assertThat(imageUrls).contains(endpoint() + "/" + BUCKET + "/images/" + eventKey);
 		}
 	}
 
@@ -131,12 +149,10 @@ class EventImageUploadIntegrationTest {
 				"not an image".getBytes(StandardCharsets.UTF_8));
 		assertThat(fake.statusCode()).as(body(fake)).isEqualTo(400);
 		assertThat((String) JsonPath.read(body(fake), "$.code")).isEqualTo("EVENT-018");
-		UUID user = UUID.randomUUID();
-		jdbc.update("insert into users(id,name,role,status,membership,created_at,updated_at) values(?,?,'USER','ACTIVE','excellent',?,?)",
-				UuidBinary.toBytes(user), "일반 사용자", java.sql.Timestamp.valueOf("2026-10-17 00:00:00"),
-				java.sql.Timestamp.valueOf("2026-10-17 00:00:00"));
+		UUID user = insertUser("USER", "excellent");
 		HttpResponse<byte[]> forbidden = upload(user, "USER", "EVENT", "a.png", "image/png", image("png"));
 		assertThat(forbidden.statusCode()).as(body(forbidden)).isEqualTo(403);
+		assertThat((String) JsonPath.read(body(forbidden), "$.code")).isEqualTo("EVENT-006");
 	}
 
 	private String verifyUploaded(HttpResponse<byte[]> response, byte[] contents, String type) throws Exception {
@@ -187,8 +203,18 @@ class EventImageUploadIntegrationTest {
 
 	private byte[] image(String format) throws Exception {
 		ByteArrayOutputStream output = new ByteArrayOutputStream();
-		ImageIO.write(new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), format, output);
+		assertThat(ImageIO.write(new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), format, output))
+				.as("테스트 %s 이미지 생성", format).isTrue();
 		return output.toByteArray();
+	}
+
+	private UUID insertUser(String role, String membership) {
+		UUID id = UUID.randomUUID();
+		createdUserIds.add(id);
+		jdbc.update("insert into users(id,name,role,status,membership,created_at,updated_at) values(?,?,?,'ACTIVE',?,?,?)",
+				UuidBinary.toBytes(id), "이미지 테스트", role, membership,
+				java.sql.Timestamp.valueOf("2026-10-17 00:00:00"), java.sql.Timestamp.valueOf("2026-10-17 00:00:00"));
+		return id;
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
