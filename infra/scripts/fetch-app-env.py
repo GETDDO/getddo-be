@@ -7,18 +7,19 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from urllib.parse import parse_qs, urlsplit
 
 
 # 설정 계약을 명시한다. 새 변수를 사용하려면 이 목록과 등록 문서를 함께 갱신한다.
-# 경로 전체나 과거 버전을 읽지 않고 현재 배포에 필요한 13개만 요청한다.
+# 경로 전체나 과거 버전을 읽지 않고 현재 배포에 필요한 14개만 요청한다.
 PREFIX = "/getddo/dev/app/"
 KEYS = (
     "SPRING_DATASOURCE_URL", "SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD",
     "SPRING_JPA_HIBERNATE_DDL_AUTO", "SPRING_FLYWAY_ENABLED", "CORS_ALLOWED_ORIGINS",
     "AWS_REGION", "GETDDO_IMAGES_BUCKET", "GETDDO_IMAGES_BASE_URL",
     "SPRING_DATA_REDIS_HOST", "SPRING_DATA_REDIS_PORT", "SPRING_DATA_REDIS_PASSWORD",
-    "SPRING_DATA_REDIS_SSL_ENABLED",
+    "SPRING_DATA_REDIS_SSL_ENABLED", "RATE_LIMIT_STORE",
 )
 
 
@@ -30,7 +31,7 @@ def fetch(region):
     """필수 설정을 최대 10개씩 복호화 조회하고 응답을 검증용 문서로 합친다."""
     # CLI 출력은 메모리로만 받는다. 원격 명령·Actions·SSM 로그에 비밀값을 쓰지 않는다.
     # 별도 profile이나 Access Key를 전달하지 않아 서버의 기본 인증 체인을 사용한다.
-    # GetParameters는 한 번에 최대 10개다. 13개를 10개·3개로 조회해 모두 성공한 뒤 검증한다.
+    # GetParameters는 한 번에 최대 10개다. 14개를 10개·4개로 조회해 모두 성공한 뒤 검증한다.
     combined = {"Parameters": [], "InvalidParameters": []}
     for offset in range(0, len(KEYS), 10):
         result = subprocess.run(
@@ -114,22 +115,22 @@ def validate(document, region):
         raise ConfigurationError("현재 Redis 연결은 TLS 활성화(true)가 필수입니다.")
     if not re.fullmatch(r"[A-Za-z0-9]{32,64}", values["SPRING_DATA_REDIS_PASSWORD"]):
         raise ConfigurationError("Redis 비밀번호는 Terraform 입력과 같은 32~64자 영문·숫자여야 합니다.")
+    if values["RATE_LIMIT_STORE"] not in ("memory", "redis"):
+        raise ConfigurationError("요청 빈도 제한 저장소는 memory 또는 redis여야 합니다.")
     return values
 
 
 def write_env(output, values):
-    # 검증이 끝난 후 새 파일만 생성한다. 기존 파일·심볼릭 링크를 덮어쓰지 않는다.
+    """완성된 600 파일만 새 경로에 게시하고 실패 시 작업용 파일만 정리한다."""
     # 서버에서는 root가 실행하므로 root 소유 600이며 파일 내용은 source로 실행하지 않는다.
-    descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            for key in KEYS:
-                stream.write(key + "=" + values[key] + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-    except BaseException:
-        Path(output).unlink(missing_ok=True)
-        raise
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=Path(output).parent,
+                                     prefix=".app-env.") as stream:
+        for key in KEYS:
+            stream.write(key + "=" + values[key] + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+        # 같은 파일시스템에서 기존 파일·링크를 덮어쓰지 않고 완성된 내용만 게시한다.
+        os.link(stream.name, output)
 
 
 def main():

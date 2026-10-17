@@ -6,7 +6,7 @@
 
 ## Parameter Store 설정 자동 반영
 
-GD-112의 기존 9개에 GD-111의 Redis 설정 4개를 추가해 서버가 배포 직전에 총 13개를 10개·3개로 나눠 조회·검증하고, 실패 시 이전 이미지와 설정을 함께 복구한다. 기존 준비 과정과 변경 전후·등록·반영 절차는 [Parameter Store 런북](parameter-store.md)을 참고한다. 이 코드가 main에 반영돼 배포되기 전에는 기존 서버 동작이 바뀌지 않는다.
+GD-112의 기존 9개에 GD-111의 Redis 설정 4개와 GD-208의 RATE_LIMIT_STORE를 추가해 서버가 배포 직전에 총 14개를 10개·4개로 나눠 조회·검증하고, 실패 시 이전 이미지와 설정을 함께 복구한다. 기존 준비 과정과 변경 전후·등록·반영 절차는 [Parameter Store 런북](parameter-store.md)을 참고한다. 이 코드가 main에 반영돼 배포되기 전에는 기존 서버 동작이 바뀌지 않는다.
 
 ## 파일이 하는 일
 
@@ -56,7 +56,7 @@ GitHub **Settings → Environments → production → Variables**에 다음 네 
 - **전용 S3:** 같은 계정·리전의 비공개 일반 버킷을 준비한다. 퍼블릭 접근 차단·ACL 비활성화·TLS만 허용을 적용하고, 코드에서는 AES256 암호화·버킷 소유 계정 확인·기존 키 덮어쓰기 금지를 지정한다. State 버킷과 분리하며 `tfstate`나 `terraform`을 포함하는 이름은 코드에서 거부한다. 키는 `releases/<커밋>/<CD 실행 ID>-<시도>/release.tar`다.
 - **서버 역할·네트워크:** SSM Agent가 Online이어야 한다. EC2 역할에는 SSM 연결 권한과 전용 버킷 `releases/*`의 `s3:GetObject`가 필요하며, EC2에서 SSM·S3와 비공개 RDS로 연결할 수 있어야 한다. root 프로필이나 고정 Access Key를 서버에 저장하지 않는다.
 - **서버 도구:** Linux x86_64, Docker Engine, Compose 2.30 이상, AWS CLI, Python 3.8 이상, Bash, curl, flock, timeout, tar, sha256sum을 준비한다. SSM은 root로 실행하며 `/opt/getddo`는 root만 쓸 수 있어야 한다. 기존 JAR 서비스가 8080 포트를 사용 중이면 자동 전환 전 별도로 확인한다.
-- **앱 설정:** [Parameter Store 런북](parameter-store.md)에 따라 Redis 설정을 포함한 필수 설정 13개를 등록하고 EC2 역할의 조회·복호화 권한을 준비한다. 배포 스크립트가 검증 후 `/etc/getddo/app.env`를 root 소유·권한 600으로 생성·교체한다. 수동 편집한 값은 다음 배포에서 덮어쓰므로 설정 변경은 Parameter Store에서 관리한다. raw 형식이므로 값에 바깥 따옴표를 붙이지 않는다. 로컬 DB를 가리키는 `local` 프로필을 사용하지 않는다.
+- **앱 설정:** [Parameter Store 런북](parameter-store.md)에 따라 Redis 설정을 포함한 필수 설정 14개를 등록하고 EC2 역할의 조회·복호화 권한을 준비한다. 배포 스크립트가 검증 후 `/etc/getddo/app.env`를 root 소유·권한 600으로 생성·교체한다. 수동 편집한 값은 다음 배포에서 덮어쓰므로 설정 변경은 Parameter Store에서 관리한다. 요청 빈도 제한의 저장소를 고르는 `RATE_LIMIT_STORE`(`redis` 또는 `memory`)도 같은 방식으로 등록한다([요청 빈도 제한](../02-api/rate-limit.md#redis-사용-서버-여러-대)). 배포 스크립트의 조회 목록에 포함돼 있어 등록하지 않으면 설정 누락으로 실패한다. raw 형식이므로 값에 바깥 따옴표를 붙이지 않는다. 로컬 DB를 가리키는 `local` 프로필을 사용하지 않는다.
 - **DB TLS:** `/etc/getddo/rds-truststore.p12`에 공개 RDS CA를 준비하고 JDBC URL에 `sslMode=VERIFY_IDENTITY`와 해당 truststore의 경로·형식 등을 지정한다. DB 호스트에는 인증서 이름과 일치하는 RDS 엔드포인트를 사용한다.
 
 이미지 보관·전송에는 S3 저장 공간과 요청 요금 등이 발생한다. 전용 버킷의 `releases/`에 만료 정책을 적용해 누적을 제한하고, 접근 로그·CloudTrail 데이터 이벤트·CloudWatch 메트릭으로 운영 상태를 확인하는 것을 권장한다. 이 설정은 코드에서 자동 생성하지 않는다. [S3 요금 기준](https://aws.amazon.com/s3/pricing/)과 [보안·운영 권고](https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html)를 따른다.
@@ -90,3 +90,9 @@ CI 성공은 테스트·이미지 빌드·파일 보관 성공을 뜻한다. CD 
 워크플로 분리 참고: [GitHub 재사용 워크플로](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
 
 이미지 전달 방식 참고: [다른 실행의 아티팩트 다운로드](https://github.com/actions/download-artifact/tree/v5#download-artifacts-from-other-workflow-runs-or-repositories), [Docker 이미지 저장](https://docs.docker.com/reference/cli/docker/image/save/), [Docker 이미지 불러오기](https://docs.docker.com/reference/cli/docker/image/load/).
+
+## 서버 배포 성공과 버전 릴리스
+
+서버 교체·응답 검증이 성공한 뒤 별도 publish 작업이 실제 배포 SOURCE_SHA에 버전 태그와 GitHub Release를 생성한다. 첫 버전은 v0.1.0이며 이후 패치를 증가시키고 같은 커밋의 재실행은 재사용한다. 이미지 자체는 SHA로 식별한다. 정기·수동 main 배포 모두 적용하며 자세한 정책과 설정은 [정기 릴리스 런북](daily-release.md#배포-성공-후-버전-발행)을 참고한다.
+
+publish 작업 실패는 이미 성공한 서버 배포를 롤백하지 않는다. 이때 CD 전체는 실패로 표시되므로 서버 교체 실패와 버전 발행 실패를 작업별로 구분한다. 서버가 실행하는 SHA와 기존 태그·Release를 확인한 뒤 실패 작업을 재실행한다.
