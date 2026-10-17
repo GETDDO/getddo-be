@@ -2,6 +2,7 @@ package com.getddo.core.mission.domain;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import lombok.Getter;
@@ -18,8 +19,8 @@ public final class SurveySummary {
 	private final List<QuestionSummary> questions;
 
 	public SurveySummary(List<DailyCount> dailyResponses, List<QuestionSummary> questions) {
-		this.dailyResponses = List.copyOf(dailyResponses);
-		this.questions = List.copyOf(questions);
+		this.dailyResponses = List.copyOf(Objects.requireNonNull(dailyResponses, "dailyResponses"));
+		this.questions = List.copyOf(Objects.requireNonNull(questions, "questions"));
 	}
 
 	/** 한 KST 날짜에 완료된 설문 제출 수. */
@@ -30,7 +31,8 @@ public final class SurveySummary {
 	public record QuestionSummary(UUID questionId, String questionText, List<OptionCount> options) {
 
 		public QuestionSummary {
-			options = List.copyOf(options);
+			Objects.requireNonNull(questionId, "questionId");
+			options = List.copyOf(Objects.requireNonNull(options, "options"));
 		}
 	}
 

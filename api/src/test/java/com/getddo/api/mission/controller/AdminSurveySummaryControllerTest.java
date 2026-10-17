@@ -83,17 +83,14 @@ class AdminSurveySummaryControllerTest {
 	}
 
 	@Test
-	@DisplayName("기간이 없거나 형식이 틀리거나 끝이 시작보다 앞서거나 31일을 넘으면 400이고 서비스를 부르지 않는다")
-	void rejectsInvalidPeriod() throws Exception {
-		mvc.perform(asAdmin(get(URL, MISSION_ID))).andExpect(status().isBadRequest());
+	@DisplayName("기간 파라미터가 없거나 날짜 형식이 틀리면 400이고 서비스를 부르지 않는다")
+	void rejectsMissingOrMalformedPeriod() throws Exception {
+		mvc.perform(asAdmin(get(URL, MISSION_ID)))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
 		mvc.perform(asAdmin(get(URL, MISSION_ID).param("from", "2026-10-11")))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
 		mvc.perform(asAdmin(get(URL, MISSION_ID).param("from", "2026/10/11").param("to", "2026-10-12")))
-				.andExpect(status().isBadRequest());
-		mvc.perform(asAdmin(get(URL, MISSION_ID).param("from", "2026-10-12").param("to", "2026-10-11")))
-				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
-		mvc.perform(asAdmin(get(URL, MISSION_ID).param("from", "2026-10-01").param("to", "2026-11-01")))
-				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-002"));
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-005"));
 		verifyNoInteractions(service);
 	}
 

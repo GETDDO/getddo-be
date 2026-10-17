@@ -88,10 +88,12 @@ class SurveySummaryServiceTest {
 	}
 
 	@Test
-	@DisplayName("기간이 없거나 끝이 시작보다 앞서거나 31일을 넘으면 MISSION-001이다")
+	@DisplayName("시작·끝 날짜가 없거나 끝이 시작보다 앞서거나 32일째로 넘어가면 MISSION-001이다")
 	void rejectsInvalidPeriod() {
 		LocalDate from = LocalDate.of(2026, 10, 1);
 		assertThatThrownBy(() -> service().summarize(ADMIN, MISSION_ID, null, TO))
+				.satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
+		assertThatThrownBy(() -> service().summarize(ADMIN, MISSION_ID, FROM, null))
 				.satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
 		assertThatThrownBy(() -> service().summarize(ADMIN, MISSION_ID, TO, FROM))
 				.satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
