@@ -33,6 +33,7 @@ import com.getddo.core.user.domain.UserStatus;
 import com.getddo.core.user.service.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -92,9 +93,11 @@ class AdminEntryControllerTest {
 				.andExpect(jsonPath("$.data.totalElements").value(2))
 				.andExpect(jsonPath("$.data.items[0].status").value("REJECTED"))
 				.andExpect(jsonPath("$.data.items[0].userId").value(USER_ID.toString()))
-				.andExpect(jsonPath("$.data.items[0].participantId").doesNotExist())
+				.andExpect(jsonPath("$.data.items[0].participantId").hasJsonPath())
+				.andExpect(jsonPath("$.data.items[0].participantId").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[0].rejectionCode").value("ENTRY-007"))
-				.andExpect(jsonPath("$.data.items[0].acceptedAt").doesNotExist())
+				.andExpect(jsonPath("$.data.items[0].acceptedAt").hasJsonPath())
+				.andExpect(jsonPath("$.data.items[0].acceptedAt").value(nullValue()))
 				.andExpect(jsonPath("$.data.items[1].status").value("ACCEPTED"))
 				.andExpect(jsonPath("$.data.items[1].userId").value(USER_ID.toString()))
 				.andExpect(jsonPath("$.data.items[1].participantId").isNotEmpty())
