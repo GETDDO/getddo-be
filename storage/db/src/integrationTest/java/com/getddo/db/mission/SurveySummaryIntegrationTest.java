@@ -92,6 +92,14 @@ class SurveySummaryIntegrationTest extends MissionIntegrationTestSupport {
 				  created_at) values (?, ?, ?, ?, ?, ?)
 				""", bytes(UUID.randomUUID()), bytes(incomplete), bytes(survey.getMission().getId()),
 				bytes(choice.getId()), bytes(choice.getOptions().get(1).getId()), at);
+		// 미완료 제출이 조회 범위 안에 저장됐는지 먼저 확인해, 아래 제외가 완료 여부 조건 때문임을 보장한다.
+		Long storedInRange = jdbc.queryForObject("""
+				select count(*) from mission_submissions
+				where mission_id = ? and created_at >= ? and created_at < ?
+				""", Long.class, bytes(survey.getMission().getId()),
+				LocalDateTime.ofInstant(KST_FIRST_SECOND_OF_12TH, ZoneOffset.UTC),
+				LocalDateTime.ofInstant(KST_FIRST_SECOND_OF_12TH.plusSeconds(86_400), ZoneOffset.UTC));
+		assertThat(storedInRange).isEqualTo(2L);
 		// when
 		SurveySummary summary = summaryService.summarize(admin(), survey.getMission().getId(), DAY_12, DAY_12);
 		// then
@@ -118,5 +126,44 @@ class SurveySummaryIntegrationTest extends MissionIntegrationTestSupport {
 				.hasFieldOrPropertyWithValue("errorCode", MissionErrorCode.INVALID_MISSION_DEFINITION);
 		assertThatThrownBy(() -> summaryService.summarize(admin(), UUID.randomUUID(), DAY_12, DAY_12))
 				.hasFieldOrPropertyWithValue("errorCode", MissionErrorCode.MISSION_NOT_FOUND);
+	}
+
+	@Test
+	@DisplayName("시작 날짜 00:00은 포함하고 그 직전은 제외하며, 끝 날짜 다음 날 00:00은 제외하고 그 직전은 포함한다")
+	void rangeIncludesStartAndExcludesEndBoundary() {
+		// given
+		MissionDetail survey = saveSurveyMission("경계 설문");
+		UUID missionId = survey.getMission().getId();
+		submitChoice(seeds.user(), survey, 0, KST_FIRST_SECOND_OF_12TH.minusSeconds(1));
+		submitChoice(seeds.user(), survey, 0, KST_FIRST_SECOND_OF_12TH);
+		submitChoice(seeds.user(), survey, 0, KST_FIRST_SECOND_OF_12TH.plusSeconds(86_400).minusSeconds(1));
+		submitChoice(seeds.user(), survey, 0, KST_FIRST_SECOND_OF_12TH.plusSeconds(86_400));
+		// when
+		SurveySummary onlyTwelfth = summaryService.summarize(admin(), missionId, DAY_12, DAY_12);
+		SurveySummary onlyEleventh = summaryService.summarize(admin(), missionId, DAY_11, DAY_11);
+		// then
+		assertThat(onlyTwelfth.getDailyResponses()).extracting(SurveySummary.DailyCount::count).containsExactly(2L);
+		assertThat(onlyTwelfth.getQuestions().get(0).options()).extracting(SurveySummary.OptionCount::count)
+				.containsExactly(2L, 0L);
+		assertThat(onlyEleventh.getDailyResponses()).extracting(SurveySummary.DailyCount::count).containsExactly(1L);
+	}
+
+	@Test
+	@DisplayName("31일 기간은 허용해 모든 날짜를 0건 포함해 담고, 32일째로 넘어가면 거절한다")
+	void allowsThirtyOneDaysAndRejectsMore() {
+		// given
+		MissionDetail survey = saveSurveyMission("긴 기간 설문");
+		UUID missionId = survey.getMission().getId();
+		submitChoice(userId, survey, 0, KST_FIRST_SECOND_OF_12TH);
+		LocalDate from = LocalDate.of(2026, 10, 1);
+		// when
+		SurveySummary month = summaryService.summarize(admin(), missionId, from, from.plusDays(30));
+		// then
+		assertThat(month.getDailyResponses()).hasSize(31);
+		assertThat(month.getDailyResponses().stream().mapToLong(SurveySummary.DailyCount::count).sum()).isEqualTo(1L);
+		assertThat(month.getDailyResponses().get(11).date()).isEqualTo(DAY_12);
+		assertThat(month.getDailyResponses().get(11).count()).isEqualTo(1L);
+		assertThatThrownBy(() -> summaryService.summarize(admin(), missionId, from, from.plusDays(31)))
+				.hasFieldOrPropertyWithValue("errorCode", MissionErrorCode.INVALID_MISSION_DEFINITION);
 	}
 }
