@@ -184,8 +184,8 @@ class AdminMissionServiceTest {
 	}
 
 	@Test
-	@DisplayName("제목·설명·기간·이미지 경로가 규칙에 어긋나면 등록 정보를 만들 수 없다(MISSION-001), 보상 정책을 저장하기 전에 거른다")
-	void rejectsInvalidRegistrationBeforeAnyWrite() {
+	@DisplayName("제목·설명·기간·이미지 경로가 규칙에 어긋나면 등록 정보를 만드는 단계에서 MISSION-001로 거절한다")
+	void rejectsInvalidRegistrationAtCreation() {
 		List<QuizQuestion> questions = List.of(choice(1, QuizOption.of("가", 1, true), QuizOption.of("나", 2, false)));
 		assertThatThrownBy(() -> new MissionRegistration("퀴즈", "설명", MissionType.QUIZ, ENDS_AT, STARTS_AT, null,
 				questions, List.of())).satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
@@ -200,6 +200,15 @@ class AdminMissionServiceTest {
 		assertThatThrownBy(() -> new MissionRegistration("퀴즈", "설명", MissionType.QUIZ, STARTS_AT, ENDS_AT,
 				"k".repeat(501), questions, List.of()))
 				.satisfies(e -> assertError(e, MissionErrorCode.INVALID_MISSION_DEFINITION));
-		verifyNoInteractions(rewardPolicies, missionRepository);
+	}
+
+	@Test
+	@DisplayName("제목 200자와 이미지 경로 500자는 정확히 허용한다")
+	void acceptsBoundaryLengths() {
+		List<QuizQuestion> questions = List.of(choice(1, QuizOption.of("가", 1, true), QuizOption.of("나", 2, false)));
+		MissionRegistration registration = new MissionRegistration("가".repeat(200), "설명", MissionType.QUIZ,
+				STARTS_AT, ENDS_AT, "k".repeat(500), questions, List.of());
+		assertThat(registration.getTitle()).hasSize(200);
+		assertThat(registration.getImageKey()).hasSize(500);
 	}
 }
