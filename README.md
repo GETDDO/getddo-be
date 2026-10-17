@@ -4,29 +4,13 @@ GETDDO는 응모권을 모아 경품 이벤트에 참여하고 추첨 결과를 
 
 ### 목차
 
-1. [기술 스택](#기술-스택)
-2. [프로젝트 개요](#프로젝트-개요)
+1. [프로젝트 개요](#프로젝트-개요)
+2. [기술 스택](#기술-스택)
 3. [프로젝트 팀 구성 및 역할](#프로젝트-팀-구성-및-역할)
 4. [아키텍처와 패키지 구조](#아키텍처와-패키지-구조)
 5. [ERD](#erd)
 6. [프로젝트 수행 경과](#프로젝트-수행-경과)
 7. [실행 방법](#실행-방법)
-
-## 기술 스택
-
-| 구분 | 기술 |
-| --- | --- |
-| 언어 | ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white) |
-| 프레임워크 | ![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring MVC](https://img.shields.io/badge/Spring_MVC-6DB33F?style=for-the-badge&logo=spring&logoColor=white) |
-| 빌드 | ![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
-| 데이터베이스 | ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white) |
-| 캐시 · 도입 예정 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
-| 영속성·마이그레이션 | ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white) |
-| 객체 매핑 | ![MapStruct 1.6.3](https://img.shields.io/badge/MapStruct-1.6.3-455A64?style=for-the-badge) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge) |
-| API 문서 | ![springdoc-openapi 3.1.1](https://img.shields.io/badge/springdoc--openapi-3.1.1-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) ![Swagger UI](https://img.shields.io/badge/Swagger_UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
-| 테스트 | ![JUnit](https://img.shields.io/badge/JUnit-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Spring Boot Test](https://img.shields.io/badge/Spring_Boot_Test-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=for-the-badge) |
-| 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
-| CI | ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
 
 ## 프로젝트 개요
 
@@ -50,14 +34,28 @@ GETDDO는 응모권을 모아 경품 이벤트에 참여하고 추첨 결과를 
 ```mermaid
 flowchart LR
     Earn["출석·미션·게임으로 응모권 획득"] --> Browse["이벤트 조회"]
-    Browse --> Enter["이벤트 응모·응모권 사용"]
+    Browse --> Enter["이벤트 응모"]
     Enter --> Close["모집 마감"]
     Close --> Draw["마감 5분 후 자동 추첨"]
     Draw --> Review["관리자 확인·수동 공개"]
     Review --> Result["사용자 결과 확인·알림"]
 ```
 
-이 그림은 목표 서비스 흐름입니다. 기능별 구현·검증·연동 현황은 [프로젝트 수행 경과](#프로젝트-수행-경과)에 각 도메인 담당자가 작성합니다. 응모권 미사용 이벤트도 있으며, 모든 이벤트가 응모권을 차감하는 것은 아닙니다. 추첨 실행과 사용자에게 결과를 공개하는 시점은 분리합니다.
+## 기술 스택
+
+| 구분 | 기술 |
+| --- | --- |
+| 언어 | ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white) |
+| 프레임워크 | ![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring MVC](https://img.shields.io/badge/Spring_MVC-6DB33F?style=for-the-badge&logo=spring&logoColor=white) |
+| 빌드 | ![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
+| 데이터베이스 | ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white) |
+| 캐시 | ![Redis](https://img.shields.io/badge/Redis-FF4438?style=for-the-badge&logo=redis&logoColor=white) |
+| 영속성·마이그레이션 | ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white) |
+| 객체 매핑 | ![MapStruct 1.6.3](https://img.shields.io/badge/MapStruct-1.6.3-455A64?style=for-the-badge) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge) |
+| API 문서 | ![springdoc-openapi 3.1.1](https://img.shields.io/badge/springdoc--openapi-3.1.1-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) ![Swagger UI](https://img.shields.io/badge/Swagger_UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
+| 테스트 | ![JUnit](https://img.shields.io/badge/JUnit-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Spring Boot Test](https://img.shields.io/badge/Spring_Boot_Test-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=for-the-badge) |
+| 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
+| CI | ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
 
 ## 프로젝트 팀 구성 및 역할
 
@@ -71,45 +69,32 @@ flowchart LR
 | 윤태형 | 응모권·미션·출석·응모 | 응모권 지급·차감·반환·만료, 출석·미션 보상, 응모 접수·내역 |
 | 박지훈 | 이벤트·경품 관리·이벤트 취소 | 사용자·관리자 이벤트 조회, 이벤트·경품 CRUD, 시작·마감 전환, 취소 연동 |
 
-담당 영역은 구현 책임을 나타내며 완료 현황을 의미하지 않습니다. 상세 경계는 [백엔드 기능 담당자](docs/01-conventions/backend-feature-assignments.md)를 확인합니다.
-
 ## 아키텍처와 패키지 구조
 
-### 전체 아키텍처
+### 시스템 아키텍처
 
-단일 Spring Boot 애플리케이션으로 실행하는 멀티모듈 구조이며, 각 모듈 안을 기능별 패키지로 나눕니다.
-
-```mermaid
-flowchart LR
-    Client["사용자·관리자 프론트"] --> API["api: HTTP 요청·응답"]
-    API --> Core["core: 업무 규칙·Service·Repository 계약"]
-    API --> DB["storage:db: JPA·JDBC 구현"]
-    DB --> Core
-    DB --> MySQL[("MySQL 8.4")]
-    Worker["같은 앱의 예약 워커"] --> Core
-```
-
-### 클라우드 설계도
-
-[![GETDDO Vercel·AWS 전체 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.drawio)
-
-[draw.io 원본](docs/assets/cloud-architecture.drawio). Vercel이 프론트 화면 파일을 전달하고, 브라우저가 CloudFront를 통해 API와 이미지를 요청하는 구성입니다. EC2 2대와 공유 RDS·Redis를 포함한 확장 설계이며, 실제 두 서버 운영과 앱 연동 완료를 뜻하지 않습니다. 실제 배포 검증 상태는 [배포 문서](docs/06-runbook/container-cd.md)를 확인합니다.
+[![GETDDO 시스템 아키텍처](docs/assets/cloud-architecture.png)](docs/assets/cloud-architecture.drawio)
 
 ### 모듈 의존 관계
 
-api → core, api → storage:db, storage:db → core는 빌드 의존 방향입니다. 실제 업무 서비스는 Repository 인터페이스를 통해 주입된 저장 구현을 호출합니다. 모듈을 별도 서버로 배포하는 구조는 아닙니다.
+```mermaid
+flowchart LR
+    API["api"] --> Core["core"]
+    API --> DB["storage:db"]
+    DB --> Core
+```
 
-| 구분 | 역할·사용 이유 |
+`api`만 실행 가능한 Spring Boot JAR을 만들고, `core`와 `storage:db`는 라이브러리로 함께 실행합니다. `core`는 HTTP DTO와 JPA Entity에 의존하지 않고 Repository 인터페이스로 저장 기능을 사용합니다.
+
+| 모듈 | 역할·사용 이유 |
 | --- | --- |
-| api | HTTP DTO·형식 검증·공통 사용자 문맥·응답 변환을 업무 규칙과 분리 |
-| core | API와 워커가 업무 규칙·트랜잭션을 재사용. Spring Context/Transaction 의존성은 허용 |
-| storage:db | Entity·JPA/JDBC·잠금·쿼리·마이그레이션을 저장 책임에 모음 |
-
-이벤트 시작·마감과 응모권 만료는 각각 전용 스레드를 사용합니다. 알림·추첨은 DB 작업 상태·소유권 만료·재시도로 중복 처리와 장애 복구를 관리합니다. [Wiki 전체 아키텍처](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Architecture)에 호출 흐름·트랜잭션과 워커 경계를 설명했습니다.
+| api | HTTP 요청·입력 검증·사용자 문맥·응답 변환을 업무 규칙과 분리 |
+| core | 도메인 모델·업무 규칙·Service·트랜잭션과 Repository 계약을 관리 |
+| storage:db | JPA·JDBC 저장 구현, Entity·Mapper와 Flyway 마이그레이션을 관리 |
 
 ### 패키지 구조
 
-하나의 Spring Boot 애플리케이션으로 실행하는 멀티모듈 구조입니다. 아래는 주요 디렉터리와 기능 추가 시 패키지 배치 기준입니다. `<도메인>`에는 `user`, `event`, `ticket` 등 기능별 패키지 이름이 들어갑니다.
+`<도메인>`은 `user`, `event`, `ticket` 등 기능별 패키지를 뜻합니다.
 
 ```text
 getddo-be/
@@ -159,10 +144,18 @@ getddo-be/
 │           └── testFixtures/                    # 공유 Testcontainers 설정
 ├── .github/                                     # GitHub 협업·자동화 설정
 │   ├── pull_request_template.md                 # PR 작성 양식
-│   └── workflows/                               # 빌드·테스트·PR 제목 검사
+│   └── workflows/                               # 빌드·테스트·이미지 생성·CD·PR 제목 검사
+├── infra/                                       # 인프라 정의·배포 자동화 (Gradle 모듈과 별도)
+│   └── scripts/                                 # 서버 배포·설정 조회 스크립트
+│       ├── deploy-ssm.py                         # S3 파일 전달·SSM 배포 요청·결과 확인
+│       ├── deploy-container.sh                   # 설정·컨테이너 교체와 실패 복구
+│       ├── fetch-app-env.py                      # Parameter Store 설정 조회·검증
+│       ├── daily-release.py                      # dev CI 확인·main 병합
+│       └── publish-release.py                    # 배포 성공 버전 발행
 ├── docs/                                        # 백엔드 API·DB·결정·작업 기록
 ├── gradle/wrapper/                              # Gradle 실행 버전 고정
 ├── compose.yaml                                 # 로컬 앱·MySQL 컨테이너 구성
+├── compose.deploy.yaml                          # 서버용 앱 컨테이너 구성
 ├── Dockerfile                                   # 애플리케이션 이미지 빌드
 ├── .env.example                                 # 로컬 환경변수 예시
 ├── build.gradle                                 # 모듈 공통 빌드·테스트 설정
@@ -171,25 +164,13 @@ getddo-be/
 └── gradlew.bat                                  # Windows Gradle 실행
 ```
 
-### 기능 추가 시 패키지 배치
-
-새 기능의 HTTP DTO·Controller는 `api`, 업무 서비스·모델·Repository 계약은 `core`, Entity·저장 구현·Mapper는 `storage:db`의 같은 기능 패키지에 둡니다. 도메인 오류 코드는 `core/<도메인>/exception`에 배치하고 기존 공통 응답·페이지·시간 기능을 재사용합니다.
-
-의존 방향은 `api → core`, `api → storage:db`, `storage:db → core`입니다. `api`만 실행 가능한 Spring Boot JAR을 만들고, 나머지 두 모듈은 라이브러리 JAR을 만듭니다. `core`는 API DTO나 JPA Entity에 의존하지 않습니다.
-
 ## ERD
-
-아래 이미지는 2026-10-16에 제공된 ERDCloud 내보내기 원본 PNG(8030×4692)입니다. 이미지를 누르면 원본 크기로 확인할 수 있습니다. 실제 적용 스키마는 전체 Flyway 적용 결과를 기준으로 확인합니다.
 
 [![GETDDO 전체 ERD — 2026-10-16](docs/assets/erd-2026-10-16.png)](docs/assets/erd-2026-10-16.png)
 
 [ERDCloud에서 확대·이동하며 보기](https://www.erdcloud.com/d/vuDvgmGQcvHf6f6g9) · [원본 이미지](docs/assets/erd-2026-10-16.png)
 
 ### 도메인별 ERD
-
-도메인을 선택하면 GitHub Wiki에서 해당 도메인의 전체 ERD와 테이블별 컬럼 표를 확인할 수 있습니다. 이미지를 누르면 원본 크기로 열립니다. [전체 Wiki 목록](https://github.com/Uplus-GETDDO/getddo-be/wiki/ERD)에서도 도메인별로 이동할 수 있습니다.
-
-도메인별 Wiki의 이미지와 컬럼·관계 표를 2026-10-16 자료로 갱신했습니다. 아래 테이블 수는 전체 Flyway 적용 결과 기준입니다.
 
 | 도메인 | 테이블 수 | 내용 |
 | --- | ---: | --- |
@@ -207,23 +188,176 @@ getddo-be/
 
 ## 프로젝트 수행 경과
 
-각 도메인 담당자가 아래 항목을 펼쳐 직접 작성합니다. 구현 기능, 설계·기술 선택의 이유, 문제 해결 과정, 실제 테스트 결과와 남은 작업을 정리합니다. **코드 구현·배포·프론트 연동 상태를 구분**하고 검증 결과에는 실행일과 기준 커밋을 함께 적습니다.
-
-<!-- 아래 작성 틀을 담당자의 실제 수행 내용으로 교체한다. 다른 담당자의 구현·완료 상태를 대신 확정하지 않는다. -->
-
 <details>
-<summary>인프라·공통 기반</summary>
+<summary>인프라·CI/CD</summary>
 
 <!-- 작성 담당: 이경주 -->
 
-담당자 작성 예정입니다.
+#### 요청·데이터 흐름
 
-- **구현 기능·시연 흐름**: 작성 예정
-- **설계·기술 선택과 사용 이유**: 작성 예정
-- **문제와 해결 과정**: 작성 예정
-- **테스트 결과**: 실행일·기준 커밋·명령·성공/실패·검증 범위 작성 예정
+```mermaid
+flowchart LR
+    Browser["브라우저"] -->|"API 요청"| CF["CloudFront"]
+    CF --> ALB["내부 ALB"] --> App["EC2 · Docker 앱"]
+    App --> RDS[("RDS · 업무 데이터")]
+    App --> Redis[("Redis · 요청 횟수")]
+    CF -->|"이미지 조회"| S3[("S3 · 이미지")]
+```
 
-기존 참고 자료: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Architecture) — 해당 문서의 기준 시점과 현재 구현을 확인한 뒤 작성합니다.
+#### CI · 빌드와 이미지 생성
+
+```mermaid
+flowchart LR
+    Source["PR / dev·main push"] --> Test["Gradle 빌드·테스트"]
+    Test --> Image["Docker 이미지 생성"]
+    Image -->|"main push"| Artifact["CI 이미지 보관"]
+```
+
+#### 정기 릴리스
+
+```mermaid
+flowchart LR
+    Schedule["매일 08:00 KST"] --> Gate{"최신 dev CI 성공?"}
+    Gate -->|"아니오"| Skip["병합 건너뜀"]
+    Gate -->|"예"| PR["dev → main PR 생성·재사용"]
+    PR --> Merge["GitHub App · merge commit"]
+    Merge --> Main["main Build → Container CD"]
+```
+
+#### CD · 검증한 이미지 배포
+
+```mermaid
+flowchart LR
+    Success["main CI 성공"] --> Check["동일 이미지 확인"]
+    Check --> OIDC["OIDC · AWS 임시 권한"]
+    OIDC --> Upload["S3 배포 파일 업로드"]
+    Upload --> SSM["SSM 배포 요청"]
+```
+
+#### 서버 내부 · 설정 전달과 앱 교체
+
+```mermaid
+flowchart LR
+    Files["S3 다운로드·검증"] --> Env["Parameter Store 조회"]
+    Env --> Validate["설정·이미지 검증"] --> Replace["컨테이너 교체"]
+    Replace --> Health{"정상 응답?"}
+    Health -->|"성공"| Done["배포 확정"]
+    Health -->|"실패"| Recover["복구 처리"]
+```
+
+#### 배포 성공 후 버전 발행
+
+```mermaid
+flowchart LR
+    Deployed["서버 교체·SSM 성공"] --> Tag["배포 커밋에 버전 태그"]
+    Tag --> Release["GitHub Release 발행"]
+    Tag -->|"발행 실패"| Retry["서버 유지 · 발행 재시도"]
+```
+
+#### 실패 시 처리
+
+| 실패 위치 | 처리 |
+| --- | --- |
+| dev·main CI | 정기 병합 또는 서버 배포를 진행하지 않음 |
+| 설정 조회·이미지 검증 | 기존 앱·설정 유지 |
+| 앱 교체·기동 확인 | 이전 설정·이미지 복구 시도 |
+| 복구·기록 정리 | 백업·진행 기록 보존, 다음 배포 차단 후 수동 확인 |
+| 태그·Release 발행 | 새 앱 유지, 서버를 롤백하지 않고 버전 발행 재시도 |
+
+[배포 흐름·실패 대응 상세](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery)
+
+#### 설계·기술 선택과 사용 이유
+
+| 선택 | 정리할 내용 |
+| --- | --- |
+| Docker·Compose | CI 이미지 재사용·YAML 실행 설정 관리. Docker 운영과 서버별 배포 관리 부담을 수용. [대안·트레이드오프 비교](https://github.com/Uplus-GETDDO/getddo-be/wiki/Docker-Compose-Choice) |
+| CloudFront·내부 ALB·보안 그룹 | HTTPS 진입, 요청 분산과 접근 경계 |
+| RDS·ElastiCache·S3 | 업무 데이터·요청 횟수·이미지의 저장 목적 분리 |
+| GitHub Actions·OIDC·SSM | 검증한 이미지 배포와 버전 발행을 분리합니다. 실패 단계별로 유지·복구·재시도를 구분합니다. [정기 릴리스·실패 대응](https://github.com/Uplus-GETDDO/getddo-be/wiki/CI-CD-Release-Recovery) |
+| Parameter Store·IAM | 비밀값 보관과 서버별 접근 권한 |
+| Terraform·IAM 정책 파일 | 리소스 정의와 변경 검토 방식 |
+
+배포 코드: [CI](.github/workflows/build.yml) · [이미지 생성](.github/workflows/image.yml) · [CD](.github/workflows/cd.yml) · [서버 배포](infra/scripts/deploy-container.sh) · [정기 릴리스](https://github.com/Uplus-GETDDO/getddo-be/blob/6daa51196d24cce298d2824cdeae0ef883fa4408/.github/workflows/daily-release.yml)
+
+</details>
+
+<details>
+<summary>공통 기반</summary>
+
+<!-- 작성 담당: 이경주 -->
+
+#### 공통 JSON 응답
+
+성공·실패 모두 `success`, `code`, `message`, `data`로 응답합니다. `data`에는 API별 응답 DTO를 담습니다.
+
+```java
+public record ResponseEnvelope<T>(boolean success, String code, String message, T data) {}
+```
+
+**성공 응답 · 내 정보 조회 예시**
+
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "성공했습니다.",
+  "data": {
+    "id": "019a0000-0000-7000-8000-000000000001",
+    "name": "시연 사용자",
+    "role": "USER",
+    "status": "ACTIVE",
+    "membership": "vip",
+    "phoneNum": null,
+    "email": null
+  }
+}
+```
+
+**실패 응답 · 미등록 사용자, HTTP 401**
+
+```json
+{
+  "success": false,
+  "code": "USER-002",
+  "message": "사용자를 확인할 수 없습니다.",
+  "data": null
+}
+```
+
+데이터 없는 성공 응답은 `ResponseEnvelope.success(null)`을 사용합니다. 오류의 HTTP 상태는 응답 본문과 별도로 지정합니다.
+
+#### 공통 예외 처리
+
+각 도메인은 `ErrorCode`를 구현해 상태·코드·메시지를 정의하고, 업무 오류를 `BusinessException`으로 전달합니다.
+
+```java
+throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+```
+
+`GlobalExceptionHandler`가 정의된 HTTP 상태와 `ResponseEnvelope.fail()` 응답으로 변환합니다. Controller마다 try-catch를 반복하지 않으며, 예외 원문·스택 트레이스는 응답에 넣지 않습니다.
+
+#### 사용자 문맥과 Controller 재사용
+
+```java
+@GetMapping("/me")
+public ResponseEnvelope<UserProfileResponse> getProfile(@CurrentUser User user) {
+    return ResponseEnvelope.success(UserProfileResponse.from(userService.getProfile(user)));
+}
+```
+
+`@CurrentUser`가 시연용 헤더의 형식과 DB 역할·멤버십을 대조해 사용자를 전달합니다. 같은 요청의 사용자 조회 결과를 재사용하고, 필요한 헤더는 Swagger에 자동 표시합니다.
+
+#### 그 밖의 공통 기능
+
+| 공통화한 기능 | 사용 방법·이유 |
+| --- | --- |
+| 시간 처리 | 주입받은 `TimeProvider`의 `now()`·`businessDate()`·`businessMonth()`로 UTC 시각과 KST 업무일을 계산합니다. 고정 `Clock`으로 날짜 경계 테스트도 재사용합니다. |
+| Entity 식별자·감사 시각 | `BaseEntity`를 상속해 UUID v7·생성 시각을 사용하고, 수정 시각이 필요하면 `BaseUpdatableEntity`를 상속합니다. UUID는 `binary(16)`, JPA Auditing 시각은 마이크로초로 맞춥니다. |
+| 업무 감사 기록 | 업무 트랜잭션 안에서 `AuditLogService.record(command)`를 호출합니다. `MANDATORY`로 업무와 함께 저장·롤백하고, `AuditLogCommand`는 변경 전후 데이터를 불변 스냅샷으로 보관합니다. |
+| CORS 설정 | 허용 origin·메서드·헤더를 환경 설정으로 관리합니다. 공통 필터가 사전 요청과 실제 요청의 CORS 헤더를 처리합니다. |
+| MySQL 테스트 기반 | `MySqlTestConfiguration`과 `@ApiIntegrationTest`로 MySQL 8.4 컨테이너·앱·MockMvc 설정을 재사용합니다. |
+
+관련 코드: [응답 형식](api/src/main/java/com/getddo/api/common/response/ResponseEnvelope.java) · [전역 예외 처리](api/src/main/java/com/getddo/api/common/exception/GlobalExceptionHandler.java) · [사용자 문맥](api/src/main/java/com/getddo/api/common/context/CurrentUserArgumentResolver.java) · [시간 처리](core/src/main/java/com/getddo/core/common/time/TimeProvider.java) · [공통 Entity](storage/db/src/main/java/com/getddo/db/common/entity) · [감사 기록](core/src/main/java/com/getddo/core/audit) · [MySQL 테스트 설정](storage/db/src/testFixtures/java/com/getddo/db/support)
 
 </details>
 
@@ -290,22 +424,23 @@ getddo-be/
 
 ```mermaid
 flowchart LR
-    Press["출석 버튼"] --> Day["KST 업무일 하루 한 번 인정"]
-    Day --> Daily["일일 보상 응모권 지급"]
-    Daily --> Streak["연속 7·14·28일 단계 보상"]
+    Press["출석 버튼"] --> Day["하루 한 번 인정<br/>(서버 KST 기준)"]
+    Day --> Daily["일일 보상<br/>응모권 지급"]
+    Daily --> Streak["연속 7·14·28일<br/>단계 보상"]
 ```
 
-같은 날 다시 눌러도 새로 기록하거나 지급하지 않고 확정된 결과를 돌려준다.
+같은 날 다시 눌러도 보상은 한 번만 지급됩니다.
 
 **설계·기술 선택과 사용 이유**
 
-- 출석 기록·보상 청구·응모권 지급을 한 트랜잭션에서 확정해 "출석은 됐는데 보상이 빠지는" 일을 막고, 같은 날 동시 요청은 `(사용자, 출석일)` UNIQUE와 새 트랜잭션 1회 재처리로 처리한다.
+- 출석 기록, 보상 청구, 응모권 지급을 한 번에 확정해서 "출석은 됐는데 보상이 빠지는" 일이 없게 했습니다.
+- 같은 날 동시에 눌러도 DB의 중복 방지(사용자 + 날짜)가 한 번만 처리되게 막습니다.
 
 **문제와 해결 과정**
 
-- 같은 날 연타·동시 요청과 자정 경계에서의 이중 지급 위험을 UNIQUE 제약과 요청 시각 고정(한 번만 읽음)으로 막았다.
+- 연타나 자정 직후 요청에서 보상이 두 번 나갈 수 있었습니다. DB 중복 방지를 마지막 방어선으로 두고, 충돌하면 한 번만 다시 처리해 먼저 확정된 결과를 돌려줍니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#출석)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#출석)
 
 </details>
 
@@ -319,21 +454,22 @@ flowchart LR
 ```mermaid
 flowchart LR
     List["미션 목록·상세"] --> Submit["퀴즈·설문 제출"]
-    Submit --> Grade["채점 (퀴즈는 문항별 정답 누적)"]
-    Grade --> Reward["완료 시 보상 청구 → 응모권 지급"]
+    Submit --> Grade["채점<br/>(퀴즈는 맞힌 문항을 쌓아 감)"]
+    Grade --> Reward["완료하면 보상 청구<br/>→ 응모권 지급"]
 ```
 
-이미 완료한 미션을 다시 제출해도 추가 보상은 없다.
+이미 완료한 미션은 다시 제출해도 보상이 더 나오지 않습니다.
 
 **설계·기술 선택과 사용 이유**
 
-- 제출 ID(`Idempotency-Key`)를 PK로 써서 별도 멱등 테이블 없이 동시 요청을 직렬화하고, 재전송이 같은 요청인지는 처음 요청의 SHA-256 해시로 판정한다. 지급이 실패하면 제출·답변·청구가 모두 롤백된다.
+- 제출 ID를 DB 기본키로 써서, 같은 요청이 동시에 와도 한 번만 처리됩니다.
+- 재전송이 같은 요청인지는 처음 요청의 해시(요약값)로 구분합니다. 지급이 실패하면 제출·답변·청구가 모두 취소됩니다.
 
 **문제와 해결 과정**
 
-- 완료한 문항의 답변은 저장하지 않아 저장된 답변으로는 처음 요청을 복원할 수 없었다 → 처음 요청의 해시를 저장하도록 했다.
+- 이미 맞힌 문항의 답은 저장하지 않아서, 재전송 내용을 저장된 답과 비교할 수 없었습니다. 처음 요청의 해시를 저장하도록 했습니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#미션)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#미션)
 
 </details>
 
@@ -352,21 +488,23 @@ flowchart LR
     Hold --> Expire["만료<br/>워커"]
 ```
 
-응모권 한 장은 `tickets` 한 행이고, 상태가 바뀔 때마다 `ticket_histories`에 이력을 한 줄 추가한다.
+응모권 한 장이 DB의 한 행이고, 바뀔 때마다 이력이 한 줄씩 쌓입니다.
 
 **설계·기술 선택과 사용 이유**
 
-- 후보는 잠그지 않고 읽고 PK로 한 장씩 잠가 격리 수준과 무관하게 같은 동작을 하고, 반환은 상태가 이상할 때만 반환 이력을 잠금 읽기해 교착을 피한다. 만료는 `SKIP LOCKED`로 서버 여러 대의 워커가 겹쳐도 중복 만료하지 않는다.
+- 후보를 먼저 읽고 한 장씩 잠가서, 동시에 써도 어긋나지 않게 했습니다.
+- 반환은 상태가 이상할 때만 이력을 잠그며 읽어서, 요청끼리 서로 맞물려 멈추는 일(교착)을 피했습니다.
+- 만료는 다른 처리가 이미 잡고 있는 응모권을 건너뛰어(`SKIP LOCKED`), 서버가 여러 대여도 한 장을 두 번 만료하지 않습니다.
 
 **문제와 해결 과정**
 
-- 반환 이력을 항상 잠금 읽기로 보자 서로 다른 사용자의 동시 반환이 `REPEATABLE_READ`에서 교착했다. 교착 기록으로 원인을 확인하고 상태가 이상할 때만 확인하도록 좁혔다.
+- 반환 이력을 항상 잠그며 읽었더니, 동시에 반환하는 요청들이 서로 맞물려 멈췄습니다(교착). 원인을 MySQL 교착 기록으로 확인하고, 상태가 이상할 때만 확인하도록 고쳤습니다.
 
 **테스트 결과 (직접 측정)**
 
-- 반환 이력 잠금 읽기: 대안은 60회 중 60회 교착, 채택한 방식은 0회. 만료 워커 4대: `SKIP LOCKED` 약 3.5초, 일반 `FOR UPDATE` 20.9초. (로컬 단일 머신의 상대 비교)
+- 반환 이력 읽기: 대안은 60회 중 60회 교착, 채택한 방식은 0회입니다. 만료 워커 4대는 약 3.5초(대안 20.9초)입니다. 노트북 한 대에서 잰 상대 비교입니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#응모권)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#응모권)
 
 </details>
 
@@ -379,27 +517,28 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Check["자격 확인"] --> Enter["응모 요청<br/>멱등 키"]
+    Check["자격 확인"] --> Enter["응모 요청<br/>(중복 방지 키)"]
     Enter --> Deduct["응모권 차감·접수"]
-    Deduct --> Close["마감 재확인<br/>커밋 직전"]
-    Close --> Receipt["영수증 또는 거절 이력"]
+    Deduct --> Close["마감 재확인<br/>(커밋 직전)"]
+    Close --> Receipt["영수증<br/>또는 거절 기록"]
 ```
 
-같은 키로 다시 보내면 최초 결과를 돌려주고, 업무 거절은 `REJECTED`로 남겨 같은 오류를 돌려준다.
+같은 키로 다시 보내면 처음 결과를 돌려주고, 거절도 기록해 두었다가 같은 오류를 돌려줍니다.
 
 **설계·기술 선택과 사용 이유**
 
-- 이벤트 행은 `FOR SHARE`로 읽어 응모끼리 서로 막지 않고, 마감은 차감 뒤와 커밋 직전에 두 번 확인한다. 거절 이력은 롤백과 분리하려고 `REQUIRES_NEW`로 기록한다.
+- 이벤트 행을 공유 잠금으로 읽어서 응모끼리 서로 기다리지 않게 했고, 마감은 차감 뒤와 커밋 직전에 두 번 확인합니다.
+- 거절 기록은 응모가 취소돼도 남도록 별도 트랜잭션에 씁니다.
 
 **문제와 해결 과정**
 
-- 마감 직후 커밋된 응모가 추첨 후보가 될 수 있어 커밋 직전 확인을 추가했고, 남는 짧은 간격은 공용 명세의 예외로 승인했다.
+- 마감 직후에 커밋된 응모가 추첨 후보가 될 수 있었습니다. 커밋 직전 확인을 추가했고, 남는 아주 짧은 틈은 공용 명세에 예외로 승인했습니다.
 
 **테스트 결과 (직접 측정)**
 
-- 같은 이벤트에 64명이 동시 응모할 때 `FOR SHARE`(채택) 102건/초, `FOR UPDATE` 23건/초로 **약 4.4배** 차이. (로컬 단일 머신의 상대 비교)
+- 같은 이벤트에 64명이 동시에 응모하면 공유 잠금은 102건/초, 쓰기 잠금은 23건/초로 약 4.4배 차이가 납니다. 노트북 한 대에서 잰 상대 비교입니다.
 
-자세한 표·시퀀스·측정 근거: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#이벤트-응모)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#이벤트-응모)
 
 </details>
 
@@ -412,22 +551,22 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Req["요청"] --> Count["사용자·범위별 횟수 확인"]
+    Req["요청"] --> Count["사용자별 횟수 확인"]
     Count --> Ok["허용"]
-    Count --> Deny["429 + Retry-After"]
+    Count --> Deny["429<br/>+ 다시 시도할 시간"]
 ```
 
-응모·출석·미션 제출·게임 결과 제출에 적용하며, 거절은 DB 작업보다 먼저 일어난다.
+응모·출석·미션 제출·게임 결과 제출에 적용합니다. 거절은 DB 작업보다 먼저 일어납니다.
 
 **설계·기술 선택과 사용 이유**
 
-- 서버 메모리 구현은 서버가 한 대일 때만 정확해 `RateLimiter` 인터페이스 뒤에서 저장소를 고르게 했다. Redis 구현(PR #107, 리뷰 중)은 Lua 스크립트로 서버 여러 대의 횟수를 하나로 센다.
+- 서버 메모리로만 세면 서버가 여러 대일 때 한도가 서버마다 따로 적용됩니다. 그래서 횟수 저장소를 바꿀 수 있게 만들었고, Redis 구현(PR #107, 병합 대기)은 서버 여러 대의 횟수를 한곳에서 셉니다.
 
 **문제와 해결 과정**
 
-- 서버가 여러 대이면 한도가 서버마다 따로 적용되던 한계를 Redis 구현으로 해결하고 있다.
+- 서버가 여러 대일 때 한도가 서버마다 따로 적용되는 한계를 Redis 구현으로 해결하고 있습니다.
 
-자세한 표·시퀀스: [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#요청-빈도-제한)
+자세한 내용은 [Wiki](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Domain-Flows#요청-빈도-제한)
 
 </details>
 
@@ -436,150 +575,159 @@ flowchart LR
 
 <!-- 작성 담당: 석종수 -->
 
-> 단일 발표 요청 설명은 별도 [PR #108](https://github.com/Uplus-GETDDO/getddo-be/pull/108), `feat/GD-199`의 `65889fc` 구현을 포함한다. 작성 시점에는 미병합이며 아래 테스트 결과도 각 기준 코드를 따른다. 공용 추첨 정책은 [getddo-spec](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/02-domain/drawing.md)을 원본으로 사용한다.
+#### 전체 추첨 흐름
 
-**구현 기능·시연 흐름**
+```mermaid
+flowchart LR
+    Close["응모 마감"] --> Snapshot["5분 후 후보·조건 고정"]
+    Snapshot --> Draw["가중치 추첨"]
+    Draw --> Confirm["인원·결과 검증"]
+    Confirm --> Review["관리자 검토"]
+    Review --> Publish["수동 발표"]
+    Publish --> Result["공개 결과 조회"]
+```
 
-| 항목 | 내용 |
+추첨은 자동으로 실행하고, 사용자에게 결과를 공개하는 시점은 관리자가 결정합니다. 확정된 결과는 같은 실행을 다시 요청해도 바뀌지 않습니다.
+
+#### 후보·가중치 확정
+
+성공한 응모와 실제 응모권 사용 이력을 대조해 후보를 구성합니다. 응모에 기록된 차감 수량, 실제 사용 이력 개수, 응모자 누적 사용량이 일치해야 합니다. 티켓 소유자와 중복 이력도 검사합니다.
+
+```text
+가중치 = 브론즈 사용 장수 × 1
+       + 실버 사용 장수 × 3
+       + 골드 사용 장수 × 5
+```
+
+골드·실버·브론즈를 한 장씩 사용하면 **후보는 1명, 실제 사용량은 3장, 가중치는 9**입니다. 가중치 미적용·응모권 미사용 이벤트는 후보별 가중치가 1입니다.
+
+| 저장 위치 | 보존하는 내용 |
 | --- | --- |
-| 하는 일 | 마감 5분 후 유효 응모와 실제 차감 이력을 대조해 후보·가중치·조건을 고정하고 추첨한다. 관리자는 결과를 검토하고, 필요하면 개별 당첨을 취소해 빈 자리만 재추첨한 뒤 전체 명단을 공개한다. |
-| 관리자 API | 실행·후보 조회 `GET /admin/events/{eventId}/draws`, `GET /admin/draws/{drawId}`, `GET /admin/draws/{drawId}/participants` / 정합성 검사 `POST /admin/draws/{drawId}/checks` / 개별 취소 `POST /admin/wins/{winId}/cancellations` / 최초 발표 `POST /admin/draws/{runId}/result-confirmation` |
-| 사용자 API | `GET /events/{eventId}/results` 공개 명단, `GET /events/{eventId}/my-result` 본인 결과. API 경로의 공통 접두사는 `/api/v1`이다. |
-| 핵심 규칙 | 같은 실행의 확정 결과는 바뀌지 않는다. 이벤트 안에서 같은 사용자는 한 번만 당첨된다. 후보가 부족하면 상위 등수부터 배정하고 남은 자리는 미충원으로 기록한다. 자동 추첨 완료와 사용자 공개는 구분한다. |
-| 시연 흐름 | 마감 후 자동 추첨 → 후보·가중치·경품별 결과 조회 → 정합성 검사 → 필요 시 개별 당첨 취소·재추첨 → 발표 요청 → 공개 명단·본인 결과 확인 → 같은 요청 재전송으로 결과·공개 중복이 없는지 확인 |
+| `draw_candidates` — 최초 후보 스냅샷 | 실제 장수·가중치·응모 및 차감 근거 |
+| `draw_run_candidates` — 실행별 후보 연결 | 해당 실행에 실제 포함한 후보 |
+| `draw_runs.rules_snapshot` — 실행 조건 | 경품·등수·당첨 인원·가중치 기준 |
 
-**자동 추첨과 결과 확정**
+입력이 고정된 이후에는 현재 응모 데이터를 다시 계산하지 않고 저장된 스냅샷을 사용합니다.
 
-아래는 주요 호출과 저장 경계를 나타낸 그림이다. 실행 소유권 관리 등 일부 중간 호출은 생략했다.
+#### 가중치 추첨
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant W as 자동 추첨 워커
-    participant S as DrawSnapshotService
-    participant E as DrawExecutionService
-    participant P as 입력 준비 서비스
-    participant C as DrawConfirmationService
-    participant A as DrawingSelectionService
-    participant DB as MySQL
+전체 가중치 범위에서 정수 난수를 뽑고, 누적 구간에 해당하는 후보를 선정합니다.
 
-    W->>S: 마감 5분이 지난 이벤트의 최초 실행 등록
-    S->>DB: 이벤트 FOR UPDATE
-    S->>DB: 기존 최초 실행 조회 또는 PREPARING 등록
-    S-->>W: 등록 커밋 후 runId 반환
+| 후보 | 가중치 | 난수 구간 | 첫 번째 선정 확률 |
+| --- | ---: | --- | ---: |
+| A | 1 | 0 | 1/9 |
+| B | 3 | 1~3 | 3/9 |
+| C | 5 | 4~8 | 5/9 |
 
-    W->>E: execute(runId)
-    E->>E: 실행 소유권 확보
-    E->>P: 입력 준비
-    P->>DB: 이벤트·실행 잠금 후 응모·USE 이력 조회
-    P->>P: 실제 장수·등급·소유자·중복 검증
-
-    alt 응모자 없음
-        P->>DB: NO_ENTRIES와 이벤트 종료 상태 저장
-        P-->>E: 정상 종료
-    else 후보 있음
-        P->>DB: 후보·실행별 연결·조건 저장, READY 커밋
-        E->>C: 고정 입력으로 결과 확정
-        C->>DB: 이벤트·실행 잠금 및 기존 결과 확인
-        alt 이미 CONFIRMED
-            DB-->>C: 저장된 결과
-        else 미확정
-            C->>A: 후보·가중치·경품 자리 전달
-            A->>A: 상위 등수부터 선정하고 당첨 후보 제거
-            A-->>C: 당첨·미충원 결과
-            C->>C: 자리·인원·후보·선정 순서 검증
-            C->>DB: 결과·CONFIRMED·최초 이벤트 상태 함께 저장
-        end
-    end
-```
-
-**관리자 검토·재추첨과 최초 공개**
+난수가 6이면 C가 당첨됩니다. 이후 C를 후보에서 제거하고 전체 가중치에서도 5를 빼므로, 다음 선정은 A·B의 가중치 합계 4를 기준으로 진행합니다.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant A as 관리자
-    participant I as 조회·검증 서비스
-    participant R as 취소·재추첨 서비스
-    participant P as 결과 공개 서비스
-    participant DB as MySQL
-    participant U as 사용자
-
-    A->>I: 후보·가중치·조건·결과 조회
-    I->>DB: 저장된 스냅샷과 결과 조회
-    I-->>A: 검토 자료
-
-    opt 정합성 검사 요청
-        A->>I: POST /draws/{drawId}/checks
-        I->>DB: 항목별 검사 후 draw_checks 추가
-        I-->>A: 전체·항목별 통과 여부
-    end
-
-    opt 개별 당첨 취소
-        A->>R: 당첨 결과 ID·사유·멱등 키
-        R->>DB: 취소 이력과 연결 재추첨 실행 함께 등록
-        R->>R: 최초 후보·가중치로 빈 자리만 재추첨
-        R->>DB: 새 실행 결과 저장, 기존 결과 유지
-        R-->>A: 재추첨 결과
-    end
-
-    A->>P: 검토한 최신 runId로 발표 요청
-    P->>DB: 이벤트 잠금 후 최신 명단·확정 상태 검증
-    alt 검토 이후 명단 변경 또는 미확정 실행 존재
-        P-->>A: 발표 거절
-    else 공개 가능
-        P->>DB: 실행별 확인·전체 공개 명단·상태·알림 작업 함께 저장
-        P-->>A: 공개 결과
-    end
-
-    U->>P: 공개 명단·본인 결과 조회
-    P->>DB: 실제 공개 버전 조회
-    P-->>U: 마스킹한 명단·본인 당첨 여부
+flowchart LR
+    Sum["남은 가중치 합산"] --> Random["범위 내 난수 생성"]
+    Random --> Select["누적 구간의 후보 선정"]
+    Select --> Remove["당첨 후보·가중치 제거"]
+    Remove --> Next["다음 경품 자리"]
 ```
 
-**설계·기술 선택과 사용 이유**
+- 운영 난수는 `SecureRandom`을 사용하고, 범위 밖의 값은 다시 생성합니다.
+- 전체 가중치는 `BigInteger`로 합산해 `long` 합계 범위 초과를 처리합니다.
+- 상위 등수부터 선정하며 당첨자를 제거하므로 같은 사용자가 다른 경품에도 중복 당첨되지 않습니다.
+- `개인 가중치 ÷ 남은 전체 가중치`는 각 선정 단계의 확률입니다.
 
-- **가중치 비복원 추출**: 실제 차감한 응모권의 장수에 브론즈 1·실버 3·골드 5를 곱해 합산한다. 전체 가중치 범위에서 난수를 뽑고 누적 구간에 해당하는 후보를 선정한 뒤 제거한다. 같은 사용자가 다른 경품에서도 다시 당첨되는 것을 막는다. 가중치 미적용·응모권 미사용 이벤트는 후보별 가중치가 1이다.
-- **보안 난수와 범위 검증**: `SecureRandom`으로 난수를 생성하고 범위를 벗어나면 다시 뽑는다. 전체 가중치는 `BigInteger`로 합산해 후보별 가중치 합계가 `long` 범위를 넘는 경우를 처리한다.
-- **최초 후보와 실행별 명단 분리**: `draw_candidates`에는 최초 장수·가중치·응모 근거를 보존하고, `draw_run_candidates`로 각 실행에 포함된 후보를 연결한다. 재추첨마다 같은 상세 스냅샷을 복사하지 않으면서 당시 명단을 고정할 수 있다.
-- **경품별 자리로 인원 검증**: `draw_results`는 경품의 자리마다 당첨 또는 미충원 한 행을 저장한다. 후보가 있는 최초 추첨은 결과 행 수가 전체 자리 수와 같고, 당첨 인원은 `min(후보 수, 자리 수)`여야 한다. 자리 누락·중복 당첨·후보가 남았는데 미충원되는 결과를 저장 전에 거절한다.
-- **입력 준비와 결과 확정을 별도 트랜잭션으로 처리**: 실행 등록을 먼저 커밋하고 입력 준비·결과 확정을 나눈다. 선정이나 결과 저장이 실패해도 실행 ID와 이미 고정한 입력을 유지해 같은 실행을 재개할 수 있다.
-- **이벤트 → 실행 잠금과 DB 제약**: 같은 이벤트의 확정을 직렬화하고, 실행별 자리·후보·선정 순서 UNIQUE와 후보 연결 복합 FK를 함께 사용한다. 응모의 이벤트 공유 잠금과 추첨의 쓰기 잠금이 연계되어 진행 중인 응모 처리를 기다린 뒤 후보를 읽는다.
-- **확정 결과와 공개 명단 분리**: `draw_publications`와 `draw_publication_results`에 실제 공개 버전과 포함 결과를 보존한다. 유지 당첨자와 재추첨 당첨자를 한 명단으로 공개할 수 있고, 내부 변경이 사용자 명단에 바로 노출되지 않는다.
+#### 경품별 자리와 당첨 인원 검증
 
-**문제와 해결 과정**
+경품의 당첨 인원을 자리로 나누고, `draw_results`에 자리마다 `SELECTED` 또는 `UNFILLED` 결과를 저장합니다.
 
-- **중복 요청으로 재선정될 위험** → 실행 ID와 상태를 기준으로 처리한다. `CONFIRMED`인 실행은 선정기를 다시 호출하지 않고 저장된 결과 ID·당첨 순서를 반환한다.
-- **서버 중단 후 실행이 남는 문제** → 소유권 토큰과 만료 시각으로 실행 주체를 구분한다. 실패 이력·자동 재시도·운영자 재개를 같은 실행에 연결하고, 이전 시도의 뒤늦은 결과 저장을 막는다.
-- **재추첨 결과를 기존 결과에 덮어쓰면 근거가 사라지는 문제** → 기존 결과는 유지하고 취소 이력과 새 실행을 추가한다. 취소 대상이 아닌 당첨자는 유지하며 최초 가중치로 빈 자리만 보충한다.
-- **관리자가 검토한 명단과 발표 시점의 명단이 달라지는 문제** → 최신 실행 ID를 검사해 이전 명단의 발표를 거절한다. 동일 발표 재시도는 기존 성공 버전을 반환해 확인 기록·공개 버전·알림 작업을 중복 생성하지 않는다.
-- **당첨자가 없는 재추첨은 공개 결과 연결만으로 확인 근거를 남길 수 없는 문제** → `draw_publication_executions`에 실행별 확인 근거를 별도로 저장한다. 모든 자리가 미충원이어도 해당 실행을 확인해 공개에 반영했다는 사실을 보존한다.
-- **실제 응모와 추첨 준비의 마감 경합** → 서비스 통합 테스트로 커밋 직전 마감 검사 결함을 재현하고, 응모 담당자의 수정과 공용 명세의 승인된 마감 판정 예외를 반영해 검증했다.
+예를 들어 후보가 3명이고 경품 자리가 5개라면 다음과 같습니다.
 
-**테스트 결과**
+| 경품 자리 | 결과 | 당첨자 |
+| --- | --- | --- |
+| 1등 1번 | SELECTED | A |
+| 2등 1번 | SELECTED | B |
+| 2등 2번 | SELECTED | C |
+| 3등 1번 | UNFILLED | 없음 |
+| 3등 2번 | UNFILLED | 없음 |
 
-공통 실행 명령은 다음과 같다.
-
-```bash
-flock /tmp/getddo-docker-tests.lock ./gradlew test build \
-  --init-script gradle/test-limits.init.gradle \
-  --max-workers=1 --no-parallel
+```text
+결과 행 수 = 전체 경품 자리 수
+당첨 인원 = min(후보 수, 전체 경품 자리 수)
+미충원 수 = 전체 자리 수 - 당첨 인원
 ```
 
-| 검증 | 실행 기록일 | 기준 코드 | 결과 |
-| --- | --- | --- | --- |
-| 실제 응모·차감 → 후보 스냅샷 | 2026-10-15 | [GD-131 `569d5af`](https://github.com/Uplus-GETDDO/getddo-be/pull/90) | 관련 MySQL 검증 17개 성공. 해당 코드의 전체 테스트·빌드 2,052개 성공 |
-| 공개 명단·본인 결과 조회 | 2026-10-15 | [GD-140 `baf1fad`](https://github.com/Uplus-GETDDO/getddo-be/pull/93) | 관련 검증 26개 성공. 해당 코드의 전체 테스트·빌드 1,954개 성공 |
-| 단일 발표·취소·재추첨·사용자 조회 | 2026-10-15~16 | [GD-199 구현본, 최종 설명 보완 `65889fc`](https://github.com/Uplus-GETDDO/getddo-be/pull/108) | 관련 MySQL 검증 39개 성공. 전체 테스트·빌드 2,215개 성공, 최종 커밋 CI 성공 |
+저장 전에는 자리 누락·중복, 후보에 없는 사용자, 사용자 중복, 선정 순서와 조기 미충원을 검사합니다. 응모자가 아예 없으면 `NO_ENTRIES`로 정상 종료하고 결과 행을 만들지 않습니다.
 
-- **알고리즘**: 제어 가능한 난수를 주입해 가중치 구간 경계, 상위 등수 우선 배정, 당첨 후보 제거, 후보 부족과 합계 범위 초과를 검증했다.
-- **저장·동시성**: 실제 MySQL에서 이벤트 잠금 대기, 동시 확정 요청의 동일 결과 반환, 결과·상태 저장 실패 롤백과 UNIQUE·FK 제약을 검증했다.
-- **정합성 검사**: 잘못된 장수·가중치, 중복 사용자·자리, 선정 순서 오류와 조기 미충원을 불일치로 판정하는지 검증했다.
-- **공개**: 동일 발표 재시도, 이전 명단·미확정 실행의 발표 거절, 공개 트랜잭션 롤백과 공개 전 비노출·공개 후 마스킹을 검증했다.
+관리자 검사 API는 저장된 후보·조건·결과를 대조하고 `draw_checks`에 검사자·시각·항목별 결과를 추가합니다. 검사 과정에서 당첨자를 다시 뽑거나 기존 결과를 수정하지 않습니다.
 
-각 전체 테스트 수는 서로 다른 기준 코드의 프로젝트 전체 집계이므로 합산하지 않는다. 위 결과는 기능·정합성 검증이며 이번 README 작성에서는 테스트를 재실행하지 않았다.
+#### 개별 당첨 취소·재추첨
 
-상세 구현: [후보·결과 저장](docs/03-database/drawing-selection-storage.md) · [관리자 조회·검증](docs/02-api/admin-draw-inspection.md) · [공개 저장](docs/03-database/draw-publication-storage.md) · [실패 복구](docs/06-runbook/draw-execution-recovery.md)
+```mermaid
+flowchart LR
+    Cancel["사유를 남겨 당첨 취소"] --> Register["취소 이력·새 실행 등록"]
+    Register --> Candidates["최초 낙첨 후보·가중치 재사용"]
+    Candidates --> Redraw["빈 자리만 재추첨"]
+    Redraw --> Review["관리자 재검토"]
+```
+
+기존 결과를 삭제하거나 덮어쓰지 않고 `award_cancellations`에 취소 이력을 추가합니다. 최초 후보 중 기존 당첨자와 당첨 취소자를 제외하며, 취소 대상이 아닌 당첨자와 경품은 유지합니다.
+
+재추첨은 최초 후보 상세를 복사하지 않고 새 실행에 연결합니다. 결과도 이번에 보충할 자리만 새 행으로 저장합니다.
+
+#### 결과 확정과 공개
+
+```mermaid
+flowchart LR
+    Request["관리자 발표 요청"] --> Check["최신 명단·확정 상태 검사"]
+    Check --> Save["최종 확인·전체 공개 명단 저장"]
+    Save --> Published["이벤트 공개 상태 전환"]
+    Published --> Read["사용자 결과 조회"]
+    Save --> Job["알림 작업 등록"]
+```
+
+발표 요청 한 번으로 필요한 실행별 확인 기록, 전체 공개 명단, 이벤트 상태 변경과 알림 작업 등록을 같은 트랜잭션에서 처리합니다.
+
+| 저장 위치 | 역할 |
+| --- | --- |
+| `draw_result_confirmations` — 결과 최종 확인 이력 | 실행별 확인자·확인 시각 |
+| `draw_publications` — 공개 명단 버전 | 실제 발표자·공개 시각·버전 |
+| `draw_publication_results` — 공개 결과 연결 | 유지 당첨자와 재추첨 당첨자를 합친 실제 명단 |
+| `draw_publication_executions` — 공개 실행 확인 근거 | 당첨자가 없는 실행까지 포함한 확인 근거 |
+
+사용자는 실제 공개 버전의 결과를 조회합니다. 공개 전에는 당첨 정보를 숨기고, 공개 명단에는 마스킹한 이름과 전화번호 끝 4자리를 제공합니다.
+
+#### 중복 요청·실패 시 처리
+
+| 상황 | 처리 |
+| --- | --- |
+| 같은 최초 추첨 등록 요청 | 기존 실행 재사용, 이벤트·차수 UNIQUE로 중복 등록 방지 |
+| 이미 확정된 실행 재요청 | 저장된 결과 ID·당첨 순서 반환 |
+| 결과 저장 중 실패 | 결과와 확정 상태를 함께 롤백, 등록된 실행 ID 유지 |
+| 실행 중 서버 중단 | 소유권 만료와 실패·재시도 상태를 기준으로 같은 실행 복구 |
+| 검토 후 명단 변경 | 이전 실행 ID의 발표 요청 거절 |
+| 같은 성공 발표 재요청 | 기존 공개 버전 반환, 확인·공개·알림 작업 중복 생성 방지 |
+| 공개 후 알림 처리 실패 | 알림 재시도로 처리하고 확정·공개 결과 유지 |
+
+#### 설계·기술 선택과 사용 이유
+
+| 선택 | 사용 이유 |
+| --- | --- |
+| 순수 선정기와 저장 서비스 분리 | DB 없이 가중치 구간과 선정 순서를 검증하고, API·워커가 같은 업무 로직 재사용 |
+| 실행 등록·입력 준비·결과 확정 분리 | 중단·실패 후에도 실행 ID와 고정 입력을 유지 |
+| 이벤트 → 실행 잠금 | 같은 이벤트의 동시 확정과 실행 간 배정 충돌 제어 |
+| UNIQUE·복합 FK | 실행별 자리·후보·순서 중복과 잘못된 후보 연결 방지 |
+| 불변 결과·별도 취소 이력 | 최초 선정부터 취소·재추첨까지 원래 근거 추적 |
+| 공개 버전 분리 | 내부 변경과 실제 사용자 공개 명단 구분 |
+
+#### 검증 결과
+
+| 검증 범위 | 실행 기록일·관련 작업 | 결과 |
+| --- | --- | --- |
+| 실제 응모·차감과 후보 스냅샷 | 2026-10-15, GD-131 | 관련 MySQL 검증 17개 성공 |
+| 공개 명단·본인 결과·마스킹 | 2026-10-15, GD-140 | 관련 검증 26개 성공 |
+| 공개·취소·재추첨·사용자 조회 | 2026-10-15~16, GD-199 구현본 | 관련 MySQL 검증 39개 성공, 전체 테스트·빌드 2,215개 성공 |
+
+가중치 구간 경계, 후보 부족, 잘못된 수량·가중치·자리, 실제 잠금 경합, 동시 확정과 저장 실패 롤백을 검증했습니다. 전체 테스트 수는 프로젝트 전체 집계이며 이번 README 수정에서는 테스트를 재실행하지 않았습니다.
+
+[상세 시퀀스 다이어그램](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Drawing-Sequences)
 
 </details>
 
@@ -882,20 +1030,3 @@ API의 앱 기동·Swagger 테스트는 `api/src/integrationTest/java/com/getddo
 GitHub Actions의 `빌드·테스트`는 러너의 Docker에서 같은 `./gradlew build`를 실행합니다. 별도 DB 비밀값 설정은 필요하지 않습니다. 실패한 테스트 보고서는 `test-reports` 아티팩트에서 확인할 수 있습니다.
 
 `PR 제목 검사`는 [공용 PR 제목 규칙](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/01-conventions/pull-request.md)에 맞는지 별도로 확인합니다. PR 생성·수정·커밋 추가 시 실행하며, 제목·본문만 수정하면 Gradle 빌드는 실행하지 않습니다. 제목 오류로 병합을 막으려면 main/dev Ruleset의 필수 상태 검사에 `PR 제목 검사`를 등록합니다.
-
-<details>
-<summary>기존 전체 테스트 실행 기록 (2026-10-16, dev 15f2d95c)</summary>
-
-2026-10-16 KST, dev `15f2d95c` 기준으로 전체 `test build`를 실행해 **BUILD SUCCESSFUL**을 확인했습니다.
-
-| 구분 | 실행 수 | 결과 |
-| --- | ---: | --- |
-| DB 없는 단위·MVC·설정 검증 | 1,195 | 실패·오류·건너뜀 0 |
-| Testcontainers MySQL 통합 검증 | 1,009 | 실패·오류·건너뜀 0 |
-| **합계** | **2,204** | **성공** |
-
-실제 잠금·중복 처리·마감 경계·롤백·공개 버전과 API 계약을 검증합니다. [Wiki 테스트 결과](https://github.com/Uplus-GETDDO/getddo-be/wiki/Mentoring-Tests)에 실행 명령·모듈/기능별 결과·원본 JSON/CSV를 정리했습니다. 같은 날 S3Mock에서 확인한 객체 입출력 17개는 이 집계와 별도입니다.
-
-이 결과는 로컬 기능 검증이며 부하 처리량·실제 AWS 배포·FE 전체 흐름·S3/CloudFront 연동 완료를 뜻하지 않습니다. 후속 작업의 원격 CI 상태와 실제 연동 검증은 별도로 확인합니다.
-
-</details>
