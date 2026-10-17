@@ -11,11 +11,13 @@ import com.getddo.core.common.pagination.PageQuery;
 import com.getddo.core.entry.domain.EntryHistoryQuery;
 import com.getddo.core.entry.domain.EntryReceipt;
 import com.getddo.core.entry.domain.EntrySummary;
+import com.getddo.core.entry.exception.EntryErrorCode;
 import com.getddo.core.entry.service.EntryHistoryService;
 import com.getddo.core.ticket.domain.TicketGrade;
 
 import static com.getddo.db.ticket.TicketGrantSeeds.bytes;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** 실제 MySQL에서 플래티넘 응모권이 보유·응모·저장·이력 조회 전 경로에서 한 등급으로 다뤄지는지 검증한다. */
 class PlatinumTicketIntegrationTest extends EntryIntegrationTestSupport {
@@ -71,16 +73,14 @@ class PlatinumTicketIntegrationTest extends EntryIntegrationTestSupport {
 		UUID event = weightedEvent(2);
 		UUID entryId = UUID.randomUUID();
 		// when
-		try {
-			entryService.enter(command(userId, event, entryId, tickets(TicketGrade.PLATINUM, 3)));
-		} catch (RuntimeException expectedRejection) {
-			// 상한(2장) 초과 거절
-		}
+		assertThatThrownBy(() -> entryService.enter(command(userId, event, entryId, tickets(TicketGrade.PLATINUM, 3))))
+				.satisfies(e -> assertEntryError(e, EntryErrorCode.TICKET_LIMIT_EXCEEDED));
 		// then
 		List<EntrySummary> items = historyService.findMyEntries(userId,
 				new EntryHistoryQuery(null, null, null, null), new PageQuery(1, 10)).getItems();
 		assertThat(items).hasSize(1);
 		assertThat(items.get(0).getEntry().getRequestedTicketsByGrade().get(TicketGrade.PLATINUM)).isEqualTo(3L);
 		assertThat(items.get(0).getEntry().getDeductedTicketCount()).isZero();
+		assertThat(items.get(0).getEntry().getRejectionCode()).isEqualTo("ENTRY-007");
 	}
 }
