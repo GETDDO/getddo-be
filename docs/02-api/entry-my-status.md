@@ -29,4 +29,4 @@ Set<UUID> entered = myEntryStatusService.findEnteredEventIds(userId, pageEventId
 ## 검증
 
 - 단위: `MyEntryStatusServiceTest`(저장소 위임, 비로그인·빈 목록은 저장소를 읽지 않음).
-- 작업 중 로컬 MySQL로 접수된 이벤트만 반환하고, 거절만 있는 이벤트와 응모하지 않은 이벤트, 다른 사용자는 반환하지 않는 것을 한 번 확인했고 그 테스트는 저장소에 남기지 않았다. 통합 테스트는 포함하지 않았다.
+- 실제 MySQL: `MyEntryStatusIntegrationTest`(접수된 이벤트만 반환, 거절만 있는 이벤트·응모가 없는 이벤트·다른 사용자의 응모는 제외, 여러 번 응모해도 한 번만, 목록에 없는 이벤트는 제외, 기록 없는 사용자와 없는 이벤트는 빈 집합).
