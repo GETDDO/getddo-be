@@ -59,7 +59,7 @@
 - 사용자 오류는 `core/user/exception`의 `UserErrorCode`와 `BusinessException`을 상속한 `UserException`으로 묶는다. Service에서 `UserException`을 던지며 공통 예외 처리기를 그대로 사용한다.
 - 성공 JSON 응답은 `ResponseEnvelope.success(data)`를 사용한다. 데이터가 없는 JSON 응답은 `success(null)`을 사용하고, 본문이 없는 HTTP 204와 구분한다. 상태 코드와 공개 메시지는 오류 의미에 맞춘다.
 - 예외 원문, SQL, 비밀값, 개인정보를 공개 메시지나 로그에 넣지 않는다. API 필드·상태·오류 코드를 바꾸면 프론트엔드 계약과 호환성을 확인한다.
-- HTTP 메서드는 `GET`·`POST`·`PUT`·`DELETE`를 사용하고 `PATCH`는 사용하지 않는다. 기존 API의 메서드나 수정 의미가 이 기준과 다르면 공용 API 명세와 프론트엔드 영향을 확인한 뒤 변경한다.
+- HTTP 메서드는 `GET`·`POST`·`PUT`·`DELETE`를 우선 사용하고, `PATCH` 사용은 지양한다. 기존 API의 메서드나 수정 의미가 이 기준과 다르면 공용 API 명세와 프론트엔드 영향을 확인한 뒤 변경한다.
 
 ## 8. 시간, 주석과 테스트
 
