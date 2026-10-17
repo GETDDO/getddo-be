@@ -4,7 +4,7 @@
 - 구현 위치: `core/audit`, `storage/db/audit`
 - 공용 범위: [감사 기록 명세](https://github.com/Uplus-GETDDO/getddo-spec/blob/main/05-api/audit.md) — 기록은 유지하며 공통 감사 조회 API는 제외
 
-각 기능의 Service가 `AuditLogService.record(AuditLogCommand)`를 호출해 기존 `audit_logs`에 변경 이력을 추가한다. A는 공통 저장 기반을, 소비 담당자는 기록할 시점·내용·실제 호출부를 담당한다. 공통 감사 검색·목록·상세 API는 2026-10-15 사용자 결정으로 이번 버전에서 제외한다. 이 작업은 공통 저장 기반과 테스트용 연결을 제공하며 실제 업무 호출부나 조회 REST API를 추가하지 않는다.
+각 기능의 Service가 `AuditLogService.record(AuditLogCommand)`를 호출해 기존 `audit_logs`에 변경 이력을 추가한다. A는 공통 저장 기반을, 소비 담당자는 기록할 시점·내용·실제 호출부를 담당한다. 공통 감사 검색·목록·상세 API(AU01/AU02)와 전용 조회 화면은 2026-10-15 사용자 결정으로 이번 버전에서 제외한다. 내부 기록과 기존 감사 테이블·데이터는 유지하며, 개별 업무의 운영 내역 조회는 해당 계약을 따른다. 이 작업은 공통 저장 기반과 테스트용 연결을 제공하며 실제 업무 호출부나 조회 REST API를 추가하지 않는다.
 
 ## 입력 계약
 
