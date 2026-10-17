@@ -36,6 +36,7 @@
 | [V023](../../storage/db/src/main/resources/db/migration/ticket/V023__add_ticket_expiry_scan_index.sql) | `tickets`의 `(status, expires_at)` 인덱스 | GD-135 응모권 만료 워커가 만료 시각이 지난 사용 가능·반환됨 응모권을 찾는 조회(`FOR UPDATE SKIP LOCKED`). 공개 API는 추가하지 않음 |
 | [V025](../../storage/db/src/main/resources/db/migration/mission/V025__add_mission_submission_request_hash.sql) | `mission_submissions.request_hash` | GD-175 미션 제출(M03)의 같은 제출 ID 재전송 본문 비교. 처음 요청의 SHA-256을 보존한다. 이 컬럼을 기록하기 전의 제출은 빈 문자열이다. 공개 API는 추가하지 않음 |
 | [V027](../../storage/db/src/main/resources/db/migration/event/V027__add_event_lifecycle_due_indexes.sql) | `events`의 상태·삭제 여부·시작/마감 기한 인덱스 두 개 | GD-203 모집 상태 전환의 상태별 due 후보 조회. 새 테이블·컬럼·공개 API는 추가하지 않음 |
+| [V028](../../storage/db/src/main/resources/db/migration/event/V028__link_banner_events_and_catalog_lock.sql) | `banners.event_id`, `banner_catalog_lock` | GD-209 이벤트 연결·빈 목록 쓰기 잠금. 기존 URL·행·CHECK·UNIQUE 보존. 실제 DB 적용은 미실행 |
 
 ## 응모 API 현행 매핑 (GD-134, GD-145, GD-200)
 
